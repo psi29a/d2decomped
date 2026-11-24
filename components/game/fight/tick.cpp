@@ -509,24 +509,34 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
             // hit as a player is (combat.md). Its death drops; the player
             // gets the experience when the killer or the dead one carries
             // its curse (FUN_0057e7b0: the stat list's owner, flag 0x800).
-            // ponytail: a monster's missiles, poison and Mana Burn reach only
-            // the players' side; monsters block as a player does; the
-            // experience is the first player's.
+            // The monsters' missiles fly with these foes too (missiles_update).
+            // ponytail: a monster's poison and Mana Burn reach only the players'
+            // side; monsters block as a player does; the experience is the
+            // first player's.
             const std::size_t allies = foes.size();
-            if (std::ranges::any_of(monsters, [](const Monster& monster) { return monster.align || monster.set_kind; }))
-                for (const auto& monster : monsters) {
-                    const auto target = monster.target(*game_data);
-                    auto fighter = d2d::rules::simple_fighter(monster.stats.a1_min, monster.stats.a1_max, monster.stats.to_hit, target.armor_class);
-                    fighter.block = target.block;
-                    for (std::size_t k = 0; k < 4; ++k) fighter.res[k] = std::min(target.res[2 + k], 95);
-                    const auto& type_info = game_data->monsters.types[std::size_t(monster.type)];
-                    Foe& foe = foes.emplace_back(Foe{ monster.unit.x, monster.unit.y, monster.stats.level, monster.targetable() && monster.mode != "DT", monster.unit.walking, fighter });
-                    foe.size = type_info.size; foe.threat = type_info.threat; foe.monster = &monster; foe.id = monster.id; foe.room_stamp = monster.unit.room_stamp;
-                    monster_foe_props(*game_data, monster, foe);
-                    foe.pick = unit_pick(*game_data, { target.res[0], target.res[1], target.res[2], target.res[3], target.res[4] }, monster.aura, monster.aura_lvl,
-                                         d2d::rules::swing_max_damage(monster.swing_stats(), monster.swing_mode));
-                    foe.pick.state_b = now_ms < monster.chill_until;   // state 0xb, cold
-                }
+            // `for_missiles`: a monster's CollideFriend missile in flight (FUN_005a8730) strikes its owner's
+            // friends, so the monsters are foes then too, aligned or not.
+            const auto monster_foes = [&](bool for_missiles) {
+                const bool collide_friend = for_missiles && std::ranges::any_of(missiles, [](const Missile& missile) {
+                    return missile.owner >= 0 && !missile.friendly && missile.info && missile.info->collide_friend;
+                });
+                if (collide_friend || std::ranges::any_of(monsters, [](const Monster& monster) { return monster.align || monster.set_kind; }))
+                    for (const auto& monster : monsters) {
+                        const auto target = monster.target(*game_data);
+                        auto fighter = d2d::rules::simple_fighter(monster.stats.a1_min, monster.stats.a1_max, monster.stats.to_hit, target.armor_class);
+                        fighter.block = target.block;
+                        fighter.dr_pct = target.res[0];       // its physical resistance (FUN_0057bf80's percent, as player_blow's res[0])
+                        for (std::size_t k = 0; k < 4; ++k) fighter.res[k] = std::min(target.res[2 + k], 95);
+                        const auto& type_info = game_data->monsters.types[std::size_t(monster.type)];
+                        Foe& foe = foes.emplace_back(Foe{ monster.unit.x, monster.unit.y, monster.stats.level, monster.targetable() && monster.mode != "DT", monster.unit.walking, fighter });
+                        foe.size = type_info.size; foe.threat = type_info.threat; foe.monster = &monster; foe.id = monster.id; foe.room_stamp = monster.unit.room_stamp;
+                        monster_foe_props(*game_data, monster, foe);
+                        foe.pick = unit_pick(*game_data, { target.res[0], target.res[1], target.res[2], target.res[3], target.res[4] }, monster.aura, monster.aura_lvl,
+                                             d2d::rules::swing_max_damage(monster.swing_stats(), monster.swing_mode));
+                        foe.pick.state_b = now_ms < monster.chill_until;   // state 0xb, cold
+                    }
+            };
+            monster_foes(false);
             std::vector<Monster> born;
             auto* rooms_in_play = &spawning.levels[level];
             act_as(*heroes.front());
@@ -542,21 +552,24 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                 if (thorns_kill) killed(i, now_ms);              // on a player's thorns
             }
             const auto cursed = [&](const Monster& monster) { return monster.curse.skill >= 0 && now_ms < monster.curse.until; };
-            for (std::size_t i = allies; i < foes.size(); ++i) {
-                const auto monster_index = i - allies;
-                auto& struck = monsters[monster_index];
-                const bool was_alive = struck.alive();
-                // One damage record a landed blow (FUN_0057c6c0 then FUN_0057cee0's monster branch, which a
-                // pet or a hireling takes too): its own armor pool, then its get-hit on its own class and mark.
-                bool dead = was_alive && take_blows(struck, foes[i], now_ms);
-                // Its Crushing Blows after the hits, less its own damageresist
-                // (FUN_005bffc0), and a knockback as the player's (knock_back).
-                for (const int divisor : foes[i].crushed)
-                    if (!dead && struck.alive()) dead = hurt(*game_data, struck, int(crushing_blow(struck.hit_points, divisor, struck.target(*game_data).res[0])), now_ms);
-                if (!dead && was_alive && struck.alive() && foes[i].knocked_from) knock_back(struck, foes[i].knocked_from->first, foes[i].knocked_from->second, now_ms);
-                if (dead)
-                    killed(monster_index, now_ms, cursed(struck) || std::ranges::any_of(foes[i].melee_by, [&](int striker) { const int at_index = this->monster_index(striker); return at_index >= 0 && cursed(monsters[std::size_t(at_index)]); }));
-            }
+            const auto monster_blows = [&] {
+                for (std::size_t i = allies; i < foes.size(); ++i) {
+                    const auto monster_index = i - allies;
+                    auto& struck = monsters[monster_index];
+                    const bool was_alive = struck.alive();
+                    // One damage record a landed blow (FUN_0057c6c0 then FUN_0057cee0's monster branch, which a
+                    // pet or a hireling takes too): its own armor pool, then its get-hit on its own class and mark.
+                    bool dead = was_alive && take_blows(struck, foes[i], now_ms);
+                    // Its Crushing Blows after the hits, less its own damageresist
+                    // (FUN_005bffc0), and a knockback as the player's (knock_back).
+                    for (const int divisor : foes[i].crushed)
+                        if (!dead && struck.alive()) dead = hurt(*game_data, struck, int(crushing_blow(struck.hit_points, divisor, struck.target(*game_data).res[0])), now_ms);
+                    if (!dead && was_alive && struck.alive() && foes[i].knocked_from) knock_back(struck, foes[i].knocked_from->first, foes[i].knocked_from->second, now_ms);
+                    if (dead)
+                        killed(monster_index, now_ms, cursed(struck) || std::ranges::any_of(foes[i].melee_by, [&](int striker) { const int at_index = this->monster_index(striker); return at_index >= 0 && cursed(monsters[std::size_t(at_index)]); }));
+                }
+            };
+            monster_blows();
             for (const auto& side : sides)
                 if (foes[side.at].blessed) side.hero->wisp_blessing = { foes[side.at].blessed, now_ms + 0x1a5e00u * 40 };   // FUN_006251f0: 0x1a5e00 frames
             // Impregnate's state off at a death (FUN_005d21b0): the skill's summon
@@ -640,6 +653,7 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                 }
                 flying.push_back({ missile.sound, missile.dies, missile.x, missile.y, missile.info->hit_sound });
             }
+            monster_foes(true);                                  // a monster's missile strikes the monsters hostile to its owner (FUN_005a8730)
             missiles_update(*level, missiles, foes, rng, now_ms, reach, [&](Missile& missile) {
                 if (Hero* caster = hero_of(missile.caster)) act_as(*caster);
                 merc_blow = casting_merc = missile.by_merc;
@@ -648,6 +662,9 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                 for (std::size_t i = 0; i < monsters.size(); ++i) {
                     auto& monster = monsters[i];
                     if (!monster.targetable()) continue;
+                    // FUN_005a8730: the player's side's missile passes a monster on its side (rogue2, a converted
+                    // one) by, unless CollideFriend (FUN_00554200: the owner, a player, against its alignment).
+                    if (d2d::rules::friends(2, monster.align) && !(missile.info && missile.info->collide_friend)) continue;
                     if (const int size = game_data->monsters.types[std::size_t(monster.type)].size;
                         moving ? !missile_struck(*level, missile, monster.unit.x, monster.unit.y, size) : !standing_struck(missile, monster.unit.x, monster.unit.y, size)) continue;
                     if (missile.row) {                             // a shrine's potion: everyone in its burst
@@ -683,6 +700,8 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                         monprop_hit(monsters[std::size_t(shooter)], foe, true);
                         cursed_hit(*game_data, monsters[std::size_t(shooter)], foes, foe);
                     }
+            monster_blows();                                     // the monsters' missiles' blows on monsters
+            foes.resize(allies);
             for (const auto& side : sides) {
                 act_as(*side.hero);
                 return_fire(foes[side.at], now_ms);              // the missiles that reached the player just now
