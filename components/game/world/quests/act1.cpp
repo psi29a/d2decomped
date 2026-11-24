@@ -74,8 +74,7 @@ auto World::act1_enter(const Level& from) -> void {
 // treasure, then FUN_005954f0. Tyrael's portal to Harrogath (InitFn 78,
 // FUN_005b5840), Baal's portals (75, FUN_0058e670) and the last portal (77,
 // FUN_0058e710) take their record's mode: the game's first mode 1, later ones 2
-// (both Selectable; mode 0 isn't).
-// ponytail: what takes such a portal from mode 1 to 2 isn't traced; it stays in 1, selectable there.
+// (both Selectable; mode 0 isn't); the client's OP counter takes mode 1 to 2 (slime_doors_on).
 auto World::init_new_objects() -> void {
         auto& seen = objects_inited[level];
         for (; seen < level->npcs.size(); ++seen) {

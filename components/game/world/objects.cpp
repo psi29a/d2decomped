@@ -24,6 +24,7 @@
 #include <quest_music.hpp>
 #include <quests.hpp>
 #include <quests_act3.hpp>
+#include <quests_act5.hpp>
 #include <rules.hpp>
 #include <shrines.hpp>
 #include <skills.hpp>
@@ -750,6 +751,10 @@ auto World::set_door_mode(int npc_index, int mode, std::uint32_t now_ms) -> void
 // player: Fight::near_players, as the monsters'); one due while it wasn't
 // comes as it's run again. A level no player is on
 // runs no rooms.
+// Tyrael's portal to Harrogath (566), Baal's (563, 569) and the last portal
+// (565) their InitFns put in mode 1 go to 2 on the client's own: OP's counter
+// (CycleAnim1 0, not IsDoor) at FrameCnt1 - 1 (FUN_004bcbb0), with Selectable2;
+// their OperateFns don't read the mode.
 auto World::slime_doors_on(std::uint32_t now_ms) -> void {
         if (durance_stairs_due.level == level && now_ms >= durance_stairs_due.at_ms) {
             for (std::size_t i = 0; i < level->npcs.size(); ++i)
@@ -760,7 +765,9 @@ auto World::slime_doors_on(std::uint32_t now_ms) -> void {
             if (key.first != level || state.mode != 1 || std::size_t(key.second) >= level->npcs.size()) continue;
             const auto& door = level->npcs[std::size_t(key.second)];
             using namespace d2d::rules::operate_fn;
-            if (!std::ranges::contains(std::array{ kSlimeDoor, kGate, kStairs, kDuranceStairs }, door.operate_fn) || !fight.near_players(door.x, door.y)) continue;
+            const bool quest_portal = std::ranges::contains(std::array{ d2d::rules::object_ids::kLastPortal, d2d::rules::EveQuest::kChamberPortal, d2d::rules::EveQuest::kThronePortal,
+                                                                        d2d::rules::EveQuest::kLastPortal }, door.object_id);
+            if ((!quest_portal && !std::ranges::contains(std::array{ kSlimeDoor, kGate, kStairs, kDuranceStairs }, door.operate_fn)) || !fight.near_players(door.x, door.y)) continue;
             const int on_ticks = object_op_ticks(door);
             if (on_ticks < 0) continue;
             const std::uint32_t on_ms = state.when + std::uint32_t(on_ticks) * kTickMs;
