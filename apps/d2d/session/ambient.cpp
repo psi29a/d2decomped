@@ -28,7 +28,6 @@
 #include <cstdlib>
 #include <format>
 #include <optional>
-#include <tuple>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -142,8 +141,45 @@ auto ClientSession::critter_tick(std::uint32_t frame_ms) -> void {
             const int across = std::max(std::abs(int(std::lround((to_x - from_x) * 5))) - 1, 0), down = std::max(std::abs(int(std::lround((to_y - from_y) * 5))) - 1, 0);
             return (std::min(across, down) + 2 * std::max(across, down)) / 2;
         };
-        auto walk_to = [&](Critter& critter, float x, float y, int after) {   // FUN_004aff60: walk there, then wait
-            critter.goal_x = x; critter.goal_y = y; critter.after = after;
+        auto stand = [&](Critter& critter, int frames) {
+            critter.wait = frames;
+            if (critter.walking) critter.mode_ms = frame_ms;
+            critter.walking = false;
+            critter.path.clear();
+        };
+        auto flies = [](int row) { return row == ids::kBird1 || row == ids::kBird2 || row == ids::kParrot; };
+        // A critter's collision (FUN_0064d910 with its path's mask +0x50 and pattern +0x48: its
+        // MonStats flying / opendoors, MonStats2 SizeX): its subtile, the plus, or the 3x3 box.
+        auto blocks = [&](const Critter& critter, int sub_x, int sub_y) {
+            const bool known = std::size_t(critter.row) < game_data.mon_npc.size();
+            const auto shape = known ? game_data.mon_npc[std::size_t(critter.row)].shape : d2d::game::UnitShape{ 1, 2, 0x3c01 };
+            auto blocked_off = [&](int off_x, int off_y) { return level->blocked_here((float(sub_x + off_x) + 0.5f) / 5, (float(sub_y + off_y) + 0.5f) / 5, std::uint16_t(shape.mask & 0x0fff)); };
+            if (blocked_off(0, 0)) return true;
+            if (shape.pattern == 0) return false;
+            if (blocked_off(-1, 0) || blocked_off(1, 0) || blocked_off(0, -1) || blocked_off(0, 1)) return true;
+            return shape.box() && (blocked_off(-1, -1) || blocked_off(1, -1) || blocked_off(-1, 1) || blocked_off(1, 1));
+        };
+        // FUN_004aff60, command 1: the walk's path (FUN_004804a0 -> FUN_00649970,
+        // rules::critter_path; steps +0x91: 0xe, a bird's 0x4d), to a spot in its
+        // room or one near it (FUN_00463740; the camp keeps no rooms: its level).
+        // No path: neutral (LAB_004b0d33), the wait unset.
+        auto walk_to = [&](Critter& critter, float x, float y, int after) {
+            const int from_x = int(std::floor(critter.x * 5)), from_y = int(std::floor(critter.y * 5));
+            const int to_x = int(std::floor(x * 5)), to_y = int(std::floor(y * 5));
+            bool roomed = level->inside(x, y);
+            if (roomed && !level->rooms.empty()) {
+                const int room = d2d::game::room_of(*level, x, y);
+                const auto close_by = d2d::game::near_rooms(game_data, *level, critter.x, critter.y);
+                roomed = std::ranges::any_of(close_by, [&](const auto& entry) { return entry.first == level && entry.second == room; });
+            }
+            auto path = roomed ? d2d::rules::critter_path(from_x, from_y, to_x, to_y, flies(critter.row) ? 0x4d : 0xe,
+                                                          [&](int sub_x, int sub_y) { return blocks(critter, sub_x, sub_y); })
+                               : std::vector<std::pair<int, int>>{};
+            if (path.empty()) { stand(critter, 0); return; }
+            critter.path = std::move(path);
+            critter.goal_x = (float(critter.path.front().first) + 0.5f) / 5;
+            critter.goal_y = (float(critter.path.front().second) + 0.5f) / 5;
+            critter.after = after;
             if (!critter.walking) critter.mode_ms = frame_ms;
             critter.walking = true;
         };
@@ -158,11 +194,6 @@ auto ClientSession::critter_tick(std::uint32_t frame_ms) -> void {
             walk_to(critter, critter.x + away_x * float(radius) / 5, critter.y + away_y * float(radius) / 5, after);
             return true;
         };
-        auto stand = [&](Critter& critter, int frames) {
-            critter.wait = frames;
-            if (critter.walking) critter.mode_ms = frame_ms;
-            critter.walking = false;
-        };
         // FUN_0046c600: the nearest player, or monster other than a chicken or bunny (the town's NPCs too),
         // dead or alive (critter_neighbour). d2d's critters don't die.
         auto nearest_other = [&](const Critter& critter) {
@@ -174,16 +205,20 @@ auto ClientSession::critter_tick(std::uint32_t frame_ms) -> void {
                 if (level->npcs[i].root != "objects" && !view.npc_states[i].hidden) best = std::min(best, apart(critter.x, critter.y, view.npc_states[i].x, view.npc_states[i].y));
             return best;
         };
-        auto flies = [](int row) { return row == ids::kBird1 || row == ids::kBird2 || row == ids::kParrot; };
         for (auto& critter : critters) {
-            if (critter.walking) {                          // at its Velocity (MonStats), stopped by what's in the way
+            if (critter.walking) {                          // its path's points at its Velocity (MonStats), stopped by what's in the way
                 const float speed = std::size_t(critter.row) < game_data.mon_npc.size() ? d2d::game::cells_per_sec(game_data.mon_npc[std::size_t(critter.row)].velocity) * 0.04f : 0.1f;
                 const float dx = critter.goal_x - critter.x, dy = critter.goal_y - critter.y, left = std::hypot(dx, dy);
                 if (left > 0.01f) critter.dir = d2d::game::direction16(dx, dy);
                 const float step = std::min(speed, left);
                 const float next_x = critter.x + (left > 0 ? dx / left * step : 0), next_y = critter.y + (left > 0 ? dy / left * step : 0);
-                if (left <= speed || (!flies(critter.row) && level->blocked_here(next_x, next_y, 0x3c01))) { stand(critter, critter.after); if (left <= speed) { critter.x = next_x; critter.y = next_y; } }
-                else { critter.x = next_x; critter.y = next_y; }
+                if (left > speed && blocks(critter, int(std::floor(next_x * 5)), int(std::floor(next_y * 5)))) { stand(critter, critter.after); continue; }
+                critter.x = next_x; critter.y = next_y;
+                if (left > speed) continue;
+                critter.path.erase(critter.path.begin());   // the point reached: on to the next, or done
+                if (critter.path.empty()) { stand(critter, critter.after); continue; }
+                critter.goal_x = (float(critter.path.front().first) + 0.5f) / 5;
+                critter.goal_y = (float(critter.path.front().second) + 0.5f) / 5;
                 continue;
             }
             if (critter.wait > 0) { --critter.wait; continue; }
@@ -248,14 +283,13 @@ auto ClientSession::critter_tick(std::uint32_t frame_ms) -> void {
                 if (critter.marked && player_gap > 25) { critter.row = -1; continue; }
                 critter.marked = true;
                 // A spot 40 subtiles off the player on one axis, rand(40) on the
-                // other, each signed by a coin; it flies 3 x that from where it is,
-                // its path's distance capped at 77 (FUN_00648e70: 0x5a -> 0x4d).
+                // other, each signed by a coin; it flies to 3 x that less 2 x where
+                // it is, on its path (walk_to: 0x4d steps, FUN_00648e70(0x5a)).
                 int across = 40, down = 40;
                 if (critter.seed.next() & 1) down = critter.seed(40); else across = critter.seed(40);
                 if (critter.seed.next() & 1) across = -across;
                 if (critter.seed.next() & 1) down = -down;
-                float to_x = 3 * (player_x + float(across) / 5) - 2 * critter.x, to_y = 3 * (player_y + float(down) / 5) - 2 * critter.y;
-                std::tie(to_x, to_y) = d2d::rules::flight_end(critter.x, critter.y, to_x, to_y);   // 77 steps at most
+                const float to_x = 3 * (player_x + float(across) / 5) - 2 * critter.x, to_y = 3 * (player_y + float(down) / 5) - 2 * critter.y;
                 walk_to(critter, to_x, to_y, 0);
                 continue;
             }
