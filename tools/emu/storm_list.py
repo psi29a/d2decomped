@@ -3,7 +3,7 @@
 
 Run: uv run python storm_list.py [--exe /path/to/game.exe] [--mutation-check]
 
-# gaps-runs: FUN_004203a0 FUN_004203f0 FUN_00420520 FUN_004205f0 FUN_00420650 FUN_004206e0 FUN_00420750 FUN_00420790
+# gaps-runs: FUN_004203a0 FUN_004203f0 FUN_00420520 FUN_004205f0 FUN_00420650 FUN_004206e0 FUN_00420750 FUN_00420790 FUN_00420880
 
 Each case builds a well-formed list in emulator memory: the list (`+0` the
 link offset, `+4` its terminator link: `+4` the last link, `+8` the first
@@ -107,6 +107,11 @@ class Model:
             if address == 0x420790 and m != "destroy_keeps_terminator":
                 unlink(mem, ecx + 4)
             return None, freed, glob
+        if address == 0x420880:
+            unlink(mem, ecx)
+            if args[0] & 1 and m != "delete_never_frees":
+                freed.append((ecx, 0x6CC824, M32, 0))
+            return ecx, freed, glob
         raise AssertionError(address)
 
 
@@ -119,6 +124,7 @@ MUTATIONS = {
     0x4206E0: ["raw_next_prev"],
     0x420750: ["clear_one"],
     0x420790: ["destroy_keeps_terminator"],
+    0x420880: ["delete_never_frees"],
 }
 
 
