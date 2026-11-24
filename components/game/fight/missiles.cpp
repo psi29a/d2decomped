@@ -344,6 +344,10 @@ auto Fight::impale_wear(const d2d::rules::Skill& skill, std::uint32_t now_ms) ->
 // carries the skill's damage (Skill) or none (the weapon's at
 // SrcDamage: Multiple Shot, Strafe); its hit functions: `burst`.
 // `any_owner`: a trap's shot, whose row names the player's skill.
+// Do 8 / 10 / 12 (FUN_005db410 0x5db51e..0x5db53d, FUN_005db6d0 0x5db74f..0x5db76b, FUN_005dba40 0x5dbb20..0x5dbb3f)
+// take srvmissileb (+0x4a) when it's set and the caster's weapon class (FUN_00623c60: its ItemsTxt wclass through
+// the map at 0x7446a0) isn't bow's 1: a crossbow's Multiple Shot and Strafe shoot bolts. tools/emu/bolt_pick.py runs
+// do 8. The weapon is the player's: the merc casts none of them.
 auto Fight::skill_missile(const d2d::rules::Skill& skill, bool any_owner ) const -> const GameData::MissileInfo* {
         static constexpr ServerDoFunction kDo[] = { ServerDoFunction::kMissileFan, ServerDoFunction::kScatteredBolts, ServerDoFunction::kNova, ServerDoFunction::kGuidedMissile,
             ServerDoFunction::kStrafe, ServerDoFunction::kChainLightning, ServerDoFunction::kMissileAtTarget, ServerDoFunction::kMissileWall,
@@ -356,7 +360,10 @@ auto Fight::skill_missile(const d2d::rules::Skill& skill, bool any_owner ) const
         if (skill.srvdofunc == ServerDoFunction::kAttack) return weapon_missile();
         const bool plain = (skill.srvstfunc == ServerStartFunction::kNone || skill.srvstfunc == ServerStartFunction::kCheckAmmo) && skill.srvdofunc == ServerDoFunction::kNone;
         const bool multi = std::ranges::contains(kSt, skill.srvstfunc) && std::ranges::contains(kDo, skill.srvdofunc);
-        const auto& name = plain ? skill.srvmissile : skill.srvmissilea;
+        const bool by_weapon = skill.srvdofunc == ServerDoFunction::kMissileFan || skill.srvdofunc == ServerDoFunction::kGuidedMissile
+                            || skill.srvdofunc == ServerDoFunction::kStrafe;
+        const auto& name = plain ? skill.srvmissile
+                         : by_weapon && !actor->player_combat.bow && !skill.srvmissileb.empty() ? skill.srvmissileb : skill.srvmissilea;
         if ((!plain && !multi) || name.empty()) return nullptr;
         const auto found = game_data->missiles.find(name);
         static constexpr int kHit[] = { 0, 1, 2, 3, 4, 7, 9, 10, 12, 13, 14, 17, 18, 20, 21, 22, 26, 29, 36, 37, 47, 48, 56 };
@@ -555,7 +562,7 @@ auto Fight::fire(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
             // middle (rules::missile_fan), each aimed at its subtile's centre.
             // ponytail: a side one's flag 0x10000 (Multiple Shot's) skips the shooter's domissiledamage events in
             // game.exe (0x59fe8d -> hit flag 0x80 -> 0x57c7bd: no Crushing Blow, Open Wounds or chance to cast from
-            // it); calc2's activation delay and srvmissileb for a crossbow (FUN_00623c60) aren't modelled either.
+            // it); calc2's activation delay isn't modelled either.
             const int from_x = int(std::floor(caster.x * 5)), from_y = int(std::floor(caster.y * 5));
             for (const auto& shot : d2d::rules::missile_fan(from_x, from_y, int(std::floor(caster.to_x * 5)), int(std::floor(caster.to_y * 5)), calc1,
                                                             calc(skill, skill.calc[2], lvl))) {

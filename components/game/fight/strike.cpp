@@ -139,6 +139,7 @@ auto Fight::player_fighter(d2d::rules::Fighter* kick ,
             const auto base = weapon ? game_data->rules.item_base.find(weapon->code) : game_data->rules.item_base.end();
             if (!weapon || base != game_data->rules.item_base.end())
                 fighter.attack_start = d2d::rules::attack_start_frame(actor->character.character_class, weapon ? std::string_view(base->second.wclass) : std::string_view{});
+            fighter.bow = weapon && base != game_data->rules.item_base.end() && base->second.wclass == "bow";   // FUN_00623c60 1
         }
         {                                                    // poison length reduction: the panel's difficulty penalty, no max stat so at most 75 (FUN_0057be00)
             const int diff = actor->character.header.active_difficulty();
