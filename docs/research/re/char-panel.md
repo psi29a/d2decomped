@@ -577,8 +577,28 @@ items' part (`item_max`) and Battle Orders' (`bo_life` / `bo_mana`).
   Measured: red (42,6,6) / blue (12,6,32) over (8,8,8), i.e. RGB 25 %.
   d2d: `tint_cells` (panels.hpp). Green is the loaded palette's nearest of
   (0, 0x80, 0). The draw passes the cell under the mouse when the list has no
-  cursor item. Flag 0x4 and the two `FUN_004c2240` inputs are arguments; the
-  draw does not know the stat list or state 0x36. Cursor mode 8 is not applied.
+  cursor item. Flag 0x4 and the two `FUN_004c2240` inputs are arguments;
+  state 0x36 is `View::uninterruptable`. Cursor mode 8 is not applied.
+  The flag-2 child list (`FUN_00625760(item, 2)`) is made by `FUN_004c21f0`
+  (ECX the item): unless the item already has a list for state 0x36
+  (`FUN_006256b0`), a new one (`FUN_006251f0(0, 2, 0xc, type, id)`: flags 2,
+  expiry field 0xc) with state word 0x36 (`FUN_006252d0`) and removal callback
+  `0x4c21e0` (clears state 0x36 on the unit); it is not hung on a unit. Its
+  callers (`game-calls.tsv`): `0x487740` (the grid's click, at 0x487830 and
+  0x4878fb with ECX = the clicked item; it first returns 0 when
+  `FUN_004c2240` reports the item), `0x48a730`, `0x48b7c0`, `0x48ffe0`,
+  `0x490780`, `0x490ba0`, `0x490fc0`, `0x4912a0`, `0x498870`, `0x498a90`; the
+  other handlers were not read for what they do with it. A second click on
+  the item in `0x487740` is refused, so it shows red and is inert until the
+  list is gone. Not traced: the sweep that removes it (the
+  other flag-2 lists in `FUN_006251f0`'s callers are skill states hung on
+  units, `0x4d2d70` state 0x56, `0x4f2450` state 0xc). The grid walk only takes
+  nodes with `FUN_0063e020` == 1, so the item on the cursor (`d2s` location 4)
+  is never tinted; d2d keeps it in `View::held`, not in the list, and
+  `session/draw.cpp` passes no mouse while it is held, so no cell goes green
+  (`FUN_00487000` leaves `0x7bcbe4` clear with an item in hand). d2d: World
+  applies a pickup or move at once, so no frame has the item in the pending
+  window; `ponytail:` at `tint_cells` keeps that.
 - **800x600 border** (`FUN_00499450`, mode 2): `PANEL\800BorderFrame` frames 0..4 round a
   left panel (`FUN_00498630`), 5..9 a right one (`FUN_00498700`), before the panels.
 - **Close buttons**: `PANEL\buysellbtn` 10 (11 held): the inventory's at W - 80 - 0x12e,
