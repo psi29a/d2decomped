@@ -1552,13 +1552,15 @@ int books_row(const Tables& tables, const std::string& code, bool scroll) {
 // mods and a socket roll); no ethereal or class affix (FUN_00557450's
 // tail, version 100+ only); sockets (FUN_00556b60) never on ItemTypes row 3
 // (tors), else min(most, 3), 2 on a helm (row 0x25), with no draw for it.
-// ponytail: without a unit seed (an imbue, tests) a rare's affixes are
-// 3..6 alternating prefix / suffix, a magic's 1/4 prefix, 1/4 suffix, 1/2
-// both (an elixir's base roll, FUN_0065e8e0, is in stubs.md: nothing
-// makes one); without a unit seed everything comes
-// off `rng` and none of the above is rolled; base damage isn't kept on
-// the item, so low's 75%, ethereal's 3/2 and dmg%'s +1 max damage on a
-// weak weapon only reach its props.
+// A rare's and a magic item's affixes (FUN_005c1bf0, FUN_005565e0) come off
+// the own seed alone, so they are rolled the same with or without a unit
+// seed (an imbue, tests); only the base rolls and the FUN_00557450 tail
+// need the unit seed.
+// ponytail: without a unit seed none of the other rolls above is made;
+// base damage isn't kept on the item, so low's 75%, ethereal's 3/2 and
+// dmg%'s +1 max damage on a weak weapon only reach its props. A code with
+// no ItemBase row still gets the old stand-in affix counts (game.exe has
+// no such item).
 d2d::d2s::Item roll_item(const Tables& tables, const std::string& code, int ilvl, int quality, Rng& rng,
                          Rng* unit_seed, std::vector<bool>* found_uniques, bool bovine,
                          int difficulty, int special_wanted, bool classic) {
@@ -1942,7 +1944,7 @@ d2d::d2s::Item roll_item(const Tables& tables, const std::string& code, int ilvl
         const ModItem target{ &item, base, kind, item_type && item_type->throwable, false };
         for (const auto& mod : list[std::size_t(row)].mods) apply_mod(tables, mod, item.props, rng, &target);
     };
-    if (quality == 6 && unit_seed && base) {
+    if (quality == 6 && base) {
         // Rare (FUN_00557450 case 6 -> FUN_005c21a0 -> FUN_005c1bf0): two
         // names, a RarePrefix then a RareSuffix row (FUN_005c1ab0: rand over
         // the rows of one of the item's itypes and none of its etypes,
@@ -2018,7 +2020,7 @@ d2d::d2s::Item roll_item(const Tables& tables, const std::string& code, int ilvl
         quality = 4;
     }
     if (quality == 6) {
-        // Rare with no unit seed (an imbue, tests): not game.exe's roll.
+        // Rare of a code with no ItemBase row: not game.exe's roll.
         item.quality = 6;
         item.rare1 = tables.rare_prefixes > 0 ? 156 + rng(tables.rare_prefixes) : 0;
         item.rare2 = tables.rare_suffixes > 0 ? 1 + rng(tables.rare_suffixes) : 0;
@@ -2029,7 +2031,7 @@ d2d::d2s::Item roll_item(const Tables& tables, const std::string& code, int ilvl
         }
         return item;
     }
-    if (quality == 4 && unit_seed && base) {
+    if (quality == 4 && base) {
         // Magic (FUN_00557450 case 4 -> FUN_005565e0): a prefix, then a
         // suffix (one at least: the suffix is forced when no prefix came),
         // each FUN_005c1560 (choose) with its mods at once. Then the staff
@@ -2043,9 +2045,8 @@ d2d::d2s::Item roll_item(const Tables& tables, const std::string& code, int ilvl
         staff_mods();
         return finish();
     }
-    // Magic with no unit seed (or no base): not game.exe's, and no game
-    // path comes here: drops, stores, gambles and the cube pass a unit
-    // seed, the starting kit is normal and an imbue rare. Tests only.
+    // Magic of a code with no ItemBase row: not game.exe's, and no game
+    // path comes here. Tests only.
     item.quality = 4;
     const int shape = rng(4);                              // 0 prefix, 1 suffix, 2-3 both
     if (shape != 1) item.prefix = add(true);

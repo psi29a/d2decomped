@@ -229,21 +229,20 @@ auto ClientSession::update(std::vector<std::uint8_t>& framebuffer, const Mouse& 
             for (const auto key : keys_this_frame) {
                 if (chat_typing && key == SDLK_BACKSPACE && !chat_typing->empty()) chat_typing->pop_back();
                 // The hire list's box takes Enter (FUN_004bebc0, its break queued before
-                // the draw count's test), not the chat: the selected row is hired, as a
-                // release over it would.
+                // the draw count's test): the selected row is hired, as a release over it would.
                 // It's the menu's WM_CHAR row (table 0x7273e4: FUN_004b7a90 asks each widget first), so
                 // what it breaks are characters, not key-downs: those have their own rows.
-                // ponytail: with the chat box open over a hire list its characters go to the chat here;
-                // whether game.exe's box takes them first (Storm's handler order) isn't traced.
-                if (!chat_typing && npc_menu.list && virtual_key(key) == 0x0d) {
+                // Storm hands a character to every handler registered for it, newest first, handled
+                // or not (FUN_00426f90): with the chat box open it gets Enter too (FUN_0047ca70).
+                if (npc_menu.list && virtual_key(key) == 0x0d) {
                     auto& list = *npc_menu.list;
-                    const int row = d2d::rules::list_enter(list.draws, list.hover, 0x0d);
-                    if (row >= 0 && std::size_t(row) < list.rows.size() && list.rows[std::size_t(row)].arg >= 0) {
-                        net.send(cmd::Hire{ list.rows[std::size_t(row)].arg });
+                    const auto takers = d2d::rules::enter_takers(chat_typing.has_value(), list.draws, list.hover);
+                    if (takers.hire_row >= 0 && std::size_t(takers.hire_row) < list.rows.size() && list.rows[std::size_t(takers.hire_row)].arg >= 0) {
+                        net.send(cmd::Hire{ list.rows[std::size_t(takers.hire_row)].arg });
                         npc_menu = {};
                     }
                     box_took_enter = true;
-                    continue;
+                    if (!takers.chat) continue;
                 }
                 if (!chat_typing) { if (keys::bound(key_table, keys::kChat, virtual_key(key))) chat_typing = std::string{}; continue; }   // the key config's Chat (Enter)
                 if (key != SDLK_RETURN && key != SDLK_KP_ENTER) continue;

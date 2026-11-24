@@ -230,6 +230,13 @@ struct ClientSession {
     ViewEncoder view_enc;                  // the host's memory of what this client was sent
     std::unique_ptr<NetGame> net_game;     // --join: a game on a game.exe host (its other players and monsters)
     std::unordered_map<std::uint32_t, Monster> net_monsters;
+    struct HostMissile {
+        d2d::game::Missile missile;
+        std::optional<std::uint64_t> target;
+        std::uint32_t stepped = 0;
+    };
+    std::vector<HostMissile> net_missiles;
+    const d2d::game::Level* net_missile_level = nullptr;
     struct ShownMode { int mode = -1; std::uint32_t skill_ms = 0, since = 0; };   // since: world ms
     std::unordered_map<std::uint32_t, ShownMode> net_other_modes;   // another player's mode, by unit id   // the host's monsters as d2d draws them, by unit id
     int net_attack = -1, net_attack_skill = 0;               // the host monster being attacked, with what
@@ -745,6 +752,8 @@ struct ClientSession {
     // A fresh game for the character: the Blood Moor's monsters at its
     // difficulty, no loot about.
     void net_overlay();                   // the joined host's units into `view`
+    void net_launch_missile(const NetGame::Unit& caster, const std::string& name, int skill_level, std::uint32_t born);
+    void net_step_missiles();
     void net_quests(std::uint32_t frame_ms);                    // ... and its NPCs' quest lines and balloons
     void take_npc_quest(int npc, std::vector<d2d::rules::QuestMsg> lines, std::uint32_t frame_ms);   // an NPC's quest lines: a greeting plays, the rest under Talk
     void new_game();

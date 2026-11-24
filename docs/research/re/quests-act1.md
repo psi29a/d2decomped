@@ -440,6 +440,8 @@ up the rejoin before the stones existed, and a save with the stones lit
 | FUN_005945f0 | sets +0x92 |
 | FUN_00594610 | reads +0x93, used by FUN_00572c10 (npc 0x92 interact) |
 
+The first think (`FUN_005e77a0`, command 3 still empty) calls `FUN_005944b0`; it returns 0 when +0x67 is set already (a second Cain unit on the record), and the think takes `FUN_005944f0` instead (then stat 6 = 0 and mode 0xc via `FUN_00627260` / `FUN_005ddfc0`, not ported). Either way the walk then goes on to the spot +3, +3 off the unit. d2d: `CainQuest::note_spot`, `tests/test_cain_spot.cpp`; oracle `tools/emu/quest_cain_spot.py`. Not traced: whether anything makes a second first think in a game (the Gibbet's one-shot spawn doesn't).
+
 - Talk closed with npc 0x92 sets +0x93 = 1.
 - Cain portal: InitFn 61 is FUN_00594290 (table 0x731bc0 entry 61: mode 1, event 7 25 frames on). Obj 0xbd's event 7 is FUN_005942c0, rescheduled every 25 frames whatever the mode: 1 -> 2; 2 -> 3 in level 1 (the camp side) once its counter +0x80, bumped each event there, passes 5 (then +0x92 = 1), elsewhere (Tristram) once +0x91 (Cain went in, FUN_005944f0); 3 -> 4. So Tristram's portal closes at the first event after Cain enters (mode 3), mode 4 25 frames later; the camp's after its sixth event in mode 2. Nothing removes the object. Its look (objects.txt 189, token tP = TP's files): mode 1 OP (15 frames at FrameDelta 200), 2 ON (9 at 160, cycling), 3 S1 (TPS1HTH: 15 at 160, CycleAnim3 1, so the closing loop runs the whole 25 frames), 4 S2 (TPS2HTH, its TR layer `tptrlits2hth`: FrameCnt4 1, FrameDelta 0: one frame held for good).
 

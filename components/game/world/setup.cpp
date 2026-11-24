@@ -507,6 +507,7 @@ auto World::spawn_merc() -> void {
             actor->merc->difficulty = header.active_difficulty();
             std::tie(actor->merc->unit.x, actor->merc->unit.y) = level->nearest_free(actor->player.x + 1, actor->player.y + 1);
             actor->merc_npc = &found->second.npc;
+            actor->merc_listed = ++actor->list_serial;   // FUN_005b1900 (hire, join, FUN_00579aa0's revive): the newest in the player's list
             fight.merc_joins();
         }
     }

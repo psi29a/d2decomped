@@ -890,6 +890,7 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
         fight.kills.clear();
         cloak_dips();
         credit_party([&] {
+            act1_update();
             act2_update();
             act3_update(now_ms);
             act4_update(now_ms);

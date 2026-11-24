@@ -84,7 +84,7 @@ fastcall ECX game, EDX monster; stack: AI control, out distance, out in-melee.
 
 The unit lists at game +0x10f8 are 10 heads of {unit, ?, next +8, prev +0xc} nodes; a unit's +0xd0 holds its list (0xb: none).
 
-- Lists 0..7 are one per player: the player at the head (FUN_005b1880), its pets after it (FUN_005b1900, from the summons FUN_00573270 / FUN_005c4b00 and the merc).
+- Lists 0..7 are one per player: the player at the head (FUN_005b1880), its pets after it (FUN_005b1900, from the summons FUN_00573270 / FUN_005c4b00 and the merc). FUN_005b1900 inserts right after the head (0x5b1966..0x5b1979), so the pet that entered last is tried first, and the walk takes only a strictly nearer one (0x5dd960): on a tie the newest pet wins. A summon enters where it is made; the merc when it is hired or joins and again on a revive (FUN_00579aa0 at 0x579b43). d2d: `rules::search_order` over each pet's `listed` stamp; `tools/emu/pets_merc.py` builds the list with game.exe's own calls and checks the pick.
 - List 8 holds good monsters (alignment 2): FUN_0054ef50's random spawns, AIs FUN_005edc50 / FUN_005ee3c0, superuniques with flag 0x400 and alignment 2 (FUN_005424f0). FUN_005b1990 adds them, FUN_005b1a90 takes them off.
 - List 9 holds neutral monsters (alignment 1): Confuse (FUN_005c3de0), Attract (FUN_005c3b90), FUN_005aeda0, FUN_005c58b0 / FUN_005c5bc0, superuniques with alignment 1.
 - Alignment is stat 0xac (FUN_006259b0; FUN_005543b0 sets it, ECX unit, DL value, and skips 0 on a unit with +0xc4 & 0x80000000): 0 evil, 1 neutral, 2 good. Players are 2; units not players or monsters read 2.
@@ -703,6 +703,15 @@ unit's death).
   (`FUN_006417f0`, at least 1): d x Range / 12 past 9, else d x Range /
   24 + Range / 2 (`FUN_0064a2b0` / `FUN_0064a330`). The missile stands
   (Vel 0), Activate 30, NextHit 10.
+  The stock sequence has 35 rows of A2 artwork and an action at row
+  13 (zero-based, displayed frame 7). `FUN_00621260` starts at 256
+  sequence units per tick. For DeathMaul, `FUN_00623f50` changes the
+  ordinary animation rate without changing that sequence rate.
+  `FUN_005539b0` queues the action and end at ticks 13 and 35.
+  Standalone `M5A2HTH` instead has 15 frames, rate 224 and an action
+  marker at frame 8, yielding ticks 10 and 18. Reproduce both cases with
+  `tools/emu/death_maul_timing.py --animdata <local AnimData.d2>` and
+  `ctest -R '^test_death_maul_timing$'` with 1.14d data.
 - **Shout** (Madawc, do 68 `FUN_005d83e0`, SC): the nova of srvmissilea
   (`FUN_0056d400`), its hit 18 putting the state on allies, and the
   aurastate on itself for auralen frames (`FUN_005d8290`).

@@ -697,6 +697,8 @@ struct CainQuest {
     bool resolved = false, camp_cain = false, camp_due = false, akara_log = false, closed_join = false;    // +0x50, +0x51, +0x52, +0x53, +0x63
     bool decipher_log = false, portal_made = false, tree_used = false;                                     // +0x64, +0x45, +0x58
     bool rescued_flag = false;  // the game's flag (4, 13): Cain rescued game-wide
+    bool spot_noted = false;    // +0x67: Cain's AI noted the spot (FUN_005944b0)
+    int spot_x = 0, spot_y = 0; // +0x9c / +0xa0: it, in subtiles (FUN_005943b0 moves it on 3 and 3 when no room holds it)
     quest::Players missed, thanked;   // lists A (+0xb4: missed the rescue) and B (+0x138: heard Cain's thanks)
     quest::Players rewarded;          // rec+0x1c
 
@@ -786,6 +788,14 @@ struct CainQuest {
     // Tristram Cain went through his portal (FUN_005944f0: +0x91, +0x52):
     // camp Cain's due (FUN_005940e0 → FUN_00592960).
     void portal_entered() { camp_due = true; }
+    // Cain's AI's first think (FUN_005e77a0 -> FUN_005944b0): the spot he stands at is noted once for the
+    // record (+0x9c / +0xa0, flag +0x67): true then. False when it is noted already: the think takes
+    // FUN_005944f0 instead (portal_entered), and the spot stays the one noted.
+    bool note_spot(int x, int y) {
+        if (spot_noted) { portal_entered(); return false; }
+        spot_noted = true; spot_x = x; spot_y = y;
+        return true;
+    }
     // Cain's portal in Tristram (object 189.
     static int portal_closed_frame(int entered);
     // The portal's mode at `frame` from its opening, mode 4 at `closed` (portal_closed_frame.
@@ -817,6 +827,7 @@ struct TowerQuest {
     std::vector<int> chests;   // d+0x68 (count +0x88): cellar 5's chests (npc indices) as their rooms came up, at most 8
     bool first_talk = false;   // d+0x11a
     bool tome_early = false;   // d+0x11b: the tome read while log == 0
+    bool news = false;         // the log sent to each player (FUN_00544300 flag 1) since the World last took it
 
     // A player's bits for the state (LAB_00594890; 0x59494c by log).
     void mark(QuestBits& quest_bits) const {
@@ -833,7 +844,11 @@ struct TowerQuest {
     [[nodiscard]] int log_state(const QuestBits& quest_bits) const { return quest_log(quest_bits, kQuest, state, log, 4); }
     // A quest-clock step (QuestClock): the kill's timer sets the log to 13.
     void tick() {
-        if (log_in > 0 && --log_in == 0 && state == 5) log = 13;
+        if (log_in > 0 && --log_in == 0 && state == 5) { log = 13; news = true; }   // Q05_TimerNotifyCompletion (0x5954c0): log 0xd, flag 1
+    }
+    // Whether a player is sent the log (FUN_00594830): not one done (bit 0 or 15) without bit 13 or 14.
+    static bool log_goes_to(const QuestBits& quest_bits) {
+        return !(quest::bit(quest_bits, kQuest, 0) || quest::bit(quest_bits, kQuest, 15)) || quest::bit(quest_bits, kQuest, 13) || quest::bit(quest_bits, kQuest, 14);
     }
     // The Moldy Tome read, then its message 127 heard.
     void read_tome(QuestBits& quest_bits, int player);
@@ -856,8 +871,9 @@ struct TowerQuest {
         if (string == kTome) {                         // no NPC check
             bool changed = false;
             if (tome_early) {
-                if (log == 0) { log = 1; changed = true; }
-                if (log == 3) { log = 2; changed = true; if (state < 3) state = 3; }
+                if (log == 0) { log = 1; changed = true; }               // FUN_00594960: log 1, flag 1
+                if (log == 3) { log = 2; changed = true; if (state < 3) state = 3; }   // log 2, flag 1
+                news = news || changed;
             }
             if (state < 2) { state = 2; mark(quest_bits); }
             else if (changed) mark(quest_bits);
@@ -1028,10 +1044,10 @@ inline constexpr std::array<std::array<std::uint16_t, 29>, 27> kQuestLogRecords 
 } };
 // Whether the World sends a quest's log state itself, at its record's own FUN_00544300 flag-1 sites (each one
 // FUN_00544190 -> S->C 0x5d, ev::QuestNews), so the client doesn't read a change in the View's log for one.
-// Those are a3q6 (0x16: GuardianQuest), a4q2 .. a4q4 (0x19 Izual, 0x1a Terror's End, 0x1b Hellforge) and act 5's
-// 0x23 .. 0x28. The others (acts 1 and 2, a3q1 .. a3q5, a4q1's 0x18) keep the View's change for their sends.
+// Those are a1q5 (5: TowerQuest), a3q6 (0x16: GuardianQuest), a4q2 .. a4q4 (0x19 Izual, 0x1a Terror's End, 0x1b Hellforge) and act 5's
+// 0x23 .. 0x28. The others (a1q1 .. a1q4, a1q6, act 2, a3q1 .. a3q5, a4q1's 0x18) keep the View's change for their sends.
 [[nodiscard]] constexpr bool quest_log_sent_by_event(int quest) {
-    return quest == 0x16 || (quest >= 0x19 && quest <= 0x1b) || (quest >= 0x23 && quest <= 0x28);
+    return quest == 0x5 || quest == 0x16 || (quest >= 0x19 && quest <= 0x1b) || (quest >= 0x23 && quest <= 0x28);
 }
 // `state` is what the picker keeps as the quest's last shown state
 // (0x7bf380, -1 left as it was); `marks` when a change of it is news (+0x263:

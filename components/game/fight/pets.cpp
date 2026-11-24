@@ -68,6 +68,21 @@ int skill_class(const d2d::rules::Skill& skill) {
     return found == kClasses.end() ? 7 : int(found - kClasses.begin());
 }
 
+// A pet's own regeneration, its unit event 3 (FUN_005a6920) as monster_dots runs it for the monsters: from the frame
+// after a hurt (pet_hurt), its stat 0x4a (rules::monster_regen of the life it was made with, FUN_00573cb0) onto its
+// life each frame (rules::regen_frame), the event over once that passes its max life; under state 0x34 the event
+// ends without a gain (0x5a695c returns before it files itself again). tools/emu/pet_regen.py runs both.
+// ponytail: which runs first in a frame, a pet's hits or its event 3, isn't traced: here the hits (tick.cpp).
+// ponytail: FUN_0063a750 takes the base regeneration off under its states (poison, preventheal, open wounds);
+// d2d's pets take none of them.
+void pet_regen(Monster& monster, std::uint32_t now_ms) {
+    if (monster.regen_from == 0 || now_ms < monster.regen_from || !monster.alive()) return;
+    if (now_ms < monster.no_heal_until) { monster.regen_from = 0; return; }
+    const auto frame = d2d::rules::regen_frame(monster.life_fine(), monster.max_life_fine(), monster.stats.regen);
+    monster.set_life_fine(frame.life);
+    if (!frame.filed) monster.regen_from = 0;
+}
+
 }  // namespace
 
 // FUN_005eab20 by name: may a Shadow (MonStats row `type_info`, raised by
@@ -112,7 +127,7 @@ auto Fight::pet_foe(const Pet& pet) const -> Foe {
         const bool still = type_info.velocity == 0 && type_info.run == 0 && pet.ranged >= 0;   // a Hydra, like a trap, isn't there to hit
         Foe foe{ pet.monster.unit.x, pet.monster.unit.y, pet.monster.stats.level, pet.monster.alive() && pet.monster.mode != "DT" && pet.shot_skill < 0 && !still && pet.where == level,
                  pet.monster.unit.walking, fighter };
-        foe.pet = true; foe.size = type_info.size; foe.threat = type_info.threat; foe.id = pet.monster.id; foe.room_stamp = pet.monster.unit.room_stamp;
+        foe.pet = true; foe.size = type_info.size; foe.threat = type_info.threat; foe.id = pet.monster.id; foe.listed = pet.listed; foe.room_stamp = pet.monster.unit.room_stamp;
         monster_foe_props(*game_data, pet.monster, foe);
         foe.life_pct = int(std::int64_t(pet.monster.hit_points) * 100 / std::max(pet.monster.stats.hit_points, 1));
         const auto& own = type_info.diff[std::size_t(pet.monster.difficulty)].res;
@@ -122,8 +137,14 @@ auto Fight::pet_foe(const Pet& pet) const -> Foe {
         return foe;
     }
 
+// A hurt pet with a regeneration (stat 0x4a), alive after the hit, files its unit event 3 for the next frame
+// (FUN_0057c6c0 0x57c8fd..0x57c92f), removing a filed one first (0x57c916): pet_regen.
+// ponytail: game.exe's Crushing Blow (FUN_005bffc0) sets the life itself and files no event; here it's a pet_hurt.
 auto Fight::pet_hurt(Pet& pet, int damage, std::uint32_t now_ms, int hit_class, bool marked, int fraction) -> void {
-        if ((damage > 0 || fraction > 0 || pet.monster.lifeless) && pet.monster.mode != "DT") (void)hurt(*game_data, pet.monster, damage, now_ms, fraction, hit_class, marked);
+        if ((damage > 0 || fraction > 0 || pet.monster.lifeless) && pet.monster.mode != "DT") {
+            (void)hurt(*game_data, pet.monster, damage, now_ms, fraction, hit_class, marked);
+            if (pet.monster.alive() && pet.monster.stats.regen > 0) pet.monster.regen_from = now_ms + 40;
+        }
     }
 
 auto Fight::pets_cross(const Level* from, const Level* destination, float dx, float dy) -> void {
@@ -343,6 +364,7 @@ auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
         const auto save_class = std::size_t(std::max(actor->character.character_class, 0));
         for (const auto& made : std::exchange(actor->pet_summons, {}))            // a Shadow's traps and Blade Sentinel from last turn
             if (const auto* skill = game_data->skills.get(made.skill)) summon(*skill, made.level, made.x, made.y, now_ms);
+        for (auto& pet : actor->pets) pet_regen(pet.monster, now_ms);
         for (auto& pet : actor->pets) {
             auto& monster = pet.monster;
             auto& unit = monster.unit;

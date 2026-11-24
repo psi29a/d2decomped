@@ -228,7 +228,12 @@ struct Monster {
     int hit_class = 0;                        // the last hit's (unit +0xb0): the impact its GH / KB / DT plays
     int struck_by = -1;                       // the Foe::id that last struck at it, -1 none (unit +0xa0, FUN_00621d50 from FUN_0057c6c0)
     std::uint32_t mode_until = 0;             // ms: an attack / get-hit / death ends
+    std::optional<std::uint32_t> scheduled_action_ms;  // action deadline set when the mode starts
+    std::optional<std::uint32_t> scheduled_anim_position;  // visible position, in 256ths of a frame
+    std::uint32_t scheduled_anim_ms = 0;        // last whole tick included in that position
+    std::optional<std::uint32_t> scheduled_older_think_ms;  // think already pending when the mode queued its events
     bool lifeless = false;                    // its life rolled 0 (FUN_00573cb0): held at one point, any landed hit kills it
+    std::uint32_t regen_from = 0;             // ms: a pet's unit event 3 (its regeneration) runs from this frame; 0 not filed
     // Its think event (unit event 2): due at next_act, pending while that's
     // after thought_ms, when its think last ran. One due runs mid-mode too.
     std::uint32_t next_act = 0, thought_ms = 0;
@@ -558,6 +563,7 @@ struct Foe {
     bool a3q5_done = false;                   // a player, or its pet, with quest 0x15 bit 0 (the zealots spare it)
     int blessed = 0;                          // the wisps' dance's magic find (stat 0x50) put on it this frame
     d2d::rules::DiabloPick pick;              // what Diablo's target score reads off it (FUN_005e8530)
+    int listed = 0;                           // a pet's or merc's place in the player's list: the later it entered (FUN_005b1900), the earlier it is tried
     int id = -1;                              // a pet's or monster's Monster::id; a player's -2 - 2 x Hero::id, their merc's one below
     int striker_id = -1;                      // the Monster::id of the last blow that landed this frame, -1 none (the killer, FUN_0057cee0)
     // `striker`: the Monster::id it came from (FUN_0057cee0's attacker), -1 none.

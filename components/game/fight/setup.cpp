@@ -565,7 +565,12 @@ auto Fight::set_pmode(int mode, std::uint32_t now_ms) -> void {
             const auto* swing_row = game_data->skills.get(actor->swing_skill);
             const bool plain = actor->swing_skill == 0 || (swing_row && swing_row->anim == "A1");
             const int start = mode == kModeA1 && plain ? actor->player_combat.attack_start : 0;
-            const int rate = int(anim.speed ? anim.speed : 256), sias = actor->player_combat.sias + chill_rate(now_ms);
+            // The start's attackrate list (FUN_0056e520: Dragon Tail's -40) holds for this mode: rules::start_attack_rate.
+            // ponytail: only the server's length and action tick take it; the swing and start sounds below keep the
+            // client's rate without it (attackrate is Send Other in ItemStatCost; when the client gets it is not traced).
+            const int start_rate = swing_row && actor->swing_skill != 0
+                ? d2d::rules::start_attack_rate(game_data->skills, *swing_row, calc_env(), skill_level ? skill_level(actor->swing_skill) : 1) : 0;
+            const int rate = int(anim.speed ? anim.speed : 256), sias = actor->player_combat.sias + chill_rate(now_ms) + start_rate;
             const auto ticks = d2d::rules::attack_ticks(int(anim.frames), rate, actor->player_combat.ias, actor->player_combat.wsm, sias, start);
             len = std::uint32_t(ticks) * 40;
             if (anim.action >= 0) strike = std::uint32_t(d2d::rules::attack_action_tick(anim.action, rate, actor->player_combat.ias, actor->player_combat.wsm, sias, start)) * 40;

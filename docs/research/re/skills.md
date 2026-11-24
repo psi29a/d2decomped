@@ -2385,14 +2385,21 @@ Cited from the decompile (no oracle run); re-check with
   unit), links it with `d2d_rules_socket_props(unit, list, 1)`,
   sets **stat 0x44 (attackrate) = value** (FUN_00627150) and calls
   FUN_00623f50 (the rate recompute, whose body asserts `.\UNITS\Units.cpp`)
-  with the Skills.cpp file / line 0x12ab at the call site (the decompile
-  shows three arguments; FUN_00623f50's body reads only the unit, so the
-  extra two are not confirmed from asm). Callers: Dragon Tail's kick
-  start FUN_005d7090 and Bash's start FUN_005d7ea0, both just before the
-  to-hit roll (FUN_0057ec10). d2d: **not ported** as such; the nearest is
-  the SIAS term (combat.hpp:62), which the kick/bash paths do not add.
-  This function does not free the list (kind 4, no length):
-  **unverified** whether anything removes it later; not claimed.
+  with the unit, the Skills.cpp file and line 0x12ab (three pushes at
+  0x56e55f..0x56e569; FUN_00623f50 ends `ret 0xc`). Callers: Dragon Tail's kick
+  start FUN_005d7090 and Bash's start FUN_005d7ea0, both before the
+  to-hit roll (FUN_0057ec10). The list's flags 4 make it temporary: hanging
+  it sets flag 2 on the unit's list (FUN_00626e10), and SetMode
+  (FUN_00624690) runs FUN_006272e0 when the mode changes, which frees every
+  flags-4 list on the unit and clears that flag. The start runs after its
+  mode is set (the mode entry FUN_0057fef0: FUN_00553570, which is
+  FUN_0057c980 then SetMode, before FUN_0056faf0 -> FUN_0056f640 runs the
+  srvstfunc), so the attackrate holds for the mode the skill plays and comes
+  off at the next. Oracle: `tools/emu/skill_start_attackrate.py` (this
+  function and both starts up to their call of it). d2d:
+  `rules::start_attack_rate`, added to the swing's SIAS in `Fight::set_pmode`.
+  This function does not free the list itself; SetMode does, at the next
+  mode change (above).
 - **FUN_004c7be0** (83 bytes) is the same body with line 0x9e5; callers
   FUN_004c7cf0 and two sites at 0x4f26f3 / 0x4f2706. d2d: not ported.
 - **FUN_0056ff10**(unit in EDI, skill in the stack arg; only caller
@@ -2465,13 +2472,15 @@ Cited from the decompile (no oracle run); re-check with
   FUN_00623f50 re-rate is the new detail (d2d does not model it).
 - **FUN_005d7ea0** (Bash start, 536 bytes): before the roll it asks
   FUN_0061ab00(FUN_00620bb0(target)) (the town test used by DiabPrison
-  above) and returns 0 (no attack) in a town room; it evaluates the
-  record's calc3 (+0x140) and then calls FUN_0056e520, so the temporary
-  attackrate list of Bash is probably calc3 (the value register is not
-  visible in the decompile: likely, not certain). d2d: skills.md
+  above) and returns 0 (no attack) in a town room; then calc3 (+0x140) at
+  the skill and level (FUN_00646ca0) goes in EDX to FUN_0056e520
+  (0x5d7f0d `MOV EDX,EAX`): the temporary attackrate list is calc3, which
+  every shipped srvstfunc 32 row (Bash, Stun, Concentrate, Conversion,
+  BearSmite) leaves empty. d2d: skills.md
   "Melee skills" and strike.cpp:481 **agree** on the roll, flags, ED
   and the aurastate list (FUN_006251f0 kind 4, FUN_0056e900 callback,
-  FUN_005c6cc0); **not ported**: the town refusal and the attackrate list.
+  FUN_005c6cc0); the attackrate list is `rules::start_attack_rate`;
+  **not ported**: the town refusal.
 - **FUN_0056e970** (`d2d_states_put_state`, 622 bytes; fastcall, ECX = a
   put-state descriptor {unit-of-caster +0, target +4, state +0x1c,
   skill +8, level +0xc, length +0x10, stat +0x14 / value +0x18, callback
@@ -2501,15 +2510,17 @@ Cited from the decompile (no oracle run); re-check with
   Cited only: the table's meaning is not read. d2d: not ported.
 - **FUN_005d7090** (Dragon Tail start, srvstfunc 27, 238 bytes, fastcall;
   only reference 0x7321ac, the srvstfunc table): returns 0 for a skill
-  outside the Skills table or without a target (FUN_00553540). Otherwise
-  FUN_0056e520 (the temporary attackrate list above), to-hit
+  outside the Skills table. Otherwise it first calls FUN_0056e520 with
+  Param4 (+0x154, Dragon Tail's -40) as it is (0x5d70d7..0x5d70e1), then
+  returns 0 without a target (FUN_00553540); with one, to-hit
   = `d2d_skills_skill_tohit` + stat 0x145 (325) into FUN_0057ec10; on a
   hit (result & 1) FUN_005d54b0 builds the kick damage, then
   FUN_0057dbf0 applies it with SrcDam, record +0x1a5 (0x80 when 0;
   HitClass is the separate field at +0x134);
   returns 1 (also on a miss). d2d: **agrees** with skills.md "Dragon Tail"
   and strike.cpp:434 on the kick at toht + stat 325 and the 0x80 default;
-  unlike Bash it has no town refusal. **Not ported**: the attackrate list.
+  unlike Bash it has no town refusal. The attackrate list:
+  `rules::start_attack_rate` (the kick plays 40 points slower).
 
 ### Skill record and skill-list accessors (work package 004c9460, cited)
 

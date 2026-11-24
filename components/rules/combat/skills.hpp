@@ -283,6 +283,7 @@ struct Skill {
     std::array<std::string, 3> itype_a, itype_b;
     std::array<std::string, 2> etype_a, etype_b;
     std::string monanim;                   // +0x11: a monster's mode for it (FUN_00647110; xx: SQ)
+    std::string clt_missile;                // +0xe8: the missile made on the client's action frame
     int aitype = 0, aibonus = 0;           // +0x230 / +0x232: how the Shadows' AIs score it (pet-ai.md)
     int attack_rank = 0;                   // attackrank (+0x18e): Diablo's target score weighs it (FUN_005e8530)
     bool progressive = false;              // flags +4 bit 2: a charge-up
@@ -486,6 +487,9 @@ MissileDamage row_damage(int etype, int emin, int emax, const std::array<int, 5>
 MissileDamage missile_damage(const SkillTables& skill_tables, const Skill& skill, const CalcEnv& env, int lvl);
 // Attack rating bonus %: ToHitCalc, else ToHit + LevToHit x (lvl - 1).
 int skill_tohit(const SkillTables& skill_tables, const Skill& skill, const CalcEnv& env, int lvl, int depth = 0);
+// The attackrate (stat 68) a skill's server start puts on its user until the next mode change: Dragon
+// Tail's Param4 (-40), the Bash family's calc3 (empty in the shipped rows); 0 for any other start.
+int start_attack_rate(const SkillTables& skill_tables, const Skill& skill, const CalcEnv& env, int lvl);
 
 // An aura's next pulse (FUN_0056cda0 / FUN_0056ce70 arming unit event 8 /
 // 9, FUN_0056cd50 for the states a pulse puts): perdelay's calc at the

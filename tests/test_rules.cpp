@@ -722,6 +722,8 @@ int main() try {
                          .itypes = { "helm" }, .mods = { { "res-all", "", 10, 10 } } } };
     gamble_tables.uniques = { { .code = "cap", .level = 1, .mods = { { "skilltab", "4", 2, 2 }, { "hit-skill", "Frost Nova", 10, 3 } } } };
     gamble_tables.rare_prefixes = 10; gamble_tables.rare_suffixes = 10;
+    gamble_tables.rare_prefix_names = { { .itypes = { "helm" } } };   // a rare's names (FUN_005c1ab0)
+    gamble_tables.rare_suffix_names = { { .itypes = { "helm" } } };
     Rng roll{ 7 };
 
     assert(affix_level(10, 1, 0) == 10 && affix_level(99, 60, 0) == 99 && affix_level(80, 60, 0) == 61);
@@ -741,7 +743,7 @@ int main() try {
     const auto rare = generate_item(gamble_tables, "cap", 10, 6, roll);
     int pre = 0, suf = 0;
     for (int j = 0; j < 6; ++j) (j % 2 ? suf : pre) += rare.affixes[std::size_t(j)] != 0;
-    assert(rare.quality == 6 && pre == 1 && suf == 1 && rare.rare1 >= 156 && rare.rare2 >= 1);   // one per group
+    assert(rare.quality == 6 && pre == 1 && suf == 1 && rare.rare1 == 2 && rare.rare2 == 1);   // one per group
     const auto uni = generate_item(gamble_tables, "cap", 10, 7, roll);
     assert(uni.quality == 7 && uni.unique_id == 0 && uni.props.size() == 2);
     assert(uni.props[0].stat == 188 && uni.props[0].param == (1 << 3 | 1) && uni.props[0].value == 2);   // sorc tab 1
