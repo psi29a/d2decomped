@@ -218,6 +218,22 @@ int start_level(const MonType& type_info, int difficulty_index, int area_level) 
     return area_level;
 }
 
+// FUN_00573cb0 (0x57401f..0x574052): stat 0x4a = the life in 256ths x DamageRegen >> 12, the life shifted first
+// when it's over 0x7fffffff / DamageRegen; a DamageRegen with bits over 0xfff fails its assert (0x57401f).
+// tools/emu/pet_regen.py runs it.
+int monster_regen(int life, int damage_regen) {
+    if (damage_regen <= 0 || damage_regen >= 0x1000) return 0;
+    const int fine = life << 8;
+    return 0x7fffffff / damage_regen < fine ? (fine >> 12) * damage_regen : damage_regen * fine >> 12;
+}
+
+// FUN_005a6920, a monster's unit event 3, each frame it's filed: life (stat 6) += stat 0x4a; over the max life
+// (FUN_00625d10) the max, and the event removed. tools/emu/pet_regen.py runs it.
+RegenFrame regen_frame(int life, int max_life, int regen) {
+    const std::int64_t after = std::int64_t(life) + regen;
+    return after > max_life ? RegenFrame{ max_life, false } : RegenFrame{ int(after), true };
+}
+
 MonStats monster_stats(const Monsters& monsters, int type, int difficulty, Rng& rng, int level_add, int players, int area_level) {
     MonStats stats;
     if (type < 0 || std::size_t(type) >= monsters.types.size()) return stats;
@@ -242,10 +258,7 @@ MonStats monster_stats(const Monsters& monsters, int type, int difficulty, Rng& 
     const int hit_points = spawn_row.hit_points[std::size_t(difficulty_index)];
     stats.hit_points  = rng.range(pct(hit_points, per_difficulty.min_hp), pct(hit_points, per_difficulty.max_hp));
     stats.hit_points = int(std::min<std::int64_t>(stats.hit_points + std::int64_t(stats.hit_points) * player_life_pct(players) / 100, 0x7fffff));
-    // Stat 0x4a from that life in 256ths x DamageRegen / 4096, past
-    // 0x7fffffff / DamageRegen shifted first (a boss's mods come after).
-    if (const int life = stats.hit_points << 8, rate = type_info.damage_regen; rate > 0 && rate < 0x1000)
-        stats.regen = 0x7fffffff / rate < life ? (life >> 12) * rate : rate * life >> 12;
+    stats.regen = monster_regen(stats.hit_points, type_info.damage_regen);   // a boss's mods come after
     stats.armor_class  = pct(spawn_row.armor_class[std::size_t(difficulty_index)], per_difficulty.armor_class);
     stats.to_hit  = pct(level_row.to_hit[std::size_t(difficulty_index)], per_difficulty.a1_th);
     stats.to_hit2 = pct(level_row.to_hit[std::size_t(difficulty_index)], per_difficulty.a2_th);

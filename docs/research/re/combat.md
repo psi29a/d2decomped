@@ -529,6 +529,14 @@ for seeds 1 and 7. It has no reduction and no resistance on the defender
   DamageRegen the life shifts first); FUN_005a6920 (event 3, every frame)
   adds stat 0x4a, the net of regen and poison, to life up to its max, a
   gain held back under state 0x34. d2d: `MonStats::regen`, `monster_dots`.
+  A summon is made as a monster (`FUN_00555230` type 1 → `FUN_00574250` →
+  `FUN_00573cb0`), so it regenerates too: its stat 0x4a from the life it was
+  made with, before the summoning skill's bonus (`FUN_005c4470` sets no
+  0x4a), its event 3 filed by a hurt for the next frame (`FUN_0057c6c0`
+  0x57c8fd..0x57c92f) and ended once a frame passes its max life. d2d:
+  `rules::monster_regen`, `rules::regen_frame`, `pet_regen` (fight/pets.cpp);
+  tools/emu/pet_regen.py runs `FUN_00573cb0`'s formula and `FUN_005a6920`
+  (0 of 20,011 differ, seeds 1 and 2, 2026-11-24).
 - Not in yet: skills (skills.md), the weapon swap, champions/uniques.
 
 ## Hit recovery: the length (SUnit.cpp)

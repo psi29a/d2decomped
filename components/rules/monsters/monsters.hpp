@@ -282,6 +282,14 @@ int start_level(const MonType& type_info, int difficulty_index, int area_level);
 
 MonStats monster_stats(const Monsters& monsters, int type, int difficulty, Rng& rng, int level_add = 0, int players = 1, int area_level = -1);
 
+// Stat 0x4a, a monster's regeneration (256ths a frame), from the life it was made with (whole points) and its
+// MonStats DamageRegen; 0 for a DamageRegen out of 1..0xfff.
+int monster_regen(int life, int damage_regen);
+// One frame of a monster's unit event 3 with a regeneration over 0: its life after (256ths), and whether the event
+// stays filed.
+struct RegenFrame { int life = 0; bool filed = false; };
+RegenFrame regen_frame(int life, int max_life, int regen);
+
 // The AI's distance to a unit, subtiles: half of the smaller delta plus twice the larger.
 int ai_distance(int dx, int dy);
 
