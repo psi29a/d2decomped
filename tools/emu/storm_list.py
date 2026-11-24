@@ -3,7 +3,7 @@
 
 Run: uv run python storm_list.py [--exe /path/to/game.exe] [--mutation-check]
 
-# gaps-runs: FUN_0041c560 FUN_004203a0 FUN_004203f0 FUN_00420520 FUN_004205f0 FUN_00420650 FUN_004206e0 FUN_00420750 FUN_00420790 FUN_00420880
+# gaps-runs: FUN_0041c560 FUN_0041c630 FUN_004203a0 FUN_004203f0 FUN_00420520 FUN_004205f0 FUN_00420650 FUN_004206e0 FUN_00420750 FUN_00420790 FUN_00420880
 
 Each case builds a well-formed list in emulator memory: the list (`+0` the
 link offset, `+4` its terminator link: `+4` the last link, `+8` the first
@@ -34,6 +34,7 @@ POPS = {0x41C560: 1, 0x41C630: 1, 0x41C690: 1, 0x41C700: 1, 0x41C770: 0, 0x41C7B
 
 TWINS = {   # a second copy of the same code: address: its twin above
     0x41C560: 0x420520,
+    0x41C630: 0x4205F0,
 }
 
 
@@ -118,6 +119,7 @@ class Model:
 
 MUTATIONS = {
     0x41C560: ["link_or_wrong"],
+    0x41C630: ["next_node_unclamped"],
     0x4203A0: ["set_returns_0"],
     0x4203F0: ["next_link_ignores_offset"],
     0x420520: ["link_or_wrong"],
