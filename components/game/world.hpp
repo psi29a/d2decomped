@@ -462,6 +462,9 @@ struct World {
     void fissure_frame(std::uint32_t now_ms);
     struct Door { int mode = 0; std::uint32_t when = 0; };
     std::map<std::pair<const Level*, int>, Door> doors;   // doors used: their mode (0..7), when it changed
+    // The orb's mist lands on the Durance's stairs then (hit 35, FUN_005abee0): they go to mode 1.
+    struct StairsDue { const Level* level = nullptr; std::uint32_t at_ms = 0; };
+    StairsDue durance_stairs_due;
     struct Fire { const Level* level; const Npc* npc; float x, y; std::uint32_t born = 0, gone = 0; };
     std::vector<Fire> fires;               // chest traps 5 / 7 left these burning; the afterglow till `gone`
     bool afterglow_made = false;           // a3q7's record +0xc: the Dark Wanderer's afterglow, once a game
@@ -899,7 +902,8 @@ struct World {
     void take_carried(std::string_view code);
     void open_act(int act);                                    // FUN_00538680: the save's progression
     void class_cue(std::string_view line, std::uint32_t at_ms);   // the class's voice: <class>_<line>
-    void orb_mist(const Monster& orb, std::uint32_t now_ms);      // the compelling orb's break: its mist to object 386 (FUN_005dfee0)
+    // The compelling orb's break: its mist to object 386 (FUN_005dfee0); when it lands, now_ms without one.
+    std::uint32_t orb_mist(const Monster& orb, std::uint32_t now_ms);
     void place_camp_cain();                                        // camp Cain made by his start object (FUN_00592960)
     void music_cue(std::string_view sound);                       // one-shot quest music
     void music_cue_near(std::string_view sound, float x, float y);   // to each player whose room or one next to it holds (x, y)
