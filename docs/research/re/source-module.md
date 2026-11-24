@@ -34,6 +34,8 @@ The 15 SOURCE functions that stayed `cited` after this pass (file handles, messa
 text, window records) are traced in [storm-file.md](storm-file.md).
 Storm's command-line parser (`SCMD.CPP`) is traced in
 [storm-cmd.md](storm-cmd.md).
+Storm's image files (`SBMP.CPP`: TGA, BMP and PCX loads, PCX, GIF, TGA
+and BMP saves) are traced in [storm-bmp.md](storm-bmp.md).
 
 ## Findings and verification boundaries
 
