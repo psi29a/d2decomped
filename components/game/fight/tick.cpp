@@ -1147,7 +1147,20 @@ auto Fight::rooms_up(const Level& here, float x, float y, bool arrived) -> void 
             const auto& spawns = spawning.levels[grown].spawns;
             const auto& region = std::size_t(grown->id) < spawning.regions.size() ? spawning.regions[std::size_t(grown->id)] : d2d::rules::Region{};
             auto made = spawn_monsters(*game_data, std::span(spawns).subspan(from), region, rng, game_difficulty, game_players(), grown->id);
-            for (auto& monster : made) add_monster(std::move(monster), grown);
+            // A spawn's leader is a `spawns` index (its placement's first); in the level's monster list it's
+            // where that spawn landed, which other units made before (a quest's, a birth) and the rows
+            // spawn_monsters skips move.
+            auto& slots = spawning.levels[grown].spawn_slots;
+            slots.resize(spawns.size(), -1);
+            std::size_t next = 0;
+            for (std::size_t index = from; index < spawns.size() && next < made.size(); ++index) {
+                if (spawns[index].type < 0 || std::size_t(spawns[index].type) >= game_data->mon_npc.size()) continue;   // spawn_monsters' skip
+                auto& monster = made[next++];
+                const auto& list = grown == mon_level ? monsters : kept[grown];       // add_monster's
+                if (monster.leader == int(index)) monster.leader = int(list.size());   // its group's first: itself
+                else if (monster.leader >= 0) monster.leader = std::size_t(monster.leader) < slots.size() ? slots[std::size_t(monster.leader)] : -1;
+                slots[index] = add_monster(std::move(monster), grown);
+            }
         }
     }
 
