@@ -242,8 +242,15 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
         // A monster's guided one (missile do 7, FUN_005ae780: Bone Spirit)
         // turns to its foe every Param1 frames (0: 5) while that's 4..24 off
         // (FUN_006416d0: each axis less half the sizes, (short + 2 long) / 2);
-        // its owner dead (FUN_005541b0), it ends.
-        if (missile.info && missile.info->srv_do == 7 && !owner_alive(missile.owner)) return true;
+        // its owner dead (FUN_005541b0), FUN_005ae780 returns 2 and FUN_005adbb0
+        // frees it (FUN_00555600): no hit function (FUN_005adf10 isn't run), no
+        // HitSubMissile, and no remove packet (S->C 0x0a, FUN_0053bda0, sends
+        // nothing for a missile), so the client's copy flies on to its own end:
+        // here the server half goes, the drawn half stays.
+        if (missile.info && missile.info->srv_do == 7 && !owner_alive(missile.owner)) {
+            missile.visual_only = true;
+            return false;
+        }
         if (missile.info && missile.info->srv_do == 7 && missile.target >= 2) {          // past the player and merc: found again by id, or lost
             const auto found = std::ranges::find(foes, missile.target_id, &Foe::id);
             missile.target = found == foes.end() ? -1 : int(found - foes.begin());
@@ -381,7 +388,16 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
             if (taken.hit && missile.info) foe.struck_by(missile.info->hit_class);
             if (missile.info && missile.info->hit_func == 19 && missile.skill >= 0) foe.marked = { missile.skill, missile.level };   // FUN_005ab110
             if (missile.info && missile.info->return_fire && missile.owner >= 0) foe.fired_by.push_back(missile.owner);
-            return !missile.info || missile.info->collide_kill;
+            const bool ends = !missile.info || missile.info->collide_kill;
+            // The client's copy meets the unit too (ClientCol, FUN_004d30c0 -> FUN_004d2d70): with
+            // CollideKill 0 it flies on, but its ExplosionMissile goes off at its spot first.
+            if (!ends && moving && missile.info->client_col && missile.info->explosion && !missile.visual_only) {
+                const auto* explosion = missile.info->explosion;
+                Missile burst{ explosion, missile.x, missile.y, 0, 0, 0, now_ms, now_ms + std::uint32_t(std::max(explosion->range, 1)) * 40, {} };
+                burst.visual_only = true;
+                laid.push_back(std::move(burst));
+            }
+            return ends;
         }
         return false;
     };
@@ -390,8 +406,12 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
     // explosion starts at frame 0: RandStart (+0x17c) is read only by the
     // client's grid maker FUN_004ced60, not by FUN_004cdba0 or FUN_0059fa30
     // (missiles.md).
-    // ponytail: one that flies on through units (CollideKill 0) doesn't
-    // burst at each; a guided one losing its owner bursts as a hit.
+    // One that flies on through units (CollideKill 0) with ClientCol bursts
+    // at each unit the client's copy meets (FUN_004d2d70 runs ExplosionMissile
+    // before it tests CollideKill, then returns 0); a row with no ClientCol
+    // (impfireball, spidergoolay) tests no units there. Not traced: the unit
+    // flag the client reads (+0xc4 bit 2) and FUN_004cd310's change to the
+    // hit mask; a friendly missile's burst per unit (Fight, not here).
     // At its end Baal Taunt's lightning control (hit 58, FUN_005acdf0) sends
     // HitSubMissile1 at a random subtile within sHitPar1 (at least 1) of it,
     // drawn x then y on its seed (+0x20) set to {its subtile x, 666};

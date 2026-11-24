@@ -156,6 +156,26 @@ ExplosionMissile ≥ 0 that missile is made at the missile's spot
 (`FUN_004cdba0`), the same owner and level. With a unit hit, CollideKill 0
 leaves the missile flying.
 
+A missile that flies on through units (CollideKill 0) goes off at each one
+the client's copy meets: `FUN_004d2d70` runs the ExplosionMissile (`FUN_004cdba0`
+at the missile's spot) before it reads CollideKill (+0x186), and a unit hit
+with CollideKill 0 then returns 0, leaving it flying. Only a row with
+ClientCol (+0x185) tests units along its path in `FUN_004d30c0`. In
+Missiles.txt (read from the 1.14d MPQs) the rows with CollideKill 0, an
+ExplosionMissile and ClientCol 1 are bonespear, viper_bonespear, viper_fire
+and advlighttrailingjav; spidergoolay and impfireball (ClientCol blank) test
+no unit. d2d: `missiles_update` (monster missiles, `MissileInfo::client_col`)
+bursts at each hit unit; a friendly one's is not done there. Not traced: the
+unit flag the client reads (+0xc4 bit 2) and `FUN_004cd310`'s change to the
+hit mask.
+
+A server-side end that is not a hit: the guided do 7 (`FUN_005ae780`) returns 2
+when its owner is gone or dying (`FUN_005541b0`), and `FUN_005adbb0` then frees
+the missile (`FUN_00555600`) without `FUN_005adf10`: no hit function, no
+HitSubMissile. `FUN_0053bda0` (S->C 0x0a) sends nothing for a unit type 3, so
+the client's copy is not told and flies to its own end. d2d keeps it as a
+visual-only missile.
+
 `fireexplode` (a fire bolt's, the firebolt trap's): 12 frames (Range,
 AnimLen), RandStart 5, Light 13, additive, one direction. RandStart
 (record +0x17c, a word) is read only by the client's grid maker
