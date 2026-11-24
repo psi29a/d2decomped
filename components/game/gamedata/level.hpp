@@ -71,6 +71,7 @@ constexpr std::array<std::pair<float, float>, 12> no_spawns() {
 struct Level {
     int id = 0;                                        // Levels.txt Id (1: the Rogue Encampment)
     std::string name;                                  // Levels.txt LevelName
+    int pal = -1;                                      // Levels.txt Pal: the act whose palette it draws with (build_level); -1 its own act's
     int type = 1;                                      // its LevelType (AutoMap.txt rules)
     int world_x = 0, world_y = 0;                      // act tiles of its (0, 0): where it sits in the act
     int layer = 0;                                     // Levels.txt Layer: levels on one share an automap
@@ -146,6 +147,8 @@ struct Level {
     // of neighbouring levels.
     struct Near { const Level* level; int dx, dy; };
     mutable std::vector<Near> nearby;                  // linked as neighbours get built (install_level)
+    // The act palette (0 = ACT1) it draws with: its Pal, else its act's.
+    [[nodiscard]] int palette_act() const { return pal >= 0 ? pal : d2d::rules::level_ids::act_of(id); }
     [[nodiscard]] bool inside(float x, float y) const {
         return x >= 0 && y >= 0 && x < float(ds1.width()) && y < float(ds1.height());
     }

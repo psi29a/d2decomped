@@ -1454,6 +1454,10 @@ std::unique_ptr<Level> build_level(const GameData& game_data, GameData::LevelBui
     level->id = id;
     level->type = d2d::drlg::to_int(assets.levels.get(*row, "LevelType"));
     level->name = std::string(assets.levels.get(*row, "LevelName"));
+    // Its palette is its Pal's (Levels.bin +2: the loader's field table at 0x61c587), not its act's (+3):
+    // on a level change the client compares the two levels' Pal (0x465622) and loads palette\act{Pal+1}
+    // (FUN_004fb480). Abaddon, the Pit of Acheron and the Infernal Pit (125-127) have Act 4's (Pal 3).
+    level->pal = d2d::drlg::to_int(assets.levels.get(*row, "Pal"));
     // A preset the layout places (the Monastery Gate, DrlgType 2) builds as a preset: its rooms (64x18: an 8x2 row) are the DS1's.
     const bool outdoor = d2d::drlg::to_int(assets.levels.get(*row, "DrlgType")) == 3 &&
                          std::ranges::any_of(game_data.layouts.layout_of(id), [&](const auto& placement) { return placement.level == id; });
