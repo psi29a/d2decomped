@@ -43,6 +43,8 @@ def our_dump(first, last, kind):
 def main():
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     first, last = (int(v, 0) for v in (args[0] if args else "1-6").split("-"))
+    if last < first:
+        sys.exit(f"seeds {first}-{last} run backwards")
     e = drlg.boot()
     bad, cases = [], 0
     for kind in ORDERS:
@@ -51,7 +53,7 @@ def main():
             cases += 1
             game = game_dump(e, seed, kind)
             if game != ours[seed]:
-                bad.append((seed, kind, [(g, o) for g, o in zip(game, ours[seed]) if g != o][:3]))
+                bad.append((seed, kind, [(g, o) for g, o in zip(game, ours[seed], strict=False) if g != o][:3]))
     if bad:
         for seed, kind, diff in bad[:5]: print(f"seed {seed} order {kind}: {diff}")
         sys.exit(1)

@@ -487,6 +487,7 @@ int main(int argc, char** argv) try {
         const auto dash = range.find('-');
         const auto first = std::uint32_t(std::stoul(range.substr(0, dash), nullptr, 0));
         const auto last = dash == std::string::npos ? first : std::uint32_t(std::stoul(range.substr(dash + 1), nullptr, 0));
+        if (last < first) { std::fprintf(stderr, "camptiles: seeds %s run backwards\n", range.c_str()); return 2; }
         for (auto seed = first;; ++seed) {
             d2d::game::set_map_seed(*game, seed, dump_difficulty());
             const auto& town = game->town;
@@ -530,6 +531,7 @@ int main(int argc, char** argv) try {
         const auto dash = range.find('-');
         const auto first = std::uint32_t(std::stoul(range.substr(0, dash), nullptr, 0));
         const auto last = dash == std::string::npos ? first : std::uint32_t(std::stoul(range.substr(dash + 1), nullptr, 0));
+        if (last < first) { std::fprintf(stderr, "camp: seeds %s run backwards\n", range.c_str()); return 2; }
         for (auto seed = first;; ++seed) {
             d2d::game::set_map_seed(*game, seed, dump_difficulty());
             struct Rect { int x, y; };                          // room_rects: 8x8 rooms, row by row, less the DS1's edge
