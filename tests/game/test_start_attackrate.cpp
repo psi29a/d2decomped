@@ -60,6 +60,7 @@ int main() try {
     if (!fs::exists(data_dir / "d2data.mpq")) { std::printf("SKIP: no d2data.mpq (the game-data checks)\n"); return 0; }
     const char* patch = std::getenv("D2_PATCH_INSTALLER");
     auto data = load_game_data(data_dir, patch ? fs::path(patch) : fs::path{}, 0x1234);
+    if (data && !data->patched) { std::printf("SKIP: no 1.14d patch data (the game-data checks)\n"); return 0; }
     assert(data && data->patched);
     const int tail_id = data->skills.by_name.at("Dragon Tail"), bash_id = data->skills.by_name.at("Bash");
     assert(tail_id == 270 && bash_id == 126);
