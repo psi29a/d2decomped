@@ -852,6 +852,8 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
         for (const auto& player : players) before_fight.emplace_back(player->player.x, player->player.y);
         fight.world(in_moor, now_ms, elapsed, crowd);
         leash(before_fight);
+        // A barricade door's death opens its blocker on the level it died on, before a warp or portal below moves `level`.
+        for (const auto& kill : hosted_quests ? std::vector<Fight::Kill>{} : fight.kills) barricade_broken(kill, now_ms);
         den_count(now_ms);                                       // the killers' credit, then their party's (den_count)
         each_player([&](Player& player) {
             if (std::exchange(player.reassigned, false)) player.events.push_back(ev::Reassigned{});
@@ -868,7 +870,6 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
             }
         });
         for (const auto& kill : hosted_quests ? std::vector<Fight::Kill>{} : fight.kills) {
-            barricade_broken(kill, now_ms);
             const auto killer = std::ranges::find(players, kill.killer, [](const auto& player) { return player->id; });
             act_as(killer == players.end() ? lead() : **killer);   // the hooks read the killer's quests
             credit_party([&] {
