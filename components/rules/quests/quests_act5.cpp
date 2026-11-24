@@ -321,6 +321,25 @@ auto PrisonQuest::thaw_tick() -> int {
     return thaw_step;
 }
 
+// The Scroll of Resistance used (C->S 0x20, its branch at 0x55e4b4): bit 8
+// (FUN_0065c310) and not bit 7, else nothing (0x55e433); bit 7 set
+// (FUN_0065c360), FUN_0058a0a0 grants the resistances (scroll_resist) and
+// the scroll goes (FUN_0055e000).
+auto PrisonQuest::read_scroll(QuestBits& quest_bits) -> bool {
+    if (!quest::bit(quest_bits, kQuest, 8) || quest::bit(quest_bits, kQuest, 7)) return false;
+    quest::set(quest_bits, kQuest, 7);
+    return true;
+}
+
+// FUN_0058a0a0: 10 for each of the player's three quest words (FUN_006221a0
+// +0x10 / +0x14 / +0x18) with bit 7; FUN_00589ff0 puts it in a stat list of
+// its own on stats 39 / 41 / 43 / 45 (fire, lightning, cold, poison resist),
+// not saved: run at the read and as an expansion game is joined (0x539a1b,
+// game +0x70).
+auto PrisonQuest::scroll_resist(const std::array<QuestBits, 3>& by_difficulty) -> int {
+    return 10 * int(std::ranges::count_if(by_difficulty, [](const QuestBits& quest_bits) { return quest::bit(quest_bits, kQuest, 7); }));
+}
+
 // Malah's talk closes (FUN_00588f80).
 auto PrisonQuest::talk_closed(int npc) -> void {
     if (npc != kMalah) return;

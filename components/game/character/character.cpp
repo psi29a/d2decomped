@@ -8,6 +8,7 @@
 #include <d2s_items.hpp>
 #include <item_gen.hpp>
 #include <item_price.hpp>
+#include <quests_act5.hpp>
 #include <rules.hpp>
 #include <skills.hpp>
 #include <wear.hpp>
@@ -193,6 +194,9 @@ PanelStats panel_stats(const GameData& game_data, const d2d::d2s::Header& header
     const std::int64_t penalty = header.expansion() ? game_data.resist_penalty[std::size_t(diff)]
                                                : std::array<std::int64_t, 3>{ 0, -20, -50 }[std::size_t(diff)];
     constexpr int kRes[4] = { 39, 43, 41, 45 };
+    // The Scroll of Resistance's stat list (FUN_00589ff0), in an expansion game only (0x539a1b).
+    if (header.expansion())
+        for (const int stat : kRes) sum[std::size_t(stat)] += d2d::rules::PrisonQuest::scroll_resist(header.quests);
     for (int i = 0; i < 4; ++i) {
         const auto cap = std::min<std::int64_t>(75 + sum[std::size_t(kRes[i] + 1)], 95);
         panel.res[std::size_t(i)] = std::clamp<std::int64_t>(sum[std::size_t(kRes[i])] + penalty, -100, cap);
