@@ -67,6 +67,7 @@ address	name	evidence
 0041c560	slist_link_or_terminator_2	Same as slist_link_or_terminator (FUN_00420520), another copy (source-list.md)
 0041c630	slist_next_node_2	Same as slist_next_node (FUN_004205f0), another copy (source-list.md)
 0041c690	slist_unlink_2	Same as slist_unlink (FUN_00420650), another copy (source-list.md)
+0041c700	slist_raw_next_2	Same as slist_raw_next (FUN_004206e0), another copy (source-list.md)
 0041d200	mem_compare	memcmp (dword steps, then bytes): -1, 0 or 1. Callers FUN_0040d290, FUN_0041d300, d2d_warden_verify_signature, d2d_warden_module_load (source-frontier.md)
 0041d880	storm_bits_read_init	ECX bit reader, source (ret 4): +4 = first dword, +0 = source + 4, +8 = 32 (source-bits.md)
 0041d8d0	storm_bits_peek	ECX bit reader, n, mask (ret 8): refills 16 bits when the count is at most n; returns the held bits & mask (source-bits.md)
