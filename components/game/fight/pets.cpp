@@ -1295,14 +1295,17 @@ auto Fight::shadow_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd, int 
         if (missile_skill(*skill)) { fire(*skill, now_ms, caster); return; }
         if (skill->srvdofunc == ServerDoFunction::kPsychicHammer || skill->srvdofunc == ServerDoFunction::kMindBlast) { spot(*skill, now_ms, caster); return; }
         std::erase_if(pet.charges, [&](const Charge& charge) { return now_ms >= charge.until; });
-        if (skill->srvdofunc == ServerDoFunction::kDragonFlight && target >= 0) {   // do 52: beside the target, or the kick (as the owner's)
-            if (dragon_part & 1) {
+        if (skill->srvdofunc == ServerDoFunction::kDragonFlight) {   // do 52: beside the target, or the kick (as the owner's)
+            // The flight while the target exists (FUN_00553490 drops only a freed unit), a corpse too; the kick at a live one.
+            const int there = pet.target >= 0 && !monsters[std::size_t(pet.target)].gone ? pet.target : -1;
+            if ((dragon_part & 1) && there >= 0) {
                 if (in_town(level)) return;
                 auto& unit = pet.monster.unit;
-                put_near(*level, crowd, unit, foe.x, foe.y);
+                const auto& beside = monsters[std::size_t(there)].unit;
+                put_near(*level, crowd, unit, beside.x, beside.y);
                 unit.path.clear(); unit.walking = false;
             }
-            if (!(dragon_part & 2)) return;
+            if (!(dragon_part & 2) || target < 0) return;
             auto fighter = shadow_fighter(pet, actor->pf_kick);
             auto swing = skill_swing(*skill, lvl, calc_env(), false);
             add_charges(pet.charges, fighter, swing, false);

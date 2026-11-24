@@ -2,8 +2,8 @@
 // test-links: game
 // Dragon Flight in play (do 52, FUN_005d7850 on each event of its sequence 21, rows 9 and 14): the row
 // the event is read on (unit +0x38 >> 8, rules::seq_step_row) odd kicks the target where it stands, even
-// flies to it; at the plain rate the kick comes first, then the flight. A Shadow Master's plays its
-// MonSeq sequence the same way, through its own think too.
+// flies to it; at the plain rate the kick comes first, then the flight, to the target's corpse when the
+// kick killed it. A Shadow Master's plays its MonSeq sequence the same way, through its own think too.
 #include <ai/shadows.hpp>
 #include <ai/units.hpp>
 #include <character.hpp>
@@ -94,6 +94,27 @@ int main() try {
     assert(kicked_at > 0 && flown_at > kicked_at);
     assert(d2d::rules::seq_step_row(9, actor->seq_speed) % 2 == 1);
 
+    // The kick on row 9 kills it: the flight on row 14 still goes to the corpse, a unit until it is freed
+    // (FUN_00553490 drops the path's target only then; FUN_0056d2c0 gives its spot).
+    auto doomed = fight.monsters[0];
+    doomed.id = 0x7ffff1;
+    doomed.hit_points = 1;
+    doomed.unit.x = actor->player.x - 3.f; doomed.unit.y = actor->player.y;
+    const auto killed = fight.monsters.size();                     // past the level's own
+    fight.monsters.push_back(doomed);
+    now += 100 * kTickMs;
+    actor->character.stats.values[d2d::d2s::kMana] = 100 << 8;
+    const float back_x = actor->player.x;
+    const Order again{ actor->id, cmd::UseSkill{ flight, fight.monsters[killed].unit.x, fight.monsters[killed].unit.y, fight.monsters[killed].id, true, -1, false } };
+    world->tick({ &again, 1 }, now, now - kTickMs);
+    assert(actor->swing_skill == flight && !actor->seq.empty());
+    for (int frame = 1; frame < 60; ++frame) {
+        now += kTickMs;
+        world->tick({}, now, now - kTickMs);
+    }
+    std::printf("Dragon Flight at one it kills: %s, moved %.1f\n", fight.monsters[killed].alive() ? "alive" : "dead", double(back_x - actor->player.x));
+    assert(!fight.monsters[killed].alive() && back_x - actor->player.x > 1.f);
+
     // A Shadow Master's (Sk5mode seq_swdragonflight, events on rows 9 and 14 too, FUN_00663310's monster
     // branch): the same do on each event, at its SQ rate, the kick first, then the flight, on two frames.
     fight.monsters[0].hit_points = 100000;
@@ -135,6 +156,25 @@ int main() try {
     std::printf("the Shadow's Dragon Flight: kick at frame %d, flight at frame %d (rate %d)\n", kicked_at, flown_at, shadow.seq_rate);
     assert(kicked_at > 0 && flown_at > kicked_at);
     assert(d2d::rules::seq_step_row(9, shadow.seq_rate) % 2 == 1);
+
+    // The Shadow's, the same: killed by the kick, flown to all the same.
+    doomed.id = 0x7ffff2;
+    doomed.unit.x = shadow.monster.unit.x; doomed.unit.y = shadow.monster.unit.y + 6.f;
+    const auto killed_too = fight.monsters.size();
+    fight.monsters.push_back(doomed);
+    now += 100 * kTickMs;
+    const float shadow_back = shadow.monster.unit.y;
+    shadow.target = int(killed_too);
+    shadow.cast = flight;
+    fight.shadow_sequence(shadow, now);
+    assert(shadow.seq);
+    for (int frame = 1; frame < 60 && shadow.seq; ++frame) {         // to its end (then it thinks again)
+        now += kTickMs;
+        fight.crowd(crowd);
+        fight.pets_turn(now, float(kTickMs) / 1000.f, crowd);
+    }
+    std::printf("the Shadow's at one it kills: %s, moved %.1f\n", fight.monsters[killed_too].alive() ? "alive" : "dead", double(shadow.monster.unit.y - shadow_back));
+    assert(!fight.monsters[killed_too].alive() && shadow.monster.unit.y - shadow_back > 3.f);
     std::printf("test_dragon_flight_events: ok\n");
     return 0;
 } catch (const std::exception& error) {
