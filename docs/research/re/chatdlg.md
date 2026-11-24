@@ -46,8 +46,9 @@ handler for a typed line, first saves the line in the history
 
 - `FUN_0043e860` looks for a word, at word boundaries, whose length and
   hash (`FUN_00414150`) are the two dwords at `+0x3c7` and `+0x3c3` of
-  the frontend record `DAT_0077bbd8`. Where those two dwords are written
-  is not traced.
+  the frontend record `DAT_0077bbd8`. `FUN_00432080` writes the
+  password's hash and length there on the account screens, through
+  `DAT_007795d4` (likely the same record; frontend-mainmenus.md).
 - `FUN_0043e900` looks for 16 letters or digits in a row (`-` and space
   are skipped) that decode with `FUN_00449920` (the alphabet at
   `0x6d59f0`, then a checksum) as product 6, 7, 0xa or 0xc.
