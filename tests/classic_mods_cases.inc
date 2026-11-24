@@ -1,3 +1,4 @@
+// tools/emu/classic_mods.py gen 2000 1: FUN_0065fe10 on a version-0 item, a case and game.exe's line each
 { 121751464u, "cap", 50, 5, 12, "ac", "12", 0, 0, 3, "0741c7a8 cap i50 ac(12) 0..0 k3: [] def 5 dur 12/12 sock 0 f0 -> 0741c7a8" },
 { 95872739u, "tkf", 4, 0, 4, "ac-miss", "", 1, 2, 5, "05b6e6e3 tkf i4 ac-miss() 1..2 k5: [32:0=1] def 0 dur 4/4 sock 0 f0 -> d9315f49" },
 { 1001090105u, "jav", 45, 0, 2, "ac-hth", "224", 0, 0, 1, "3bab6c39 jav i45 ac-hth(224) 0..0 k1: [] def 0 dur 2/2 sock 0 f0 -> 3bab6c39" },

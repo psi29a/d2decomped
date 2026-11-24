@@ -4,7 +4,7 @@
     uv run python classic_mods.py gen 4000 1 > cases.tsv
     uv run python classic_mods.py game cases.tsv > g.txt   # game.exe's line per case
     build/tests/test_classic_mods cases.tsv > o.txt        # ours; diff g.txt o.txt
-    uv run python classic_mods.py inc cases.tsv g.txt > tests/classic_mods_cases.inc
+    uv run python classic_mods.py inc cases.tsv g.txt gen 2000 1 > tests/classic_mods_cases.inc   # the gen arguments go in its first line
 
 FUN_0065fe10 sends a version-0 item's mod to the handler and stat of its
 Properties row in the table at 0x745b58 (drops.md "A classic item's mods").
@@ -86,11 +86,12 @@ def game(path):
               f" dur {st.get(0x48, 0)}/{st.get(0x49, 0)} sock {st.get(0xc2, 0)} f{(e.r32(data + 0x18) >> 11) & 1} -> {e.r32(data + 4):08x}")
 
 
-def inc(path, game_lines):
+def inc(path, game_lines, how):
+    print(f"// tools/emu/classic_mods.py {how}: FUN_0065fe10 on a version-0 item, a case and game.exe's line each")
     for job, line in zip(cases(path), open(game_lines), strict=True):   # a short or long game.exe run is an error
         seed, code, ilvl, defence, dur, prop, param, low, high, kind = job
         print(f'{{ {seed}u, "{code}", {ilvl}, {defence}, {dur}, "{prop}", "{param}", {low}, {high}, {kind}, "{line.rstrip()}" }},')
 
 
 if __name__ == "__main__":
-    {"gen": lambda: gen(int(sys.argv[2]), int(sys.argv[3])), "game": lambda: game(sys.argv[2]), "inc": lambda: inc(sys.argv[2], sys.argv[3])}[sys.argv[1]]()
+    {"gen": lambda: gen(int(sys.argv[2]), int(sys.argv[3])), "game": lambda: game(sys.argv[2]), "inc": lambda: inc(sys.argv[2], sys.argv[3], " ".join(sys.argv[4:]) or "gen")}[sys.argv[1]]()
