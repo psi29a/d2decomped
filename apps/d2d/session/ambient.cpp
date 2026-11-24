@@ -15,6 +15,7 @@
 #include <light.hpp>
 #include <log.hpp>
 #include <monster_ids.hpp>
+#include <monsters.hpp>
 #include <outdoor.hpp>
 #include <quests.hpp>
 #include <rules.hpp>
@@ -100,6 +101,7 @@ auto ClientSession::critter_tick(std::uint32_t frame_ms) -> void {
             critters.clear();                              // the last level's go at once
             critters_level = level->id;
             critter_rooms.clear();
+            client_rooms = {};
         }
         // FUN_0044c750: a room's critters as it comes up on the client, when
         // the host adds it; d2d's rooms come up the same way (Spawning's `up`).
@@ -126,6 +128,15 @@ auto ClientSession::critter_tick(std::uint32_t frame_ms) -> void {
             }
         }
         const float player_x = view.player.x, player_y = view.player.y;
+        // The client's room lists: a unit is filed at its room's head as it comes in or moves rooms.
+        enum : int { kFiledPlayer = 0, kFiledMonster = 1, kFiledBody = 2 };
+        const auto file = [&](int kind, int id, float x, float y) -> const d2d::rules::ClientRooms::Filed& {
+            return client_rooms.file(kind, id, level->rooms.empty() ? -1 : d2d::game::room_of(*level, x, y));
+        };
+        for (const auto& monster : view.monsters) (void)file(kFiledMonster, monster.id, monster.unit.x, monster.unit.y);
+        for (const auto& other : view.others) (void)file(kFiledPlayer, int(other.id), other.unit.x, other.unit.y);
+        for (const auto& body : view.bodies) (void)file(kFiledBody, body.id, body.x, body.y);
+        client_rooms.drop_unseen();                         // the ones gone from view: new when they come back
         // FUN_006416d0: subtiles apart less half of each one's size (a critter's 0, a unit's 2), (smaller + 2 x larger) / 2.
         auto apart = [](float from_x, float from_y, float to_x, float to_y) {
             const int across = std::max(std::abs(int(std::lround((to_x - from_x) * 5))) - 1, 0), down = std::max(std::abs(int(std::lround((to_y - from_y) * 5))) - 1, 0);
@@ -190,18 +201,42 @@ auto ClientSession::critter_tick(std::uint32_t frame_ms) -> void {
             if (critter.row == ids::kRat || critter.row == ids::kScorpion || critter.row == ids::kLarva || critter.row == ids::kMiniSpider) {   // FUN_0046d110
                 if (player_gap < 2 && int(critter.x * 5) == int(player_x * 5) && int(critter.y * 5) == int(player_y * 5)) { stand(critter, 0); continue; }   // FUN_0046cbf0
                 if (player_gap < 4) { flee(critter, 6, 0); continue; }
-                // FUN_0046c660 over the units near: a corpse 3..25 off and over 7
-                // from the player, a coin flip each, the last one wins.
-                // ponytail: d2d's monsters then the players' bodies; game.exe's goes by its rooms' unit lists.
+                // FUN_0046c570 over the critter's room's near list (FUN_00463740's), each room's
+                // units newest first (+0x74, next +0xe8), FUN_0046c660 on each: a player in mode
+                // 0 or 0x11 or a monster in 0 (DT) or 0xc (DD) 3..25 off and over 7 from the
+                // player, a coin flip each; the last one wins.
                 std::optional<std::pair<float, float>> corpse;
                 auto consider = [&](float x, float y) {
                     const int gap = apart(critter.x, critter.y, x, y);
                     if (gap >= 3 && gap <= 25 && apart(x, y, player_x, player_y) > 7 && critter.seed(2) != 0) corpse = { x, y };
                 };
                 if (player_gap > 7) {
+                    std::vector<std::pair<float, float>> spots;
+                    std::vector<d2d::rules::RoomUnit> dead;
                     for (const auto& monster : view.monsters)
-                        if (!monster.alive() && !monster.gone) consider(monster.unit.x, monster.unit.y);
-                    for (const auto& body : view.bodies) consider(body.x, body.y);
+                        if (!monster.gone && (monster.mode == "DT" || monster.mode == "DD")) {
+                            const auto& filed = file(kFiledMonster, monster.id, monster.unit.x, monster.unit.y);
+                            spots.emplace_back(monster.unit.x, monster.unit.y);
+                            dead.push_back({ filed.room, true, filed.stamp });
+                        }
+                    for (const auto& other : view.others)
+                        if (other.mode == 0 || other.mode == 0x11) {
+                            const auto& filed = file(kFiledPlayer, int(other.id), other.unit.x, other.unit.y);
+                            spots.emplace_back(other.unit.x, other.unit.y);
+                            dead.push_back({ filed.room, true, filed.stamp });
+                        }
+                    for (const auto& body : view.bodies) {
+                        const auto& filed = file(kFiledBody, body.id, body.x, body.y);
+                        spots.emplace_back(body.x, body.y);
+                        dead.push_back({ filed.room, true, filed.stamp });
+                    }
+                    std::vector<int> rooms{ -1 };                   // no rooms kept: one list
+                    if (!level->rooms.empty()) {
+                        rooms.clear();
+                        for (const auto& [near_level, near_room] : d2d::game::near_rooms(game_data, *level, critter.x, critter.y))
+                            if (near_level == level) rooms.push_back(near_room);
+                    }
+                    for (const int index : d2d::rules::room_order(dead, rooms)) consider(spots[std::size_t(index)].first, spots[std::size_t(index)].second);
                 }
                 if (corpse && !critter.marked) { walk_to(critter, corpse->first, corpse->second, 6); critter.marked = true; continue; }   // FUN_0046c770
                 if (!critter.marked) { if (critter.seed(100) > 74) wander(critter, 5, 0); else stand(critter, 30); continue; }

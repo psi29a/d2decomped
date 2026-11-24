@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // test-links: rules
 // A chicken's or bunny's nearest unit, FUN_0046c600 (tools/emu/critter_neighbour.py);
-// a bird's flight end (FUN_00648e70: 77 steps on the longer axis).
+// a bird's flight end (FUN_00648e70: 77 steps on the longer axis); the client's
+// room lists the rats' corpse walk takes (FUN_0046c570).
 #include <critters.hpp>
 #include <monster_ids.hpp>
+#include <monsters.hpp>
 
 #include <cassert>
 #include <cmath>
+#include <vector>
 
 using namespace d2d::rules;
 
@@ -32,5 +35,26 @@ int main() {
     // A dead critter counts nothing.
     assert(!critter_neighbour(true, kCritterPlayer, 0));
     assert(!critter_neighbour(true, kCritterMonster, kZombie));
+    // The client's room lists (FUN_0046c570): filed at the head as a unit shows or moves rooms,
+    // walked over the near list in its order, each room newest first (room_order).
+    ClientRooms lists;
+    const auto first = lists.file(1, 10, 3).stamp, second = lists.file(1, 11, 3).stamp;
+    assert(second > first && lists.file(1, 10, 3).stamp == first);             // the same room: no new stamp
+    const auto moved = lists.file(1, 10, 5).stamp;
+    assert(moved > second);                                                    // a room change files it anew
+    const auto other = lists.file(2, 10, 3).stamp;                             // another kind, its own entry
+    assert(other > moved);
+    const std::vector<RoomUnit> units{ { 3, true, second }, { 5, true, moved }, { 3, true, other } };
+    const std::vector<int> near_list{ 5, 3 };
+    assert((room_order(units, near_list) == std::vector<int>{ 1, 2, 0 }));
+    // A unit gone from view and back is new: A leaves, B comes into room 3, A returns to room 3 at the head.
+    ClientRooms view;
+    view.file(1, 1, 3);
+    view.drop_unseen();
+    view.drop_unseen();                                                        // A not filed this frame: forgotten
+    const auto unit_b = view.file(1, 2, 3).stamp;
+    const auto unit_a = view.file(1, 1, 3).stamp;
+    view.drop_unseen();
+    assert(unit_a > unit_b && view.file(1, 2, 3).stamp == unit_b);             // B, filed each frame, keeps its stamp
     return 0;
 }

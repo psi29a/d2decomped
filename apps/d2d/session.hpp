@@ -37,6 +37,7 @@
 
 #include <ambient_dip.hpp>
 #include <client_sparks.hpp>
+#include <critters.hpp>
 #include <d2s_items.hpp>
 #include <hire.hpp>
 #include <lan.hpp>
@@ -865,6 +866,7 @@ struct ClientSession {
     std::vector<Critter> critters;
     int critters_level = -1;
     std::vector<bool> critter_rooms;               // by Level::rooms index: its critters made
+    d2d::rules::ClientRooms client_rooms;          // the critter level's room lists (FUN_0046c570)
     void critter_tick(std::uint32_t frame_ms);
     // NPC `npc`'s menu, placed by its feet on screen as render_world
     // projects them.

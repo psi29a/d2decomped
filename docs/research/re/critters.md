@@ -95,9 +95,9 @@ by `level_room`'s index as it comes up) and thinks a 40 ms client
 frame at a time; `debug critters` lists them. Seed 3: 23 chickens in the
 camp, 35 rats / 7 bats in the Den once its rooms are up, and after `debug
 kill` rats rest at the corpses (Arne's 1.14d client: 15 chickens in its own camp). ponytail: a critter's unit seed is the
-room's stepped on (game.exe's comes with the unit, not traced); the rat
-looks at d2d's monsters then players' bodies, not its rooms' unit lists in
-their order; a bird's capped path is cut short along its line.
+room's stepped on (game.exe's comes with the unit, not traced); a bird's
+capped path is cut short along its line. The rat walks its near rooms' unit
+lists in their order, each newest first (`rules::ClientRooms`, `room_order`).
 
 ## The Den's light (`FUN_0046af70`)
 
