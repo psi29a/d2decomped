@@ -38,6 +38,7 @@ def gen(count, seed):
     codes = properties(o.e)[:244]
     armor = {r["code"]: r for r in drops.txt_rows(o.e, "Armor")}
     weapons = {r["code"]: r for r in drops.txt_rows(o.e, "Weapons")}
+    skills = [r for r in drops.txt_rows(o.e, "Skills") if r.get("Id")]
     rng = random.Random(seed)
     for n in range(count):
         prop = codes[n % len(codes)]
@@ -50,6 +51,8 @@ def gen(count, seed):
         low = rng.randint(-span, span)
         high = rng.choice((low, low + rng.randint(1, span), low - rng.randint(1, span), rng.randint(-span, span)))
         param = rng.choice(("", "0", str(rng.randint(1, 3)), str(rng.randint(0, 30)), str(rng.randint(0, 356)), str(rng.randint(-5, 400))))
+        if prop in ("charged", "skill"):             # not a Skills row: nothing (FUN_0065dbc0 before its draw, FUN_0065e170 after)
+            param = (param, "-3", str(len(skills)), "400")[n // len(codes) % 4]
         if prop.endswith("/time"):                   # FUN_0065dd80 is fatal outside this (ids 0x444, 0x44c..0x44e)
             param, low = str(rng.randint(0, 3)), rng.randint(-256, 767)
             high = rng.randint(low, 767)

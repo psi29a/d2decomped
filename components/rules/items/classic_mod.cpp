@@ -291,9 +291,11 @@ void apply_classic_mod(const Tables& tables, const Mod& mod, std::vector<ItemPro
             put(row->stat + 2, 0, par);
             if (row->stat == kPoisonMinDamage) put(kPoisonCount, 0, 1);
             break;
-        case Handler::Skill:                       // stat 0x6b, layer the skill
-            if (skill_row) put(row->stat, par, draw());
+        case Handler::Skill: {                     // stat 0x6b, layer the skill; the draw comes before the Skills-row test
+            const int amount = draw();
+            if (skill_row) put(row->stat, par, amount);
             break;
+        }
         case Handler::ElementSkill: put(row->stat, 1, draw()); break;   // stat 0x7e, layer 1 (fire)
         case Handler::ClassSkills: {               // stat 0x53, layer by the row's stat
             const int layer = row->stat >= 0x53 && row->stat <= 0x57 ? row->stat - 0x53 : row->stat == 0xb3 ? 5 : 6;
