@@ -540,8 +540,9 @@ changes the picture.
 Missile do 20 (`FUN_005af540`, `0x73c768 + 20 * 4 = 0x73c7b8`) and do 30
 (`FUN_005b0010`, `0x73c7e0`) call it (`0x5af55c`, `0x5b00f3`) once the
 missile's owner is found and `FUN_005541b0` returns 0 for it (a player or
-monster with +0xc6 bit 0 clear, not in mode 0 nor 0x11 / 0xc). Missiles.txt 1.14d has one row of each:
-`blade creeper` (do 20) and `rabiesplague` (do 30).
+monster with +0xc6 bit 0 clear, not in mode 0 nor 0x11 / 0xc). Missiles.txt 1.14d has one row of each,
+`blade creeper` (do 20) and `rabiesplague` (do 30), as printed on 2026-11-24 by
+`build/tools/mpq-cat/mpq-cat <MPQ folder> 'data\global\excel\Missiles.txt' | awk -F'\t' 'NR==1{for(i=1;i<=NF;i++)if($i=="pSrvDoFunc")c=i} $c==20||$c==30{print $c, $1}'`.
 
 - EBX the missile; ECX (the game) passes through to the owner lookup
   `FUN_00552fd0` (EDX = the missile, `0x5a99e5`: flags_ex +0xc8 bit 0x400,
@@ -567,8 +568,10 @@ as long as the owner does. Who that owner is (Blade Sentinel's bladecreeper
 monster, MonAI 102, is a lead) is not traced here, nor do 30's rest.
 
 Checked: `tools/emu/missile_ride.py` runs `FUN_005a99e0` with the path
-readers, `FUN_00620bb0` and `FUN_00650be0` for real on 3000 owners of unit
-types 0 to 7 and -1 (`--mutation-check`: 7 model defects caught). Hooked,
+readers, `FUN_00620bb0` and `FUN_00650be0` for real on owners of unit
+types 0 to 7 and -1. Run on 2026-11-24 as `cd tools/emu && uv run python
+missile_ride.py --exe <game.exe> --mutation-check`: `ok: 3000 FUN_005a99e0
+cases`, then 7 `caught` lines (model defects). Hooked,
 not claimed: the owner lookup `FUN_00552fd0` and the move `FUN_00650910`.
 d2d's do 20 (`missiles.cpp`, "20 (Blade Sentinel)") moves the missile
 itself back and forth between the caster's spot and its point instead.
