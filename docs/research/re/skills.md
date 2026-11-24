@@ -665,7 +665,12 @@ flag 0x2000, set by what isn't traced.
   flight at 14 at the plain rate (bugs.md 131).
 - d2d: the player's on its sequence's events (`Fight::strike`,
   `rules::seq_step_row`, `test_dragon_flight_events`); `Fight::spot` alone
-  does both (no sequence), as does `shadow_cast` for a Shadow.
+  does both (no sequence). A Shadow Warrior's or Master's plays its
+  MonStats slot's MonSeq sequence (Sk5mode `seq_swdragonflight`, FUN_00663310's
+  monster branch through FUN_00643d00 / FUN_00659e30: SC 0..9, A1 0..12,
+  events on rows 9 and 14 as the player's) at its SQ rate
+  (`Fight::shadow_sequence`), whether its think asks for a sequence or a
+  skill (the Master's FUN_005dead0).
 
 ### Choosing skills
 - The save holds them: header +0x38 sixteen hotkeys (u32 skill id,

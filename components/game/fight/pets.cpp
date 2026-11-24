@@ -362,6 +362,20 @@ auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
             const bool traced = d2d::rules::traced_pet_ai(ai_name);
             if (pet.aura >= 0) pet_aura(pet, now_ms);
             if (pet.idle) continue;                            // Decoy stands where it was cast
+            if (pet.seq && (monster.mode == "GH" || monster.mode == "KB" || monster.mode == "DT")) pet.seq = nullptr;   // struck: the sequence is cut
+            if (pet.seq) {
+                // Dragon Flight's do (FUN_005d7850) on each event of its sequence, by the row it is read
+                // on (unit +0x38 >> 8, rules::seq_step_row): odd kicks, even flies, as the player's.
+                const auto ticks = std::int64_t((now_ms - unit.mode_ms) / 40);
+                const int reached = int(std::min<std::int64_t>(ticks * pet.seq_rate / 256, std::int64_t(pet.seq->size()) - 1));
+                for (; pet.seq_done <= reached; ++pet.seq_done)
+                    if ((*pet.seq)[std::size_t(pet.seq_done)].event == 1)
+                        shadow_cast(pet, now_ms, crowd, d2d::rules::seq_step_row(pet.seq_done, pet.seq_rate) % 2 ? 2 : 1);
+                if (now_ms < monster.mode_until) continue;
+                pet.seq = nullptr;
+                pet.cast = -1;
+                set_mode(*game_data, monster, "NU", now_ms);
+            }
             if (monster.mode != "NU" && monster.mode != "WL" && monster.mode != "RN" && monster.mode != "GH" && monster.mode != "DT") {
                 if (!monster.struck && (pet.target >= 0 || pet.cast >= 0) && now_ms >= unit.mode_ms + action_due_ms(*game_data, monster, monster.mode)) {   // FUN_005539b0's tick at its mode rate
                     monster.struck = true;
@@ -1132,6 +1146,7 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
             }
             set_mode(*game_data, monster, mode, now_ms);
             monster.struck = false;
+            if (act.kind != Kind::swing && pet.mirror) shadow_sequence(pet, now_ms);   // FUN_00663310: the slot's sequence, however the AI asked
             break;
         }
         case Kind::die:
@@ -1211,6 +1226,31 @@ auto Fight::shadow_give(Pet& pet, int skill, int lvl) const -> void {
         pet.skill_list.push_back({ .id = skill, .level = lvl, .kind = skill_kind(*row, missile_weapon(*game_data, gfx())), .mode = monster_mode(row->monanim) });
     }
 
+// A Shadow's Dragon Flight (its think's SQ, mode 0xe): FUN_00663310 finds a
+// monster's frames by its MonStats slot for the skill (FUN_00643d00: Sk5mode
+// seq_swdragonflight, FUN_00659e30), events on rows 9 and 14 as the
+// player's. It steps at the SQ rate (FUN_00623f50: mode_rate) and ends
+// past its last row (FUN_00621260: the rows x 256). The drawn mode is its
+// first row's (SC), as the merc's.
+auto Fight::shadow_sequence(Pet& pet, std::uint32_t now_ms) -> void {
+        pet.seq = nullptr;
+        const auto* skill = game_data->skills.get(pet.cast);
+        if (!skill || skill->srvdofunc != ServerDoFunction::kDragonFlight || pet.monster.type < 0 || std::size_t(pet.monster.type) >= game_data->monsters.types.size()) return;
+        const auto& type_info = game_data->monsters.types[std::size_t(pet.monster.type)];
+        for (std::size_t slot = 0; slot < type_info.skill.size() && !pet.seq; ++slot)
+            if (const auto* slot_skill = skill_named(type_info.skill[slot]); slot_skill && slot_skill->id == skill->id)
+                if (const auto found = game_data->mon_seqs.find(type_info.sk_mode[slot]); found != game_data->mon_seqs.end() && !found->second.empty()) pet.seq = &found->second;
+        if (!pet.seq) return;
+        auto as_cast = pet.monster;
+        as_cast.skill = skill->id;
+        pet.seq_rate = std::max(mode_rate(*game_data, as_cast, "SQ"), 1);
+        pet.seq_done = 0;
+        auto& monster = pet.monster;
+        if (const std::string_view first = pet.seq->front().mode; game_data->npc_timing(monster.npc, first).directions) set_mode(*game_data, monster, first, now_ms);
+        const auto ticks = (std::int64_t(pet.seq->size()) * 256 + pet.seq_rate - 1) / pet.seq_rate;
+        monster.mode_until = now_ms + std::uint32_t(ticks) * 40;
+    }
+
 // A Shadow's skill on its action frame, at its level on the Shadow: Attack
 // and the claws and kicks as its owner's blow (it has the owner's gear) with
 // the skill's swing; a missile skill fired from it (Blade Fury, Fire Blast,
@@ -1218,9 +1258,9 @@ auto Fight::shadow_give(Pet& pet, int skill, int lvl) const -> void {
 // Dragon Flight puts it beside the target and kicks. Charge-ups charge it,
 // finishers release them, as the player's.
 // Its self states, traps and Blade Sentinel as the player's.
-// ponytail: Dragon Flight's two events (the flight, then the kick) land
-// on one frame.
-auto Fight::shadow_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd) -> void {
+// Dragon Flight plays its sequence (shadow_sequence): an event does the
+// flight (dragon_part 1) or the kick (2), as the player's.
+auto Fight::shadow_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd, int dragon_part) -> void {
         const auto& monster = pet.monster;
         const auto* skill = game_data->skills.get(pet.cast);
         if (!skill) return;
@@ -1255,11 +1295,14 @@ auto Fight::shadow_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd) -> v
         if (missile_skill(*skill)) { fire(*skill, now_ms, caster); return; }
         if (skill->srvdofunc == ServerDoFunction::kPsychicHammer || skill->srvdofunc == ServerDoFunction::kMindBlast) { spot(*skill, now_ms, caster); return; }
         std::erase_if(pet.charges, [&](const Charge& charge) { return now_ms >= charge.until; });
-        if (skill->srvdofunc == ServerDoFunction::kDragonFlight && target >= 0) {   // do 52: beside the target, then the kick (as the owner's)
-            if (in_town(level)) return;
-            auto& unit = pet.monster.unit;
-            put_near(*level, crowd, unit, foe.x, foe.y);
-            unit.path.clear(); unit.walking = false;
+        if (skill->srvdofunc == ServerDoFunction::kDragonFlight && target >= 0) {   // do 52: beside the target, or the kick (as the owner's)
+            if (dragon_part & 1) {
+                if (in_town(level)) return;
+                auto& unit = pet.monster.unit;
+                put_near(*level, crowd, unit, foe.x, foe.y);
+                unit.path.clear(); unit.walking = false;
+            }
+            if (!(dragon_part & 2)) return;
             auto fighter = shadow_fighter(pet, actor->pf_kick);
             auto swing = skill_swing(*skill, lvl, calc_env(), false);
             add_charges(pet.charges, fighter, swing, false);
