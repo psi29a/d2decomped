@@ -491,9 +491,12 @@ auto World::tower_treasure(std::uint32_t now_ms) -> void {
 // spot when there's none) for up to 6 more thinks, stepping in
 // (FUN_005944f0: camp Cain due). The portal closes (S1) and stays in its
 // mode 4 (S2): nothing removes the object (rules::CainQuest::portal_mode).
+// A first think with the spot noted already (a second Cain unit on the
+// record, FUN_005944b0 returns 0) takes FUN_005944f0 for it: camp Cain due
+// (CainQuest::note_spot); the walk goes on from the spot noted.
 // ponytail: the thinks' idles (1, 20 frames) stand in for the AI's own
-// tick. FUN_005e77a0's spot-already-noted branch (FUN_005944f0, stat 6 0,
-// mode 0xc at his spot) isn't kept: d2d's Cain takes his first think once.
+// tick (ai.cpp); the first think's stat 6 = 0 and mode 0xc (FUN_00627260,
+// FUN_005ddfc0) on the noted-spot branch aren't made.
 auto World::cain_step(std::uint32_t now_ms, float /* elapsed: a step is a frame */) -> void {
         if (cain_walk.npc < 0 || level->id != d2d::rules::CainQuest::kTristram || std::size_t(cain_walk.npc) >= npc_states.size()) return;
         const auto& npc = level->npcs[std::size_t(cain_walk.npc)];
@@ -512,7 +515,8 @@ auto World::cain_step(std::uint32_t now_ms, float /* elapsed: a step is a frame 
         const auto off = [&](int x, int y) { return d2d::rules::ai_distance(x - at_x, y - at_y); };
         if (cain_walk.stage < 0) {
             unit.hidden = false;
-            cain_walk.spot_x = at_x; cain_walk.spot_y = at_y;
+            if (cain.note_spot(at_x, at_y)) { cain_walk.spot_x = at_x; cain_walk.spot_y = at_y; }   // FUN_005944b0, else FUN_005944f0 (FUN_005e77a0)
+            else { cain_walk.spot_x = cain.spot_x; cain_walk.spot_y = cain.spot_y; }                  // the spot noted before stays
             cain_walk.x = at_x + 3; cain_walk.y = at_y + 3;
             cain_walk.stage = 1;
             cain_walk.next = now_ms + 40;
@@ -526,6 +530,7 @@ auto World::cain_step(std::uint32_t now_ms, float /* elapsed: a step is a frame 
                 d2d::log::info("Search for Cain: Cain opens a portal at subtile ({}, {})", cain_walk.spot_x, cain_walk.spot_y);
             } else {
                 cain_walk.spot_x += 3; cain_walk.spot_y += 3;
+                cain.spot_x = cain_walk.spot_x; cain.spot_y = cain_walk.spot_y;                     // FUN_005943b0 moves the record's
             }
             cain_walk.stage = 2;
             cain_walk.next = now_ms + 20 * 40;
