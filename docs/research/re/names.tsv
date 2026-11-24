@@ -97,6 +97,7 @@ address	name	evidence
 004203a0	storm_set_7792f4	Value (ret 4): DAT_007792f4 = value, returns 1 (source-list.md)
 004203f0	slink_next_link	ECX link, offset (ret 4): the next node's link, ~next for the terminator; a negative offset is worked out from the link (source-list.md)
 00420520	slist_link_or_terminator	ECX list, link (ret 4): the link, or the list's terminator +4 when 0 (source-list.md)
+00420540	slist_link	ECX list, node, mode, anchor (ret 0xc): relinks node after the anchor for mode 1, else before it; anchor 0 is the terminator (source-list.md)
 004205f0	slist_next_node	ECX list, link (ret 4): the next node, 0 at the end; link 0 gives the first node (source-list.md)
 00420650	slist_unlink	ECX list, link (ret 4): takes the link out of its list and zeroes it; nothing for an unlinked one (source-list.md)
 004206e0	slist_raw_next	ECX list, link (ret 4): link ? link->next : the list's +8, unclamped (source-list.md)
