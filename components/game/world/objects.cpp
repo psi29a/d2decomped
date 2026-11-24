@@ -739,6 +739,23 @@ auto World::set_door_mode(int npc_index, int mode, std::uint32_t now_ms) -> void
         d2d::log::info("door {}: mode {}", npc_index, kObjectModes[std::size_t(mode)]);
     }
 
+// A barricade door's death (FUN_0057ccb0; 0x57cdf1: MonStats 0x1b0 / 0x1b1)
+// clears the blocker made on its spot (object 571 / 572, objgroups.cpp):
+// FUN_0057cc30 walks the dead door's room (FUN_00620bb0) for an object of
+// that class at the same subtile (FUN_00620870 on both), puts it in mode 2
+// (FUN_00624690) and takes its footprint out (FUN_00623830).
+auto World::barricade_broken(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
+        const auto& mon_bin = game_data->mon_bin;
+        if (!level || mon_bin.size() <= 0x1b1) return;                        // the kill's turn is this level's (kill.level is the monster's level)
+        if (kill.type != int(mon_bin[0x1b0]) && kill.type != int(mon_bin[0x1b1])) return;
+        const int blocker = kill.type == int(mon_bin[0x1b0]) ? 571 : 572;
+        const auto subtile = [](float cells) { return int(std::floor(cells * 5)); };
+        for (std::size_t index = 0; index < level->npcs.size(); ++index) {
+            const auto& object = level->npcs[index];
+            if (object.object_id == blocker && subtile(object.x) == subtile(kill.x) && subtile(object.y) == subtile(kill.y)) set_door_mode(int(index), 2, now_ms);
+        }
+    }
+
 // This level's slime doors, gates and stairs OP long enough go ON (event 1, FUN_00581490).
 
 // A slime door's event 1: with Mode2 (objects.bin +0x141, 0x582209)
