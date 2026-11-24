@@ -595,6 +595,7 @@ struct Missile {
     std::uint32_t born = 0, dies = 0;
     d2d::rules::MonStats src;                 // a monster's: its stats, A2 damage = the missile's
     int owner = -1;                           // a monster's: its Monster::id (unit +0x98, FUN_00552fd0)
+    int owner_align = 0;                      // a monster's: its owner's alignment (FUN_005a8730 strikes only its foes)
     int min = 0, max = 0, attack_rating = 0, level = 1;  // the merc's: damage, attack rating, level; a skill's level
     bool friendly = false;                    // the merc's, the player's: hits monsters, not the player
     int caster = 0;                           // a friendly one's player (Fight::Hero::id), whose credit, leech and skills it carries

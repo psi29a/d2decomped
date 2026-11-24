@@ -90,7 +90,16 @@ struct Population {
     int umin = 0, umax = 0;                                   // Levels MonUMin / MonUMax for the difficulty
     int difficulty = 0;
     const UMods* umods = nullptr;
+    int wanderers = 0;                                        // +0x2c4: FUN_0054ef50's made
 };
+
+// FUN_0054f060's wanderer: a room seed step with its low 15 bits clear, on a
+// level with MonWndr (Levels +0x2e), draws rand(100) (FUN_0054eff0) and is
+// due under 3 with fewer than 3 made in the level's monster region (+0x2c4).
+inline bool wanderer_due(Rng& seed, bool wander_level, int made) {
+    if ((seed.next() & 0x7fff) != 0 || !wander_level) return false;
+    return seed(100) < 3 && made < 3;
+}
 
 // A room to populate: its rect in subtiles, its seed, its areas
 // (FUN_0061ad50: x, y, width, height subtiles) and the one room_spot draws in (-1: the room).
@@ -1039,6 +1048,8 @@ struct ThinkIn {
     // BatDemon in S4 (unit +0x10 mode 11); the SandMaggot's AI command 14
     // +0x18 (FUN_0058efa0).
     bool swings = true, runs = false, afraid = true, in_s4 = false;
+    // GoodNpcRanged's: in NU (unit +0x10 mode 1), in town (FUN_0061ab00 on its room).
+    bool neutral = true, in_town = false;
     int* cast_word = nullptr;
     // Act 3's: its soonest mode-end event's frame (FUN_005415a0 type 1, 0 none);
     // its group leader's mode (unit +0x10; the tentacles' head: 12 DD, 14

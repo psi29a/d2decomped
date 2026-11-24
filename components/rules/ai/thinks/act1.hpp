@@ -519,6 +519,22 @@ struct Act1Thinks : Thinker {
         if (input.second && input.second_dist < 25) return at_second({ MonAct::a1 });
         return { MonAct::idle, 50 };
     }
+    // GoodNpcRanged (60, FUN_005e7ac0; rogue2, the wanderer, FUN_0054ef50;
+    // search type 0): not in NU it stands 5. Out of town with the second
+    // target (FUN_005ddc30) under 20: 30 % A1 at it (class 0x10f, roguehire,
+    // would cast its Skill1, but its AI is Hireable), else 30 % circles 4 round
+    // it (FUN_005df7d0, flag 0), else stands 10. Else 20 % wanders 5, else
+    // stands 10. tools/emu/ai_npc_ranged.py checks it.
+    Think good_npc_ranged() {
+        if (!input.neutral) return { MonAct::idle, 5 };
+        if (!input.in_town && input.second && input.second_dist < 20) {
+            if (roll() < 30) return at_second({ MonAct::a1 });
+            if (roll() < 30) return aimed(think_circle(rng, 4), ThinkUnit::second);
+            return { MonAct::idle, 10 };
+        }
+        if (roll() < 20) return think_wander(rng, 5);
+        return { MonAct::idle, 10 };
+    }
     // QuillMother (75, FUN_005fb2a0; quillbear1..5, which no level places).
     // Hit (FUN_005dd2b0), it sends its group command 1 at the target
     // (FUN_0058f730; quillbears never read it, monster-ai.md) and walks in,
@@ -563,6 +579,7 @@ inline constexpr auto kAct1Thinks = std::to_array<ThinkRow>({
     { "ElementalBeast", &think_as<Act1Thinks, &Act1Thinks::elemental_beast> },
     { "FlyingScimitar", &think_as<Act1Thinks, &Act1Thinks::flying_scimitar> },
     { "TownRogue", &think_as<Act1Thinks, &Act1Thinks::town_rogue> },
+    { "GoodNpcRanged", &think_as<Act1Thinks, &Act1Thinks::good_npc_ranged> },
     { "QuillMother", &think_as<Act1Thinks, &Act1Thinks::quill_mother> },
 });
 

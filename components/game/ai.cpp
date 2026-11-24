@@ -662,6 +662,7 @@ void andariel_missile(const GameData& game_data, const Monster& monster, const s
     missiles.push_back({ &missile_info, monster.unit.x, monster.unit.y, dx / distance * speed, dy / distance * speed, missile_facing(monster.unit.x, monster.unit.y, dx, dy), now_ms,
                          now_ms + std::uint32_t(std::max(missile_info.range, 1)) * 40, stats });
     missiles.back().level = lvl; missiles.back().aim_at = { monster.unit.x + dx, monster.unit.y + dy }; missiles.back().owner = monster.id;
+    missiles.back().owner_align = monster.align;
     if (carried) missiles.back().skill = carried->id;
 }
 
@@ -1297,6 +1298,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     input.laying = now_ms < monster.laid_until;
     input.velocity = type_info.velocity; input.run = type_info.run;
     input.aidel = per_difficulty.aidel ? per_difficulty.aidel : 15;
+    input.neutral = monster.mode == "NU"; input.in_town = d2d::rules::level_ids::is_town(level.id);
     // Act 2's: Skill4 / 5; the target's fire / cold resists (stats 0x27 /
     // 0x2b); the second target (FUN_005ddc30, below); Duriel's aura on.
     // FUN_005fd470, a skill usable, where a think asks it (else 1): ai/.
@@ -2087,7 +2089,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 const float speed = missile_speed(missile_info, lvl), distance = std::max(std::hypot(aim_x, aim_y), 0.01f);
                 Missile x{ &missile_info, unit.x, unit.y, aim_x / distance * speed, aim_y / distance * speed, missile_facing(unit.x, unit.y, aim_x, aim_y), now_ms,
                            now_ms + std::uint32_t(missile_info.range) * 40, monster.stats };
-                x.level = lvl; x.aim_at = { unit.x + aim_x, unit.y + aim_y }; x.owner = monster.id;
+                x.level = lvl; x.aim_at = { unit.x + aim_x, unit.y + aim_y }; x.owner = monster.id; x.owner_align = monster.align;
                 const bool first = monster.mode == "A1", cast = monster.mode == "SC";   // an A1 shot carries A1's damage; S1's S1's; SC's only its elements (El SC)
                 x.src = monster_shot_stats(missile_info, monster.swing_stats(), first, cast, s1_shot, lvl);
                 missiles.push_back(x);
@@ -2392,7 +2394,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                             ring_missile.visual_only = true;
                             ring_missile.dies = now_ms + std::uint32_t(std::max(shout->second.range, 1)) * 40;
                             ring_missile.aim_at = offset_target(unit.x, unit.y, aim_x, aim_y);
-                            ring_missile.skill = monster.skill; ring_missile.level = lvl; ring_missile.owner = monster.id;   // its state, for hit 18
+                            ring_missile.skill = monster.skill; ring_missile.level = lvl; ring_missile.owner = monster.id; ring_missile.owner_align = monster.align;   // its state, for hit 18
                         }
                     }
                     d2d::log::info("{} shouts ({} frames)", monster.npc.name, frames);
@@ -3559,7 +3561,7 @@ Missile missile_from(const Missile& from, const GameData::MissileInfo& info, flo
     const auto element = d2d::rules::row_damage(info.etype, info.emin, info.emax, info.emin_lev, info.emax_lev, info.hitshift, info.elen, info.elen_lev, from.level);
     Missile out{ &info, x, y, dx, dy, missile_facing(x, y, dx, dy), now_ms,
                  now_ms + std::uint32_t(std::max(info.range + info.lev_range * from.level, 1)) * 40, missile_blow(info, element, from.src.level) };
-    out.level = from.level; out.owner = from.owner;
+    out.level = from.level; out.owner = from.owner; out.owner_align = from.owner_align;
     return out;
 }
 

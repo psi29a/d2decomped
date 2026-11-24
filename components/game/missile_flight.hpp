@@ -353,6 +353,10 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
         if (last_unit && missile.last_hit_ms == now_ms) return false;
         for (auto& foe : foes) {
             if (!foe.alive || (moving ? !missile_struck(level, missile, foe.x, foe.y, foe.size) : !standing_struck(missile, foe.x, foe.y, foe.size))) continue;
+            // FUN_005a8730: with an owner, only a unit hostile to it (FUN_00554200) unless CollideFriend
+            // (+0x187). A good owner's (rogue2's) passes the players' side and good monsters by; an
+            // evil owner's keeps striking every foe here, CollideFriend rows (healingbolt) among them.
+            if (missile.owner >= 0 && missile.owner_align == 2 && d2d::rules::friends(2, foe.monster ? foe.monster->align : 2)) continue;
             if (last_unit) {
                 if (missile.last_hit == foe.id) continue;
                 missile.last_hit = foe.id;

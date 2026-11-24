@@ -364,8 +364,24 @@ Unrelated to the town: when a room's seed step (FUN_0054f060) has its low
 than 3 made in the game's region (+0x2c4), FUN_0054ef50 makes one of the
 act's wandering monsters (table 0x731b2c by act, 0x731b30 {first, count})
 at a free spot (FUN_0054dc40, FUN_005b2f20) and adds it to list 8
-(FUN_005b1990). About 1 room in 1.1 million; d2d steps the draw only
-(objgroups.cpp ponytail). The table: 0x731b2c holds one id, 270 (rogue2, RogueScout,
+(FUN_005b1990). About 1 room in 1.1 million. The table: 0x731b2c holds one id, 270 (rogue2, RogueScout,
 GoodNpcRanged), and only act 0 has a non-zero count ({0, 1} at 0x731b30;
 acts 1..4 {0, 0}): the wanderer is always that rogue scout, only in Act 1
-(emu dump).
+(emu dump). FUN_0054ef50 draws rand(count) on the room's seed (`ECX` room
++0x6c at 0x54ef7e), one step for a count of 1, then FUN_0054dc40 with no
+unit and no entrance test, FUN_005b2f20 radius -1 mode 1.
+
+Its think, GoodNpcRanged (MonAI 60, 0x73ca18 + 60 x 16: search type 0, no
+init, think FUN_005e7ac0; ai-control.md): no target is looked for; out of
+NU it stands 5; out of town with the second target (FUN_005ddc30) under 20,
+30 % A1 at it (class 0x10f would cast Skill1: roguehire, whose AI is
+Hireable), 30 % circles 4 round it (FUN_005df7d0), else stands 10; else 20 %
+wanders 5, else stands 10. Evil monsters find it in list 8.
+
+d2d: `rules::wanderer_due`, `ObjectRooms::wanderer` (objgroups.cpp),
+`Act1Thinks::good_npc_ranged`, the `GoodNpcRanged` row (game/ai/act1.cpp,
+`no_search`); `tests/test_wanderer.cpp`, `tests/game/test_wanderer_fight.cpp`.
+Its arrows pass the players' side by: FUN_005a8730 strikes only a unit hostile to the
+missile's owner (FUN_00554200) unless CollideFriend (`Missile::owner_align`,
+missile_flight.hpp). Not ported here (tick.cpp's note): a monster's missiles reach only
+the players' side, so they don't hurt the monsters it shoots at.
