@@ -803,6 +803,8 @@ int trap_target(std::span<const SearchFoe> foes, int reach);
 // Evil befriends evil, good good, neutral nobody. FUN_00554200's enemies
 // are the rest, owners first (a pet is its player's: good).
 inline bool friends(int mine, int theirs) { return mine == 0 ? theirs == 0 : mine == 2 && theirs == 2; }
+// A monster's own unit alignment from its MonStats Align: 1 (good) is 2, 2 (neutral) is 1, else 0 (evil).
+constexpr int unit_alignment(int row_align) { return row_align == 1 ? 2 : row_align == 2 ? 1 : 0; }
 
 // FUN_005dc380: ai_distance less the candidate's size on each axis (FUN_00620510).
 int near_distance(int dx, int dy, int size);
