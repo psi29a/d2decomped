@@ -58,6 +58,10 @@ bool throws(const std::vector<std::byte>& bytes) {
 }  // namespace
 
 int main() try {
+    {
+        const auto saved = d2d::compcode::look({}, {}, {}, d2d::compcode::LookTarget::save);
+        for (const auto component : saved) assert(component == 0xff);
+    }
     assert(d2d::d2s::character_name_allows("", 'A') && !d2d::d2s::character_name_allows("", '-'));
     assert(d2d::d2s::character_name_allows("A", '-') && d2d::d2s::character_name_allows("A", '_'));
     assert(!d2d::d2s::character_name_allows("A-B", '_') && !d2d::d2s::character_name_allows("A", '\''));
@@ -396,7 +400,9 @@ int main() try {
                         if (item.location == 1)
                             worn.push_back({ item.slot, item.code, colours.of(item.quality, item.unique_id, item.set_id, item.prefix, item.suffix, item.affixes, item.class_affix,
                                                                        item.socketed && !item.socketed_items.empty() ? item.socketed_items[0].code : std::string{}) });
-                    assert(d2d::compcode::look(comp, pcs, worn) == hdr.appearance);
+                    const auto appearance = d2d::compcode::look(comp, pcs, worn, d2d::compcode::LookTarget::save);
+                    // Older d2d saves can explicitly encode lit bare body layers.
+                    assert(appearance == hdr.appearance || d2d::compcode::look(comp, pcs, worn) == hdr.appearance);
                     // The tints too (compcode::tints).
                     const auto tints = d2d::compcode::tints(pcs, worn);
                     for (std::size_t layer = 0; layer < 16; ++layer)

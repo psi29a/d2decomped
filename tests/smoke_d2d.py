@@ -134,9 +134,13 @@ try:
     frames()
     assert state()["scroll"] == "0"
 
-    cmd("click 142 120")              # slot 0 (saves sort by name)
-    frames()
-    assert state()["save"] == "0"
+    if max_scroll:
+        cmd("click 142 120")          # reselect the first save after scrolling
+        frames()
+    # With no scrollbar the first save is still selected. Another click
+    # within 500 ms would play it before the keyboard checks below.
+    st = state()
+    assert st["screen"] == "charselect" and st["save"] == "0"
 
     # Keyboard, as LoD: Left/Right stay in the row, Up/Down move a row,
     # End/Home jump and scroll to keep the pick visible.

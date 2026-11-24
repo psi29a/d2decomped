@@ -152,7 +152,8 @@ struct GameData {
     // The look of what's worn (compcode::look). A state on the player with
     // an itemtrans colours worn items of its itemtype (FUN_0062c100's first
     // loop: Enchant's red weapons, Venom Claws' green).
-    [[nodiscard]] Appearance look_of(const std::vector<d2d::d2s::Item>& items, std::span<const std::string_view> active_states = {}) const {
+    [[nodiscard]] Appearance look_of(const std::vector<d2d::d2s::Item>& items, std::span<const std::string_view> active_states = {},
+                                     d2d::compcode::LookTarget target = d2d::compcode::LookTarget::sprite) const {
         std::vector<d2d::compcode::Worn> worn;
         for (const auto& item : items)
             if (item.location == d2d::d2s::item_location::kEquipped) {
@@ -169,7 +170,7 @@ struct GameData {
                         }
                 worn.push_back({ item.slot, item.code, colour });
             }
-        const auto look = d2d::compcode::look(comp, item_pieces, worn), tints = d2d::compcode::tints(item_pieces, worn);
+        const auto look = d2d::compcode::look(comp, item_pieces, worn, target), tints = d2d::compcode::tints(item_pieces, worn);
         Appearance appearance;
         std::copy(look.begin(), look.end(), appearance.begin());
         std::copy(tints.begin(), tints.end(), appearance.begin() + 16);
@@ -422,6 +423,7 @@ struct GameData {
                          std::string prog_overlay;                              // ProgOverlay (+0x36): hit function 7's overlay on the unit it heals
                          bool to_hit = false, collide_kill = true, pierce = false;
                          bool return_fire = false;   // ReturnFire (record flag bit 9, +5 & 2): Chilling Armor answers it (FUN_005cab40)
+                         bool collide_friend = false;   // CollideFriend (+0x187): it strikes its owner's friends too (FUN_005a8730)
                          // Its own element (a row with no Skill: FUN_0064b100 / 0064b1d0 /
                          // 0064b2a0 by level): Skill::etype order, frze as cold.
                          int etype = -1, emin = 0, emax = 0, hitshift = 8, elen = 0;
@@ -433,6 +435,7 @@ struct GameData {
                          // Its server functions' inputs: pSrvDoFunc (table 0x73c768), Param1..,
                          // sHitPar2, the rows it spawns (SubMissile1, HitSubMissile1).
                          int clt_do = 0;   // pCltDoFunc (the client's, table 0x72a398 + 4 x n)
+                         int clt_hit = 0;  // pCltHitFunc (table 0x72a508 + 4 x n)
                          int srv_do = 0, param1 = 0, param2 = 0, param3 = 0, param4 = 0, hit_par2 = 0;
                          int hit_par3 = 0;      // sHitPar3: hit 2's sub-missiles' sub loops (FUN_005a9d80 -> FUN_005a9370's [0xd])
                          // Param5 (+0x48), CltParam1..5 (+0x58..+0x68), cHitPar1..3 (+0x6c..+0x74):
@@ -455,9 +458,9 @@ struct GameData {
                          // The client's: CltSubMissile1 (+0x1e) and InitSteps (+0x135), the row client do 8 lays
                          // and from what age (FUN_004d38d0; game.exe's column table FUN_00661b20).
                          std::string clt_sub; const MissileInfo* clt_sub_info = nullptr; int init_steps = 0;
+                         std::array<std::string, 2> clt_hit_sub_names;
+                         std::array<const MissileInfo*, 2> clt_hit_subs{};
                          std::string clt_sub2; const MissileInfo* clt_sub2_info = nullptr;   // CltSubMissile2 (+0x20): client do 26's second
-                         // pCltHitFunc (+0xa, table 0x72a508) and CltHitSubMissile1 (+0x2c): what the client's hit makes (33: the rocks').
-                         int clt_hit = 0; std::string clt_hit_sub; const MissileInfo* clt_hit_sub_info = nullptr;
                          // ExplosionMissile (+0x16): played where it hits a unit or a wall,
                          // and at its range's end too when AlwaysExplode (+0x18c) (FUN_004d2d70).
                          std::string explosion_name; const MissileInfo* explosion = nullptr; bool always_explode = false;
