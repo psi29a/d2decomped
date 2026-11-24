@@ -439,6 +439,9 @@ client), not a cinematic. The client's 0x61 handler is `FUN_0045e660`
   unit id, unit flags |= 0x3000000, and once (+0x17) `FUN_00666120` for the
   record's list (+0 non-null, its +4 non-null). d2d: `rules::larzuk_marker`,
   `ObjectRooms::marker_make` (the handed room's bounds and seed, `hand_room`);
+  the room is looked up by `FUN_00463740` (own bounds, then the near list, which holds
+  neighbour levels' rooms); d2d's `near_holder` answers only a room of the marker's
+  level, so a spot held only by a neighbour's room counts as none (not ported);
   `tools/emu/larzuk_init.py`, `test_larzuk_marker`. `Spawning::marker_records`
   keeps +0x15 for the game rather than the level. Not kept: +0x10, and the
   +0x17 list call. That call's `FUN_00666120` copies the dword at its ECX
