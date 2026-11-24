@@ -605,6 +605,12 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
                     d2d::log::info("Radament's Lair: the Book of Skill, a skill point");
                 }
             }
+            else if (found != actor->character.items.end() && found->code == d2d::rules::PrisonQuest::kScrollCode) {   // the Scroll of Resistance (0x55e4b4)
+                if (!hosted_quests && d2d::rules::PrisonQuest::read_scroll(quests())) {   // its resistances: panel_stats (scroll_resist)
+                    actor->character.items.erase(found);
+                    d2d::log::info("Prison of Ice: the Scroll of Resistance read");
+                }
+            }
             else fight.drink_item(use->item, now_ms);
             return;
         }

@@ -297,6 +297,10 @@ struct PrisonQuest {
     bool thaw_quest_step();
     // The thaw's timer, a run each: 1 fana's mode 2; 2 she's drehyaiced, the chain on.
     int thaw_tick();
+    // The Scroll of Resistance read: only with bit 8 (given) and not bit 7 (read); bit 7 set.
+    static bool read_scroll(QuestBits& quest_bits);
+    // The scroll's resistances in an expansion game: 10 for each difficulty whose word has bit 7.
+    static int scroll_resist(const std::array<QuestBits, 3>& by_difficulty);
     // Malah's talk closes.
     void talk_closed(int npc);
     // Heard (FUN_00589580): the item to give and its quality / level (the
