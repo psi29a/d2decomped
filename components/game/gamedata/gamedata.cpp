@@ -525,6 +525,15 @@ std::vector<std::pair<const Level*, int>> near_rooms(const GameData& game_data, 
 }
 
 
+// Whether a near-list room has come up (Spawning::LevelState::order): room1
+// +0 holds null for one whose room1 isn't made, which FUN_00463740 skips. A
+// level no rooms are kept for (no state): all count.
+static bool room_come_up(const Spawning* spawning, const Level& level, const NearRoom& near_room) {
+    if (!spawning || !spawning->levels.contains(&level)) return true;
+    const auto found = spawning->levels.find(near_room.level);
+    return found != spawning->levels.end() && std::ranges::contains(found->second.order, std::size_t(near_room.room));
+}
+
 // Where a missile in the room holding (x, y) cells can be: that room's rect,
 // then its near list's, act subtiles {x, y, w, h} (FUN_00463740 over room1
 // +0 / +0x24). Empty when no room holds it. With `spawning`, a near room
@@ -536,12 +545,7 @@ std::vector<std::array<int, 4>> missile_rooms(const GameData& game_data, const L
     const int room = room_holding(room_rects(level), level, x, y);
     if (room < 0) return {};
     const auto list = near_list(game_data, level, room);
-    const bool kept = spawning && spawning->levels.contains(&level);
-    const auto made = [&](const NearRoom& near_room) {
-        if (!kept) return true;
-        const auto found = spawning->levels.find(near_room.level);
-        return found != spawning->levels.end() && std::ranges::contains(found->second.order, std::size_t(near_room.room));
-    };
+    const auto made = [&](const NearRoom& near_room) { return room_come_up(spawning, level, near_room); };
     std::vector<std::array<int, 4>> rects{ { 0, 0, 0, 0 } };
     for (const auto& near_room : list) {
         const std::array<int, 4> rect{ near_room.rect.x * 5, near_room.rect.y * 5, near_room.rect.width * 5, near_room.rect.height * 5 };
@@ -550,6 +554,21 @@ std::vector<std::array<int, 4>> missile_rooms(const GameData& game_data, const L
         if (own || made(near_room)) rects.push_back(rect);   // FUN_00463740: a null slot of room1 +0 is skipped
     }
     return rects;
+}
+
+// FUN_00463740 on room `from` of `level`: (x, y), subtiles off the level's
+// origin, in the room's own rect (+0x4c, +0x50, +0x54, +0x58), else the first
+// room of its near list holding it (room1 +0, null slots skipped: see
+// missile_rooms), whichever level that room belongs to. None when no room does.
+std::optional<NearHolder> near_room_holder(const GameData& game_data, const Level& level, std::size_t from, int x, int y, const Spawning* spawning) {
+    const auto rects = room_rects(level);
+    if (from >= rects.size()) return std::nullopt;
+    const int act_x = level.world_x * 5 + x, act_y = level.world_y * 5 + y;
+    const auto holds = [&](const RoomRect& rect) { return act_x >= rect.x * 5 && act_y >= rect.y * 5 && act_x < (rect.x + rect.width) * 5 && act_y < (rect.y + rect.height) * 5; };
+    if (holds(rects[from])) return NearHolder{ &level, from };
+    for (const auto& near_room : near_list(game_data, level, int(from)))
+        if (room_come_up(spawning, level, near_room) && holds(near_room.rect)) return NearHolder{ near_room.level, std::size_t(near_room.room) };
+    return std::nullopt;
 }
 
 std::vector<AutomapRoom> automap_rooms(const GameData& game_data, const Level& level, float x, float y) {
