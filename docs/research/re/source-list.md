@@ -33,4 +33,5 @@ its lists in standard containers.
 | `FUN_004206e0` | `slist_raw_next` | `ECX` list, link (`RET 4`): the link's next `+4`, or the list's first node `+8` when the link is 0, as stored (negative at the end) | no counterpart |
 | `FUN_00420750` | `slist_clear` | `ECX` list: while the first node `+8` is positive, unlinks it as `slist_unlink` taking the node itself as its link (a link offset of 0) | no counterpart |
 | `FUN_00420790` | `slist_destroy` | `ECX` list: `slist_clear`, then unlinks the terminator `+4` itself, which ends 0, 0 | no counterpart |
+| `FUN_00420820` | `slist_new_node` | `ECX` list, mode, size, flags (`RET 0xc`): `FUN_00413020(size + 0xc, ".?AUWNDREC@@" 0x708850, -2, flags | 8)` (`SMemAlloc`); a non-null node gets a 0, 0 link, and a non-zero mode links it as `slist_link(node, mode, 0)`; returns the node | no counterpart |
 | `FUN_00420880` | `slink_delete` | `ECX` node, flags (`RET 4`): unlinks the node's link at `+0` as `slist_unlink`; with flags bit 0, `FUN_00412650(node, 0x6cc824, -1, 0)` (`SMemFree`); returns the node | no counterpart |
