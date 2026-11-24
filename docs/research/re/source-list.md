@@ -24,3 +24,4 @@ its lists in standard containers.
 | `FUN_00420650` | `slist_unlink` | `ECX` list, link (`RET 4`; 0 for the terminator): with a non-zero previous link, the next link (as `slink_next_link` with the link's own offset) takes the previous link, the previous link's next takes the link's next, and the link becomes 0, 0; nothing when its previous link is 0 | no counterpart |
 | `FUN_004206e0` | `slist_raw_next` | `ECX` list, link (`RET 4`): the link's next `+4`, or the list's first node `+8` when the link is 0, as stored (negative at the end) | no counterpart |
 | `FUN_00420750` | `slist_clear` | `ECX` list: while the first node `+8` is positive, unlinks it as `slist_unlink` taking the node itself as its link (a link offset of 0) | no counterpart |
+| `FUN_00420790` | `slist_destroy` | `ECX` list: `slist_clear`, then unlinks the terminator `+4` itself, which ends 0, 0 | no counterpart |
