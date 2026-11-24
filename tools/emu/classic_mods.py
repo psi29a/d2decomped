@@ -87,7 +87,7 @@ def game(path):
 
 
 def inc(path, game_lines):
-    for job, line in zip(cases(path), open(game_lines)):
+    for job, line in zip(cases(path), open(game_lines), strict=True):   # a short or long game.exe run is an error
         seed, code, ilvl, defence, dur, prop, param, low, high, kind = job
         print(f'{{ {seed}u, "{code}", {ilvl}, {defence}, {dur}, "{prop}", "{param}", {low}, {high}, {kind}, "{line.rstrip()}" }},')
 
