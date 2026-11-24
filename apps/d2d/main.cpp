@@ -1819,8 +1819,8 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                     text_this_frame.clear();
                 }
                 session.typed = text_this_frame;
-                // The act's palette follows the player's level.
-                if (const int act = session.view_act(); act != scene->palette_act)
+                // The act palette follows the player's level: its Levels.txt Pal (Level::palette_act).
+                if (const int act = session.view.level ? session.view.level->palette_act() : session.view_act(); act != scene->palette_act)
                     load_act_palettes(*scene, scene->mpqs, act);
                 session.update(framebuffer, mouse, keys_this_frame, screen, audio, now_ms, last_ms);
                 // A panel key moved the cursor with the view (FUN_00468770's SetCursorPos):
