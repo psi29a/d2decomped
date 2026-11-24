@@ -238,6 +238,7 @@ struct NetGame {
     d2d::rules::QuestLogStates quest_log{};
     d2d::rules::QuestGameFlags game_quests{};
     int den_left = 0;
+    int arreat_left = 0;   // DAT_007bf2ac
     bool quest_log_known = false;
     // An NPC's quest lines as the host has them for us (0x27 mode 1), for
     // the client to take: what its menu greets with and lists under Talk.

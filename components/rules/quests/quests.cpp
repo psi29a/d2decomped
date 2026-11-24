@@ -116,12 +116,15 @@ QuestText quest_text(const d2d::rules::QuestBits& quest_bits, int quest, const Q
         if (log_state == 3 || log_state == 4) { if (quest_state.den_left >= 2) text.count = quest_state.den_left; else text.string = 3739; }
         return text;
     }
-    // ponytail: Rescue on Mount Arreat's (36) state 2 line (22624) appends its count ([0x7bf2ac], 0x4a1fd9); not
-    // shown here. Needs: where the client fills 0x7bf2ac.
     int line = rec[std::size_t(2 * log_state + 1)];
     if ((!b13 && !bit1 && game(13)) || flag(14)) line = 3729 + quest_state.multiplayer;   // "done by another player"
     else if (line == 3727 && !quest_state.multiplayer) line = 3729;
-    return entry(line, rec[std::size_t(2 * log_state + 2)], log_state == 13 ? (flag(12) ? 1 : 0) : 3, log_state, true);
+    // Rescue on Mount Arreat's line 22624 ("Rescue %d more Soldiers ...", quest name 0x585e) prints its count
+    // ([0x7bf2ac], 0x4a2016: FUN_005269d0); a count of 0 shows 3729 (0xe91) in its place.
+    if (line == 22624 && quest_state.arreat_left == 0) line = 3729;
+    QuestText text = entry(line, rec[std::size_t(2 * log_state + 2)], log_state == 13 ? (flag(12) ? 1 : 0) : 3, log_state, true);
+    if (line == 22624) text.count = quest_state.arreat_left;
+    return text;
 }
 
 // The quest log's acts (FUN_004a2220): an act's tab is there once the act

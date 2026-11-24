@@ -643,6 +643,22 @@ int main() try {
     }
     // A cage's portal (FUN_005888d0): the dead door's subtile + 2 on x, never a free-spot search.
     assert(RescueQuest::portal_spot(100, 40) == std::pair(102.5f / 5, 40.5f / 5));
+    // Rescue on Mount Arreat's count (FUN_00588c50): five a cage not up, and the made neither freed nor dead.
+    RescueQuest soldiers;
+    assert(soldiers.left() == 15);
+    soldiers.cages[0].up = true;
+    for (int which = 0; which < RescueQuest::kPerCage; ++which) soldiers.prisoner_made(0, which, 100 + which);
+    soldiers.freed = 2; soldiers.dead = 1;
+    assert(soldiers.left() == 10 + 2);
+    // Its log line 22624 ("Rescue %d more Soldiers...") prints it (0x4a2016); at 0, 3729 in its place.
+    QuestState arreat_state{};
+    arreat_state.log[36] = 2;
+    arreat_state.arreat_left = 12;
+    const auto arreat_text = quest_text(QuestBits{}, 36, arreat_state);
+    std::printf("Mount Arreat's state 2: string %d, count %d\n", arreat_text.string, arreat_text.count);
+    assert(arreat_text.string == 22624 && arreat_text.count == 12);
+    arreat_state.arreat_left = 0;
+    assert(quest_text(QuestBits{}, 36, arreat_state).string == 3729);
     std::puts("ok");
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_quests: %s\n", error.what());

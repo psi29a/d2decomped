@@ -207,6 +207,7 @@ auto World::view() const -> View {
                                                         | (closed_at_join[quest] ? 1 << 15 : 0));
         }
         view.den_left = std::max(den_left, 0);
+        view.arreat_left = rescue.left();
         {
             d2d::rules::StatSum sum{};
             (void)fight.player_fighter(nullptr, nullptr, nullptr, &sum);

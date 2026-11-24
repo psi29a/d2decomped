@@ -1255,7 +1255,8 @@ bool draw_quest_log(std::vector<std::uint8_t>& framebuffer, const Scene& scene, 
     line(name, 0xa0 - font.measure(name) / 2, 248);
     if (picked.string && !quest_log.replayed) {
         std::string text = string_id(scene, std::uint16_t(picked.string)), row;
-        if (picked.count >= 0) text += std::to_string(picked.count);
+        if (const auto format_at = text.find("%d"); picked.count >= 0 && format_at != std::string::npos) text.replace(format_at, 2, std::to_string(picked.count));   // a format line (FUN_005269d0)
+        else if (picked.count >= 0) text += std::to_string(picked.count);
         int y = 270;
         std::size_t start = 0;
         while (start < text.size()) {

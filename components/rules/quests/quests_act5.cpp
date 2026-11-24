@@ -139,6 +139,15 @@ auto RescueQuest::join(QuestBits& quest_bits) -> void {
 // when three are up or one's at that spot). The World then makes its
 // prisoners (FUN_00588600: up to 25 tries for five within 5 of it) and
 // calls prisoner_made.
+// FUN_00588c50, the count FUN_00544190 puts in its S->C 0x5d for word 0x24
+// (flags 0x20, +4): five for each cage not up (+0x86..+0x88), and the made
+// (+0xa4) neither freed (+0xac) nor dead (+0xa8); never under 0.
+auto RescueQuest::left() const -> int {
+    int count = 0;
+    for (const auto& held : cages) count += held.up ? 0 : kPerCage;
+    return std::max(count + made - freed - dead, 0);
+}
+
 auto RescueQuest::cage(int x, int y) -> int {
     if (!open) return -1;
     if (state < 2) state = 2;
