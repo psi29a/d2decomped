@@ -18,3 +18,4 @@ its lists in standard containers.
 | Address | Name | Reading | d2d |
 |---|---|---|---|
 | `FUN_004203a0` | `storm_set_7792f4` | Value (`RET 4`): `DAT_007792f4` = value, returns 1 (the getter is `storm_get_7792f4`) | no counterpart |
+| `FUN_004203f0` | `slink_next_link` | `ECX` link, offset (`RET 4`): the next link: a negative next `+4` complemented (the terminator); else next + offset, and for a negative offset the link's own offset, link − its previous link's next | no counterpart |
