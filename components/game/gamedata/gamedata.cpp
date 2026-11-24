@@ -864,22 +864,18 @@ void add_object(const GameData& game_data, const d2d::txt::Table& objects, const
 // is its LvlPrest row's +0x24, which no column fills (0x61ec90's field table: Expansion +0x20, SizeX +0x28), so 0:
 // 0x50. Each tick (FUN_0066d410 from 0x61aefd) FUN_0066d3b0 hides the shown frame, steps the position by the speed
 // mod n << 8 and shows frame position >> 8; every room starts at 0, so all run in step.
-// ponytail: the shown frame is drawn in frame 0's place. game.exe adds frames 1..n-1 to the room's list unchained
-// (0x66d6a1: edx 0), and where its floor draw puts them against the rock after them isn't read. The tick is one a
-// game frame (40 ms), also not read.
+// Each frame is a tile of its own in the room's array (FUN_0066d440 makes it past the array's end, unchained:
+// FUN_0066def0 / FUN_0066dc50 / FUN_0066df40 with a null link), and the draw (FUN_004de730) walks that array in
+// index order, a draw group (flags >> 14 & 7) at a time, so the shown frame draws in its own place, after the
+// room's earlier tiles: lay_tiles lists a room's tiles in that order, so a pick draws where it stands, the shown
+// frame's own pick (not frame 0's) among them.
+// ponytail: the tick is one a game frame (40 ms), not read; and a cell's picks are drawn cell by cell, where game.exe
+// draws a room's whole array a group at a time, so a frame over a neighbouring cell's rock isn't ordered as it is.
 const d2d::dt1::Tile* animated_tile(std::span<const Level::Pick> picks, std::size_t index, std::uint32_t elapsed_ms) {
     const auto& pick = picks[index];
     if (pick.frames == 0) return pick.tile;
-    if (pick.frame != 0) return nullptr;
     const auto showing = std::uint8_t(std::uint64_t(elapsed_ms / 40) * 0x50 / 256 % pick.frames);
-    if (showing == 0) return pick.tile;
-    // The nth animated tile of its layer in the cell that has this frame owns the nth pick of it after them all.
-    std::size_t nth = 0;
-    for (std::size_t other = 0; other < index; ++other)
-        if (picks[other].frames > showing && picks[other].frame == 0 && picks[other].layer == pick.layer) ++nth;
-    for (const auto& other : picks)
-        if (other.frames && other.layer == pick.layer && other.frame == showing && nth-- == 0) return other.tile;
-    return pick.tile;
+    return pick.frame == showing ? pick.tile : nullptr;
 }
 
 // A level's tile lookup and collision grid, once its ds1 and dt1s are in.
