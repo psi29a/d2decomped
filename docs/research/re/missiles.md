@@ -48,7 +48,17 @@ its EDX, run after the path is set.
 - Collision mask (path +0x50) = DAT_0073c724[CollideType]; the unit
   filter DAT_0073c720[CollideType] (3: 0x184 and FUN_005a8850 →
   FUN_005a8730: targetable, not the last unit hit, hostile unless
-  CollideFriend).
+  CollideFriend). In FUN_005a8730 (ESI the unit, EDI the owner, EBX the
+  row): unit +0xc4 bits 2 and 3 set; row +0x188 with the unit in state
+  0x56: no; `FUN_0064a470(missile, unit)` (struck already): no; no owner,
+  `FUN_00554200` (owner, unit) hostile, or CollideFriend (+0x187): yes.
+  `FUN_00554200` takes a monster's or a missile's owner for it, gives 0
+  when both are one unit, else `FUN_00650d70` (alignments) for two non-players.
+  d2d: `missiles_update`'s `hostile` (`Missile::owner_align`, set where a
+  monster's missile is made; `MissileInfo::collide_friend`), the monsters
+  as foes past the players' side whenever any is aligned or cursed
+  (Fight::world's `monster_foes`, again around `missiles_update`);
+  `tests/game/test_missile_sides.cpp`. Not read here: what row +0x188 is.
 
 ## Unit vectors — FUN_0064fc60
 
