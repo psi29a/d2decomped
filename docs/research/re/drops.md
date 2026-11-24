@@ -284,16 +284,14 @@ classic game, non-zero in an expansion one, see above).
 6. No quality won: `((record +0x80 & 0x40) | 0x20) >> 5`, that is 3
    (superior) with the bit and 1 (low quality) without.
 
-d2d: `stand_quality` (components/rules/items/drops.hpp) ports the expansion path
-only: it agrees on the try order, `past / d`, the no-draw win under 1 and the
-superior fall-through. It differs from game.exe in: no classic path (no
-version-0 ItemRatio row, qlvl is always taken off, divisors always, computed
-odds `b - past / d` under 1 never draw, where classic sets them to 1 and draws); no ItemTypes row 0x34 override; and a failed round
-ends in superior whatever the 0x40 bit (d2d's stands set it, so the common
-case agrees; low quality, 1, is the other result in game.exe). The loader
-(`gamedata_load.cpp:1034`) keeps the highest Version <= 100 row per class /
-uber pair, as the expansion call does; it has no lookup for the version-0 row (it
-only lands on one if a pair has no row above 0).
+d2d: `stand_quality` (components/rules/items/drops.hpp) ports both paths: the
+classic one on the Version 0 rows (`Tables::quality_ratio_classic`, kept by the
+loader as FUN_00637910(.., 0) finds them; ItemRatio has them for the plain and
+uber pairs only, so a classic class item, which no classic game makes, falls
+back to the expansion rows where game.exe would fault 0x486), the misc
+override and the 0x40 bit (`superior`). A drop with its quality asked for
+still runs the classic roll's draws first (FUN_00557450 calls FUN_00556f60
+before it takes record +0x30): `Loot::put`. `tests/test_stand_quality.cpp`.
 Re-check: `python3 tools/ghidra/fn.py 00556f60 00637910 00629bb0`.
 
 ## A new character's items — FUN_00534f10, FUN_00534d60, FUN_00534c70

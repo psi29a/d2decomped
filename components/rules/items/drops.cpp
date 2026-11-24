@@ -93,12 +93,16 @@ int made_quality(const Tables& tables, const std::string& code, int quality) {
 
 // A stand's item's quality (FUN_00556f60, nothing asked for), the first
 // draw on its own seed: unique, rare, set, magic, superior, normal in
-// turn, each won at rand(base - past / divisor) == 0 (odds under 1 win),
-// past being ilvl - qlvl, at least 1. A quest base is normal.
-
-// None: superior (args +0x80 & 0x40, set by FUN_005594c0 / FUN_00559630).
-// Then made.
-int stand_quality(const Tables& tables, const std::string& code, int ilvl, Rng& item_seed) {
+// turn, each won at rand(odds) == 0. A quest base is normal. The ItemRatio
+// row (FUN_00637910) is the highest Version not over the item's (0 or 100).
+// An expansion item (version 100+): odds base - past / divisor, under 1 a
+// win with no draw; past ilvl - qlvl, 1 under 1 or for an ItemTypes row
+// 0x34 (misc) item (FUN_00629bb0). A classic one (version 0): past the raw
+// ilvl, unique / rare / set base - ilvl with no divisor, odds under 1 made 1
+// and still drawn.
+// None: superior with the args' +0x80 & 0x40 (set by FUN_005594c0 /
+// FUN_00559630), else low. Then made.
+int stand_quality(const Tables& tables, const std::string& code, int ilvl, Rng& item_seed, bool classic, bool superior) {
     const auto info = tables.item_info.find(code);
     const auto base = tables.item_base.find(code);
     if (info == tables.item_info.end() || base == tables.item_base.end()) return 2;
@@ -107,14 +111,21 @@ int stand_quality(const Tables& tables, const std::string& code, int ilvl, Rng& 
     const bool cls = type_found != tables.types.end() && !type_found->second.cls.empty();
     const bool uber = (type_is(tables, info->second.type, "weap") || type_is(tables, info->second.type, "armo"))
                       && (base->second.ubercode == code || base->second.ultracode == code) && info->second.type != "tpot";
-    const auto& ratio = tables.quality_ratio[std::size_t((cls ? 2 : 0) + (uber ? 1 : 0))];
-    const int past = std::max(ilvl - base->second.level, 1);
+    const auto pair = std::size_t((cls ? 2 : 0) + (uber ? 1 : 0));
+    const bool old_rows = classic && tables.has_classic_ratio[pair];   // a classic class item has no row (fatal 0x486): the expansion's
+    const auto& ratio = old_rows ? tables.quality_ratio_classic[pair] : tables.quality_ratio[pair];
+    const int past = classic ? ilvl : type_is(tables, info->second.type, "misc") ? 1 : std::max(ilvl - base->second.level, 1);
     static constexpr std::array<std::pair<int, std::size_t>, 6> kOrder{ { { 7, 0 }, { 6, 2 }, { 5, 1 }, { 4, 3 }, { 3, 4 }, { 2, 5 } } };
     for (const auto& [quality, row] : kOrder) {
+        if (classic) {
+            const int odds = std::max(ratio[row].base - (quality >= 5 ? past : past / std::max(ratio[row].divisor, 1)), 1);
+            if (item_seed(odds) == 0) return made_quality(tables, code, quality);
+            continue;
+        }
         const int odds = ratio[row].base - past / std::max(ratio[row].divisor, 1);
         if (odds < 1 || item_seed(odds) == 0) return made_quality(tables, code, quality);
     }
-    return made_quality(tables, code, 3);
+    return made_quality(tables, code, superior ? 3 : 1);
 }
 
 TreasureEntry treasure_entry(std::string cell) {

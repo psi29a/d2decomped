@@ -39,8 +39,10 @@ int roll_quality(const Tables& tables, const std::string& code, int ilvl, const 
 // The quality an item asked for at `quality` is made at.
 int made_quality(const Tables& tables, const std::string& code, int quality);
 
-// A stand's item's quality, the first draw on its own seed.
-int stand_quality(const Tables& tables, const std::string& code, int ilvl, Rng& item_seed);
+// A stand's item's quality, the first draw on its own seed. `classic`: an
+// item of version 0 (a classic game's); `superior`: the args' 0x40 bit, a
+// failed round's superior (else low).
+int stand_quality(const Tables& tables, const std::string& code, int ilvl, Rng& item_seed, bool classic = false, bool superior = true);
 
 // One TreasureClassEx item cell (FUN_00654440): the code, then comma
 // parameters. Gold keeps "gld,mul=N" as its code (the roll reads the
