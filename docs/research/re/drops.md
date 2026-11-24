@@ -700,10 +700,20 @@ classic one (FUN_0055a550). FUN_00557450 and its helpers branch on it (`FUN_0062
   25), each skill `rand % 5 + (tier − 1) × 5 + first` redrawn while it is 0x49 or taken (no
   item-type test, no try limit, no low cap), its level 1 / 2 / 3 below 60 / 90.
 - The tail: no ethereal (`FUN_00556ca0`) and no class affix, both version 100+ only.
+- Unique (`FUN_005566b0`): with durability, x5 (capped 255) first; then the first UniqueItems
+  row of version < 100, enabled, of the item's code, not ladder outside a ladder game, whose
+  found bit (`d2d_unique_found_test`) is clear or the base a quest item: no draw, no level
+  test, and `FUN_00556530` (the found mark) isn't called. None: FUN_00557450 adds no x3
+  (version 100+ only) and remakes it rare.
+- Set (`FUN_005c2940` → `d2d_set_pick_old`, 0x5c2740): durability x2; n the Sets rows before
+  the first of version 100+; rand(n) on the item's own seed (none for n < 1); from that set,
+  all n round, each set's first member (`+0x110`, `+0xc` of them) of the item's code. The
+  loop doesn't stop, so the last found wins. None: the own seed back to its start
+  (`FUN_00650e40`), no x2 in FUN_00557450, remade magic.
 
 d2d: `roll_item(..., classic)`, passed by drops (`Loot::put`), stores, gambling and the Cube
 from the character's expansion flag; `tests/test_classic_items.cpp`.
-Evidence: `python3 tools/ghidra/fn.py 00557450 005c2af0 005c1260 005c0d70`.
+Evidence: `python3 tools/ghidra/fn.py 00557450 005c2af0 005c1260 005c0d70 005566b0 005c2740`.
 
 ## The class choice and its helpers (`FUN_005a6600` and what it calls)
 

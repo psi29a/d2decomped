@@ -1515,6 +1515,7 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                     special.ladder = table.get(row, "ladder") == "1";
                     special.index = std::string(table.get(row, "index"));
                     special.nolimit = table.get(row, "nolimit") == "1";
+                    special.version = num(table.get(row, "version"));
                     if (const auto set_row = std::ranges::find(set_names, table.get(row, "set")); set_row != set_names.end() && code_col[0] == 'i')
                         special.set = int(set_row - set_names.begin());
                     values.push_back(std::move(special));
@@ -1589,6 +1590,7 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                                             num(sets_table.get(row, low)), num(sets_table.get(row, high)) };
                 };
                 d2d::rules::SetBonus bonus;
+                bonus.version = num(sets_table.get(row, "version"));
                 for (int count = 2; count <= 5; ++count)
                     for (const char* side : { "a", "b" }) {
                         const auto suffix = std::to_string(count) + side;
