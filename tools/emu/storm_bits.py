@@ -3,7 +3,7 @@
 
 Run: uv run python storm_bits.py [--exe /path/to/game.exe] [--mutation-check]
 
-# gaps-runs: FUN_0041d880 FUN_0041d8d0 FUN_0041d900 FUN_0041d920
+# gaps-runs: FUN_0041d880 FUN_0041d8d0 FUN_0041d900 FUN_0041d920 FUN_0041d940
 
 Each case gives one helper a record (`ECX`) with random fields, a random
 source or destination buffer and random arguments, runs it on game.exe and
@@ -62,6 +62,8 @@ class Model:
             rec[0] = rec[2] = dst
             rec[1] = size + (m == "winit_size_plus")
             rec[3] = rec[4] = 0
+        if address == 0x41D940:   # bytes written
+            result = (rec[2] - rec[0] + (m == "written_plus")) & M32
         return rec, bytes(buf), result
 
 
@@ -70,6 +72,7 @@ MUTATIONS = {
     0x41D8D0: ["peek_strict"],
     0x41D900: ["skip_one_more"],
     0x41D920: ["winit_size_plus"],
+    0x41D940: ["written_plus"],
 }
 
 
