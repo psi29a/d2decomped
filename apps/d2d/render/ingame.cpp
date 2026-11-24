@@ -344,9 +344,13 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
         // under the mouse, or naming the item the cursor is on, goes solid
         // (mode 5) in the palette's nearest to (0, 64, 128) (FUN_004fb180)
         // with white text, and a click picks that item up.
-        // ponytail: a level's floor kept and come back to keeps d2d's order
-        // (View::ground's); how game.exe's client gets those items again
-        // (their order in their rooms) isn't traced.
+        // ponytail: the walk's order within a room is View::ground's, newest first.
+        // The client's list is the order its items arrived in, last first: an item
+        // dropped in play heads it, but a room coming into play (a level come back
+        // to, FUN_00537b50 -> FUN_0053a8e0) sends its items newest first, so the
+        // client lists those oldest first (cursor-units.md "The walk"). d2d keeps
+        // one order, and a loot floor's pushes (world/tick.cpp) and the View's copy
+        // (world/view.cpp) would carry the arrival order.
         if (show_items) {
             const auto& pal = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
             std::array<std::uint8_t, 3> hover_blue{};

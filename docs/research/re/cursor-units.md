@@ -83,7 +83,26 @@ and each room's units from its list's head (room +0x74, the next at unit
 +0xe8). `FUN_0064c2c0` adds a unit at the head (and `FUN_0064c370` takes
 it out), so a room lists its newest unit first. The 0x20 is a count of
 placed labels (0x7c54a0, `cmp edi, 0x20` at 0x4c08d6): past it the walk
-goes on, placing none. The spot is the item's client position less the
+goes on, placing none. How a room's list comes to be in that order (server
+side `FUN_00537b50`, run when a player's room changes, read from the
+decompile): each room of the new room's near list (`d2d_act5_rooms_near`)
+that is not in the old one's goes through `FUN_0053a8e0`, which walks the
+server room's own list from its head (+0x74, next +0xe8, so newest first,
+`FUN_0064c2c0` heading it the same way) and calls `FUN_00571f90` for each
+unit but the player's; for an item (type 4) that sends the add packet only
+when unit flag `+0xc4` bit 4 is set (`FUN_0053ec00` / `FUN_0053ec90`; what
+the bit means was not traced). Each room only in the old list goes through
+`FUN_0053a9b0`, which calls `FUN_00571600` for each unit of the room (the
+removal packet; the client's side not read). The client heads its room list
+with each arriving item (`FUN_004c1910` modes 3 and 5: `FUN_00620ae0`,
+`FUN_00620a70`, `d2d_unit_link_in`), so a drop made while the room is in
+play lists first, and the items a room brings with it when it comes into play
+list after, oldest first (the reverse of their server order). d2d keeps
+`View::ground`'s one order (`rank_ground_labels` takes the last first): right
+for items dropped in play, reversed for a floor that comes back with its
+room; the level come back to and a room re-entering play on a walk both
+need the arrival order kept, which `world/tick.cpp`'s push and
+`world/view.cpp`'s copy would carry, so it is not ported. The spot is the item's client position less the
 view's, 16 up: x = `FUN_00620650` − `FUN_0045afc0`, y = `FUN_006206b0` −
 0x10 − `FUN_0045afd0` (an item's static path +4 / +8). The rect: left =
 x − (w + 8) / 2 (`sar`), right = left + w + 8, top = y − h + 4, bottom =
