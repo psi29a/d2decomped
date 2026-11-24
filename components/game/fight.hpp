@@ -204,6 +204,10 @@ struct Fight {
             std::array<int, 3> ctrl{};                 // its AI control's +0x14 / +0x18 / +0x1c (rules::PetBrain)
             int cast = -1;                             // the skill its attack mode does (a traced think's), -1 a swing
             float cast_x = 0, cast_y = 0;              // a skill at a spot (a wolf's Teleport)
+            // A Shadow's Dragon Flight while it plays: its MonSeq sequence, the rows
+            // past, the rate it steps at (1/256 rows a tick).
+            const std::vector<GameData::MonSeqFrame>* seq = nullptr;
+            int seq_done = 0, seq_rate = 256;
             // A Shadow's skills in its list's order (pet-ai.md "Their skill lists")
             // and the Shadow Master's left skill (FUN_00643bc0; -1 none).
             std::vector<d2d::rules::ShadowListed> skill_list;
@@ -878,7 +882,8 @@ struct Fight {
     [[nodiscard]] int pet_second_foe(const Monster& searcher, int size, const Crowd& crowd, int& gap) const;
     void pet_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd);
     void shadow_give(Pet& pet, int skill, int lvl) const;
-    void shadow_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd);
+    void shadow_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd, int dragon_part = 3);
+    void shadow_sequence(Pet& pet, std::uint32_t now_ms);   // a Shadow's Dragon Flight: its MonSeq sequence starts
     void trap_fire(Pet& pet, std::size_t target, std::uint32_t now_ms);
     // Holy Shield: the holyshield state for auralencalc ticks, its aurastats (toblock dm56) on the player.
     bool cast(int skill, std::uint32_t now_ms);
