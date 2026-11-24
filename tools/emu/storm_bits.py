@@ -3,7 +3,7 @@
 
 Run: uv run python storm_bits.py [--exe /path/to/game.exe] [--mutation-check]
 
-# gaps-runs: FUN_0041d880
+# gaps-runs: FUN_0041d880 FUN_0041d8d0
 
 Each case gives one helper a record (`ECX`) with random fields, a random
 source or destination buffer and random arguments, runs it on game.exe and
@@ -45,11 +45,20 @@ class Model:
             rec[1] = struct.unpack_from("<I", buf, src - base)[0]
             rec[0] = (src + 4 + 4 * (m == "init_skip_8")) & M32
             rec[2] = 0x20
+        if address == 0x41D8D0:   # peek: one 16-bit word in when the count is at most n
+            n, mask = args
+            if rec[2] <= n - (m == "peek_strict"):
+                word = struct.unpack_from("<H", buf, rec[0] - base)[0]
+                rec[1] = (rec[1] | (word << (rec[2] & 31))) & M32
+                rec[2] = (rec[2] + 16) & M32
+                rec[0] = (rec[0] + 2) & M32
+            result = rec[1] & mask
         return rec, bytes(buf), result
 
 
 MUTATIONS = {
     0x41D880: ["init_skip_8"],
+    0x41D8D0: ["peek_strict"],
 }
 
 
