@@ -381,6 +381,7 @@ auto Fight::merc_foe(std::uint32_t now_ms) -> Foe {
         foe.pet = true;                                  // the merc: its MonStats class's size
         if (actor->merc) foe.room_stamp = actor->merc->unit.room_stamp;
         foe.id = merc_foe_id();
+        foe.listed = actor->merc ? actor->merc_listed : 0;
         foe.neutral = actor->merc && actor->merc->mode == "NU";
         foe.life_pct = actor->merc ? int(std::int64_t(actor->merc->hit_points) * 100 / std::max(merc_max_life(), 1)) : 0;
         if (const int row = actor->merc_npc ? game_data->monsters.row(actor->merc_npc->id) : -1; row >= 0) {

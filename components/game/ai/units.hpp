@@ -562,6 +562,7 @@ struct Foe {
     bool a3q5_done = false;                   // a player, or its pet, with quest 0x15 bit 0 (the zealots spare it)
     int blessed = 0;                          // the wisps' dance's magic find (stat 0x50) put on it this frame
     d2d::rules::DiabloPick pick;              // what Diablo's target score reads off it (FUN_005e8530)
+    int listed = 0;                           // a pet's or merc's place in the player's list: the later it entered (FUN_005b1900), the earlier it is tried
     int id = -1;                              // a pet's or monster's Monster::id; a player's -2 - 2 x Hero::id, their merc's one below
     int striker_id = -1;                      // the Monster::id of the last blow that landed this frame, -1 none (the killer, FUN_0057cee0)
     // `striker`: the Monster::id it came from (FUN_0057cee0's attacker), -1 none.

@@ -805,6 +805,11 @@ struct SearchFoe { int distance = 0; bool pet = false, away = false, dead = fals
 struct SearchPick { int target = -1, best = 0, nearest = 0x7fffffff, nine = -1, nine_best = 0x7fffffff; };
 SearchPick search_pick(std::span<const SearchFoe> foes, int best, bool need_sight);
 
+// The order game.exe tries a player's pets (indices into `entries`, d2d's foe order): the one that entered its list last first.
+enum class ListKind : std::uint8_t { player, pet, other };
+struct ListEntry { ListKind kind = ListKind::other; int serial = 0; };
+std::vector<std::size_t> search_order(std::span<const ListEntry> entries);
+
 // A chest trap's Trap-Missile / Trap-Poison / Trap-Nova think.
 int trap_target(std::span<const SearchFoe> foes, int reach);
 

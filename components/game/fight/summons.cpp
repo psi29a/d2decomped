@@ -524,6 +524,7 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
         if (skill.sumumod > 0 && skill.sumumod < 0x2b) monster.mods.push_back(skill.sumumod);
         set_mode(*game_data, monster, "NU", now_ms);
         pet.monster.id = next_id++;                              // a unit id as a monster's (a guided missile's hold on it)
+        pet.listed = ++actor->list_serial;
         actor->pets.push_back(std::move(pet));
         return actor->pets.back().monster.id;
     }
