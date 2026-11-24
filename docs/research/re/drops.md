@@ -805,8 +805,10 @@ count, indestruct put stat 152, and Wizendraw's `pierce-cold` (row 234,
 UniqueItems version 0) applied. `tools/emu/classic_mods.py` runs
 FUN_0065fe10 on a version-0 item for every row 0..243 against
 `tests/test_classic_mods` (14 bases: armor, one- and two-hand, thrown,
-a bow, a ring, an amulet; min above or below max; kinds 0..5): 2000 cases (seed 1) and 6000 (seed 7), 0 differ;
-`tests/classic_mods_cases.inc` holds the first 2000. The classic data
+a bow, a ring, an amulet; min above or below max; kinds 0..5; charged
+and skill params past Skills too). The README's "A classic item's mods"
+row prints the differences: none for `gen 2000 1` and `gen 6000 7`
+(2026-11-24). `tests/classic_mods_cases.inc` is `gen 2000 1`. The classic data
 reaches no row past 243: version-0 rows of MagicPrefix, MagicSuffix and
 UniqueItems, and the members of the 16 version-0 Sets, checked against
 Properties.txt.
