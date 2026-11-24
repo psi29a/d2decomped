@@ -3,7 +3,7 @@
 
 Run: uv run python storm_list.py [--exe /path/to/game.exe] [--mutation-check]
 
-# gaps-runs: FUN_004203a0
+# gaps-runs: FUN_004203a0 FUN_004203f0
 
 Each case builds a well-formed list in emulator memory: the list (`+0` the
 link offset, `+4` its terminator link: `+4` the last link, `+8` the first
@@ -80,11 +80,20 @@ class Model:
         address = TWINS.get(address, address)
         if address == 0x4203A0:
             return (0 if m == "set_returns_0" else 1), freed, args[0]
+        if address == 0x4203F0:
+            nxt = mem.r(ecx + 4)
+            if signed(nxt) < 0:
+                return ~nxt & M32, freed, glob
+            offset = args[0]
+            if signed(offset) < 0 and m != "next_link_ignores_offset":
+                offset = ecx - mem.r(mem.r(ecx) + 4)
+            return (nxt + offset) & M32, freed, glob
         raise AssertionError(address)
 
 
 MUTATIONS = {
     0x4203A0: ["set_returns_0"],
+    0x4203F0: ["next_link_ignores_offset"],
 }
 
 
