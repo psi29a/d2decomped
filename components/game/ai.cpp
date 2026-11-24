@@ -2180,7 +2180,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 Missile x{ &missile_info, unit.x, unit.y, aim_x / distance * speed, aim_y / distance * speed, missile_facing(unit.x, unit.y, aim_x, aim_y), now_ms,
                            now_ms + std::uint32_t(missile_info.range) * 40, monster.stats };
                 x.level = lvl; x.aim_at = { unit.x + aim_x, unit.y + aim_y }; x.owner = monster.id; x.owner_align = monster.align;
-                const bool first = monster.mode == "A1", cast = monster.mode == "SC";   // an A1 shot carries A1's damage; S1's S1's; SC's only its elements (El SC)
+                const bool first = monster.mode == "A1", cast = monster.mode == "SC";   // an A1 shot carries A1's damage; S1's and SC's S1's (FUN_005a4f50)
                 x.src = monster_shot_stats(missile_info, monster.swing_stats(), first, cast, s1_shot, lvl);
                 missiles.push_back(x);
                 // Multishot (FUN_005a3610, the missile hook): two more, aimed a
@@ -3595,10 +3595,10 @@ d2d::rules::MonStats missile_blow(const GameData::MissileInfo& info, const d2d::
     return stats;
 }
 
-MonsterShotPhys monster_shot_phys(const GameData::MissileInfo& info, int src_min, int src_max, bool cast, int lvl) {
+MonsterShotPhys monster_shot_phys(const GameData::MissileInfo& info, int src_min, int src_max, int lvl) {
     const int shift = info.hitshift & 31;
     const auto part = [&](int src, int row, const std::array<int, 5>& lev) {
-        const int owner = cast || info.src_damage <= 0 ? 0 : int(std::int64_t(src) * 256 * info.src_damage / 128);
+        const int owner = info.src_damage <= 0 ? 0 : int(std::int64_t(src) * 256 * info.src_damage / 128);
         return owner + ((row + d2d::rules::level_bonus(lev, lvl)) << shift);
     };
     return { part(src_min, info.min, info.min_lev), part(src_max, info.max, info.max_lev) };
@@ -3613,9 +3613,10 @@ MonsterShotPhys monster_shot_phys(const GameData::MissileInfo& info, int src_min
 // +0x3c hold and what monster_blow applies on every hit); the owner's own poison is
 // dropped on a SrcDamage-0 row and summed in otherwise (the rule below).
 d2d::rules::MonStats monster_shot_stats(const GameData::MissileInfo& info, d2d::rules::MonStats stats, bool first, bool cast, bool s1_shot, int lvl) {
-    const int src_min = first ? stats.a1_min : s1_shot ? stats.s1_min : stats.a2_min;
-    const int src_max = first ? stats.a1_max : s1_shot ? stats.s1_max : stats.a2_max;
-    const auto phys = monster_shot_phys(info, src_min, src_max, cast, lvl);
+    // A cast's (SC) owner damage is the S1 columns' (FUN_005a4f50: modes 7 and 8 take FUN_006538a0's 0x20 set).
+    const int src_min = first ? stats.a1_min : s1_shot || cast ? stats.s1_min : stats.a2_min;
+    const int src_max = first ? stats.a1_max : s1_shot || cast ? stats.s1_max : stats.a2_max;
+    const auto phys = monster_shot_phys(info, src_min, src_max, lvl);
     stats.a2_min = phys.low >> 8; stats.a2_max = phys.high >> 8;
     if (s1_shot) stats.to_hit = stats.to_hit_s1;                    // S1TH (monster_blow rolls to_hit)
     stats.no_hit_roll = !info.to_hit;
@@ -3645,10 +3646,10 @@ d2d::rules::MonStats monster_shot_stats(const GameData::MissileInfo& info, d2d::
     // SrcDamage / 128, the length too; so an A1, A2 or S1 shot alike. Kept in whole points.
     // A MissC shot takes this plain branch too: FUN_0064b860's other one is for a row with a Skill
     // (+0x194), and the only MissC rows in 1.14d, the Wills o' the Wisp's willowisplightningbolt /
-    // willowisplightningbolt2, have none (SrcDamage 128; MonStats / Missiles read in tools/emu).
-    // ponytail: whether the Wisp's cast carries its enchants and physical (FUN_0064a930 by SrcDamage;
-    // the owner's stats 21 / 22 as its SC mode set them, FUN_005a4f50) isn't traced; d2d drops both.
-    if (cast || src_damage == 0) stats.enchants = {};
+    // willowisplightningbolt2, have none (SrcDamage 128; MonStats / Missiles read in tools/emu). So a
+    // cast carries the enchants as any shot, and the owner's stats 21 / 22 as its SC mode set them
+    // (FUN_005a4f50, the S1 columns: empty for every willowisp row, so no physical).
+    if (src_damage == 0) stats.enchants = {};
     for (auto& enchant : stats.enchants)
         if (enchant) *enchant = { enchant->first * src_damage / 128, enchant->second * src_damage / 128 };
     stats.enchant_len = stats.enchant_len * src_damage / 128;
