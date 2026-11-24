@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <exception>
+#include <optional>
 
 int main() try {
     struct Case { std::uint32_t stamp, delta; int refused; };
