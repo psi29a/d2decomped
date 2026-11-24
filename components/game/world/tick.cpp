@@ -868,6 +868,7 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
             }
         });
         for (const auto& kill : hosted_quests ? std::vector<Fight::Kill>{} : fight.kills) {
+            barricade_broken(kill, now_ms);
             const auto killer = std::ranges::find(players, kill.killer, [](const auto& player) { return player->id; });
             act_as(killer == players.end() ? lead() : **killer);   // the hooks read the killer's quests
             credit_party([&] {

@@ -744,6 +744,8 @@ struct World {
     void operate_door(int npc_index, std::uint32_t now_ms);
     // A door to `mode` (0 shut, 1 opening, 2 open...): its footprint and sound.
     void set_door_mode(int npc_index, int mode, std::uint32_t now_ms);
+    // A barricade door died: the blocker object on its spot opens (mode 2), its footprint out.
+    void barricade_broken(const Fight::Kill& kill, std::uint32_t now_ms);
     // This level's slime doors OP long enough go ON.
     void slime_doors_on(std::uint32_t now_ms);
     // The doors used here back to their mode's footprint (rooms laid again shut them).
