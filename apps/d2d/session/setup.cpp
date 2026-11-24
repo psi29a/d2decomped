@@ -128,6 +128,7 @@ auto ClientSession::enter() -> void {
         automap_reveal.new_game();                // its rooms' tiles come with clear flags
         other_automaps.clear();
         quest_log = {};                           // done animations play again in a new game
+        net_alerts.reset();
         alert_clocks.clear();                      // ClientSession is reused when a second game starts on the same level
         spark_trail.clear();                       // ... and the trails were the last game's
         alert_level = nullptr;
