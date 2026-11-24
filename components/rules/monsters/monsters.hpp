@@ -739,6 +739,21 @@ std::vector<std::pair<int, int>> monster_path(int x, int y, int to_x, int to_y, 
     return off_own(wall_path(x, y, to_x, to_y, steps, to_unit, blocked));
 }
 
+// A critter's walk on the client (FUN_004aff60 command 1 -> FUN_004804a0 ->
+// FUN_00649970): its path type 2 from FUN_00649d00, so the toward pather
+// alone (FUN_00679c80, near 0 at a spot), with no wall pather after it (that's
+// the server's FUN_005a6290). None at its own subtile or over 100 off on an
+// axis; leading points on its own subtile dropped (FUN_0064fe40). A clear line
+// is one point however far; `steps` (path +0x91: 0xe from FUN_00649d00, a
+// bird's 0x4d from FUN_00648e70(path, 0x5a)) counts only past a wall.
+template <class Blocked>
+std::vector<std::pair<int, int>> critter_path(int x, int y, int to_x, int to_y, int steps, Blocked&& blocked) {
+    if ((to_x == x && to_y == y) || std::abs(to_x - x) > 100 || std::abs(to_y - y) > 100) return {};
+    auto points = toward_path(x, y, to_x, to_y, steps, 0, blocked);
+    points.erase(points.begin(), std::ranges::find_if(points, [&](const std::pair<int, int>& point) { return point != std::pair(x, y); }));
+    return points;
+}
+
 // A player's path (type 7, FUN_00679ed0; +0x91 steps 0x49, FUN_00649d00):
 // the toward pather; taken when its end is within `nearby` of the target
 // and isn't the start. Else, with the target under 18 subtiles off (dx^2 +

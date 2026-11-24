@@ -78,8 +78,22 @@ runs it over types, classes, modes and the 0x10000 flag of both units.
 
 A bird's flight: four steps of its seed. The first odd: x 40, y rand(40);
 even: x rand(40), y 40; the next two negate x, then y on odd. It flies to
-3 x (player + that) - 2 x itself, subtiles, its path's distance capped at
+3 x (player + that) - 2 x itself, subtiles, its path's steps (+0x91) set to
 77 (`FUN_00648e70(path, 0x5a)`, kept under 0x4d), no wait after.
+
+A critter's moves (`FUN_0046c770`, `FUN_0046c7d0`, `FUN_0046c960`,
+`FUN_0046ca60`: the spot, the path type `FUN_00648e30`, the wait, the steps
+`FUN_00648ea0`) go through `FUN_004aff60` with the mode their caller gives;
+for 1 (WL) and 0x17 (RN) alike it is `FUN_004804a0` → `FUN_00649970`: no path at the critter's own subtile, over
+100 off on an axis, or to a spot outside its room and the rooms near it
+(`FUN_00463740`); else the pather of its type, 2 for a monster
+(`FUN_00649d00`): the toward pather `FUN_00679c80` alone. Its clear line is
+one point however far; only past a wall do the 8-way steps count, 0xe from
+`FUN_00649d00`, a bird's 77. The collision is its MonStats one
+(`d2d_monster_path_mask`): bird1 and bird2 aren't `flying` (0x3c01, walls
+stop them), the parrot is (0x1804). No path: `LAB_004b0d33`, neutral, the
+wait unset. d2d: `rules::critter_path`, `walk_to` in `critter_tick`;
+`tests/test_critter_neighbour.cpp`.
 
 `FUN_0046c960(radius, mode, wait)` walks to a random corner `radius`
 subtiles off (a sign per axis from the unit's seed); `FUN_0046c7d0(unit,
@@ -95,8 +109,7 @@ by `level_room`'s index as it comes up) and thinks a 40 ms client
 frame at a time; `debug critters` lists them. Seed 3: 23 chickens in the
 camp, 35 rats / 7 bats in the Den once its rooms are up, and after `debug
 kill` rats rest at the corpses (Arne's 1.14d client: 15 chickens in its own camp). ponytail: a critter's unit seed is the
-room's stepped on (game.exe's comes with the unit, not traced); a bird's
-capped path is cut short along its line. The rat walks its near rooms' unit
+room's stepped on (game.exe's comes with the unit, not traced). The rat walks its near rooms' unit
 lists in their order, each newest first (`rules::ClientRooms`, `room_order`).
 
 ## The Den's light (`FUN_0046af70`)

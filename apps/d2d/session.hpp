@@ -862,6 +862,7 @@ struct ClientSession {
         int wait = 0, after = 0;                   // frames to its next think; to wait once its walk is done
         std::uint32_t mode_ms = 0;
         d2d::rules::Rng seed;                      // its unit seed (+0x20)
+        std::vector<std::pair<int, int>> path;     // the subtiles its walk takes, the next first (FUN_00649970)
     };
     std::vector<Critter> critters;
     int critters_level = -1;
