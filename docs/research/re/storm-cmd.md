@@ -206,7 +206,8 @@ skip: `FUN_006c4fb0(line, 0, LAB_0044b5c0, LAB_0044b5d0)`. Those are the
 module's only callers in game.exe (byte scan: calls at `0x44b6c1`,
 `0x44b724`, `0x45127c`). `FUN_006c50b0`, which would process
 `GetCommandLineA()`, has no caller. So these switches are read from that
-registry value only, never from the real command line.
+registry value, and from any `@` response file it names (`FUN_006c3f50`),
+never from the real command line.
 
 The entries at `0x6d5be8` (id -1 each):
 
