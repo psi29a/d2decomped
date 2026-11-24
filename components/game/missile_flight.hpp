@@ -108,6 +108,15 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
                      std::uint32_t now_ms, Reach&& reach, HitsMonster&& hits_monster, OwnerAlive&& owner_alive, FlightOver&& flight_over) {
     std::vector<Missile> laid;
     const int frame = int(now_ms / 40);
+    // FUN_005a8730, its unit filter: with an owner (EDI), only a unit hostile to it (FUN_00554200)
+    // unless the row has CollideFriend (+0x187); never the owner itself (FUN_00554200 returns 0
+    // when both are one unit, a pet's owner standing for it). The foes past the
+    // players' side are the monsters, with their alignments (Fight::world's monster_foes).
+    const auto hostile = [](const Missile& missile, const Foe& foe) {
+        if (missile.owner < 0) return true;
+        if (foe.monster && foe.monster->id == missile.owner) return false;
+        return (missile.info && missile.info->collide_friend) || !d2d::rules::friends(missile.owner_align, foe.monster ? foe.monster->align : 2);
+    };
     const auto spent = [&](Missile& missile) {
         missile.flight.crossed.clear();
         const bool moving = missile.velocity_x != 0 || missile.velocity_y != 0;
@@ -298,7 +307,10 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
                 return false;
             }
             if (missile.info->srv_do != 5) return false;
-            std::erase_if(*missile.struck, [&](int key) { return key / 16 < frame; });
+            // Keys this frame's: (frame mod 0x40000) x 4096 + the foe's index (the monsters' past the players'
+            // side when they're foes); an older frame's go, a wrapped one's at the latest a round later.
+            const int keyed = frame % 0x40000;
+            std::erase_if(*missile.struck, [&](int key) { return key < 0 || key / 4096 != keyed; });
             // FUN_005ae1f0 -> FUN_00641cb0: the first unit its footprint finds (standing_struck, by the
             // unit's size), that one alone this frame (FUN_005adf10); overlapping flames each burn.
             // FUN_00641cb0 walks its room's near list (room +0 / +0x24: missile.rooms past its own
@@ -325,8 +337,8 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
             }
             for (const int index : walk) {
                 auto& foe = foes[std::size_t(index)];
-                const int key = frame * 16 + index;
-                if (!foe.alive || !standing_struck(missile, foe.x, foe.y, foe.size) || std::ranges::contains(*missile.struck, key)) continue;
+                const int key = keyed * 4096 + index;
+                if (!foe.alive || !hostile(missile, foe) || !standing_struck(missile, foe.x, foe.y, foe.size) || std::ranges::contains(*missile.struck, key)) continue;
                 missile.struck->push_back(key);
                 const auto& row = *missile.row;
                 const int burn = d2d::rules::resisted_fine(rng.range(row.elo, row.ehi) - d2d::rules::frame_rate_flat(foe.fighter.mdr, missile.info->damage_rate),
@@ -353,10 +365,7 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
         if (last_unit && missile.last_hit_ms == now_ms) return false;
         for (auto& foe : foes) {
             if (!foe.alive || (moving ? !missile_struck(level, missile, foe.x, foe.y, foe.size) : !standing_struck(missile, foe.x, foe.y, foe.size))) continue;
-            // FUN_005a8730: with an owner, only a unit hostile to it (FUN_00554200) unless CollideFriend
-            // (+0x187). A good owner's (rogue2's) passes the players' side and good monsters by; an
-            // evil owner's keeps striking every foe here, CollideFriend rows (healingbolt) among them.
-            if (missile.owner >= 0 && missile.owner_align == 2 && d2d::rules::friends(2, foe.monster ? foe.monster->align : 2)) continue;
+            if (!hostile(missile, foe)) continue;
             if (last_unit) {
                 if (missile.last_hit == foe.id) continue;
                 missile.last_hit = foe.id;
