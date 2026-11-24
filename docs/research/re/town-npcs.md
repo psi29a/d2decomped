@@ -381,7 +381,7 @@ wanders 5, else stands 10. Evil monsters find it in list 8.
 d2d: `rules::wanderer_due`, `ObjectRooms::wanderer` (objgroups.cpp),
 `Act1Thinks::good_npc_ranged`, the `GoodNpcRanged` row (game/ai/act1.cpp,
 `no_search`); `tests/test_wanderer.cpp`, `tests/game/test_wanderer_fight.cpp`.
-Its arrows pass the players' side by: FUN_005a8730 strikes only a unit hostile to the
-missile's owner (FUN_00554200) unless CollideFriend (`Missile::owner_align`,
-missile_flight.hpp). Not ported here (tick.cpp's note): a monster's missiles reach only
-the players' side, so they don't hurt the monsters it shoots at.
+Its arrows strike the monsters hostile to it and pass the players' side by: FUN_005a8730
+strikes only a unit hostile to the missile's owner (FUN_00554200) unless CollideFriend
+(missiles.md). Its A1 at the second target goes at that unit though it searched for none
+(ai.cpp's `at_second` makes the act targeted, so `ThinkCtx::use` chases it).

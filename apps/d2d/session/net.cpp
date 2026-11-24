@@ -9,18 +9,24 @@
 #include "scene.hpp"
 #include "ui.hpp"
 
+#include <ai/units.hpp>
+#include <combat.hpp>
 #include <cues.hpp>
 #include <d2gs/c2s.hpp>
 #include <d2s_items.hpp>
 #include <item_price.hpp>
+#include <level.hpp>
 #include <light.hpp>
 #include <log.hpp>
+#include <missile_flight.hpp>
+#include <missiles.hpp>
 #include <monster_ids.hpp>
 #include <monsters.hpp>
 #include <quests.hpp>
 #include <quests_act5.hpp>
 #include <rules.hpp>
 #include <skills.hpp>
+#include <spawning.hpp>
 #include <uniques.hpp>
 #include <wear.hpp>
 
@@ -44,6 +50,123 @@
 #include <vector>
 
 namespace d2d::client {
+
+namespace {
+
+// FUN_004aff60 uses the active skill instance's mode. MonStats and
+// Hireling skills have a mode on that instance even when monanim is xx.
+int host_cast_mode(const Scene& scene, int monster_class, const d2d::rules::Skill& skill) {
+    const auto& monster = scene.monsters.types[std::size_t(monster_class)];
+    for (std::size_t slot = 0; slot < monster.skill.size(); ++slot)
+        if (monster.skill[slot] == skill.name)
+            return d2d::game::monster_mode(monster.sk_mode[slot]);
+    for (const auto& hireling : scene.rules.hirelings)
+        if (hireling.cls == monster_class)
+            for (const auto& entry : hireling.skills)
+                if (entry.name == skill.name) return entry.mode;
+    return d2d::game::monster_mode(skill.monanim, -1);
+}
+
+float host_cell(float subtile, int origin) {
+    return (subtile + 0.5f) / 5.f - float(origin);
+}
+
+d2d::game::Missile host_missile(const d2d::game::GameData::MissileInfo& row, int level, float x, float y,
+                               float aim_x, float aim_y, std::uint32_t born) {
+    const auto range = std::uint32_t(std::max(d2d::rules::missile_range(row.range, row.lev_range, level), 1));
+    const bool same_subtile = aim_x == x && aim_y == y;
+    const float dx = same_subtile ? 0.2f : aim_x - x, dy = same_subtile ? 0.2f : aim_y - y;
+    const auto distance = std::max(std::hypot(dx, dy), 0.01f);
+    const auto speed = d2d::game::missile_speed(row, level);
+    d2d::game::Missile missile{ &row, x, y, dx / distance * speed, dy / distance * speed,
+        d2d::game::missile_facing(x, y, dx, dy), born, born + range * 40u };
+    missile.aim_at = {aim_x, aim_y};
+    missile.level = level;
+    return missile;
+}
+
+}
+
+void ClientSession::net_launch_missile(const NetGame::Unit& caster, const std::string& name, int skill_level, std::uint32_t born) {
+    // FUN_004c6680 uses CltMissile and FUN_004af2e0 uses the mode's
+    // missile field. Both send the client missile toward its current target.
+    const auto row = scene->missiles.find(name);
+    if (!caster.attack_aim || row == scene->missiles.end() || row->second.clt_do != 1) return;
+    auto aim = *caster.attack_aim;
+    if (caster.cast_target) {
+        const auto target = net_game->units.find(*caster.cast_target);
+        if (target == net_game->units.end()) return;
+        aim = {target->second.x, target->second.y};
+    }
+    auto missile = host_missile(row->second, skill_level,
+        host_cell(caster.x, level->world_x), host_cell(caster.y, level->world_y),
+        host_cell(aim.first, level->world_x), host_cell(aim.second, level->world_y), born);
+    missile.client_seed = d2d::game::client_unit_seed(*level, d2d::game::room_of(*level, missile.x, missile.y));
+    net_missiles.push_back({std::move(missile), caster.cast_target, born});
+}
+
+void ClientSession::net_step_missiles() {
+    const auto reach = [&](float x, float y) {
+        return d2d::game::missile_rooms(*scene, *level, x, y, &world.fight.spawning);
+    };
+    std::vector<HostMissile> effects;
+    const auto step = [&](HostMissile& shown, bool make_impact) {
+        auto& missile = shown.missile;
+        while (world_ms - shown.stepped >= 40) {
+            shown.stepped += 40;
+            if (shown.stepped >= missile.dies) return true;
+            if (missile.info->vel <= 0) continue;
+            const bool flying = d2d::game::missile_fly(*level, missile, reach);
+            const auto target = shown.target ? net_game->units.find(*shown.target) : net_game->units.end();
+            bool hit = false;
+            // The joined view knows the aimed unit's network position and
+            // life. Collision here only spends the visual missile.
+            if (flying && target != net_game->units.end() && target->second.life != 0) {
+                const auto& unit = target->second;
+                const int size = unit.type == 1 && std::size_t(unit.cls) < scene->mon_npc.size()
+                    ? scene->mon_npc[std::size_t(unit.cls)].size_x : 2;
+                hit = d2d::game::missile_struck(*level, missile,
+                    host_cell(unit.x, level->world_x), host_cell(unit.y, level->world_y), size);
+            }
+            if (flying && (!hit || !missile.info->collide_kill)) continue;
+            if (make_impact && missile.info->clt_hit == 14) {
+                // FUN_004cf640: the centre cel, then three or four ejecta
+                // cels from the same point, with the missile's seed.
+                const auto add = [&](const auto* row, float aim_x, float aim_y) {
+                    if (row) effects.push_back({host_missile(*row, missile.level, missile.x, missile.y,
+                        aim_x, aim_y, shown.stepped), std::nullopt, shown.stepped});
+                };
+                add(missile.info->clt_hit_subs[0], missile.x, missile.y);
+                static constexpr std::array<std::array<int, 4>, 3> kSpokes{{
+                    {0, 1, 4, 5}, {0, 2, 4, 6}, {0, 3, 5, -1},
+                }};
+                static constexpr std::array<int, 8> kSpokeX{0, 1, 1, 1, 0, -1, -1, -1};
+                static constexpr std::array<int, 8> kSpokeY{1, 1, 0, -1, -1, -1, 0, 1};
+                auto& seed = missile.client_seed;
+                const auto& offsets = kSpokes[seed.next() % kSpokes.size()];
+                const auto base = seed.next() & 7u;
+                for (const int offset : offsets) {
+                    if (offset < 0) break;
+                    const auto dir = (base + std::size_t(offset)) & 7u;
+                    add(missile.info->clt_hit_subs[1], missile.x + float(kSpokeX[dir]) / 5,
+                        missile.y + float(kSpokeY[dir]) / 5);
+                }
+            }
+            return true;
+        }
+        return false;
+    };
+    std::erase_if(net_missiles, [&](HostMissile& shown) { return step(shown, true); });
+    // Glacial Spike's impact rows are terminal effects. Catch up each one
+    // from its birth tick before adding it to the render view.
+    std::erase_if(effects, [&](HostMissile& shown) { return step(shown, false); });
+    std::ranges::move(effects, std::back_inserter(net_missiles));
+    for (const auto& shown : net_missiles) {
+        const auto& missile = shown.missile;
+        view.missiles.push_back({missile.info, missile.x, missile.y, missile.dir, missile.born,
+                                 missile.sound, missile.anim_rate, 0, missile.dies});
+    }
+}
 
 // A command to the World, and in a joined game to the host as game.exe's
 // client sends it: walks and runs (0x01 / 0x03) to the same act subtile
@@ -449,6 +572,10 @@ auto ClientSession::net_items(const Command& command) -> bool {
 // walk the camp (ponytail: matched by class and position later, M6).
 auto ClientSession::net_overlay() -> void {
         if (!level || !scene) return;
+        if (net_missile_level != level) {
+            net_missile_level = level;
+            net_missiles.clear();
+        }
         auto cell_x = [&](float subtile_x) { return (subtile_x + 0.5f) / 5.f - float(level->world_x); };
         auto cell_y = [&](float subtile_y) { return (subtile_y + 0.5f) / 5.f - float(level->world_y); };
         view.monsters.clear();
@@ -477,7 +604,13 @@ auto ClientSession::net_overlay() -> void {
             }
             return unit.moving ? "WL" : "NU";
         };
-        for (const auto& [unit_key, unit] : net_game->units) {
+        for (auto& [unit_key, unit] : net_game->units) {
+            // FUN_004c6eb0 / FUN_004c6f40 enter FUN_004c6140 for a host skill.
+            // Its cast overlay is independent of the caster's animation mode.
+            for (const int skill : unit.cast_starts)
+                if (const auto* row = scene->skills.get(skill))
+                    world.fight.start_cast_overlay(*row, false, unit.cast_overlays, world_ms);
+            unit.cast_starts.clear();
             if (unit.type == 0) {
                 if (unit.id == net_game->self_id) continue;
                 View::OtherPlayer other{ .cls = unit.cls, .name = unit.name, .id = unit.id };
@@ -504,6 +637,7 @@ auto ClientSession::net_overlay() -> void {
                 shown.skill_ms = unit.skill_ms;
                 other.unit.mode_ms = shown.since;
                 other.states = host_states(unit.states);
+                other.one_shots = unit.cast_overlays;
                 // Its walk's % from its class's run / walk and the host's chill (state 11);
                 // ponytail: its FRW isn't sent, so a faster run / walk's legs don't show.
                 other.walk_percent = World::walk_percent(*world.game_data, unit.cls, other.running, 0, std::ranges::find(other.states, std::string_view("cold")) != other.states.end());
@@ -516,6 +650,7 @@ auto ClientSession::net_overlay() -> void {
                     view.merc->unit.x = cell_x(unit.x);
                     view.merc->unit.y = cell_y(unit.y);
                     view.merc->unit.walking = unit.moving;
+                    view.merc->one_shots = unit.cast_overlays;
                     if (const auto mode = view.merc->npc ? host_mode(unit, *view.merc->npc) : view.merc->mode; mode != view.merc->mode) { view.merc->mode = mode; view.merc->unit.mode_ms = world_ms; }
                 }
                 continue;
@@ -543,10 +678,59 @@ auto ClientSession::net_overlay() -> void {
             monster.unit.x = cell_x(unit.x);
             monster.unit.y = cell_y(unit.y);
             monster.unit.walking = unit.moving;
-            monster.mode = host_mode(unit, monster.npc);
+            monster.scheduled_anim_position.reset();
+            int pose_mode = -1;
+            const d2d::rules::Skill* cast = nullptr;
+            if (unit.life != 0) {
+                if (d2d::rules::monster_ids::is_council(unit.cls) && unit.mode >= 10 && unit.mode <= 13)
+                    pose_mode = unit.mode <= 11 ? 4 : 8;
+                if (unit.mode == 0x15 || unit.mode == 0x16)
+                    if ((cast = scene->skills.get(unit.skill)))
+                        pose_mode = host_cast_mode(*scene, unit.cls, *cast);
+            }
+            if (pose_mode >= 0 && pose_mode < int(d2d::game::kMonsterModes.size()) && pose_mode != 14) {
+                // FUN_00623f50 derives each rate from the client unit's stats;
+                // FUN_00623e00 advances the existing pose at that rate.
+                const auto mode = d2d::game::kMonsterModes[std::size_t(pose_mode)];
+                const auto& anim = scene->npc_anim(monster.npc, mode);
+                const auto& type = scene->monsters.types[std::size_t(monster.type)];
+                const auto stats = unit.animation_stats();
+                // FUN_004b13a0 skips the living monster's step in state 1.
+                const auto rate = std::ranges::contains(unit.states, 1) ? 0 : d2d::rules::monster_mode_rate({
+                    .mode = pose_mode,
+                    .speed = int(anim.speed ? anim.speed : anim.cof_speed),
+                    .base = {type.walk_base, type.run_base},
+                    .velocity_pct = unit.animation_base_velocity.value_or(d2d::game::kMonsterVelocityPct + monster.boss_speed)
+                        + stats.velocity,
+                    .frw = stats.frw, .ias = monster.props.ias + stats.ias,
+                    .attack_rate = 100 + stats.attack_rate,
+                });
+                const auto elapsed = net_game->steady_now() - unit.mode_ms;
+                const auto before = unit.attack_pose.position;
+                const auto before_tick = unit.attack_pose.ticks;
+                monster.scheduled_anim_position = unit.attack_pose.advance(
+                    elapsed, std::uint32_t(rate), anim.frames ? anim.frames : anim.cof_frames);
+                monster.mode = monster.scheduled_anim_position ? mode : unit.moving ? "WL" : "NU";
+                const auto action = std::uint64_t(std::max(anim.action, 0)) * 256;
+                if (!unit.cast_action && before < action && unit.attack_pose.position >= action && rate > 0) {
+                    unit.cast_action = true;
+                    const auto action_tick = before_tick + std::uint32_t((action - before + std::uint32_t(rate) - 1) / std::uint32_t(rate));
+                    const auto born = world_ms - std::min(world_ms, (unit.attack_pose.ticks - action_tick) * 40u);
+                    if (cast && cast->clt_do_func == 0) net_launch_missile(unit, cast->clt_missile, unit.cast_level, born);
+                    if (mode == "S1" && d2d::rules::monster_ids::is_council(unit.cls)) net_launch_missile(unit, type.miss_s1, 1, born);
+                }
+            } else {
+                monster.mode = host_mode(unit, monster.npc);
+            }
+            if ((monster.scheduled_anim_position || monster.mode == "A1" || monster.mode == "A2" || monster.mode == "S1")
+                && unit.attack_aim) {
+                const auto [aim_x, aim_y] = *unit.attack_aim;
+                if (aim_x != unit.x || aim_y != unit.y) monster.unit.dir = direction16(aim_x - unit.x, aim_y - unit.y);
+            }
             if (monster.mode != monster.last_mode) monster.unit.mode_ms = world_ms;   // the animation starts over
             monster.hit_points = unit.life == 0 ? 0 : std::max(1, monster.stats.hit_points * unit.life / 128);
             monster.host_states = host_states(unit.states);
+            monster.one_shots = unit.cast_overlays;
             monster.align = std::ranges::contains(monster.host_states, std::string_view("conversion")) ? 2 : 0;   // the host converted it: no target, as Fight::monster_states
             // The host sends no MonSounds: game.exe's client plays them itself, from the unit's
             // mode (FUN_004cc410, FUN_004cb890), its first showing (FUN_004cc380), Neutral
@@ -557,6 +741,7 @@ auto ClientSession::net_overlay() -> void {
             world.fight.monster_sounds(monster, world_ms);
             view.monsters.push_back(monster);
         }
+        net_step_missiles();
         // A unit the host has removed is gone here too: one that comes back is
         // a new unit, its Init again, as game.exe frees and makes it anew.
         std::erase_if(net_monsters, [&](const auto& entry) { return !net_game->units.contains(std::uint64_t(1) << 32 | entry.first); });

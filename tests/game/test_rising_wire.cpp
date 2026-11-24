@@ -27,15 +27,23 @@ int main() try {
     Monster monster;
     monster.id = 7; monster.type = 0; monster.hit_points = 10; monster.mode = "S1"; monster.rising = true;
     monster.walk_pct = 40;                                                              // its walk % (protocol 10)
+    monster.scheduled_anim_position = 0;
     sent.monsters.push_back(std::move(monster));
     ViewEncoder encoder;
     View received;
     assert(apply_view(game_data, encode_view(game_data, sent, encoder), received));   // the keyframe
     assert(received.monsters.size() == 1 && received.monsters[0].rising && !received.monsters[0].targetable());
     assert(received.monsters[0].walk_pct == 40);
+    assert(received.monsters[0].scheduled_anim_position == 0);
+    sent.monsters[0].scheduled_anim_position = 840;
+    assert(apply_view(game_data, encode_view(game_data, sent, encoder), received));
+    assert(received.monsters[0].scheduled_anim_position == 840);
     sent.monsters[0].rising = false;                                                    // an update: it clears
+    sent.monsters[0].mode = "NU";
+    sent.monsters[0].scheduled_anim_position.reset();
     assert(apply_view(game_data, encode_view(game_data, sent, encoder), received));
     assert(received.monsters.size() == 1 && !received.monsters[0].rising && received.monsters[0].targetable());
+    assert(!received.monsters[0].scheduled_anim_position && received.monsters[0].mode == "NU");
     std::printf("OK: a rising Horde's flag and walk %% round-trip the view codec\n");
     return 0;
 } catch (const std::exception& error) {
