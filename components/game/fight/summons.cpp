@@ -295,6 +295,7 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
             monster.stats.hit_points = std::max(rng.range(per_difficulty.min_hp, std::max(per_difficulty.max_hp, per_difficulty.min_hp)), 1);
             monster.stats.a1_min = per_difficulty.a1_min; monster.stats.a1_max = std::max(per_difficulty.a1_max, per_difficulty.a1_min);
             monster.stats.a2_min = per_difficulty.a2_min; monster.stats.a2_max = std::max(per_difficulty.a2_max, per_difficulty.a2_min);
+            monster.stats.regen = d2d::rules::monster_regen(monster.stats.hit_points, type_info.damage_regen);   // from this roll (FUN_00573cb0)
         }
         // The Druid's wolves, Grizzly and Raven: MonStats SkillDamage (+0xa8)
         // names their summon skill, and each swing's per-mode damage

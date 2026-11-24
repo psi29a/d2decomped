@@ -233,6 +233,7 @@ struct Monster {
     std::uint32_t scheduled_anim_ms = 0;        // last whole tick included in that position
     std::optional<std::uint32_t> scheduled_older_think_ms;  // think already pending when the mode queued its events
     bool lifeless = false;                    // its life rolled 0 (FUN_00573cb0): held at one point, any landed hit kills it
+    std::uint32_t regen_from = 0;             // ms: a pet's unit event 3 (its regeneration) runs from this frame; 0 not filed
     // Its think event (unit event 2): due at next_act, pending while that's
     // after thought_ms, when its think last ran. One due runs mid-mode too.
     std::uint32_t next_act = 0, thought_ms = 0;
