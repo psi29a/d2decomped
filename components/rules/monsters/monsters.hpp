@@ -1302,6 +1302,7 @@ struct ModeRateIn {
     int frw = 0, fhr = 0, fbr = 0, fcr = 0, ias = 0;   // raw stats 96, 99, 102, 105, 93
     bool blocking = false;           // state 0x65
     int attack_rate = 100, other_rate = 100;           // stats 68 / 69
+    int skill_flags = 0;             // its current skill instance's flags (+0xc, FUN_006446a0): 1 without 0x1000 moves SQ (and S1..S4 from 0x19a)
 };
 int monster_mode_rate(const ModeRateIn& rate_in);
 
