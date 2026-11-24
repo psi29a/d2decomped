@@ -301,9 +301,31 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
             std::erase_if(*missile.struck, [&](int key) { return key / 16 < frame; });
             // FUN_005ae1f0 -> FUN_00641cb0: the first unit its footprint finds (standing_struck, by the
             // unit's size), that one alone this frame (FUN_005adf10); overlapping flames each burn.
-            // ponytail: the first is the foes' order, not the near rooms' unit lists (newest first).
-            for (auto& foe : foes) {
-                const int key = frame * 16 + int(&foe - foes.data());
+            // FUN_00641cb0 walks its room's near list (room +0 / +0x24: missile.rooms past its own
+            // rect, in that order), each room's units newest first (room +0x74; rules::room_order).
+            std::vector<int> walk;
+            if (missile.rooms.empty()) missile.rooms = reach(missile.x, missile.y);   // a standing one: where it lies
+            if (missile.rooms.size() > 1) {
+                const int origin_x = level.world_x * 5, origin_y = level.world_y * 5;
+                std::vector<int> rooms;
+                for (int listed = 1; listed < int(missile.rooms.size()); ++listed) rooms.push_back(listed);
+                std::vector<d2d::rules::RoomUnit> listed_units;
+                listed_units.reserve(foes.size());
+                for (const auto& foe : foes) {
+                    const int at_x = origin_x + int(std::floor(foe.x * 5)), at_y = origin_y + int(std::floor(foe.y * 5));
+                    const auto holds = std::ranges::find_if(rooms, [&](int listed) {
+                        const auto& rect = missile.rooms[std::size_t(listed)];
+                        return at_x >= rect[0] && at_y >= rect[1] && at_x < rect[0] + rect[2] && at_y < rect[1] + rect[3];
+                    });
+                    listed_units.push_back({ holds == rooms.end() ? -1 : *holds, true, foe.room_stamp });
+                }
+                walk = d2d::rules::room_order(listed_units, rooms);
+            } else {
+                for (int index = 0; index < int(foes.size()); ++index) walk.push_back(index);   // no rooms kept: the foes' order
+            }
+            for (const int index : walk) {
+                auto& foe = foes[std::size_t(index)];
+                const int key = frame * 16 + index;
                 if (!foe.alive || !standing_struck(missile, foe.x, foe.y, foe.size) || std::ranges::contains(*missile.struck, key)) continue;
                 missile.struck->push_back(key);
                 const auto& row = *missile.row;
