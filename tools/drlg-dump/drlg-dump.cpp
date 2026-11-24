@@ -505,7 +505,7 @@ int main(int argc, char** argv) try {
                     long index = -1;
                     for (std::size_t file = 0; file < town.dt1s.size() && file < list.size(); ++file) {
                         const auto tiles = town.dt1s[file].tiles();
-                        if (pick.tile >= tiles.data() && pick.tile < tiles.data() + tiles.size()) { name = list[file]->name; index = pick.tile - tiles.data(); }
+                        if (pick.tile >= tiles.data() && pick.tile < tiles.data() + tiles.size()) { name = list[file]->name; index = long(pick.tile - tiles.data()); }
                     }
                     char line[96];
                     std::snprintf(line, sizeof line, " %s %zu,%zu o%d %s:%ld", pick.layer == 0 ? "wall" : pick.layer == 1 ? "floor" : "shadow",
