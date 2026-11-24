@@ -64,6 +64,7 @@ address	name	evidence
 0041b050	sfile_read5	SFILE.CPP: FUN_0041aad0 with its five arguments and two zeros (frontier-ring.md)
 0041ba60	sfile_open_plain	Opens a plain file as an archive record: name required (0x57), made absolute unless it starts with \ or a drive spec, CreateFileA read; a 0x25c-byte AUARCHIVEREC (SFile.Storm) with the path, handle, flags from the ... (source-frontier.md)
 0041c1f0	rtti_name_short	A name of the form .?AU<name>@... (at least 6 characters): <name> up to ? or @, trailing _ trimmed, between two fixed strings (0x6cf328, 0x6cf324), into ESI (EBX characters); 1, else 0. Only caller FUN_0041caf0 (source-frontier.md)
+0041c560	slist_link_or_terminator_2	Same as slist_link_or_terminator (FUN_00420520), another copy (source-list.md)
 0041d200	mem_compare	memcmp (dword steps, then bytes): -1, 0 or 1. Callers FUN_0040d290, FUN_0041d300, d2d_warden_verify_signature, d2d_warden_module_load (source-frontier.md)
 0041d880	storm_bits_read_init	ECX bit reader, source (ret 4): +4 = first dword, +0 = source + 4, +8 = 32 (source-bits.md)
 0041d8d0	storm_bits_peek	ECX bit reader, n, mask (ret 8): refills 16 bits when the count is at most n; returns the held bits & mask (source-bits.md)
