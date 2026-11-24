@@ -108,6 +108,7 @@ struct Fight {
         UnitState player;                  // DS1 cells (x.5 = a cell centre)
         std::optional<Monster> merc;       // the save's mercenary, a monster on the player's side (merc_turn)
         const Npc* merc_npc = nullptr;
+        int list_serial = 0, merc_listed = 0;   // when each pet entered the player's list (FUN_005b1900): the merc on hire, join and revive (spawn_merc), a summon where it is made
         // The player's / merc's curse from a monster (do 30, FUN_005c37c0: one
         // at a time, the newest): a Cursed boss's Amplify Damage, the
         // Summoner's Weaken. The player's aurastats join its self states'.
@@ -177,6 +178,7 @@ struct Fight {
         struct SelfState { int skill = 0, level = 0; std::uint32_t until = 0; };
         struct Pet {
             Monster monster; int skill = 0, level = 0; int target = -1; int shot_skill = -1, shot_level = 0, shots = 0;   // level: its skill's at the cast
+            int listed = 0;                     // Hero::list_serial when it entered the player's list
             // Its sumskills d2d uses (FUN_0056deb0 at their sumsk calcs): a
             // missile it shoots (the skeletal mage's, the hydra's), an aura it
             // runs (Fire Golem's Holy Fire, the totems').

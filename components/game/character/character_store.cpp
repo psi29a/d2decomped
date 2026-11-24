@@ -4,6 +4,7 @@
 
 #include "gamedata.hpp"
 
+#include <compcode.hpp>
 #include <d2s.hpp>
 #include <d2s_items.hpp>
 #include <item_gen.hpp>
@@ -66,6 +67,8 @@ NewCharacter new_character(const GameData& game_data, int cls, const std::string
                 item.quantity = entry.loc.empty() ? 100 : 250;                             // FUN_00534d60: ItemTypes row 5
             made.items.push_back(std::move(item));
         }
+    if (!game_data.comp.empty() && !game_data.item_pieces.empty())
+        header.set_look(game_data.look_of(made.items, {}, d2d::compcode::LookTarget::save));
     return made;
 }
 

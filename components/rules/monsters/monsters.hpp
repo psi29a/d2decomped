@@ -282,6 +282,14 @@ int start_level(const MonType& type_info, int difficulty_index, int area_level);
 
 MonStats monster_stats(const Monsters& monsters, int type, int difficulty, Rng& rng, int level_add = 0, int players = 1, int area_level = -1);
 
+// Stat 0x4a, a monster's regeneration (256ths a frame), from the life it was made with (whole points) and its
+// MonStats DamageRegen; 0 for a DamageRegen out of 1..0xfff.
+int monster_regen(int life, int damage_regen);
+// One frame of a monster's unit event 3 with a regeneration over 0: its life after (256ths), and whether the event
+// stays filed.
+struct RegenFrame { int life = 0; bool filed = false; };
+RegenFrame regen_frame(int life, int max_life, int regen);
+
 // The AI's distance to a unit, subtiles: half of the smaller delta plus twice the larger.
 int ai_distance(int dx, int dy);
 
@@ -804,6 +812,11 @@ int chase_check(bool target, int distance, int stop, bool mover, int moved_x, in
 struct SearchFoe { int distance = 0; bool pet = false, away = false, dead = false, blocked = false; int list = 0; };
 struct SearchPick { int target = -1, best = 0, nearest = 0x7fffffff, nine = -1, nine_best = 0x7fffffff; };
 SearchPick search_pick(std::span<const SearchFoe> foes, int best, bool need_sight);
+
+// The order game.exe tries a player's pets (indices into `entries`, d2d's foe order): the one that entered its list last first.
+enum class ListKind : std::uint8_t { player, pet, other };
+struct ListEntry { ListKind kind = ListKind::other; int serial = 0; };
+std::vector<std::size_t> search_order(std::span<const ListEntry> entries);
 
 // A chest trap's Trap-Missile / Trap-Poison / Trap-Nova think.
 int trap_target(std::span<const SearchFoe> foes, int reach);

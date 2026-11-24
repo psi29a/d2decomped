@@ -298,6 +298,35 @@ void set_mode(const GameData& game_data, Monster& monster, std::string_view mode
     monster.seq_frame = -1;                                   // a sequence's row: drawn again as it plays
     monster.unit.mode_ms = now_ms;
     monster.unit.walking = mode == "WL" || mode == "RN";
+    monster.scheduled_action_ms.reset();
+    monster.scheduled_anim_position.reset();
+    monster.scheduled_older_think_ms.reset();
+    // FUN_005539b0 queues the action and mode end from the fixed-point
+    // rate at mode start. Chill (FUN_0057af80) refreshes the rate without
+    // replacing those events. Verified for Council S1/A1 and standalone Mauler A2.
+    constexpr std::size_t first_council_id = 345, council_count = 3;
+    const bool valid_type = monster.type >= 0 && std::size_t(monster.type) < game_data.monsters.types.size();
+    const bool council_attack = valid_type && (mode == "S1" || mode == "A1")
+        && game_data.mon_bin.size() >= first_council_id + council_count
+        && std::ranges::contains(std::span(game_data.mon_bin).subspan(first_council_id, council_count), std::size_t(monster.type));
+    const bool mauler_a2 = mode == "A2" && valid_type
+        && game_data.monsters.types[std::size_t(monster.type)].ai_name == "DeathMauler";
+    if (monster.skill < 0 && (council_attack || mauler_a2)) {
+        const auto& timing = game_data.npc_timing(monster.npc, mode);
+        const int rate = mode_rate(game_data, monster, mode);
+        if (rate > 0 && timing.action >= 0 && timing.frames > 0) {
+            const auto deadline = [now_ms, rate = std::uint32_t(rate)](std::uint32_t frame) {
+                const auto ticks = (std::uint64_t(frame) * 256 + rate - 1) / rate;
+                return now_ms + std::uint32_t(ticks * 40);
+            };
+            monster.scheduled_action_ms = now_ms + action_due_ms(game_data, monster, mode);
+            if (monster.think_pending()) monster.scheduled_older_think_ms = monster.next_act;
+            monster.scheduled_anim_position = 0;
+            monster.scheduled_anim_ms = now_ms;
+            monster.mode_until = deadline(timing.frames);
+            return;
+        }
+    }
     // A monster's FHR is its MonProp's (props.fhr): FUN_00625500 reads the
     // unit's full stat 99, but no Skills.txt aurastat / passivestat gives it.
     monster.mode_until = mode == "NU" || mode == "WL" || mode == "DD" ? 0
@@ -941,7 +970,12 @@ Search search_target(const GameData& game_data, const Level& level, Monster& mon
     if (!found.target && monster.align == 0) {
         std::vector<d2d::rules::SearchFoe> picks;
         std::vector<Foe*> pick_foes;
-        for (auto& foe : foes) {
+        // The player's pets in game.exe's list order: the one that entered the list last first (FUN_005b1900).
+        std::vector<d2d::rules::ListEntry> entries;
+        for (const auto& foe : foes)
+            entries.push_back({ foe.monster ? d2d::rules::ListKind::other : foe.pet ? d2d::rules::ListKind::pet : d2d::rules::ListKind::player, foe.listed });
+        for (const std::size_t slot : d2d::rules::search_order(entries)) {
+            auto& foe = foes[slot];
             // List 9: neutral monsters; a converted one is in its caster's list,
             // with the player's pets (FUN_005b1900).
             const bool converted = foe.monster && foe.monster->align == 2 && foe.monster->listed && foe.alive;
@@ -1479,9 +1513,13 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     // when none is pending or it'd come sooner. It comes mid-mode or not
     // (FUN_005b1740 reads no mode; monster_update).
     const auto file_think = [&monster, now_ms, wait = act.wait, event = act.event] {
-        if (wait > 0) monster.next_act = now_ms + std::uint32_t(wait) * 40;
-        else if (event > 0 && (!monster.think_pending() || now_ms + std::uint32_t(event) * 40 <= monster.next_act))
+        if (wait > 0) {
+            monster.next_act = now_ms + std::uint32_t(wait) * 40;
+            monster.scheduled_older_think_ms.reset();
+        } else if (event > 0 && (!monster.think_pending() || now_ms + std::uint32_t(event) * 40 <= monster.next_act)) {
             monster.next_act = now_ms + std::uint32_t(event) * 40;
+            monster.scheduled_older_think_ms.reset();
+        }
     };
     // FUN_0058f730 / FUN_0058ef40: its leader's group, itself too. One made
     // outside a group (leader -1) has none to look up, so nothing is sent.
@@ -1693,7 +1731,14 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             // the first row's mode stands for it in the logic.
             const std::string_view played = seq ? std::string_view(seq->front().mode) : std::string_view(type_info.sk_mode[slot]);
             ctx.use(played, id);
-            if (seq) monster.mode_until = now_ms + std::uint32_t(seq->size()) * game_data.npc_timing(monster.npc, played).ms_per_frame() * 100 / std::uint32_t(100 + anim_rate_pct(game_data, monster, "SQ"));
+            if (seq) {
+                // FUN_00621260 starts DeathMaul at 256 sequence units per tick.
+                // Its rate refresh leaves the sequence rate alone even when A2 slows.
+                const auto steps = std::uint32_t(seq->size());
+                monster.mode_until = now_ms + (start_skill && start_skill->srvdofunc == d2d::rules::ServerDoFunction::kDeathMaul
+                    ? steps * 40
+                    : steps * game_data.npc_timing(monster.npc, played).ms_per_frame() * 100 / std::uint32_t(100 + anim_rate_pct(game_data, monster, "SQ")));
+            }
             // The leap's flight: Leap's at once, Leap Attack's by row 11 (do 78
             // on the takeoff and landing events), the strike on the next
             // (FUN_005da660).
@@ -1809,6 +1854,21 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
     const int walk_pace = monster.move_pct - (now_ms < monster.laid_until ? 100 : 0);
     const int walk_pct = std::max(kMonsterVelocityPct + monster.speed_pct + monster.boss_speed + walk_pace + walk_chill, 25);
     monster.walk_pct = walk_pct;
+    const bool frozen = now_ms < monster.frozen_until;
+    if (monster.scheduled_action_ms && (monster.mode == "A1" || monster.mode == "A2" || monster.mode == "S1")) {
+        const auto ticks = (now_ms - monster.scheduled_anim_ms) / 40;
+        if (ticks > 0) {
+            // FUN_00623e00 adds the current rate to the existing position.
+            // The visible pose can slow without moving the queued action.
+            const auto& timing = game_data.npc_timing(monster.npc, monster.mode);
+            const auto length = std::uint64_t(timing.frames) * 256;
+            if (length && !frozen) {
+                const auto rate = std::uint32_t(std::max(mode_rate(game_data, monster, monster.mode), 0));
+                monster.scheduled_anim_position = std::uint32_t((monster.scheduled_anim_position.value_or(0) + std::uint64_t(ticks) * rate) % length);
+            }
+            monster.scheduled_anim_ms += ticks * 40;
+        }
+    }
     // Its think event comes due mid-mode too (FUN_005b1740 reads no mode) and
     // its act replaces the mode (FUN_005a7c20 stops none), but not under
     // state 0x36 (FUN_005a7c20's error 0x753) or frozen (FUN_005a7f80 drops
@@ -1816,7 +1876,6 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
     // FUN_005a73e0 files the think aidel on (0: 15; stunned 0x2d) unless one
     // is pending later.
     const bool own_think = monster.special == 10 || monster.special == 11 || d2d::rules::traced_ai(type_info.ai_name);
-    const bool frozen = now_ms < monster.frozen_until;
     const auto think_due = [&] { return own_think && monster.think_pending() && now_ms >= monster.next_act && !monster.uninterruptable() && !frozen; };
     // Frozen, a mode's events due are dropped (FUN_005a7f80: 0 its strike or
     // sequence row, 1 its end): an end inside the freeze never comes, so the
@@ -1846,6 +1905,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
     if (monster.frozen_until != 0 && now_ms >= monster.frozen_until) {
         const int aidel = type_info.diff[std::size_t(monster.difficulty)].aidel;
         monster.next_act = monster.frozen_until + std::uint32_t(aidel > 0 ? aidel : 15) * 40;
+        monster.scheduled_older_think_ms.reset();
         monster.frozen_until = 0;
     }
     if (monster.stun_until != 0 && now_ms >= monster.stun_until) monster.stun_until = monster.stunned_until = 0;
@@ -1894,6 +1954,24 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
     }
     // Stunned, it stands (a get-hit plays out first); frozen, a get-hit,
     // block, attack or cast holds (FUN_0057b230 sets no mode).
+    // The original monster event bucket runs same-tick entries in insertion
+    // order (FUN_005416b0 / FUN_00541060). A think queued before this attack
+    // may replace its mode and clear the action or end before it can fire.
+    const auto dispatch_think = [&] {
+        const int pace = path_velocity(type_info.velocity, walk_pct);
+        think(game_data, level, monster, foes, rng, now_ms, pace, pace, crowd, pack, seen, open_door, born,
+              rooms_in_play, players_counted, spawning);
+    };
+    const auto run_older_think = [&](std::uint32_t due) {
+        if (monster.scheduled_older_think_ms != due || monster.next_act != due
+            || now_ms < monster.stun_until || !think_due()) return false;
+        monster.scheduled_older_think_ms.reset();
+        const auto old_mode = monster.mode;
+        const auto old_start = unit.mode_ms;
+        dispatch_think();
+        return monster.mode != old_mode || unit.mode_ms != old_start;
+    };
+    if (!monster.struck && monster.scheduled_action_ms && run_older_think(*monster.scheduled_action_ms)) return false;
     const bool attack = monster.mode == "A1" || monster.mode == "A2";
     const bool casting = attack || monster.mode == "S1" || monster.mode == "S2" || monster.mode == "SC" || (monster.mode == "S3" && monster.skill >= 0)
                       || (monster.mode == "DT" && monster.skill >= 0);   // DT alive: a sequence (the egg's hatch)
@@ -2057,8 +2135,11 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
         // event 4, or 1 / 2 till a shot has marked it done (unit flag 0x40),
         // runs its skill; a plain mode strikes on its action frame.
         int due = 0;
+        const auto* active_skill = seq ? game_data.skills.get(monster.skill) : nullptr;
         if (seq) {
-            const int reached = std::min(int((now_ms - unit.mode_ms) / std::max<std::uint32_t>(timing.ms_per_frame() * 100 / std::uint32_t(100 + anim_rate_pct(game_data, monster, "SQ")), 1)), int(seq->size()) - 1);
+            const auto step_ms = active_skill && active_skill->srvdofunc == d2d::rules::ServerDoFunction::kDeathMaul
+                ? 40u : std::max<std::uint32_t>(timing.ms_per_frame() * 100 / std::uint32_t(100 + anim_rate_pct(game_data, monster, "SQ")), 1);
+            const int reached = std::min(int((now_ms - unit.mode_ms) / step_ms), int(seq->size()) - 1);
             monster.seq_mode = (*seq)[std::size_t(reached)].mode;
             monster.seq_frame = (*seq)[std::size_t(reached)].frame;
             for (; monster.seq_done <= reached; ++monster.seq_done) {
@@ -2070,7 +2151,8 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     ++monster.seq_sounds;
                 }
             }
-        } else if (!monster.struck && now_ms >= unit.mode_ms + action_due_ms(game_data, monster, monster.mode)) {
+        } else if (!monster.struck && now_ms >= (monster.scheduled_action_ms
+            ? *monster.scheduled_action_ms : unit.mode_ms + action_due_ms(game_data, monster, monster.mode))) {
             monster.struck = true;
             due = 1;
         }
@@ -2185,7 +2267,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     }
                     monster.seq_once = true;
                 }
-            } else if (const auto* maul = seq ? game_data.skills.get(monster.skill) : nullptr; maul && maul->srvdofunc == d2d::rules::ServerDoFunction::kDeathMaul) {
+            } else if (const auto* maul = active_skill; maul && maul->srvdofunc == d2d::rules::ServerDoFunction::kDeathMaul) {
                 // DeathMaul (do 136, FUN_005d25b0; seq_deathmaulerdig's one event):
                 // its srvmissilea at the target's spot (FUN_0056ede0: flag 1, none
                 // past 100), its range by the distance d (at least 1): d x Range / 12
@@ -2841,8 +2923,21 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
         }
         if (mode_over()) {
             if (monster.leaping) { monster.leaping = false; monster.leap_until = 0; unit.x = monster.leap_to_x; unit.y = monster.leap_to_y; }
+            if (run_older_think(monster.mode_until)) return false;
+            const auto end_tick = monster.mode_until;
+            const bool think_after_end = monster.scheduled_action_ms && monster.next_act == end_tick
+                && now_ms >= monster.stun_until && think_due();
             mode_ends();
             monster.skill = -1;
+            if (think_after_end) {
+                // FUN_005a73e0 files the idle think without removing the
+                // same-tick entry already in the dispatch bucket.
+                const auto idle_think = monster.next_act;
+                monster.next_act = end_tick;
+                dispatch_think();
+                if (monster.next_act == end_tick) monster.next_act = idle_think;
+                return false;
+            }
         } else if (!think_due()) return false;
     }
     // A monster's velocitypercent (stat 0x43) starts at 75, not 100: its
