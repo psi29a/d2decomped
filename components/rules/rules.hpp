@@ -144,6 +144,7 @@ struct Affix {
     std::vector<std::string> itypes, etypes;
     std::vector<Mod> mods;
     int class_specific = -1;                    // classspecific (ama .. ass = 0 .. 6), -1 any (row +0x66)
+    int version = 0;                            // version (row +0x22): 100 an expansion affix
 };
 // UniqueItems / SetItems row (without separators, as the save's IDs).
 // UniqueItems / SetItems row: ladder (flag 8) never drops outside a ladder

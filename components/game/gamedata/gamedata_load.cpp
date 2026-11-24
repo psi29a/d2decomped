@@ -1444,6 +1444,7 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                     d2d::rules::Affix affix{ std::string(table.get(row, "Name")), num(table.get(row, "level")), num(table.get(row, "maxlevel")),
                                          num(table.get(row, "group")), num(table.get(row, "frequency")),
                                          table.get(row, "spawnable") == "1", table.get(row, "rare") == "1", {}, {}, {} };
+                    affix.version = num(table.get(row, "version"));
                     static constexpr std::array<std::string_view, 7> kClassCodes = { "ama", "sor", "nec", "pal", "bar", "dru", "ass" };
                     if (const auto found_class = std::ranges::find(kClassCodes, table.get(row, "classspecific")); found_class != kClassCodes.end())
                         affix.class_specific = int(found_class - kClassCodes.begin());
