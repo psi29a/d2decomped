@@ -32,6 +32,8 @@ that automatic label must not be read as stronger evidence than this table.
 
 The 15 SOURCE functions that stayed `cited` after this pass (file handles, message
 text, window records) are traced in [storm-file.md](storm-file.md).
+Storm's command-line parser (`SCMD.CPP`) is traced in
+[storm-cmd.md](storm-cmd.md).
 
 ## Findings and verification boundaries
 
