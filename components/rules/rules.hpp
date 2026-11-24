@@ -269,6 +269,9 @@ struct Tables {
     // and ItemRatio.
     std::unordered_map<std::string, TreasureClass> treasure;
     std::array<std::array<QualityRatio, 6>, 4> quality_ratio{};
+    // The Version 0 rows a classic item's roll takes (FUN_00637910(.., 0)), and which pairs have one.
+    std::array<std::array<QualityRatio, 6>, 4> quality_ratio_classic{};
+    std::array<bool, 4> has_classic_ratio{};
     // misc.txt potions: life / mana restored (hpregen / manarecovery: that
     // much over `ticks`; hitpoints / mana on a rejuvenation: percent, at once;
     // stamina: staminarecoverybonus % for `ticks`).

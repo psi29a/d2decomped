@@ -1157,6 +1157,16 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         for (std::size_t row = 0; row < ratio.size(); ++row) {
             auto number = [&](const std::string& column) { return std::atoi(std::string(ratio.get(row, column)).c_str()); };
             const auto which = std::size_t((number("Class Specific") ? 2 : 0) + (number("Uber") ? 1 : 0));
+            if (number("Version") <= 0) {                                   // FUN_00637910(.., 0): the last Version 0 row of the pair
+                auto& old_rows = game_data.rules.quality_ratio_classic[which];
+                old_rows[0] = { number("Unique"), number("UniqueDivisor"), number("UniqueMin") };
+                old_rows[1] = { number("Set"), number("SetDivisor"), number("SetMin") };
+                old_rows[2] = { number("Rare"), number("RareDivisor"), number("RareMin") };
+                old_rows[3] = { number("Magic"), number("MagicDivisor"), number("MagicMin") };
+                old_rows[4] = { number("HiQuality"), number("HiQualityDivisor"), 0 };
+                old_rows[5] = { number("Normal"), number("NormalDivisor"), 0 };
+                game_data.rules.has_classic_ratio[which] = true;
+            }
             if (number("Version") > 100 || number("Version") < ratio_version[which]) continue;
             ratio_version[which] = number("Version");
             auto& ratios = game_data.rules.quality_ratio[which];

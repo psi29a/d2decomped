@@ -114,7 +114,11 @@ struct Loot {
                 ground_item.label = std::to_string(ground_item.gold) + " Gold";
             } else {
                 d2d::rules::Rng unit_seed{ game_seed.next() }, item_seed{ game_seed.next() };
-                const int quality = dropped.quality ? dropped.quality : d2d::rules::stand_quality(game_data->rules, dropped.code, ilvl, item_seed);
+                // FUN_00557450 rolls the quality (FUN_00556f60) before it takes the asked one: an
+                // expansion item's asked quality draws nothing, a classic one's roll draws all the same.
+                const bool classic = !character->header.expansion();
+                const int rolled = dropped.quality && !classic ? 0 : d2d::rules::stand_quality(game_data->rules, dropped.code, ilvl, item_seed, classic);
+                const int quality = dropped.quality ? dropped.quality : rolled;
                 ground_item.item = d2d::rules::generate_item(game_data->rules, dropped.code, ilvl, quality, item_seed, &unit_seed, &found_uniques, bovine,
                                                             character->header.active_difficulty(), dropped.special);
                 ground_item.item.identified = quality <= 3;
