@@ -595,6 +595,7 @@ struct Fight {
     // The player's buffs as the fight goes.
     int absorb(Foe& foe, std::uint32_t now_ms);
     void buff_events(Foe& foe, std::uint32_t now_ms);
+    void frozen_armor_events(const Foe& foe, std::uint32_t now_ms);   // Frozen Armor's freeze, after the absorbs (hurt_side)
     // Chilling Armor's answer, after the frame's missiles have struck.
     void return_fire(const Foe& foe, std::uint32_t now_ms);
     // A monster's answer (its self state's srvmissilea) to the player's or
