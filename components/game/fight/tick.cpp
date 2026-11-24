@@ -525,6 +525,7 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                         const auto target = monster.target(*game_data);
                         auto fighter = d2d::rules::simple_fighter(monster.stats.a1_min, monster.stats.a1_max, monster.stats.to_hit, target.armor_class);
                         fighter.block = target.block;
+                        fighter.dr_pct = target.res[0];       // its physical resistance (FUN_0057bf80's percent, as player_blow's res[0])
                         for (std::size_t k = 0; k < 4; ++k) fighter.res[k] = std::min(target.res[2 + k], 95);
                         const auto& type_info = game_data->monsters.types[std::size_t(monster.type)];
                         Foe& foe = foes.emplace_back(Foe{ monster.unit.x, monster.unit.y, monster.stats.level, monster.targetable() && monster.mode != "DT", monster.unit.walking, fighter });
