@@ -101,12 +101,14 @@ CINEMATICS and EXIT are the classic ones (indices 0xd to 0xf) in both
 0x7090a0    6  264  433  ...  WideButton    OTHER MULTIPLAYER (was y=333)
 ```
 
-The records after them aren't the title's (which screens add them is
-not traced):
+The records after them aren't the title's. The Change Password screen
+(frontend-mainmenus.md) adds 0x15, 0x16, 0x18, 0x19 (field backgrounds)
+and 0x1a, 0x1b, 0x1d, 0x1e (their labels); which screens add the rest is
+not traced:
 
 ```
-0x709100..1c0  2 (five text-label boxes at x=319, w=169, h=26)
-0x7091f0..2b0  4 (five clickable rects, w=300, h=32)
+0x709100..1c0  2 (five field backgrounds at x=319, w=169, h=26)
+0x7091f0..2b0  4 (five text boxes, w=300, h=32: field labels)
 0x709370..3a0  1 (two hotspot markers)
 0x7093d0..    6 (cinema/credits sub-menu buttons)
 0x709520..640  4 (char-select silhouette rects, off-screen y=615)
