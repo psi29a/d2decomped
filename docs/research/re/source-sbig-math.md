@@ -15,3 +15,4 @@ SRP or Warden big numbers, so no row has a counterpart.
 | Address | Name | Reading | d2d |
 |---|---|---|---|
 | `FUN_00424e70` | `sbig_div` | dst, a, b (`RET 0xc`): takes a pool temporary (top + 1), `EAX` = a, `FUN_00423dc0(dst, temporary, b, pool)`, gives it back; dst = a ÷ b, rounded down (run for b ≠ 0) | no counterpart (as `sbig_pow_mod`) |
+| `FUN_00424eb0` | `sbig_gcd` | dst, a, b (`RET 0xc`): `EDI` = dst, `EAX` = b, `FUN_00424180(a, pool)`; dst = gcd(a, b), gcd(a, 0) = a | no counterpart (as `sbig_pow_mod`) |

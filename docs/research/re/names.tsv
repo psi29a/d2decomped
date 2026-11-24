@@ -98,6 +98,7 @@ address	name	evidence
 004235f0	sbig_zero	EAX number: count +4 = 0, then FUN_00421cb0 (source-frontier.md)
 00424e40	sbig_delete	Non-null: FUN_00421d80, then freed ("delete"). Callers FUN_0041d300, FUN_00425330, d2d_warden_verify_signature, FUN_0052a120 (source-frontier.md)
 00424e70	sbig_div	dst, a, b (ret 0xc): dst = a // b via FUN_00423dc0, the remainder to a pool temporary (source-sbig-math.md)
+00424eb0	sbig_gcd	dst, a, b (ret 0xc): dst = gcd(a, b) via FUN_00424180 (source-sbig-math.md)
 00425150	sbig_pow_mod	base^exp mod m with 2-bit windows: temporaries from the EAX pool (+0x140 its top), the base and its square and cube, then two squarings and a multiply-reduce (FUN_00424b00, FUN_00423dc0) per two exponent bits. Only ... (source-frontier.md)
 00425d90	sha1_init	Count 0, state 0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476, 0xc3d2e1f0 (SHA-1). Callers FUN_0041d300, d2d_warden_digest, FUN_0051dbf0 (source-frontier.md)
 00425dd0	sha1_update	Adds n × 8 to the 64-bit bit count, buffers to 64 bytes at +0x1c and runs the block function (FUN_00425850) per full block (source-frontier.md)
