@@ -796,23 +796,20 @@ The handlers, in address order (row numbers are Properties.txt rows):
 Rows 244..267 aren't in the table, but the bound is the whole Properties
 count, so they read the func table at `0x7462f8` as pairs: bugs.md #137.
 
-What d2d does differently: it runs a classic item's mods through the same
-`apply_mod` (rules.cpp) as an expansion item's, on the Properties.txt
-funcs. So on a classic item:
-- every draw can give the max;
-- res-all / res-all-max put one value in all four;
-- dmg% is one draw for both stats, with the weapon rule;
-- dmg-min / dmg-max keep a nonzero base at 1 / 0 (func 5 / 6's hold);
-- sock counts func 14's draw (min..max, else the param) where game.exe
-  takes the param alone (both cap it alike);
-- indestruct puts stat 152 (func 20) where game.exe zeroes the
-  durability;
-- the do-nothing rows still apply: Wizendraw (UniqueItems, version 0)
-  lists `pierce-cold` (row 234), which game.exe skips on a classic
-  item and d2d gives.
-todo.md #55. The classic data reaches no row past 243: version-0 rows of
-MagicPrefix, MagicSuffix and UniqueItems, and the members of the 16
-version-0 Sets, checked against Properties.txt.
+d2d: `apply_mod` hands an item of version 0 to `apply_classic_mod`
+(components/rules/items/classic_mod.cpp), the table by code in row
+order. Before, a classic item took the Properties.txt funcs as an
+expansion one does, so its draws could give the max, res-all and dmg%
+were one draw, dmg-min / dmg-max held a nonzero base, sock drew its
+count, indestruct put stat 152, and Wizendraw's `pierce-cold` (row 234,
+UniqueItems version 0) applied. `tools/emu/classic_mods.py` runs
+FUN_0065fe10 on a version-0 item for every row 0..243 against
+`tests/test_classic_mods` (14 bases: armor, one- and two-hand, thrown,
+a bow, a ring, an amulet; min above or below max; kinds 0..5): 2000 cases (seed 1) and 6000 (seed 7), 0 differ;
+`tests/classic_mods_cases.inc` holds the first 2000. The classic data
+reaches no row past 243: version-0 rows of MagicPrefix, MagicSuffix and
+UniqueItems, and the members of the 16 version-0 Sets, checked against
+Properties.txt.
 
 Evidence: `python3 tools/ghidra/fn.py 0065fe10 0065cf40 0065d070 0065d310 0065d950 0065de40`;
 the table: 244 × 8 bytes at file offset of `0x745b58` (Ghidra: `read_memory 0x745b58`).
