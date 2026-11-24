@@ -347,6 +347,16 @@ when min == max; each func draws only when it needs one:
   / 8 / 9 / 10 / 14 / 24 reuse `first` (0: a draw). 17 is the param (0: a
   draw). 15 / 16 are min / max. 11 / 18 / 20 / 23 don't draw; 19 draws
   the charges.
+- The plain funcs, each nothing (0) for no mod: 1 (FUN_0065eb30) draws
+  and stores the stat with param 0; the ac rule when the item is a unit
+  of type 4 and ECX is 1. 2 (FUN_0065eba0) is the same with the ac rule
+  on any item. 3 / 4 (FUN_0065ec10 / FUN_0065ec80) are 1 / 2 with `first`
+  in place of the draw when it's nonzero. 8 (FUN_0065f2b0): `first` or a
+  draw, no ac rule. 24 (FUN_0065f390): the same with param = the mod's
+  param (+4). 9 (FUN_0065f310): `first` or a draw (0: nothing), param the
+  mod's param only when it is a Skills row (0 up to `[0x744304] + 0xba0`),
+  else nothing. 10 (FUN_0065f3f0): `first` or a draw (0: nothing), param
+  p % 3 + p / 3 × 8.
 - FUN_0065ea50 stores (stat, param, value) on the item's list and
   returns the value; nothing (and 0) for no stat or a 0. Stat 58 (poison
   max) adds 326 = 1.
