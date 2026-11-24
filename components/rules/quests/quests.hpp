@@ -697,6 +697,8 @@ struct CainQuest {
     bool resolved = false, camp_cain = false, camp_due = false, akara_log = false, closed_join = false;    // +0x50, +0x51, +0x52, +0x53, +0x63
     bool decipher_log = false, portal_made = false, tree_used = false;                                     // +0x64, +0x45, +0x58
     bool rescued_flag = false;  // the game's flag (4, 13): Cain rescued game-wide
+    bool spot_noted = false;    // +0x67: Cain's AI noted the spot (FUN_005944b0)
+    int spot_x = 0, spot_y = 0; // +0x9c / +0xa0: it, in subtiles (FUN_005943b0 moves it on 3 and 3 when no room holds it)
     quest::Players missed, thanked;   // lists A (+0xb4: missed the rescue) and B (+0x138: heard Cain's thanks)
     quest::Players rewarded;          // rec+0x1c
 
@@ -786,6 +788,14 @@ struct CainQuest {
     // Tristram Cain went through his portal (FUN_005944f0: +0x91, +0x52):
     // camp Cain's due (FUN_005940e0 → FUN_00592960).
     void portal_entered() { camp_due = true; }
+    // Cain's AI's first think (FUN_005e77a0 -> FUN_005944b0): the spot he stands at is noted once for the
+    // record (+0x9c / +0xa0, flag +0x67): true then. False when it is noted already: the think takes
+    // FUN_005944f0 instead (portal_entered), and the spot stays the one noted.
+    bool note_spot(int x, int y) {
+        if (spot_noted) { portal_entered(); return false; }
+        spot_noted = true; spot_x = x; spot_y = y;
+        return true;
+    }
     // Cain's portal in Tristram (object 189.
     static int portal_closed_frame(int entered);
     // The portal's mode at `frame` from its opening, mode 4 at `closed` (portal_closed_frame.
