@@ -364,7 +364,7 @@ auto Fight::boss_missile(const Monster& monster, const char* name, float dx, flo
         else if (damage.etype >= 0) stats.elements[0] = { damage.etype, 100, damage.elo >> 8, std::max(damage.ehi >> 8, 1), damage.elen, "A2" };
         const float speed = missile_speed(missile_info, lvl), distance = std::max(std::hypot(dx, dy), 0.01f);
         Missile x{ &missile_info, monster.unit.x, monster.unit.y, dx / distance * speed, dy / distance * speed, missile_heading(dx, dy), now_ms, now_ms + std::uint32_t(std::max(missile_info.range, 1)) * 40, stats };
-        x.struck = ring; x.level = lvl; x.owner = monster.id;
+        x.struck = ring; x.level = lvl; x.owner = monster.id; x.owner_align = monster.align;
         pending.push_back(std::move(x));
     }
 

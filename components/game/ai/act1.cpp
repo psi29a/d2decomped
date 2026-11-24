@@ -22,6 +22,8 @@ namespace {
 using d2d::rules::Boss;
 
 struct Act1Ai : ThinkCtx {
+    // Search type 0 (MonAI +0: GoodNpcRanged's): FUN_005b1650 looks for no target.
+    void no_search() { target = nullptr; monster.aware = false; }
     // The Fallen run while a unit dies near (ThinkIn::dying), crying once as they start.
     void fallen() {
         if (!input.dying) monster.fleeing = false;
@@ -96,6 +98,7 @@ constexpr auto kRows = std::to_array<AiRow>({
     { .ai_name = "GargoyleTrap", .prep = &part_as<ThinkCtx, &ThinkCtx::nest>, .aim = &part_as<Act1Ai, &Act1Ai::gargoyle_aim> },
     { .ai_name = "Fetish", .prep = &part_as<Act1Ai, &Act1Ai::fetish> },
     { .ai_name = "Andariel", .skill = &part_as<Act1Ai, &Act1Ai::andariel_skill> },
+    { .ai_name = "GoodNpcRanged", .thinks_alone = true, .search = &part_as<Act1Ai, &Act1Ai::no_search> },
 });
 
 }  // namespace

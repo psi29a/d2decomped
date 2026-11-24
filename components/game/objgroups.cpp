@@ -572,6 +572,24 @@ struct ObjectRooms {
         *room_seed = spawn_room.seed;
         return ok;
     }
+    // FUN_0054ef50, a wanderer: by the room's act its entries (0x731b30
+    // {first, count}: only act 0's, 1 of them, 0x731b2c's 270, rogue2,
+    // GoodNpcRanged); rand(count) on the room's seed; a spot of the room
+    // (FUN_0054dc40 with no unit, no entrance test), made there
+    // (FUN_005b2f20, radius -1) and in list 8 (FUN_005b1990; Monster::listed),
+    // the region's count (+0x2c4) up one.
+    void wanderer() {
+        if (d2d::rules::level_ids::act_of(level.id) != 0) return;
+        (void)seed(1);
+        const int row = int(game_data.mon_bin[270]);
+        const auto kept = std::exchange(area, Box{});         // the room's rect, not the last area populated
+        int spot_x = 0, spot_y = 0;
+        if (spot(row, false, spot_x, spot_y) && put(row, spot_x, spot_y, -1, false, spot_x, spot_y)) {
+            made(row, spot_x, spot_y);
+            ++pop.wanderers;
+        }
+        area = kept;
+    }
     // FUN_0054dc40: 20 random spots of the area (else the room) where
     // `type` fits, none within WarpDist of an entrance (FUN_0054db50) if `near`.
     bool spot(int type, bool nearby, int& out_x, int& out_y) {
@@ -1347,10 +1365,8 @@ d2d::rules::Rng room_objects(const GameData& game_data, Spawning& spawning, cons
     auto& early = spawning.levels[&level].early_seeds;
     pop.seed = index < early.size() && early[index] ? *early[index] : d2d::rules::Rng{ index < level.room1_seeds.size() ? level.room1_seeds[index] : level.rooms[index].seed };
     // FUN_0054f060; on a step with its low 15 bits clear, a MonWndr level
-    // rolls a wanderer (FUN_0054eff0: under 3 in 100).
-    // ponytail: the wanderer itself (FUN_0054ef50: always MonStats 270, the Act 1
-    // rogue scout, list 8 GoodNpcRanged) isn't made: d2d has no good-aligned AI; 3 in 3.3M rooms.
-    if ((pop.seed.next() & 0x7fff) == 0 && level.mon.wander) pop.seed.next();
+    // rolls a wanderer (FUN_0054eff0: under 3 in 100, rules::wanderer_due).
+    if (d2d::rules::wanderer_due(pop.seed, level.mon.wander, pop.pop.wanderers)) pop.wanderer();
     pop.presets(index);
     pop.out->pre = pop.seed.low;
     if (pop.open(index, pop.themes)) pop.groups();
