@@ -487,6 +487,19 @@ pgsv, the six progressive_* states, so the Shadow holds charges. A
 monster's states for the AIs are its curse / cry (their auratargetstate).
 Blade Shield strikes as skills.md do 54 says, from the Shadow.
 
+### A pet's physical roll
+
+`FUN_0057b420` builds the physical range from the attacker's stats 21 / 22,
+adds stat 111 to both ends, makes a low below one point one point and a high
+not above it low + one point, then applies the damage-percent sum. At
+`0x57b5f2` it passes the range difference in EDX and the attacker at
+`unit + 0x20` in ECX to `FUN_0045c3e0`; the returned value is added to the
+low. Thus a pet's physical roll advances the pet's unit seed. The enclosing
+hit and block checks do not run in this helper. d2d passes `Monster::seed`
+only for this roll (`Fight::pets_turn` and `Fight::pet_think_turn`); its hit
+and block rolls remain on `Fight::rng`. `tools/emu/pet_damage_seed.py` runs
+the helper natively and checks the same split.
+
 ## A summon's stats (FUN_005c4470)
 
 Before it, FUN_005c49e0(game, owner; pet, forced, bonus) gives the pet its

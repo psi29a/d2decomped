@@ -719,7 +719,7 @@ int leech_fine(int physical_fine, const Target& target, int steal, int divisor) 
     return amount / 64;
 }
 
-Blow player_blow(const Fighter& fighter, const Target& target, int clvl, Rng& rng, const Swing& swing) {
+Blow player_blow(const Fighter& fighter, const Target& target, int clvl, Rng& rng, const Swing& swing, Rng* damage_rng) {
     Blow blow{ .hit_class = fighter.hit_class | swing.hit_class };
     const int attack_rating = std::max(int(std::int64_t(fighter.ar_base) * (100 + fighter.ar_pct + swing.ar_pct) / 100), 1);
     if (!swing.smite && rng(100) >= hit_chance(attack_rating, target.armor_class, clvl, target.level)) return blow;
@@ -753,7 +753,8 @@ Blow player_blow(const Fighter& fighter, const Target& target, int clvl, Rng& rn
         low = fighter.phys_lo + fighter.phys_lo * physical_pct / 100;
         high = fighter.phys_hi + fighter.phys_hi * physical_pct / 100;
     }
-    std::int64_t damage = high > low ? low + rng(int(high - low)) : low;
+    Rng& physical_rng = damage_rng ? *damage_rng : rng;
+    std::int64_t damage = high > low ? low + physical_rng(int(high - low)) : low;
     const int rolled = int(damage >> 8);                       // before crit: what Vengeance's elements are a share of
     // The mastery crit, critical strike and deadly strike are separate
     // rolls in that order; any one doubles (FUN_0057b7d0). Not kicks.
