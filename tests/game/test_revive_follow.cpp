@@ -4,7 +4,7 @@
 // FUN_005c55c0): 8 cells off the Necromancer, a monster beside it, it walks
 // back to a spot 0x13 about him, not at the monster; 2 cells off, the step
 // doesn't act and it takes the monster, by its own search (mode 5: an unaware
-// one 6 cells off too); a subtile off him, it backs off. Needs the
+// one 6 cells off too) and chases it in WL at its Velocity from 75%; a subtile off him, it backs off. Needs the
 // game data; SKIPs without it.
 
 #include <ai/units.hpp>
@@ -87,6 +87,18 @@ int main() try {
     auto& searching = revived_at(2.f, 6.f, false);
     world->fight.pets_turn(200000, 0.04f, crowd);
     assert(searching.monster.align == 2 && searching.target == 1);
+    // Its chase at the monster 4 cells off goes in WL at MonStats Velocity (FUN_00621360 mode 1) and the
+    // walk % from 75 (FUN_00573cb0) + its velocitypercent: a frame's step that long.
+    auto& chasing = revived_at(2.f, 4.f);
+    world->fight.pets_turn(200000, 0.04f, crowd);
+    assert(chasing.target == 1);
+    const float before_x = chasing.monster.unit.x, before_y = chasing.monster.unit.y;
+    world->fight.pets_turn(200040, 0.04f, crowd);
+    const float stepped = std::hypot(chasing.monster.unit.x - before_x, chasing.monster.unit.y - before_y) * 5;   // subtiles
+    const float wanted = float(path_velocity(data.monsters.types[std::size_t(zombie)].velocity, kMonsterVelocityPct + chasing.speed_pct)) / 4096;
+    std::printf("the chase's step: %.3f subtiles (Velocity at %d%%: %.3f), mode %.*s\n", double(stepped), kMonsterVelocityPct + chasing.speed_pct, double(wanted), int(chasing.monster.mode.size()),
+                chasing.monster.mode.data());
+    assert(chasing.monster.mode == "WL" && std::abs(stepped - wanted) < 0.02f);
     // A subtile east of its owner: within 1, it backs off 0x13 east (FUN_005defe0: away on each axis, none on y).
     auto& touching = revived_at(0.2f);
     const auto sub = [](float cells) { return int(std::floor(cells * 5)); };

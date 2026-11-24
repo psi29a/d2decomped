@@ -422,7 +422,7 @@ auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
             // (its own size off) a walk to a spot 0x13 about the owner (FUN_005df530); within 1 a back-off 0x13
             // (FUN_005defe0), failing that the walk; the owner dead, never again.
             // Past that step it searches as its monster (below).
-            // ponytail: its think isn't: a stand-in chases the pick at max(Run, Velocity) and swings A1 (or shoots
+            // ponytail: its think isn't: a stand-in chases the pick in WL and swings A1 (or shoots
             // its pet missile), else follows at the owner's RunVelocity x 1.1; its MonStats think and skills, and
             // a monster's missiles hitting monsters, aren't ported for a pet.
             {
@@ -475,10 +475,10 @@ auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
                 pet.target = search_foe(*game_data, *level, monster, foes, crowd);
             }
             const auto& type_info = game_data->monsters.types[std::size_t(monster.type)];
-            // ponytail: the revived monster's stand-in chase (its own MonStats think isn't run for a pet) keeps its old
-            // pace from 100; a real think's would come from 75 (FUN_00573cb0) as pet_walking's does.
-            const float speed = cells_per_sec(float(std::max(type_info.run, type_info.velocity))) * float(100 + pet.speed_pct) / 100;
-            if (speed <= 0) {                                // a Hydra: it stands and shoots what comes in range
+            // The chase goes in WL: MonStats Velocity (FUN_00621360 mode 1, +0x32) at the walk % from 75
+            // (FUN_00573cb0, 0x573f16) + its velocitypercent, as pet_walking's.
+            const int stride = path_velocity(type_info.velocity, std::max(kMonsterVelocityPct + pet.speed_pct, 25));
+            if (type_info.velocity <= 0) {                                // a Hydra: it stands and shoots what comes in range
                 if (pet.target >= 0 && std::hypot(monsters[std::size_t(pet.target)].unit.x - unit.x, monsters[std::size_t(pet.target)].unit.y - unit.y) > 6.f) pet.target = -1;
                 for (std::size_t i = 0; pet.target < 0 && i < monsters.size(); ++i)
                     if (monsters[i].targetable() && std::hypot(monsters[i].unit.x - unit.x, monsters[i].unit.y - unit.y) <= 6.f) pet.target = int(i);
@@ -503,7 +503,8 @@ auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
                 }
                 if (unit.path.empty() || std::hypot(unit.goal_x - target.unit.x, unit.goal_y - target.unit.y) > 1.f)
                     set_off(*level, unit, target.unit.x, target.unit.y, true, crowd);
-                if (!walk_on(*level, unit, int(std::lround(speed * elapsed * 5 * 4096)), crowd)) pet.target = -1;
+                unit.walking = walk_on(*level, unit, stride, crowd);
+                if (!unit.walking) pet.target = -1;
             } else {
                 pet_follow(*level, unit, actor->player.x, actor->player.y, cells_per_sec(float(game_data->run_velocity[save_class])) * 1.1f, now_ms, elapsed, crowd);
             }
