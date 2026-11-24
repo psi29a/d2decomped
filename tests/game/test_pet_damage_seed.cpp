@@ -9,8 +9,9 @@
 #include <cassert>
 #include <cstdint>
 #include <cstdio>
+#include <exception>
 
-int main() {
+int main() try {
     d2d::rules::Fighter pet;
     pet.phys_lo = 2 << 8;
     pet.phys_hi = 9 << 8;
@@ -36,4 +37,7 @@ int main() {
     }
     assert(hits > 0);
     std::puts("OK: a pet's physical roll uses its unit seed, apart from the fight's hit roll");
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "FAIL: %s\n", error.what());
+    return 1;
 }
