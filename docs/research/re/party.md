@@ -518,3 +518,40 @@ uv run python party_regroup.py inc 2000 7 | diff - ../../tests/party_regroup_cas
 - Squelch (`FUN_00479e20`) also adds the player to the Battle.net ignore
   list; d2d sends the flag only.
 - The tooltip box's size is d2d's.
+
+## The hostile button on the host — FUN_005a5e50
+
+C->S 0x5d (`FUN_0054c2a0`): byte 1 the action (above 10 returns 2), byte 2 `on`,
+bytes 3..6 the other player's id; `FUN_005a6000` looks the other unit up
+(`FUN_00552f60`) and calls entry 4 of its table (0x6e2218) as
+`FUN_005a5e50(game ECX, declarer EDX, other stack, on stack, &out stack)`.
+`*out != 0` makes `FUN_005a6000` return 3 (a bad packet). Read in game.exe
+(oracle `tools/emu/hostile_toggle.py`, port `rules::hostile_toggle`, test
+`tests/test_hostile_toggle.cpp`):
+
+1. **Violation (`*out = 1`)**: the declarer has no room (`FUN_00620bb0`), or the
+   room is not in a town (`FUN_0061ab00` = room +0x10 -> +0x58 -> +0x1d0 level id,
+   `FUN_006426a0`: levels 1, 0x28, 0x4b, 0x67, 0x6d), or either unit's level
+   (stat 0xc, `FUN_006253b0`) is under 9. Only the declarer's room is tested.
+2. `FUN_0055b140` adds a relation node each way (none for a dead unit or while
+   `FUN_0055b110` finds one: not modelled).
+3. `FUN_0055b300(declarer, other, 8)` is compared whole with `on`: equal (0 with
+   0, or an `on` of 8) resends both flags (`FUN_0055b4c0` twice, S->C 0x8c) and ends.
+4. Not hostile and the other's level (`FUN_00625480`) under 9: ends, nothing.
+5. `on == 0`: `FUN_005a6080` clears flag 8 on the declarer's node (one way), S->C
+   0x5a type 4 to the other's client (`FUN_005531c0`, `FUN_005a5690`).
+6. `on != 0`: the pair stamp (`FUN_0055b6c0`, node +8) above GetTickCount (unsigned):
+   voice event 0x13 for the declarer (`FUN_00553380`), S->C 0x5a (0x10, `FUN_00566d90`),
+   flags resent.
+7. Else `FUN_0055b720` sets the node's stamp to now + 60000 and player data +0x160 to
+   now (the waypoint's 10 s window, waypoint.md); `FUN_005a5dc0`: the other in no
+   party sets flag 8 both ways and S->C 0x5a type 3; the other in a party walks its
+   members with `FUN_005a5d50` (both ways, type 3, level 9 or more); `FUN_00535430`
+   (the declarer's unit +0x48, class 0x3b: not traced); a declarer in the other's
+   party is notified each member (`FUN_005a5c70`, type 9) and removed
+   (`FUN_005407a0`) by `FUN_005a5d20`.
+
+Not traced: the party branch's exact directions, `FUN_00535430`, `FUN_0055b110`, the
+dead-unit case, the 0x8c / 0x5a packet layouts. d2d: the decision (1, 3..6, and 7's
+stamps) is `rules::hostile_toggle`; the relation nodes, party branch and the 0x5d
+command are not ported.

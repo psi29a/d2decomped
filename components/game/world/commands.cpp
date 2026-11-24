@@ -430,10 +430,11 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
         // FUN_005a5e50), not from a level change: FUN_0054c5d0 refuses while
         // GetTickCount is under that stamp + 10000 (32-bit, so it wraps), ends the
         // interaction and goes no further. A level change writes nothing.
-        // ponytail: nothing declares hostility yet (no PvP, C->S 0x5d, in a hosted
-        // world: FUN_005a5e50's level 9 / town / relation tests aren't ported), so
-        // Player::declare_hostile has no caller outside the test; an act change
-        // arrives at once (game.exe's load not traced).
+        // ponytail: nothing declares hostility yet (no PvP, C->S 0x5d, in a hosted world):
+        // rules::hostile_toggle decides FUN_005a5e50's branch (tested against game.exe), but no
+        // 0x5d reaches it, the relation nodes (FUN_0055b140 family) and the party branch
+        // (FUN_005a5dc0, FUN_005a5d20) aren't ported, so Player::declare_hostile has no caller
+        // outside the test; an act change arrives at once (game.exe's load not traced).
         if (const auto* travel = std::get_if<cmd::Waypoint>(&command)) {
             // FUN_0054c5d0 tests the clock before the target (FUN_00549570); it also speaks (FUN_00553380)
             // and ends the interaction (FUN_00554190): the voice and that end aren't ported.
