@@ -424,7 +424,10 @@ auto Fight::buff_tick(std::uint32_t now_ms) -> void {
 auto Fight::monster_states(std::uint32_t now_ms) -> void {
         for (auto& monster : monsters) {
             monster.dmg_pct = monster.speed_pct = monster.reflect_pct = monster.anim_pct = monster.attack_pct = 0;
-            monster.align = 0;                                // Confuse's / Attract's end (FUN_005c3db0 / 0x5c3b00), or another curse in its place
+            // Its own alignment (MonStats Align, make_monster) unless a state below sets another. game.exe sets
+            // it only at events: Confuse's / Attract's end puts 0 (0x5c3db0 / 0x5c3b00 -> FUN_005543b0 with
+            // DL 0) on the evil monsters they reach, so a good one (rogue2, Harrogath's defenders) stays good.
+            monster.align = d2d::rules::unit_alignment(monster.row_align);
             monster.afraid = false;
             std::vector<Monster::SkillState*> effects{ &monster.curse, &monster.frenzy, &monster.self_state };
             for (auto& held : monster.states) effects.push_back(&held);

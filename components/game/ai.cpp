@@ -2986,7 +2986,7 @@ Monster make_monster(const GameData& game_data, int type, float x, float y, d2d:
     monster.players = players;
     monster.killable = type_info.killable;
     // FUN_005b2a00: Align 1 good (stat 0xac 2), 2 neutral (1), else evil.
-    monster.align = type_info.align == 1 ? 2 : type_info.align == 2 ? 1 : 0;
+    monster.align = d2d::rules::unit_alignment(type_info.align);
     monster.row_align = type_info.align;
     monster.npc = game_data.mon_npc[std::size_t(type)];
     for (std::size_t layer = 0; layer < 16; ++layer)
