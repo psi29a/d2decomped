@@ -8,6 +8,7 @@
 #include <ds1.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
+#include <level.hpp>
 #include <level_ids.hpp>
 #include <montypes.hpp>
 #include <rules.hpp>
