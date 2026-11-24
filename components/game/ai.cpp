@@ -1209,9 +1209,10 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     // over 0x14 from its leader (FUN_005dc380, its own size off) walks to a spot 0x13 about it (FUN_005df530 on
     // its seed) on path type 7 with 0x28 steps (FUN_005de190(7, 0, 0x28)), before any search or think; the
     // leader gone or dead, or itself without WL, and it never does again.
-    // ponytail: d2d's leader is its group's spawn index, which a pack grown since (births, trap risers) can
-    // shift: a leader that isn't a boss is taken as not known, not as gone. FUN_005dd330's other units (a revived
-    // monster's owner, item_reanimate's FUN_005c07a0, Taunt's taunter) aren't monsters with that leader here.
+    // d2d's leader is its group's first's place in the level's monster list (Fight::rooms_up translates a
+    // spawn's through Spawning::LevelState::spawn_slots).
+    // ponytail: FUN_005dd330's other units (a revived monster's owner, item_reanimate's FUN_005c07a0, Taunt's
+    // taunter) aren't monsters with that leader here.
     if (monster.boss == d2d::rules::Boss::minion && !monster.leader_lost && monster.leader >= 0 && std::size_t(monster.leader) < pack.size()
         && &pack[std::size_t(monster.leader)] != &monster && pack[std::size_t(monster.leader)].boss != d2d::rules::Boss::none
         && pack[std::size_t(monster.leader)].boss != d2d::rules::Boss::minion) {
