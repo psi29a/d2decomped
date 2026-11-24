@@ -487,6 +487,9 @@ MissileDamage row_damage(int etype, int emin, int emax, const std::array<int, 5>
 MissileDamage missile_damage(const SkillTables& skill_tables, const Skill& skill, const CalcEnv& env, int lvl);
 // Attack rating bonus %: ToHitCalc, else ToHit + LevToHit x (lvl - 1).
 int skill_tohit(const SkillTables& skill_tables, const Skill& skill, const CalcEnv& env, int lvl, int depth = 0);
+// The attackrate (stat 68) a skill's server start puts on its user until the next mode change: Dragon
+// Tail's Param4 (-40), the Bash family's calc3 (empty in the shipped rows); 0 for any other start.
+int start_attack_rate(const SkillTables& skill_tables, const Skill& skill, const CalcEnv& env, int lvl);
 
 // An aura's next pulse (FUN_0056cda0 / FUN_0056ce70 arming unit event 8 /
 // 9, FUN_0056cd50 for the states a pulse puts): perdelay's calc at the

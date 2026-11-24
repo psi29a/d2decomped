@@ -315,6 +315,21 @@ int skill_tohit(const SkillTables& skill_tables, const Skill& skill, const CalcE
     return skill.tohit + skill.levtohit * (lvl - 1);
 }
 
+// FUN_0056e520 (Skills.cpp line 0x12ab): a stat list with flags 4 hung on the
+// unit, its attackrate (0x44) the value, then the unit re-rated
+// (FUN_00623f50). SetMode (FUN_00624690 -> FUN_006272e0) frees flags-4 lists
+// when the mode changes, and the start runs after the mode is set
+// (FUN_0057fef0: FUN_00553570, then FUN_0056faf0 -> FUN_0056f640), so the
+// value holds for the mode the skill plays. Its callers: srvstfunc 27, Dragon
+// Tail (FUN_005d7090), Param4 (+0x154) as it is; srvstfunc 32, the Bash family
+// (FUN_005d7ea0), calc3 (+0x140) once a target outside a town is found.
+// tools/emu/skill_start_attackrate.py.
+int start_attack_rate(const SkillTables& skill_tables, const Skill& skill, const CalcEnv& env, int lvl) {
+    if (skill.srvstfunc == ServerStartFunction::kDragonTail) return skill.par[3];
+    if (skill.srvstfunc == ServerStartFunction::kBuildHit) return eval_calc(skill_tables, skill.calc[2], env, skill.id, lvl);
+    return 0;
+}
+
 AttackLine attack_line(const SkillTables& skill_tables, const Skill& skill, const CalcEnv& env, int lvl,
                        const Fighter& fighter, int mastery_tohit, std::uint8_t blue, std::uint8_t red,
                        int usable, const PanelUnit& unit) {
