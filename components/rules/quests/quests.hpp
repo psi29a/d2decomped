@@ -747,12 +747,10 @@ struct CainQuest {
     void item_event(QuestBits& quest_bits) const { if (active) mark(quest_bits); }
     // The player went from level `from` to `dest`.
     bool enter(QuestBits& quest_bits, int from, int dest, int player);
-    // Camp Cain appears if he's due (FUN_005940e0 / FUN_00592960).
-    bool camp_spawn() {
-        if (!camp_due || camp_cain) return false;
-        camp_cain = true; camp_due = false;
-        return true;
-    }
+    // Camp Cain's due (+0x52 set, +0x51 clear): FUN_005940e0 / FUN_00596de0 then try FUN_00592960.
+    [[nodiscard]] bool camp_spawn() const { return camp_due && !camp_cain; }
+    // FUN_00592960 found him a spot: he's come (+0x51 1, +0x52 0). With none he stays due.
+    void camp_made() { camp_cain = true; camp_due = false; }
     // Not rescued before Act 2: the Rogues get him (FUN_00597310; the Lut
     // Gholein arrival's the same, with the tree's mode). FUN_00596ca0(0, 1)
     // resolves it; the players still in it missed it (FUN_00592b10).

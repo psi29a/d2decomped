@@ -275,7 +275,9 @@ int main() try {
     assert(CainQuest::portal_mode(0, 75) == 1 && CainQuest::portal_mode(24, 75) == 1 && CainQuest::portal_mode(25, 75) == 2);
     assert(CainQuest::portal_mode(49, 75) == 2 && CainQuest::portal_mode(50, 75) == 3 && CainQuest::portal_mode(74, 75) == 3);
     assert(CainQuest::portal_mode(75, 75) == 4 && CainQuest::portal_mode(100000, 75) == 4 && CainQuest::portal_mode(100000, 0) == 2);
-    assert(!cain.camp_cain && cain.enter(cain_bits, CainQuest::kTristram, 1, 1) && cain.camp_cain);
+    assert(!cain.camp_cain && cain.enter(cain_bits, CainQuest::kTristram, 1, 1) && !cain.camp_cain);   // due: FUN_00592960 tries
+    cain.camp_made();                                                // it found him a spot (World::place_camp_cain)
+    assert(cain.camp_cain && !cain.camp_spawn());
     assert(cain.alert(cain_bits, CainQuest::kCampCain, false, 1) && cain.talk(cain_bits, CainQuest::kCampCain, false, 1)[0].string == 123);
     cain.said(cain_bits, CainQuest::kCampCain, 123, false, 1);
     assert(!cain.alert(cain_bits, CainQuest::kCampCain, false, 1) && !cain.talk(cain_bits, CainQuest::kCampCain, false, 1)[0].greet);
@@ -300,6 +302,9 @@ int main() try {
     CainQuest next_game;
     next_game.join(cain_bits, false, false);
     assert(!next_game.active && next_game.camp_spawn() && next_game.stones_init() && !next_game.stones_init());
+    assert(next_game.camp_spawn() && !next_game.camp_cain);          // due till FUN_00592960 finds him a spot
+    next_game.camp_made();
+    assert(!next_game.camp_spawn() && next_game.camp_cain && !next_game.camp_due);
 
     // The log state sent for a record without its own (FUN_00543f90).
     QuestBits log_bits{};

@@ -904,7 +904,9 @@ struct World {
     void class_cue(std::string_view line, std::uint32_t at_ms);   // the class's voice: <class>_<line>
     // The compelling orb's break: its mist to object 386 (FUN_005dfee0); when it lands, now_ms without one.
     std::uint32_t orb_mist(const Monster& orb, std::uint32_t now_ms);
-    void place_camp_cain();                                        // camp Cain made by his start object (FUN_00592960)
+    bool place_camp_cain();                                        // camp Cain made by his start object (FUN_00592960); false: no spot
+    bool camp_cain_placed = false;                                 // placed since the town's NPC states were last current
+    void camp_cain_state();                                        // those states take his new spot once they're current
     void music_cue(std::string_view sound);                       // one-shot quest music
     void music_cue_near(std::string_view sound, float x, float y);   // to each player whose room or one next to it holds (x, y)
     void give_item(std::string_view code, std::uint32_t now_ms, int ilvl = 1, int quality = 2);

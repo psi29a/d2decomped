@@ -3,13 +3,16 @@
 // Camp Cain made (FUN_00592960): from his start object (385) a size-2 free spot (FUN_00545340), then
 // MonStats 0x109 within 5 of it on the camp room's seed (FUN_005b2f20 -> FUN_005b2a00: rings of 3
 // subtiles), so he stands within 15 subtiles of that spot where he fits, and the room's seed moved.
-// A character with The Search for Cain done joins (CainQuest::join: camp_due).
+// A character with The Search for Cain done joins (CainQuest::join: camp_due). With no spot at all
+// he isn't made and stays due.
 
+#include <ai/units.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
 #include <level.hpp>
+#include <level_ids.hpp>
 #include <monster_ids.hpp>
 #include <npc.hpp>
 #include <obj_preset.hpp>
@@ -21,6 +24,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cmath>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <exception>
@@ -66,6 +70,31 @@ int main() try {
     assert(std::max(std::abs(at_x - free_x), std::abs(at_y - free_y)) >= 3);   // the rings start 3 out: never the free spot itself
     assert(!town.unit_blocked(cain->x, cain->y, cain->shape));
     std::printf("OK: camp Cain at (%d, %d), the free spot (%d, %d)\n", at_x, at_y, free_x, free_y);
+
+    // No spot for him anywhere: no Cain (FUN_00592960 returns at 0x592ad8 before +0x51 / +0x52), so he
+    // stays due for the next try, and comes at it.
+    auto& camp = const_cast<Level&>(town);                          // as World::place_camp_cain takes it
+    const auto walk = camp.walk;
+    std::ranges::fill(camp.walk, std::uint16_t(0xffff));
+    World blocked(&*data, -1, -1);
+    blocked.enter(character);
+    assert(!blocked.cain.camp_cain && blocked.cain.camp_spawn());
+    camp.walk = walk;
+    // The next try comes as a player enters the camp (FUN_00596de0, act1_enter), before the town's kept
+    // NPC states come back (swap_npc_states): his state takes the new spot, not the one kept.
+    const auto* moor = data->level(d2d::rules::level_ids::kBloodMoor);
+    assert(moor);
+    blocked.level = moor;
+    blocked.swap_npc_states(&town);
+    const auto index = std::size_t(std::ranges::find_if(town.npcs, [](const Npc& npc) { return npc.hc_idx == d2d::rules::monster_ids::kCampCain; }) - town.npcs.begin());
+    auto& kept = blocked.other_npcs[&town];
+    assert(index < kept.size());
+    kept[index].x = Fine(1.f); kept[index].y = Fine(1.f);         // where the kept state had him
+    blocked.level = &town;
+    blocked.swap_npcs(moor);
+    assert(blocked.cain.camp_cain && !blocked.cain.camp_spawn());
+    assert(blocked.npc_states[index].x == Fine(cain->x) && blocked.npc_states[index].y == Fine(cain->y));
+    std::printf("OK: no spot, no Cain; still due, then made at the next entry, his state there\n");
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_camp_cain_spot: %s\n", error.what());
