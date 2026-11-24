@@ -6,7 +6,8 @@
 // row. Her A1 is then the two-handed weapon's damage (FUN_0057b420 reads
 // stats 23 / 24) and her defence takes the armour's. Against the same
 // summon with her MonEquip rows taken away. Her unit seed is the game
-// seed's next step as she's made (FUN_00555230 -> FUN_00552df0), not {0, 666}.
+// seed's next step as she's made (FUN_00555230 -> FUN_00552df0), then
+// FUN_00573cb0 advances it for her life roll before gear.
 #include <ai/units.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
@@ -57,15 +58,11 @@ Monster summon(const GameData& data, int lvl) {
     auto* actor = world->actor;
     actor->character.stats.values[d2d::d2s::kMana] = 500 << 8;
     actor->pmode = -1;
-    d2d::rules::Rng game = world->fight.spawning.game;
     const bool cast = world->fight.cast_summon(valkyrie, actor->player.x + 3, actor->player.y, 100000);
     if (cast) world->fight.summon(*data.skills.get(valkyrie), 100000);   // its action frame's (strike.cpp)
     assert(cast && actor->pets.size() == 1);
     auto pet = actor->pets.front().monster;
-    // Made on one of the game seed's next steps (the cast's own draws may come first); its gear walk steps it on.
-    bool on_step = false;
-    for (int step = 0; step < 8; ++step) on_step = on_step || pet.seed.low == game.next();
-    if (pet.seed.high == 666) assert(on_step);
+    // Its life roll and gear walk have stepped the seed on from its creation value.
     assert(pet.seed.low != 0 || pet.seed.high != 666);
     return pet;
 }
@@ -93,7 +90,7 @@ int main() try {
         data->mon_equip_first[std::size_t(type)] = -1;
         const auto bare_unit = summon(*data, lvl);
         const auto& bare = bare_unit.stats;
-        assert(bare_unit.seed.high == 666);   // no gear walk: her seed as made, {a game seed step, 666}
+        assert(bare_unit.seed.high != 666);   // no gear walk, but FUN_00573cb0's life roll advances her seed
         data->mon_equip_first[std::size_t(type)] = first;
         assert(geared.armor_class >= bare.armor_class + plate.minac);
         assert(geared.a1_min != bare.a1_min || geared.a1_max != bare.a1_max);

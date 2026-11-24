@@ -270,7 +270,15 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
             // A made one's unit seed (+0x20): {a game seed step, 666} (FUN_00555230 -> FUN_00552df0 ->
             // FUN_00650e40), as every unit but a player's gets as it's made (drops.md "the unit seed").
             monster.seed = d2d::rules::Rng{ spawning.game.next() };
-            monster.stats = d2d::rules::monster_stats(game_data->monsters, type, monster.difficulty, rng);
+            // Valkyrie's MonStats2 TotalPieces is 2, so FUN_005739d0 takes the no-region path. Its sixteen variant
+            // counts (+0x15) are zero: the bound-zero calls draw nothing. FUN_00573cb0 then rolls life on the unit
+            // seed, and FUN_005c4470's MonEquip walk sees that earlier draw.
+            if (skill.srvdofunc == ServerDoFunction::kValkyrie) {
+                const auto look = d2d::rules::monster_look(nullptr, type_info.choices, monster.seed);
+                for (std::size_t layer = 0; layer < look.size(); ++layer)
+                    if (look[layer] < type_info.parts[layer].size()) monster.npc.comp[layer] = type_info.parts[layer][look[layer]];
+            }
+            monster.stats = d2d::rules::monster_stats(game_data->monsters, type, monster.difficulty, monster.seed);
         }
         // Its life and damage straight from MonStats' columns (a Raise
         // Skeleton skeleton: 21 life, 1-2 damage in Normal; 30 / 42 in
@@ -280,8 +288,7 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
         // written, and Align 1 (row +0x4c) skips the players' life bonus
         // (FUN_00573930).
         // The life roll is min + rand(max - min + 1) on the pet's unit seed
-        // (+0x20, 0x573f83..0x573f8f), here rng.range on Fight::rng:
-        // deviations.md approximation 18.
+        // (+0x20, 0x573f83..0x573f8f), in monster_stats above.
         // Revive (do 58, FUN_005c56c0) raises the corpse itself: a life rolled
         // at the corpse's level and, above the owner's, MulDiv'd down with
         // the level to the owner's (rules::revive_life).
@@ -292,7 +299,6 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
         const auto revived = revive ? d2d::rules::revive_life(game_data->monsters, type, monster.difficulty, corpse_level, clvl, raised ? monster.seed : rng) : d2d::rules::RevivedLife{};
         if (!revive) {
             const auto& per_difficulty = game_data->monsters.types[std::size_t(type)].diff[std::size_t(monster.difficulty)];
-            monster.stats.hit_points = std::max(rng.range(per_difficulty.min_hp, std::max(per_difficulty.max_hp, per_difficulty.min_hp)), 1);
             monster.stats.a1_min = per_difficulty.a1_min; monster.stats.a1_max = std::max(per_difficulty.a1_max, per_difficulty.a1_min);
             monster.stats.a2_min = per_difficulty.a2_min; monster.stats.a2_max = std::max(per_difficulty.a2_max, per_difficulty.a2_min);
         }
@@ -349,11 +355,9 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
         // the Valkyrie's MonEquip gear, the rows from her level down, made at
         // calc2 or min(max(3 x level, 1), the owner's level). Its stats join
         // hers; a two-handed weapon's damage replaces her A1 (FUN_0057b420).
-        // The walk is on her unit seed, each item made as a drop (two game seed
-        // steps), as a spawn's gear (objgroups.cpp, FUN_00573cb0's end).
-        // ponytail: her seed's earlier draws (FUN_00573cb0's stat rolls, on the
-        // fight's rng here: approximation 18) aren't taken before the walk; a
-        // Shadow's gear (the owner's items) isn't made, it fights with the
+        // The walk is on her unit seed after FUN_00573cb0's look and life
+        // draws, each item made as a drop (two game seed steps), as a spawn's
+        // gear (objgroups.cpp, FUN_00573cb0's end). A Shadow's gear (the owner's items) isn't made, it fights with the
         // owner's (pet.mirror). Its stats go in before the life below, so a
         // gear maxhp would get calc1 % (game.exe makes it after).
         if (const int first = std::size_t(type) < game_data->mon_equip_first.size() ? game_data->mon_equip_first[std::size_t(type)] : -1;
