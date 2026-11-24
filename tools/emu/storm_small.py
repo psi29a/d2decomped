@@ -144,6 +144,8 @@ def main():
     parser.add_argument("--count", type=int, default=1000)
     parser.add_argument("--mutation-check", action="store_true")
     args = parser.parse_args()
+    if args.count <= 0:
+        raise SystemExit("--count must be greater than 0")
     exe = args.exe or Path(emu.data_path()) / "bin" / "game.exe"
     if hashlib.sha256(exe.read_bytes()).hexdigest() != SHA256:
         raise SystemExit(f"{exe} is not game.exe 1.14d")
