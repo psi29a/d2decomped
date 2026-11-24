@@ -1467,6 +1467,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     const auto at_second = [&] {                                   // the act now current: a next act (set_off_or_next) too
         if (act.unit != ThinkUnit::second || !second || second == target) return;
         target = second;
+        targeted = true;                                           // a unit now, a search-type-0 think's too (GoodNpcRanged): its chase and shot go at it
         target_x = subtile(target->x); target_y = subtile(target->y);
         dx = target->x - unit.x; dy = target->y - unit.y;
     };

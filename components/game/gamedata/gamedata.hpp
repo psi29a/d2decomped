@@ -422,6 +422,7 @@ struct GameData {
                          std::string prog_overlay;                              // ProgOverlay (+0x36): hit function 7's overlay on the unit it heals
                          bool to_hit = false, collide_kill = true, pierce = false;
                          bool return_fire = false;   // ReturnFire (record flag bit 9, +5 & 2): Chilling Armor answers it (FUN_005cab40)
+                         bool collide_friend = false;   // CollideFriend (+0x187): it strikes its owner's friends too (FUN_005a8730)
                          // Its own element (a row with no Skill: FUN_0064b100 / 0064b1d0 /
                          // 0064b2a0 by level): Skill::etype order, frze as cold.
                          int etype = -1, emin = 0, emax = 0, hitshift = 8, elen = 0;
