@@ -458,11 +458,15 @@ that can't be rare (FUN_0062e990), else FUN_005c1bf0 for an expansion item
 
 A rare that fails goes magic (FUN_00557380), as a failed set does.
 `tools/emu/drops.py rare` runs FUN_00557450 whole for a rare asked of
-every base in turn. d2d: `generate_item` (quality 6 with a unit seed; the
-pick shared with magic as `choose`), names from `Tables::rare_prefix_names`
-/ `rare_suffix_names`; `test_rare_roll`. Before, d2d's rare was 3..6
-alternating slots with no coin, any name, rows without the rare column, and
-no tail (so never ethereal, no class affix).
+every base in turn. d2d: `generate_item` (quality 6; the pick shared with
+magic as `choose`), names from `Tables::rare_prefix_names` /
+`rare_suffix_names`; `test_rare_roll`. Names, count and picks come off the
+own seed alone, so a rare (and a magic item) with no unit seed (an imbue,
+tests) rolls them the same (`test_affix_own_seed`); only the base rolls and
+FUN_00557450's tail need the unit seed. Before, a rare with no unit seed was
+3..6 alternating slots with no coin, any name and rows without the rare
+column, a magic item 1/4 prefix, 1/4 suffix, 1/2 both. The ponytail note
+that tied this to FUN_0065e8e0 was wrong: that is an elixir's base roll.
 
 ## Chests — FUN_00585b90
 

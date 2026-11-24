@@ -315,6 +315,11 @@ int main() try {
     // Charsi's imbue (FUN_00579d60): a normal / superior / low item of a
     // base with bitfield1 & 1 comes back rare, ilvl clvl + 4 past 5.
     tables.item_base["hax"].bitfield1 = 1;
+    // A rare takes its names and affixes off the own seed (FUN_005c1bf0), so the tables need some.
+    tables.prefixes = { {}, { .level = 1, .group = 1, .frequency = 1, .spawnable = true, .rare = true, .itypes = { "axe" } } };
+    tables.suffixes = { {}, { .level = 1, .group = 2, .frequency = 1, .spawnable = true, .rare = true, .itypes = { "axe" } } };
+    tables.rare_prefix_names = { { .itypes = { "axe" } } };
+    tables.rare_suffix_names = { { .itypes = { "axe" } } };
     d2d::d2s::Item axe{ .code = "hax", .quality = 2 };
     assert(imbuable(tables, axe));
     const auto imbued = imbue_item(tables, axe, 8, rng);

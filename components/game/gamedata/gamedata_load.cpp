@@ -306,6 +306,7 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
     std::unordered_set<std::string> skill_missiles;
     for (std::size_t row_index = 0; row_index < skills_table.size(); ++row_index) {
         skill_missiles.emplace(skills_table.get(row_index, "srvmissile"));
+        skill_missiles.emplace(skills_table.get(row_index, "CltMissile"));
         for (const char* column : { "srvmissilea", "srvmissileb", "srvmissilec" }) skill_missiles.emplace(skills_table.get(row_index, column));
         const auto srvdofunc = d2d::rules::ServerDoFunction(num(skills_table.get(row_index, "srvdofunc")));
         if (const std::string missile_name(skills_table.get(row_index, "srvmissilea"));
@@ -340,7 +341,8 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
     }
     // A second pass loads the ExplosionMissile rows the first pass's name
     // (Missiles.txt +0x16: fireexplode after a fire bolt) and their
-    // CltSubMissile1 / 2 (+0x1e: lightninghit, client do 8's trail; +0x20: client do 26's rocks).
+    // CltSubMissile1 / 2 (+0x1e: lightninghit, client do 8's trail; +0x20: client do 26's rocks)
+    // and CltHitSubMissile1 / 2 (Glacial Spike's impact).
     std::unordered_set<std::string> explosions;
     for (int pass = 0; pass < 2; ++pass)
     for (std::size_t row_index = 0; row_index < missiles_table.size(); ++row_index) {
@@ -355,11 +357,11 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                  || std::ranges::contains(d2d::rules::kTrapMissile, std::string_view(name))    // chest traps
                  || std::ranges::contains(d2d::rules::kBossMissile, std::string_view(name))    // a unique's mods
                  || std::ranges::contains(d2d::rules::kShatterRows, std::string_view(name));   // a shattered death's ice (FUN_004afc10)
-        for (const auto& type_info : monsters.types) used = used || type_info.miss_a1 == name || type_info.miss_a2 == name;
+        for (const auto& type_info : monsters.types) used = used || type_info.miss_a1 == name || type_info.miss_a2 == name || type_info.miss_s1 == name;
         if (pass == 1) used = explosions.contains(name) && !game_data.missiles.contains(name);
         if (!used) continue;
         if (pass == 0)
-            for (const char* column : { "ExplosionMissile", "CltSubMissile1", "CltSubMissile2" })
+            for (const char* column : { "ExplosionMissile", "CltSubMissile1", "CltSubMissile2", "CltHitSubMissile1", "CltHitSubMissile2" })
                 if (const std::string named(missiles_table.get(row_index, column)); !named.empty()) explosions.insert(named);
         GameData::MissileInfo missile_info;
         missile_info.name = name;
@@ -371,6 +373,7 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         missile_info.skill = missiles_table.get(row_index, "Skill"); missile_info.lev_range = number("LevRange"); missile_info.hit_func = number("pSrvHitFunc"); missile_info.hit_par1 = number("sHitPar1");
         missile_info.prog_overlay = missiles_table.get(row_index, "ProgOverlay");
         missile_info.to_hit = number("ToHit") == 1; missile_info.collide_kill = number("CollideKill") == 1; missile_info.pierce = number("Pierce") == 1; missile_info.return_fire = number("ReturnFire") == 1;
+        missile_info.collide_friend = number("CollideFriend") == 1;
         missile_info.clt_do = number("pCltDoFunc"); missile_info.srv_do = number("pSrvDoFunc"); missile_info.param1 = number("Param1"); missile_info.param2 = number("Param2"); missile_info.param3 = number("Param3"); missile_info.param4 = number("Param4"); missile_info.hit_par2 = number("sHitPar2"); missile_info.dmg_func = number("pSrvDmgFunc"); missile_info.dmg_par1 = number("dParam1"); missile_info.dmg_par2 = number("dParam2");
         missile_info.damage_rate = number("DamageRate");
         missile_info.hit_par3 = number("sHitPar3");
@@ -382,8 +385,10 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         missile_info.sub = missiles_table.get(row_index, "SubMissile1"); missile_info.sub2 = missiles_table.get(row_index, "SubMissile2"); missile_info.hit_sub = missiles_table.get(row_index, "HitSubMissile1");
         missile_info.clt_sub = missiles_table.get(row_index, "CltSubMissile1"); missile_info.init_steps = number("InitSteps");
         missile_info.clt_sub2 = missiles_table.get(row_index, "CltSubMissile2");
+        missile_info.clt_hit = number("pCltHitFunc");
+        missile_info.clt_hit_sub_names = {std::string(missiles_table.get(row_index, "CltHitSubMissile1")),
+                                         std::string(missiles_table.get(row_index, "CltHitSubMissile2"))};
         missile_info.explosion_name = missiles_table.get(row_index, "ExplosionMissile"); missile_info.always_explode = number("AlwaysExplode") == 1;
-        missile_info.clt_hit = number("pCltHitFunc"); missile_info.clt_hit_sub = missiles_table.get(row_index, "CltHitSubMissile1");
         static constexpr std::array<std::string_view, 6> kEl = { "fire", "ltng", "cold", "pois", "mag", "frze" };
         if (const auto element = std::ranges::find(kEl, missiles_table.get(row_index, "EType")); element != kEl.end()) missile_info.etype = *element == "frze" ? 2 : int(element - kEl.begin());
         missile_info.emin = number("EMin"); missile_info.emax = number("Emax"); missile_info.hitshift = number("HitShift"); missile_info.hit_class = number("HitClass");
@@ -405,7 +410,8 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         for (auto [wanted, into] : { std::pair{ &missile_info.explosion_name, &missile_info.explosion }, std::pair{ &missile_info.sub, &missile_info.subs[0] },
                                   std::pair{ &missile_info.sub2, &missile_info.subs[1] }, std::pair{ &missile_info.hit_sub, &missile_info.hit_sub_info },
                                   std::pair{ &missile_info.clt_sub, &missile_info.clt_sub_info }, std::pair{ &missile_info.clt_sub2, &missile_info.clt_sub2_info },
-                                  std::pair{ &missile_info.clt_hit_sub, &missile_info.clt_hit_sub_info } })
+                                  std::pair{ &missile_info.clt_hit_sub_names[0], &missile_info.clt_hit_subs[0] },
+                                  std::pair{ &missile_info.clt_hit_sub_names[1], &missile_info.clt_hit_subs[1] } })
             if (const auto found = game_data.missiles.find(*wanted); found != game_data.missiles.end()) *into = &found->second;
     // SuperUniques.txt: name (string key), Class, minions. Replaceable and
     // EClass are never read by game.exe (docs/research/re/superuniques.md).
@@ -591,6 +597,7 @@ void load_skills(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         skill_row.st_sound = sound("stsound"); skill_row.st_sound_class = sound("stsoundclass"); skill_row.item_cast_sound = sound("ItemCastSound");
         skill_row.do_sound = sound("dosound"); skill_row.tgt_sound = sound("tgtsound"); skill_row.prg_sound = sound("prgsound"); skill_row.clt_st_func = number("cltstfunc");
         skill_row.do_sound_a = sound("dosound a"); skill_row.do_sound_b = sound("dosound b"); skill_row.clt_do_func = number("cltdofunc");
+        skill_row.clt_missile = text("cltmissile");
         for (std::size_t prg = 0; prg < skill_row.clt_prg_func.size(); ++prg) skill_row.clt_prg_func[prg] = number("cltprgfunc" + std::to_string(prg + 1));
         skill_row.st_sound_delay = text("stsounddelay") == "1"; skill_row.weapon_sound = text("weaponsnd") == "1"; skill_row.interrupt = text("interrupt") == "1";
         skill_row.st_success_only = text("stsuccessonly") == "1";   // FUN_004c6140: a failed cltstfunc mutes the start

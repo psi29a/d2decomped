@@ -527,9 +527,14 @@ struct ObjectRooms {
         if (!early) early = d2d::rules::Rng{ other < level.room1_seeds.size() ? level.room1_seeds[other] : level.rooms[other].seed };
         return &*early;
     }
-    // FUN_00463740 on the near list of room `from`: the room holding subtile
-    // (x, y) of this level, none when it isn't one of them.
-    // ponytail: only this level's rooms (a neighbour level's near rooms aren't looked in).
+    // FUN_00463740 on room `from`: (x, y) in its own bounds, else the first room
+    // of its near list (FUN_0066c370's, via d2d_act5_rooms_near, null slots skipped)
+    // whose bounds hold it; none when no room does. The near list holds
+    // neighbour levels' rooms too (missile_rooms), and game.exe returns one.
+    // ponytail: the answer is an index into this level's rooms, so a spot held
+    // only by a neighbour level's room (a free-area spot past this level's edge:
+    // Level::blocked reads the neighbour's grid) counts as none; making the NPC
+    // in that room (its bounds, seed and spawn list, FUN_005b2f20) isn't ported.
     [[nodiscard]] std::optional<std::size_t> near_holder(std::size_t from, int x, int y) const {
         if (from >= level.rooms.size()) return std::nullopt;
         const auto& source = level.rooms[from];

@@ -301,6 +301,7 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
             const auto& per_difficulty = game_data->monsters.types[std::size_t(type)].diff[std::size_t(monster.difficulty)];
             monster.stats.a1_min = per_difficulty.a1_min; monster.stats.a1_max = std::max(per_difficulty.a1_max, per_difficulty.a1_min);
             monster.stats.a2_min = per_difficulty.a2_min; monster.stats.a2_max = std::max(per_difficulty.a2_max, per_difficulty.a2_min);
+            monster.stats.regen = d2d::rules::monster_regen(monster.stats.hit_points, type_info.damage_regen);   // from this roll (FUN_00573cb0)
         }
         // The Druid's wolves, Grizzly and Raven: MonStats SkillDamage (+0xa8)
         // names their summon skill, and each swing's per-mode damage
@@ -528,6 +529,7 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
         if (skill.sumumod > 0 && skill.sumumod < 0x2b) monster.mods.push_back(skill.sumumod);
         set_mode(*game_data, monster, "NU", now_ms);
         pet.monster.id = next_id++;                              // a unit id as a monster's (a guided missile's hold on it)
+        pet.listed = ++actor->list_serial;
         actor->pets.push_back(std::move(pet));
         return actor->pets.back().monster.id;
     }

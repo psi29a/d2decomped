@@ -90,12 +90,15 @@ auto ClientSession::input(const Mouse& mouse, bool over_ui) const -> std::vector
         // The skill's own search may name one first (FUN_004621d0 -> FUN_00467880): SearchEnemyNear
         // on any click, and it alone (near_pick); else with no unit there and shift (stand still)
         // held SearchEnemyXY (shift_pick), then SearchOpenXY. The command says shift was held.
-        // None of them runs unless the skill can go now (FUN_004d9fc0 0: View::hand_status).
-        const auto use_hand = [&](bool left, int unit) {
+        // None of them runs unless the skill can go now (FUN_004d9fc0 0: View::hand_status), nor on a
+        // held frame of the left hand without shift while the player walks (FUN_00467880's first
+        // gate: flags 8 and 1, FUN_00622d00; rules::skill_search_goes).
+        const auto use_hand = [&](bool left, int unit, bool held_frame = false) {
             const int skill = left ? skillbar.left : skillbar.right;
             const bool stand = function_held(keys::kStandStill);
             float at_x = world_x, at_y = world_y;
-            if (view.hand_status[left ? 0 : 1] == 0 && !near_pick(skill, unit, at_x, at_y)) {
+            const std::uint32_t flags = (held_frame ? d2d::rules::kClickHeld : d2d::rules::kClickPress) | (left ? d2d::rules::kClickLeft : 0) | (stand ? d2d::rules::kClickShift : 0);
+            if (d2d::rules::skill_search_goes(flags, view.player.walking) && view.hand_status[left ? 0 : 1] == 0 && !near_pick(skill, unit, at_x, at_y)) {
                 if (unit < 0 && stand) unit = shift_pick(skill);
                 if (const auto spot = open_spot(skill, unit, world_x, world_y)) {   // off a wall, at the ground
                     std::tie(at_x, at_y) = *spot;
@@ -108,8 +111,8 @@ auto ClientSession::input(const Mouse& mouse, bool over_ui) const -> std::vector
         const auto hold_hand = [&](bool left) {
             const int target = view.monster(click_target);
             switch (hand_hold::held(left, target >= 0 && view.monsters[std::size_t(target)].alive(), function_held(keys::kStandStill))) {
-                case hand_hold::Held::kLatched: use_hand(left, click_target); return true;
-                case hand_hold::Held::kSkill: use_hand(left, -1); return true;
+                case hand_hold::Held::kLatched: use_hand(left, click_target, true); return true;
+                case hand_hold::Held::kSkill: use_hand(left, -1, true); return true;
                 case hand_hold::Held::kWalk:  return false;
             }
             return false;
@@ -210,8 +213,7 @@ auto ClientSession::shift_pick(int skill) const -> int {
 // the target monster's subtile when there is one: a live monster, or with a TargetCorpse skill a
 // corpse in DD; Iron Golem a ground item of a metal base (Items bitfield1 & 2), at any distance.
 // None leaves the target and the click as they were. The spot goes to the pick's subtile centre.
-// ponytail: FUN_00467880 doesn't search on a held frame of
-// a walking player (FUN_00622d00); the units go in view order, not the near rooms' list order
+// ponytail: the units go in view order, not the near rooms' list order
 // (FUN_0065ac70), so equals tie apart; other players aren't among them (two players without the
 // hostility flag fail FUN_00466870's FUN_00465c60); a corpse's hit test is usable_corpse (the
 // target kind callbacks at 0x711f34, FUN_00464310, aren't traced per skill); Iron Golem's item goes
@@ -253,9 +255,8 @@ auto ClientSession::near_pick(int skill, int& unit, float& at_x, float& at_y) co
 // client moves it to the nearest subtile without bit 1 within 7 and drops the target for the
 // ground (FUN_00467880 -> FUN_004677b0, game::search_open_xy; cursor-units.md "The skill's own
 // target search"). From the target monster's subtile, else the click's. The spot's centre, or none.
-// ponytail: FUN_00467880 doesn't search on a held frame
-// of a walking player (flags 8 and 1 without shift, FUN_00622d00); a dead target becomes the
-// ground first unless the skill is TargetCorpse (FUN_00466de0).
+// A dead target becoming the ground first (FUN_00467880, FUN_00466de0) can't happen here: the
+// client only passes a live monster (hover, or a held frame's latched one while it lives).
 auto ClientSession::open_spot(int skill, int unit, float click_x, float click_y) const -> std::optional<std::pair<float, float>> {
         const auto* info = scene ? scene->skills.get(skill) : nullptr;
         if (!info || !info->search_open_xy || !level) return std::nullopt;

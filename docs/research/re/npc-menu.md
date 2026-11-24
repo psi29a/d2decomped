@@ -153,8 +153,20 @@ and the defaults.
   `FUN_004b79d0` and 0x1b to `FUN_004b76d0`. Key-downs have their own
   rows (type 3): 0x26 `FUN_004b7870`, 0x28 `FUN_004b78f0`, 0x27
   `FUN_004b7770`, 0x25 `FUN_004b77f0`, 0xd `FUN_004b79d0`, 0x1b
-  `FUN_004b76d0`. So the box never sees a key-down. Not traced: whether
-  this table's WM_CHAR row runs before the chat box's when both are up.
+  `FUN_004b76d0`. So the box never sees a key-down. The chat box's own
+  WM_CHAR handler (`FUN_0047ca70`, chat-commands.md) is registered in the
+  same Storm table (tag 0x534d5347, code 0x102) when UI 5 turns on
+  (`FUN_00455720` case 5 -> `FUN_0047b090`). Storm's dispatch
+  (`FUN_00420b00` -> `FUN_00426f90`) runs every handler of the code, newest
+  registered first, whether an earlier one set the message's handled word
+  (+0x18) or not; the only level pushes (`FUN_00426370`) are at start-up
+  (`FUN_00451f10`). So with the chat box open over a hire list both take
+  Enter: the list hires its row (`rules::enter_takers`) and the chat sends
+  its line. Opening the hire panel (`FUN_00455f20` case 0x18) doesn't shut UI
+  5. Oracle: `tools/emu/storm_char_dispatch.py` (registers the two handlers
+  with `FUN_00426420` in both orders and dispatches with `FUN_00426f90`).
+  Not traced: `FUN_004b7a90` and `FUN_0047ca70` run whole on one message
+  (hooked), and what the list's key-down rows do with the chat open.
 
 - The scroll bar (`FUN_004bee90`, `UI\menu	extslid`, `FUN_004be020`;
   each cel by its bottom-left through `FUN_004f6480`): the up arrow (frame

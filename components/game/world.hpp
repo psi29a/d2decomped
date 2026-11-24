@@ -282,6 +282,10 @@ struct World {
         std::uint32_t voice_until = 0;         // when the class's last line ends (its start + its WAV's length)
         std::uint32_t swung_at = 0;            // when the player's last swing sound began (unit +0x7c, FUN_004cb6a0), 0 none
         std::array<int, 3> talking{ -1, -1, -1 };   // NPCs the client has a menu, speech or store open with (they stand)
+        // When the player last declared hostility (player data +0x160, FUN_0055b720); a waypoint
+        // refuses for 10 s after (FUN_0054c5d0). Unset: never, as in single player.
+        std::optional<std::uint32_t> hostile_at;
+        void declare_hostile(std::uint32_t now_ms) { hostile_at = now_ms; }   // FUN_0055b720's store
         // Talk records (by hc_idx) whose menu greeting has played since the
         // player was last out of town: FUN_004b66b0 clears the record's +0x15
         // as it greets, FUN_004b3e10 sets all again as the player leaves town.
@@ -683,6 +687,7 @@ struct World {
     void act4_kill(const Fight::Kill& kill, std::uint32_t now_ms);
     void act5_kill(const Fight::Kill& kill, std::uint32_t now_ms);
     // A World tick, after the kills.
+    void act1_update();
     void act2_update();
     void act3_update(std::uint32_t now_ms);
     void act4_update(std::uint32_t now_ms);

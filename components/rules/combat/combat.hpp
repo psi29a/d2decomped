@@ -112,6 +112,25 @@ int attack_speed(int rate, int ias, int wsm, int sias = 0);
 // The tick animation frame `frame` is reached on, counted from the tick a mode starts, when it starts on frame
 // `start` and plays `speed` / 256 frames a tick.
 int frame_tick(int frame, int start, int speed);
+
+// A frame-zero animation on FUN_00623e00's clock. Rate changes leave the
+// accumulated position in place. An empty result marks the end of the mode.
+struct FixedAnimationClock {
+    std::uint32_t ticks = 0;
+    std::uint64_t position = 0;
+
+    constexpr auto advance(std::uint32_t elapsed_ms, std::uint32_t speed, std::uint32_t frames)
+        -> std::optional<std::uint32_t> {
+        const auto now = elapsed_ms / 40;
+        if (now > ticks) {
+            position += std::uint64_t(now - ticks) * speed;
+            ticks = now;
+        }
+        if (position >= std::uint64_t(frames) * 256) return std::nullopt;
+        return std::uint32_t(position);
+    }
+};
+
 int attack_ticks(int frames, int rate, int ias, int wsm, int sias = 0, int start = 0);
 // The tick a swing strikes on: its action frame (the AnimData flag byte), the same clock as attack_ticks.
 int attack_action_tick(int action, int rate, int ias, int wsm, int sias = 0, int start = 0);
