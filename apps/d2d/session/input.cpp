@@ -93,11 +93,11 @@ auto ClientSession::input(const Mouse& mouse, bool over_ui) const -> std::vector
         // None of them runs unless the skill can go now (FUN_004d9fc0 0: View::hand_status), nor on a
         // held frame of the left hand without shift while the player walks (FUN_00467880's first
         // gate: flags 8 and 1, FUN_00622d00; rules::skill_search_goes).
-        const auto use_hand = [&](bool left, int unit, bool held = false) {
+        const auto use_hand = [&](bool left, int unit, bool held_frame = false) {
             const int skill = left ? skillbar.left : skillbar.right;
             const bool stand = function_held(keys::kStandStill);
             float at_x = world_x, at_y = world_y;
-            const std::uint32_t flags = (held ? d2d::rules::kClickHeld : d2d::rules::kClickPress) | (left ? d2d::rules::kClickLeft : 0) | (stand ? d2d::rules::kClickShift : 0);
+            const std::uint32_t flags = (held_frame ? d2d::rules::kClickHeld : d2d::rules::kClickPress) | (left ? d2d::rules::kClickLeft : 0) | (stand ? d2d::rules::kClickShift : 0);
             if (d2d::rules::skill_search_goes(flags, view.player.walking) && view.hand_status[left ? 0 : 1] == 0 && !near_pick(skill, unit, at_x, at_y)) {
                 if (unit < 0 && stand) unit = shift_pick(skill);
                 if (const auto spot = open_spot(skill, unit, world_x, world_y)) {   // off a wall, at the ground
