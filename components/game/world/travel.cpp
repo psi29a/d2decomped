@@ -34,6 +34,7 @@
 #include <cstdlib>
 #include <ctime>
 #include <format>
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <string>
@@ -226,13 +227,15 @@ auto World::travel_warp(const LevelWarp& warp) -> void {
         // The tile's linked (FUN_0066c220) to the other side's k-th slot back
         // here, k its own rank among its row's slots there; none placed: the
         // lowest slot back that is.
-        // ponytail: several tiles of one slot take the first built (game.exe:
-        // the first room of its list, newest first, then the first unit of its
-        // room): d2d keeps no room unit lists.
-        auto back = std::ranges::find_if(destination->warps, [&](const Level::Warp& other) { return other.destination == level->id && other.pair == warp.pair; });
+        // Several tiles of one slot: the first room of its list, newest first
+        // (FUN_0066ab00), then the first warp unit of its room, newest first
+        // (FUN_006195a0 on room +0x74). level->warps runs room by room as built,
+        // each room's in its tile walk (FUN_0066e1c0): the last one listed.
+        const auto paired = std::find_if(destination->warps.rbegin(), destination->warps.rend(), [&](const Level::Warp& other) { return other.destination == level->id && other.pair == warp.pair; });
+        auto back = paired == destination->warps.rend() ? destination->warps.end() : std::prev(paired.base());
         if (back == destination->warps.end())
             for (auto it = destination->warps.begin(); it != destination->warps.end(); ++it)
-                if (it->destination == level->id && (back == destination->warps.end() || it->slot < back->slot)) back = it;
+                if (it->destination == level->id && (back == destination->warps.end() || it->slot <= back->slot)) back = it;
         const float arrive_x = back == destination->warps.end() ? float(destination->ds1.width()) / 2 : back->unit_x;
         const float arrive_y = back == destination->warps.end() ? float(destination->ds1.height()) / 2 : back->unit_y;
         const auto landing = warp_arrival(*destination, arrive_x, arrive_y);

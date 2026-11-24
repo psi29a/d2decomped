@@ -44,6 +44,7 @@ int main() try {
     bazaar.warps.push_back({ .x = 4, .y = 4, .destination = 94, .exit_x = 0, .exit_y = 0, .unit_x = 4.5f, .unit_y = 4.5f });
     temple.warps.push_back({ .x = 4, .y = 4, .destination = 80, .exit_x = 0, .exit_y = 0, .unit_x = 4.5f, .unit_y = 4.5f });
     other.warps.push_back({ .x = 4, .y = 4, .destination = 80, .exit_x = 0, .exit_y = 0, .unit_x = 4.5f, .unit_y = 4.5f });
+    temple.warps.push_back({ .x = 12, .y = 4, .destination = 80, .exit_x = 0, .exit_y = 0, .unit_x = 12.5f, .unit_y = 4.5f });   // its slot's second tile
     bazaar.npcs.resize(2);
     auto& door = bazaar.npcs[0];
     door.root = "objects"; door.mode = "NU"; door.operate_fn = kStairs;
@@ -67,6 +68,7 @@ int main() try {
     assert(world.level == &bazaar);
     world.operate(0, open_ms);                                  // the door open: through its room's warp
     assert(world.level == &temple);
+    assert(world.actor->player.x > 10.f);                       // at the slot's newest tile (the later room's)
     // Two warps in its room: the newest unit of the room's list (the later in its tile walk).
     bazaar.warps.push_back({ .x = 6, .y = 6, .destination = 95, .exit_x = 0, .exit_y = 0, .unit_x = 6.5f, .unit_y = 6.5f });
     world.level = &bazaar;
