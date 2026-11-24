@@ -3,7 +3,7 @@
 
 Run: uv run python storm_bits.py [--exe /path/to/game.exe] [--mutation-check]
 
-# gaps-runs: FUN_0041d880 FUN_0041d8d0 FUN_0041d900 FUN_0041d920 FUN_0041d940 FUN_0041d950 FUN_0041d9a0
+# gaps-runs: FUN_0041d880 FUN_0041d8d0 FUN_0041d900 FUN_0041d920 FUN_0041d940 FUN_0041d950 FUN_0041d9a0 FUN_0041da30
 
 Each case gives one helper a record (`ECX`) with random fields, a random
 source or destination buffer and random arguments, runs it on game.exe and
@@ -79,6 +79,12 @@ class Model:
                     rec[1] = (rec[1] - 1) & M32
                 rec[3] >>= 8
                 rec[4] -= min(8, rec[4])
+        if address == 0x41DA30:   # (EDX level, ECX byte out, EAX dword out)
+            level = args[0]
+            byte, dword = (6, 8) if level == 3 else (4, 6) if level in (1, 2) else (5, 7)
+            if m == "level_swap" and level == 3:
+                byte, dword = 4, 6
+            buf[0], buf[4:8] = byte, struct.pack("<I", dword)
         return rec, bytes(buf), result
 
 
@@ -90,6 +96,7 @@ MUTATIONS = {
     0x41D940: ["written_plus"],
     0x41D950: ["put_nine", "put_ignores_room"],
     0x41D9A0: ["flush_none"],
+    0x41DA30: ["level_swap"],
 }
 
 
