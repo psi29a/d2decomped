@@ -38,7 +38,11 @@ struct Act1Ai : ThinkCtx {
     // A usable corpse has no udead state (FUN_0063a770, monster-ai.md): usable_corpse's corpse_used holds the
     // ones that reach a corpse here (raised, revived, eaten, exploded, redeemed, a vine's, and a death in freeze
     // or shatter, deaths.cpp).
-    // ponytail: the selectable flag (+0xc4 bit 1) isn't kept.
+    // FUN_005f1380 also wants the corpse selectable (+0xc4 bit 1). Every monster is made with it
+    // (FUN_00574250: | 0xa); the server takes it off only at a death in a hide state (FUN_005a6520
+    // with FUN_0063a320: freeze, shatter, uberminion), at Redemption (FUN_005d0c40 / FUN_005d0d70)
+    // and while a horde rises (flags 0xe, back at its next think). A Fallen or Shaman corpse meets
+    // only the first two, which corpse_used holds.
     void fallen_shaman() {
         auto unique = [](const Monster& other) { return other.boss == Boss::unique || other.boss == Boss::superunique; };
         const auto corpse_for = [&](const Monster& other) {
