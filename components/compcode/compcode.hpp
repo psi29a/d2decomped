@@ -264,17 +264,22 @@ template <class F> void each_layer(const std::unordered_map<std::string, Piece>&
     }
 }
 
-// A character's look (the d2s header's 16 appearance bytes) from what it
+enum class LookTarget { sprite, save };
+
+// A character's look from what it
 // wears: body locations 1 head, 3 torso, 4 right hand, 5 left hand. Each
 // item goes on its component's layer as its graphic's table index (a one-
 // hand weapon in the left hand on LH); body armour sets TR LG RA LA S1 S2 to
-// lit + its tiers. Unworn: TR LG RA LA S1 S2 lit, the rest empty (0xff).
+// lit + its tiers. The save writer (FUN_00568f20, LAB_0056923a)
+// initializes all layers to 0xff before overlaying worn equipment.
+// For a sprite, the six bare body layers are explicitly lit.
 // Checked against the real saves (test_compcode).
 inline std::array<std::uint8_t, 16> look(const std::vector<Entry>& table, const std::unordered_map<std::string, Piece>& pcs,
-                                         const std::vector<Worn>& worn) {
+                                         const std::vector<Worn>& worn, LookTarget target = LookTarget::sprite) {
     std::array<std::uint8_t, 16> tints;
     tints.fill(0xff);
-    for (int lit_layer : { 1, 2, 3, 4, 8, 9 }) tints[std::size_t(lit_layer)] = 1;   // FUN_0064f420's layers
+    if (target == LookTarget::sprite)
+        for (int lit_layer : { 1, 2, 3, 4, 8, 9 }) tints[std::size_t(lit_layer)] = 1;
     auto index = [&](const std::string& gfx) -> std::uint8_t {
         for (std::size_t i = 1; i < table.size() && i < 0xff; ++i) if (table[i].code == gfx) return std::uint8_t(i);
         return 0xff;

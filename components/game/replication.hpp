@@ -29,6 +29,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <exception>
+#include <optional>
 #include <span>
 #include <string>
 #include <string_view>
@@ -172,6 +173,7 @@ inline void monster_state(Out& out, const Monster& monster) {
     for (const int cut : monster.res_cut) out.i32(cut);   // the hover's immunity lines (Fight::target_of)
     out.u8(monster.align).u8(monster.rising);   // a converted one: no hover, no pick (Monster::ally_not_interact); a Horde in its rise's S1: not targetable
     one_shots(out, monster.one_shots);   // its one-shot overlays (its thinks', its casts')
+    out.u32(monster.scheduled_anim_position.value_or(0xffffffffu));
 }
 inline void monster_state(In& input, Monster& monster) {
     monster.hit_points = input.get<std::int32_t>(); monster.corpse_used = input.get<std::uint8_t>(); monster.mode = intern(input.str());
@@ -190,6 +192,8 @@ inline void monster_state(In& input, Monster& monster) {
     monster.align = input.get<std::uint8_t>();
     monster.rising = input.get<std::uint8_t>() != 0;
     monster.one_shots = one_shots(input);
+    const auto position = input.get<std::uint32_t>();
+    monster.scheduled_anim_position = position == 0xffffffffu ? std::nullopt : std::optional{position};
 }
 }  // namespace wire
 

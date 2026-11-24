@@ -14,6 +14,7 @@
 #include "protocol.hpp"
 
 #include <combat.hpp>
+#include <compcode.hpp>
 #include <d2s_items.hpp>
 #include <d2s_write.hpp>
 #include <light.hpp>
@@ -235,7 +236,8 @@ auto World::save_header() -> d2d::d2s::Header {
         header.last_played = std::uint32_t(std::uint64_t(std::time(nullptr)) & 0xffffffffu);   // the save's 32 bits
         header.map_id = game_data->map_seed;
         if (actor->character.appearance)   // the save's tints leave states out (FUN_0062c100's state loop sets no tint byte)
-            header.set_look(game_data->item_pieces.empty() || game_data->comp.empty() ? *actor->character.appearance : game_data->look_of(actor->character.items));
+            header.set_look(game_data->item_pieces.empty() || game_data->comp.empty() ? *actor->character.appearance
+                : game_data->look_of(actor->character.items, {}, d2d::compcode::LookTarget::save));
         return header;
     }
 
