@@ -4,7 +4,8 @@
 // FUN_005c55c0): 8 cells off the Necromancer, a monster beside it, it walks
 // back to a spot 0x13 about him, not at the monster; 2 cells off, the step
 // doesn't act and it takes the monster, by its own search (mode 5: an unaware
-// one 6 cells off too) and chases it in WL at its Velocity from 75%; a subtile off him, it backs off. Needs the
+// one 6 cells off too) and chases it in WL at its Velocity from 75%,
+// searching again on each think; a subtile off him, it backs off. Needs the
 // game data; SKIPs without it.
 
 #include <ai/units.hpp>
@@ -99,6 +100,16 @@ int main() try {
     std::printf("the chase's step: %.3f subtiles (Velocity at %d%%: %.3f), mode %.*s\n", double(stepped), kMonsterVelocityPct + chasing.speed_pct, double(wanted), int(chasing.monster.mode.size()),
                 chasing.monster.mode.data());
     assert(chasing.monster.mode == "WL" && std::abs(stepped - wanted) < 0.02f);
+    // It searches on each think, a target or not: a zombie come up beside it is taken at the next think
+    // (AIDel frames on), not before.
+    auto& nearer = world->fight.monsters.emplace_back();
+    nearer.type = zombie; nearer.id = 778; nearer.stats.hit_points = nearer.hit_points = 50; nearer.mode = "NU"; nearer.aware = true;
+    nearer.unit.x = chasing.monster.unit.x - 0.4f; nearer.unit.y = chasing.monster.unit.y;
+    world->fight.pets_turn(200080, 0.04f, crowd);
+    assert(chasing.target == 1);
+    world->fight.pets_turn(chasing.monster.next_act, 0.04f, crowd);
+    std::printf("at its next think it took monster %d\n", chasing.target);
+    assert(chasing.target == 2);
     // A subtile east of its owner: within 1, it backs off 0x13 east (FUN_005defe0: away on each axis, none on y).
     auto& touching = revived_at(0.2f);
     const auto sub = [](float cells) { return int(std::floor(cells * 5)); };
