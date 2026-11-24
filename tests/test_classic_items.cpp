@@ -6,6 +6,8 @@
 // low item's durability dur / 3 (FUN_005c2af0); staff mods (FUN_005c0d70) to tier 4 at ilvl 25,
 // skill 0x49 never. A unique (FUN_005566b0) the first version-0 row of its code, durability x5,
 // not marked found; a set (d2d_set_pick_old) the last classic set holding its code from rand(n).
+// Magic and rare affixes (FUN_005c12f0): spawnable version-0 rows up to ilvl + 2, no weights; a
+// rare (FUN_005c1e80) takes rand(3) + 4 of them.
 #include <d2s_items.hpp>
 #include <item_gen.hpp>
 #include <rules.hpp>
@@ -123,6 +125,41 @@ int main() try {
         const auto made = generate_item(tables, "cap", 5, 5, item_seed, &unit_seed, nullptr, false, 0, 0, true);
         assert(made.quality == 5 && made.set_id == (start == 0 ? 1 : 0) && made.max_durability == 60);
     }
+
+    // Affixes: a blank row, an expansion one, a classic one in reach, one out of reach (level 50 at
+    // ilvl 20), then classic rows of frequency 0 (no weights in classic), each its own group.
+    auto affix = [](int version, int level, int group, int frequency = 0) {
+        Affix row;
+        row.level = level;
+        row.group = group;
+        row.frequency = frequency;
+        row.spawnable = true;
+        row.version = version;
+        row.itypes = { "armo" };
+        return row;
+    };
+    std::vector<Affix> list{ Affix{}, affix(100, 1, 1, 10), affix(0, 10, 2, 10), affix(0, 50, 3, 10) };
+    for (int group = 4; group < 9; ++group) list.push_back(affix(0, 1, group));
+    tables.prefixes = tables.suffixes = list;
+    tables.rare_prefix_names = tables.rare_suffix_names = { Tables::RareName{ { "armo" }, {} } };
+    bool expansion_row = false, out_of_reach = false, weightless = false;
+    for (std::uint32_t seed = 1; seed < 400; ++seed) {
+        Rng unit_seed{ seed * 7919 }, item_seed{ seed };
+        const auto magic = generate_item(tables, "cap", 20, 4, item_seed, &unit_seed, nullptr, false, 0, 0, true);
+        assert(magic.quality == 4 && (magic.prefix || magic.suffix));
+        for (const int row : { magic.prefix, magic.suffix }) {
+            expansion_row |= row == 1;
+            out_of_reach |= row == 3;
+            weightless |= row >= 4;
+        }
+        Rng rare_unit{ seed * 7919 }, rare_seed{ seed };
+        const auto rare = generate_item(tables, "cap", 20, 6, rare_seed, &rare_unit, nullptr, false, 0, 0, true);
+        assert(rare.quality == 6);
+        const auto held = std::ranges::count_if(rare.affixes, [](int row) { return row != 0; });
+        assert(held >= 4 && held <= 6);
+        for (const int row : rare.affixes) { expansion_row |= row == 1; out_of_reach |= row == 3; }
+    }
+    assert(!expansion_row && !out_of_reach && weightless);
     std::puts("OK: a classic item's version-0 rules (FUN_00557450, FUN_00556d80, FUN_00556b60, FUN_005c0d70)");
     return 0;
 } catch (const std::exception& error) {

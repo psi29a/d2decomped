@@ -710,10 +710,21 @@ classic one (FUN_0055a550). FUN_00557450 and its helpers branch on it (`FUN_0062
   all n round, each set's first member (`+0x110`, `+0xc` of them) of the item's code. The
   loop doesn't stop, so the last found wins. None: the own seed back to its start
   (`FUN_00650e40`), no x2 in FUN_00557450, remade magic.
+- Magic and rare affixes (`FUN_005c18e0` / `FUN_005c1940` → `FUN_005c12f0`; `EDX` 1, the
+  spawnable test): the coin; the rows of version < 100, spawnable (`+0x54`), level (`+0x58`)
+  at most ilvl + 2 (1..99), that `FUN_0065e620` takes (a version-0 item: none when stackable
+  or throwable), 0x1ff at most; `rand(count)` (`0x472280`, `EDX` 0) over them: no weights,
+  max level, rare column, class or group test.
+- Rare (`FUN_005c21a0` → `FUN_005c1e80`): the two names as `FUN_005c1ab0`'s (`FUN_005c19a0`
+  is the same code); the count `rand(2) + 3` for a jewel (own type 0x3a), else `rand(3) + 4`
+  (`0x5c1f06`..`0x5c1f14`); each slot a coin, a suffix when the prefixes are 3 or the
+  suffixes aren't and it's odd; up to 252 forced picks until one shares no row or group
+  (`+0x5c`) with that side's slots; a pick of none or the tries spent leave the slot empty.
+  Then each slot's mods and the staff mods.
 
 d2d: `roll_item(..., classic)`, passed by drops (`Loot::put`), stores, gambling and the Cube
 from the character's expansion flag; `tests/test_classic_items.cpp`.
-Evidence: `python3 tools/ghidra/fn.py 00557450 005c2af0 005c1260 005c0d70 005566b0 005c2740`.
+Evidence: `python3 tools/ghidra/fn.py 00557450 005c2af0 005c1260 005c0d70 005566b0 005c2740 005c12f0 005c1e80`.
 
 ## The class choice and its helpers (`FUN_005a6600` and what it calls)
 

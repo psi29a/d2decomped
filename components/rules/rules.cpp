@@ -1915,6 +1915,29 @@ d2d::d2s::Item roll_item(const Tables& tables, const std::string& code, int ilvl
         groups.push_back(list[std::size_t(chosen)].group);
         return chosen;
     };
+    // FUN_005c12f0, a classic item's (version 0) pick: the coin as
+    // FUN_005c1560's; then the rows spawnable, of version < 100, of level
+    // at most ilvl + 2 (99 at most), that FUN_0065e620 takes (a version-0
+    // item: none on a stackable or throwable one), at most 0x1ff of them;
+    // rand(count) over them, no weights, no max level, rare column, class
+    // or group test.
+    auto choose_classic = [&](const std::vector<Affix>& list, bool forced) {
+        const auto coin = rng.next();
+        if (!(coin & 1) && !forced) return 0;
+        const int most = std::min(item.ilvl + 2, 99);
+        const bool takes_none = (base && base->stackable) || (item_type && item_type->throwable);
+        std::vector<int> fits;
+        for (std::size_t row = 0; row < list.size() && !takes_none; ++row) {
+            const auto& affix = list[row];
+            if (!affix.spawnable || affix.version >= 100 || affix.level > most) continue;
+            if (std::ranges::none_of(affix.itypes, [&](const auto& wanted_type) { return type_is(tables, type, wanted_type); })) continue;
+            if (std::ranges::any_of(affix.etypes, [&](const auto& excluded_type) { return type_is(tables, type, excluded_type); })) continue;
+            if (!socketable && sockets_mod(affix)) continue;
+            if (fits.size() < 0x1ff) fits.push_back(int(row));
+        }
+        return fits.empty() ? 0 : fits[std::size_t(rng(int(fits.size())))];
+    };
+    auto pick = [&](const std::vector<Affix>& list, bool forced) { return classic ? choose_classic(list, forced) : choose(list, forced); };
     auto apply_affix = [&](const std::vector<Affix>& list, int row) {   // FUN_0065fec0 with the item, as a unique's
         const ModItem target{ &item, base, kind, item_type && item_type->throwable, false };
         for (const auto& mod : list[std::size_t(row)].mods) apply_mod(tables, mod, item.props, rng, &target);
@@ -1944,7 +1967,29 @@ d2d::d2s::Item roll_item(const Tables& tables, const std::string& code, int ilvl
         item.rare1 = rare_name(tables.rare_prefix_names, int(tables.rare_suffix_names.size()));
         item.rare2 = rare_name(tables.rare_suffix_names, 0);
         int prefixes = 0, suffixes = 0;
-        if (item.rare1 && item.rare2) {
+        if (item.rare1 && item.rare2 && classic) {
+            // FUN_005c1e80 (version 0): the count rand(2) + 3 for a jewel,
+            // else rand(3) + 4; each slot a coin (odd: a suffix) while
+            // neither side has 3, a suffix when the prefixes have; up to
+            // 252 forced picks (FUN_005c12f0) until one shares no row or
+            // group with that side's; a slot whose pick finds none, or
+            // whose tries run out, is spent.
+            const int count = type == "jewl" ? 3 + rng(2) : 4 + rng(3);
+            for (int slot = 0; slot < count; ++slot) {
+                const bool suffix = prefixes == 3 || (suffixes != 3 && (rng.next() & 1) != 0);
+                const auto& list = suffix ? tables.suffixes : tables.prefixes;
+                int& taken = suffix ? suffixes : prefixes;
+                const std::size_t side = suffix ? 1 : 0;
+                for (int tries = 0; tries < 252 && taken < 3; ++tries) {
+                    const int row = choose_classic(list, true);
+                    if (!row) break;
+                    bool clash = false;
+                    for (std::size_t held_slot = 0; held_slot < 3; ++held_slot)
+                        if (const int held = item.affixes[held_slot * 2 + side]; held && (held == row || list[std::size_t(held)].group == list[std::size_t(row)].group)) clash = true;
+                    if (!clash) { item.affixes[std::size_t(taken++) * 2 + side] = row; break; }
+                }
+            }
+        } else if (item.rare1 && item.rare2) {
             static constexpr std::array kRareCount{ 3, 4, 4, 5, 5, 5, 6, 6 };
             const int count = type == "jewl" ? 3 + rng(2) : kRareCount[rng.next() & 7];
             bool prefixes_full = false, suffixes_full = false;
@@ -1990,8 +2035,8 @@ d2d::d2s::Item roll_item(const Tables& tables, const std::string& code, int ilvl
         // each FUN_005c1560 (choose) with its mods at once. Then the staff
         // mods (FUN_005c1260) and the tail.
         item.quality = 4;
-        if ((item.prefix = choose(tables.prefixes, false))) apply_affix(tables.prefixes, item.prefix);
-        if ((item.suffix = choose(tables.suffixes, item.prefix == 0))) apply_affix(tables.suffixes, item.suffix);
+        if ((item.prefix = pick(tables.prefixes, false))) apply_affix(tables.prefixes, item.prefix);
+        if ((item.suffix = pick(tables.suffixes, item.prefix == 0))) apply_affix(tables.suffixes, item.suffix);
         // Neither (FUN_00557320): the affixes cleared, the own seed back to
         // its start, remade superior (and normal when that doesn't take).
         if (!item.prefix && !item.suffix) { rng = Rng(start); return plain(3); }
