@@ -542,6 +542,13 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
             if (level->npcs[i].root != "objects" && !npc_states[i].hidden) crowd.units.push_back(&npc_states[i]);
         bool in_moor = !in_town(level);           // outside: this level's monsters are about
         const Level* tick_level = level;
+        // A barricade door's death opens its blocker on the level it died on: the kills so far here, before a
+        // command below (a respawn) or a warp or portal moves `level`; the fight's own after it (below).
+        std::size_t barricade_kills = 0;
+        const auto open_barricades = [&] {
+            for (; !hosted_quests && barricade_kills < fight.kills.size(); ++barricade_kills) barricade_broken(fight.kills[barricade_kills], now_ms);
+        };
+        open_barricades();
         if (in_moor) fight.crowd(crowd);       // the monsters around the player
         loot.standing = &crowd;                // FUN_00555da0: this level's 0x1000 / 0x2000
         drop_wirt_gold(now_ms);
@@ -852,8 +859,7 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
         for (const auto& player : players) before_fight.emplace_back(player->player.x, player->player.y);
         fight.world(in_moor, now_ms, elapsed, crowd);
         leash(before_fight);
-        // A barricade door's death opens its blocker on the level it died on, before a warp or portal below moves `level`.
-        for (const auto& kill : hosted_quests ? std::vector<Fight::Kill>{} : fight.kills) barricade_broken(kill, now_ms);
+        open_barricades();                                       // the fight's kills, before a warp or portal below moves `level`
         den_count(now_ms);                                       // the killers' credit, then their party's (den_count)
         each_player([&](Player& player) {
             if (std::exchange(player.reassigned, false)) player.events.push_back(ev::Reassigned{});
