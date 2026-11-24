@@ -3,7 +3,7 @@
 
 Run: uv run python storm_bits.py [--exe /path/to/game.exe] [--mutation-check]
 
-# gaps-runs: FUN_0041d880 FUN_0041d8d0 FUN_0041d900 FUN_0041d920 FUN_0041d940 FUN_0041d950
+# gaps-runs: FUN_0041d880 FUN_0041d8d0 FUN_0041d900 FUN_0041d920 FUN_0041d940 FUN_0041d950 FUN_0041d9a0
 
 Each case gives one helper a record (`ECX`) with random fields, a random
 source or destination buffer and random arguments, runs it on game.exe and
@@ -89,6 +89,7 @@ MUTATIONS = {
     0x41D920: ["winit_size_plus"],
     0x41D940: ["written_plus"],
     0x41D950: ["put_nine", "put_ignores_room"],
+    0x41D9A0: ["flush_none"],
 }
 
 
