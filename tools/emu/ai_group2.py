@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """The unplaced spawners' MonAI thinks and the special AIs 3 / 6 / 9 / 12 run natively, dumped for d2d's replay.
 
-    uv run python ai_group2.py <think,think|all> [cases] [seed] [--dump tests/ai_group2_cases.inc]
+    uv run python ai_group2.py <think,think|all> [cases] [seed] [--dump ../../tests/ai_group2_cases.inc]
 
 EvilHole (FUN_005fb410), InvisoSpawner (FUN_005e0160), MosquitoNest (FUN_005e0260), 7TIllusion (FUN_005ea080),
 InvisoPet (FUN_005ea7a0); special AI 3's init (FUN_005e5730) and think (FUN_005e5870), 6 (FUN_005e7c10),
