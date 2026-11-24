@@ -939,6 +939,7 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
         if (foe.blocked && actor->pmode < 0) set_pmode(kModeBL, now_ms);   // a block plays out (FBR)
         for (int landed = 0; landed < foe.hits; ++landed) wear_armor(now_ms);
         foe.damage = absorb(foe, now_ms);                   // leaves foe.frac what the absorbs left of the 256ths
+        frozen_armor_events(foe, now_ms);                    // after the absorbs, as FUN_0057c6c0 raises 0xb first
         // Iron Maiden's reflect on what the absorbs and the reduction left of each blow's physical (ai.cpp's
         // note: the striker's domeleedamage comes after the struck unit's events in FUN_0057c6c0).
         for (const auto& blow : foe.blows) {
