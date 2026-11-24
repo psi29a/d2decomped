@@ -101,3 +101,13 @@ reverse and shuffled order against `drlg-dump ... 1 <dir> camp`). Not done: the
 seeds are taken once, with the rooms up at the first roll (`keep_camp_seeds`'
 ponytail), and the client's critters (apps/d2d/session/ambient.cpp) still use the
 DRLG room's seed.
+
+The camp's tiles: each cell's tile is the rarity pick (FUN_0066d820) on its
+room's DRLG seed, the picks of `level_room_tiles` on the camp's preset (LvlPrest def 1,
+DT1 list by its Dt1Mask, the three always-lists after). d2d's `lay_camp_picks`
+(gamedata.cpp) lays them once, rooms in list order, into `GameData::town`'s
+`Level::picks` through `lay_tiles` and re-runs `finish_level`, so drawing and the walk
+grid read the picked tiles where load_town's first match in the DT1s stood. Checked:
+`uv run python camp_tiles.py 1-8 --mutation-check` (every camp room brought up in game.exe
+against `drlg-dump ... 1 <dir> camptiles`, the tile sets equal). Not done: the order the
+rooms come up in as a player walks (shared edges re-pick by it; relevel doesn't run on the camp).

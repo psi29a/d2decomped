@@ -17,6 +17,8 @@
 // <seed> game prints game.exe's.
 // drlg-dump <mpq dir> <seed> 1 [<out dir>] camp: the Rogue Encampment's rooms' room1 seeds with the rooms
 // brought up in $ORDER (preset_room1_seeds), as tools/emu camp_room1.py prints game.exe's.
+// drlg-dump <mpq dir> <seed> 1 [<out dir>] camptiles: the camp's picked tiles (GameData::town's Level::picks,
+// lay_camp_picks), a line a tile sorted, as tools/emu camp_tiles.py prints game.exe's.
 #include <drlg.hpp>
 #include <drops.hpp>
 #include <gamedata.hpp>
@@ -472,6 +474,47 @@ int main(int argc, char** argv) try {
                     }
                 }
             }
+            if (argc > 5) std::ofstream(fs::path(argv[4]) / (std::to_string(seed) + ".txt")) << out.str();
+            else std::fputs(out.str().c_str(), stdout);
+            if (seed == last) break;
+        }
+        return 0;
+    }
+    if (argc > 4 && std::string(argv[argc - 1]) == "camptiles") {
+        const char* patch = std::getenv("D2_PATCH_INSTALLER");
+        auto game = d2d::game::load_game_data(dir, patch ? fs::path(patch) : fs::path{}, 1);
+        if (!game || !game->builder || !game->builder->act1) return 1;
+        const auto dash = range.find('-');
+        const auto first = std::uint32_t(std::stoul(range.substr(0, dash), nullptr, 0));
+        const auto last = dash == std::string::npos ? first : std::uint32_t(std::stoul(range.substr(dash + 1), nullptr, 0));
+        for (auto seed = first;; ++seed) {
+            d2d::game::set_map_seed(*game, seed, dump_difficulty());
+            const auto& town = game->town;
+            const auto& assets = *game->builder->act1;
+            const auto heads = game->layouts.prest_automap_dt1s.find(town.id);
+            if (heads == game->layouts.prest_automap_dt1s.end()) return 1;
+            int def = 0;
+            for (const auto& [preset_def, preset] : assets.data.presets)
+                if (preset.level_id == town.id && (def == 0 || preset_def < def)) def = preset_def;
+            const auto list = d2d::drlg::room_dt1_list(assets.data.presets.at(def).dt1_mask, heads->second);
+            std::vector<std::string> lines;
+            for (std::size_t cell = 0; cell < town.picks.size(); ++cell)
+                for (const auto& pick : town.picks[cell]) {
+                    std::string name = "?";
+                    long index = -1;
+                    for (std::size_t file = 0; file < town.dt1s.size() && file < list.size(); ++file) {
+                        const auto tiles = town.dt1s[file].tiles();
+                        if (pick.tile >= tiles.data() && pick.tile < tiles.data() + tiles.size()) { name = list[file]->name; index = pick.tile - tiles.data(); }
+                    }
+                    char line[96];
+                    std::snprintf(line, sizeof line, " %s %zu,%zu o%d %s:%ld", pick.layer == 0 ? "wall" : pick.layer == 1 ? "floor" : "shadow",
+                                  cell % std::size_t(town.ds1.width()), cell / std::size_t(town.ds1.width()), int(pick.orient), name.c_str(), index);
+                    lines.emplace_back(line);
+                }
+            std::ranges::sort(lines);
+            lines.erase(std::unique(lines.begin(), lines.end()), lines.end());
+            std::ostringstream out;
+            for (const auto& line : lines) out << line << '\n';
             if (argc > 5) std::ofstream(fs::path(argv[4]) / (std::to_string(seed) + ".txt")) << out.str();
             else std::fputs(out.str().c_str(), stdout);
             if (seed == last) break;
