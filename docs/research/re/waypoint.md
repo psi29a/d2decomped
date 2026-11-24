@@ -61,7 +61,7 @@ waygatebackground, waygatetabs or expwaygatetabs, waygateicons into
 - Tabs switch acts; Cancel or Esc closes the panel. An activated row sends
   C→S 0x49 {object, level}; the server refuses it within 10 s of the
   player's last hostile declaration (player data +0x160, set only by
-  FUN_0055b720; never in single player), for the current level or an
+  FUN_0055b720; never in single player; `Player::declare_hostile` is that store, `rules::waypoint_refused` the test, no caller yet), for the current level or an
   inactive one, else arrives at
   the destination waypoint's tile + 3 subtiles (≈ +0.6 cells), nearest free
   spot, and lights that waypoint if it's dark (docs/research/re/act1-end.md §3).
