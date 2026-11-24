@@ -42,6 +42,7 @@
 #include <hire.hpp>
 #include <lan.hpp>
 #include <light.hpp>
+#include <npc_alert.hpp>
 #include <overlays.hpp>
 #include <panel_view.hpp>
 #include <quests.hpp>
@@ -302,7 +303,7 @@ struct ClientSession {
     std::unordered_map<std::uint32_t, Loot::GroundItem> net_ground;   // the host's ground items as drawn, labels made once
     int talking_sent = -1;                 // the NPC last reported as talked to (cmd::Chat)
     std::uint32_t net_chat_npc = 0;   // a joined game: the host NPC our talk is open with (0x2f sent, 0x30 due), 0 none
-    std::unordered_map<std::uint32_t, std::uint32_t> net_alert_ms;   // a joined game: when the host last ballooned each NPC (0x8a), by its id
+    d2d::rules::NpcAlertBoard net_alerts;   // a joined game: the NPCs the host ballooned (0x8a) and when, until a talk opens
     NetGame::NpcQuest net_early_quest;    // the host's quest lines that came before d2d's menu opened
     std::uint32_t net_early_ms = 0;   // when net_early_quest came (world ms)
     bool press_on_ui = false;              // the held left button was pressed on the UI

@@ -260,8 +260,8 @@ auto ClientSession::draw_view(std::vector<std::uint8_t>& framebuffer, std::vecto
             alert_clocks[i].set(view.npc_states[i].alert, frame_ms);
             if (net_game && view.npc_states[i].alert) {
                 const auto* host_npc = net_npc(int(i));
-                const auto shown = host_npc ? net_alert_ms.find(host_npc->id) : net_alert_ms.end();
-                if (shown != net_alert_ms.end()) alert_clocks[i].start = frame_ms - (world_ms - shown->second);
+                const auto shown = host_npc ? net_alerts.start(host_npc->id) : std::nullopt;
+                if (shown) alert_clocks[i].start = frame_ms - (world_ms - *shown);
             }
         }
         // The orifice's light_jet (0x46b100): once, from the light show's start, on its level.
