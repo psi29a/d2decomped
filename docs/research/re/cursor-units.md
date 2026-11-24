@@ -396,6 +396,38 @@ it. SearchEnemyNear (`FUN_00467490`, below) is on Raise Skeleton, Corpse
 Explosion, Psychic Hammer, Fist of the Heavens, Taunt and the other corpse
 skills.
 
+**The facing (`FUN_006238c0`, `ret 4`, the unit on the stack)** reads the unit's
+subtile (a player's or monster's dynamic path +2 / +6 through `FUN_006488c0` /
+`FUN_00648900`; a type 2, 4 or 5 unit's static path +0xc / +0x10) and compares
+it with the path's target words (`FUN_00648a00` / `FUN_00648a10`: path +0x10 /
++0x12, SP1, path.md). Both equal: the answer is the path's +0x65
+(`FUN_00648810`, the facing it turns to). Else the way from the unit's subtile
+to that target, `FUN_00621dc0` -> `FUN_0064fdc0` (rules::direction64, 64 ways),
+whatever +0x65 holds (nothing in it asks whether the unit walks; whether the
+target stays set after a walk ends is not traced). `tools/emu/search_facing.py` runs it natively on
+4000 cases (the target on the unit, one off, a few and far away; the model
+matches, and each of its three mutants is caught). d2d: `rules::search_facing`
+(`search_walk.hpp`, fixture `search_facing_cases.inc`, 1500 of them,
+`test_search_facing`), used by `ClientSession::shift_pick` for a walking
+player with its `goal_x` / `goal_y` (SP3, path +0x18) as the target.
+
+**The walk order (`FUN_00641cb0`).** Its `FUN_00619790` near list is the room's
+own array (room +0 the rooms, +0x24 their count: `d2d_act5_rooms_near`), and
+it takes each room in that order, each room's units from the list head
+(+0x74, next +0xe8), the first that covers the spot and passes the filter.
+`tools/emu/search_walk.py` runs `FUN_00467660` natively over a 5 x 5 room level
+with the player near the room edges and units on both sides, each room's list by
+a stamp (the highest first, equal: the later unit first, the order d2d keeps in
+`UnitState::room_stamp`, `rules::room_order`): 6000 cases, 0 differ against
+a model of it, and the view-order and tie-order mutants are caught.
+`rules::search_enemy_xy_walk` (`search_walk.hpp`, fixture
+`search_walk_cases.inc`, 2000; `gen 20000 3`: 9817 picks, no difference;
+`test_search_walk`, which also counts the cases the view order gets wrong) is
+`ClientSession::shift_pick`'s call. Not covered: the order of the near list on a
+real level (d2d's `near_rooms`, not game.exe's room array) and the room stamps,
+which `Fight::restamp` sets only when a server rule asks, so a client's
+copies are as old as that.
+
 Oracle: `tools/emu/search_enemy_xy.py` runs `FUN_00467660` and everything
 under it but the hooks its docstring lists, on generated rooms (units of
 every type, mode and size round the five spots, collision words with and
@@ -452,9 +484,11 @@ picks, no difference). d2d: `ClientSession::near_pick` (apps/d2d/session/input.c
 each cast of such a skill from the mouse, with the client's monsters (and
 for Iron Golem its ground items) in view order.
 
-Not traced: the click flag 2, `FUN_004c51e0`, `FUN_00466de0`, and the order
-of units across near rooms in `FUN_00641cb0` (the oracle puts all of them
-in the player's room).
+Not traced: the click flag 2, `FUN_004c51e0`, `FUN_00466de0`, and `FUN_00467490`'s
+order of units across near rooms (`FUN_0065ac70`; the oracle puts all of them
+in the player's room). The SearchEnemyXY walk's order is `search_walk.py`'s
+(above); pets as units of the walk (`FUN_00465c60` with a pet, the pet list)
+are not traced.
 
 ## The label helpers of `FUN_00454f30`
 
