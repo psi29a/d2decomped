@@ -89,6 +89,7 @@ struct UnitState {
     int room_seen = -2;
     const Level* room_level = nullptr;        // the level room_seen is a room of: crossing to another restamps
     std::uint32_t room_stamp = 0;
+    std::uint32_t made_stamp = 0;             // its first room_stamp: still equal, it hasn't left the room it was made in
     int budget = 0;                   // a monster walk's re-path budget, points (path +0x94)
     int path_points = 0;              // points the route had when made
     std::uint16_t path_word = 0;      // path +0x54: the door bit (0x800) its steps met since its path was made (path_frame)
@@ -264,6 +265,7 @@ struct Monster {
     // (FUN_005a6830 returns at once).
     bool no_exp = false, no_drop = false;
     int cage = -1;                            // a5q2's prisoner: its cage's slot (Spawn::cage)
+    bool preset = false;                      // made by its room's preset units (Spawn::preset)
     // Damage over time (life a millisecond, until when) and a chill.
     double poison_rate = 0, bleed_rate = 0, dot_acc = 0;
     std::uint32_t poison_until = 0, bleed_until = 0, chill_until = 0;

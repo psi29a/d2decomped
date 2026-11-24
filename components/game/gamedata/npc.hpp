@@ -112,6 +112,7 @@ struct Npc {
     mutable std::uint16_t client_frame_delta = 0;
     mutable bool client_seeded = false;
     int room = -1;
+    bool group = false;                  // made by an object group (ObjectRooms::groups), after its room's presets
     bool preoperated = false;            // a PreOperate object that starts opened (ON)
     int light = 0;                       // a monster's light radius, subtiles (MonStats2 Light)
     int trans_lvl = 0;                   // MonStats TransLvl: its palshift.dat colour (Fallen 0, Carver 1 ...)

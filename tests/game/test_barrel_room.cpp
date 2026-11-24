@@ -3,7 +3,8 @@
 // An exploding barrel (FUN_00584240) walks its own room's unit list: a
 // monster within 3 subtiles but across in the next room isn't struck; one in
 // its room is, its life taken in 256ths; a barrel of its room under 3 off
-// goes off in the walk (FUN_00584330). No game data: the rooms are built here.
+// goes off in the walk (FUN_00584330), an object group's ahead of the room's preset monsters.
+// No game data: the rooms are built here.
 #include <ai/units.hpp>
 #include <d2s_items.hpp>
 #include <ds1.hpp>
@@ -11,9 +12,12 @@
 #include <level.hpp>
 #include <npc.hpp>
 #include <object_ids.hpp>
+#include <shrines.hpp>
 #include <world.hpp>
 
+#include <algorithm>
 #include <cassert>
+#include <cstdint>
 #include <cstdio>
 #include <exception>
 #include <utility>
@@ -72,6 +76,45 @@ int main() try {
     world.operated.clear();
     world.explode(0, 2000);
     assert(fight.monsters[1].unit.room_stamp > stamp && fight.monsters[1].unit.room_stamp > fight.monsters[0].unit.room_stamp);
+    // Its room's units come in the order room_objects made them, each at the list's head: preset
+    // objects, preset monsters, then the object groups' (FUN_005559a0, groups()). So an object
+    // group's barrel goes off ahead of a preset monster, the preset barrel's blast reaching that
+    // monster after the group's (each blast scales with the life it finds: object_blast).
+    {
+        Level room;
+        room.id = 2;
+        room.ds1 = d2d::ds1::Map(8, 8, 1, 1);
+        room.walk.assign(std::size_t(8 * 5) * std::size_t(8 * 5), 0);
+        room.rooms.push_back({ .x = 0, .y = 0, .width = 8, .height = 8 });
+        for (const float x : { 4.7f, 4.3f }) {
+            Npc barrel;
+            barrel.root = "objects";
+            barrel.object_id = d2d::rules::object_ids::kExplodingBarrel;
+            barrel.x = x; barrel.y = 4.1f;
+            barrel.size_x = 1;
+            barrel.seed = d2d::rules::Rng{ x > 4.5f ? 99u : 7u };
+            room.npcs.push_back(std::move(barrel));
+        }
+        room.npcs[1].group = true;                                 // an object group's, made after the presets
+        World grouped(&data, -1, -1);
+        grouped.level = &room;
+        grouped.fight.mon_level = &room;
+        grouped.actor->player.x = 1; grouped.actor->player.y = 1;
+        grouped.actor->character.stats.values[d2d::d2s::kLife] = 0;
+        Monster preset;
+        preset.type = 0; preset.hit_points = preset.stats.hit_points = 400; preset.stats.level = 5;
+        preset.unit.x = 4.5f; preset.unit.y = 4.1f;
+        preset.preset = true;
+        grouped.fight.monsters = { std::move(preset) };
+        grouped.fight.restamp();
+        auto first_seed = room.npcs[0].seed, group_seed = room.npcs[1].seed;
+        std::int64_t life = 400 * 256;
+        life -= d2d::rules::object_blast(life, 5, 0, 0, group_seed);   // the group's barrel, gone off in the walk
+        life -= d2d::rules::object_blast(life, 5, 0, 0, first_seed);   // then the first barrel's own blast
+        grouped.explode(0, 1000);
+        std::printf("the preset monster's life: %d (group first: %lld)\n", grouped.fight.monsters[0].life_fine(), static_cast<long long>(std::max<std::int64_t>(life, 0)));
+        assert(grouped.fight.monsters[0].life_fine() == std::max<std::int64_t>(life, 0));
+    }
     std::puts("OK: a barrel's blast walks its own room's list (FUN_00584240)");
     return 0;
 } catch (const std::exception& error) {

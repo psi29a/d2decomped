@@ -80,6 +80,7 @@ struct Spawn {
     bool dead = false;                                        // made in mode 12 (FUN_0054e600's dead MonPlace codes)
     int cage = -1;                                            // a5q2's prisoner: its cage's slot (FUN_00588600)
     std::vector<SpawnGear> gear;                              // its MonEquip items
+    bool preset = false;                                      // made by its room's preset units (FUN_005559a0), not its populate
 };
 
 // A level's population so far (monster region +4 rooms done, +0xc rooms
