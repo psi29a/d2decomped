@@ -103,6 +103,7 @@ address	name	evidence
 004206e0	slist_raw_next	ECX list, link (ret 4): link ? link->next : the list's +8, unclamped (source-list.md)
 00420750	slist_clear	ECX list: unlinks the first node while there is one; nodes are their own links (offset 0) (source-list.md)
 00420790	slist_destroy	ECX list: slist_clear, then the terminator +4 unlinked and zeroed (source-list.md)
+00420820	slist_new_node	ECX list, mode, size, flags (ret 0xc): SMemAlloc(size + 0xc, .?AUWNDREC@@, -2, flags | 8), link zeroed, linked by slist_link(mode, terminator) when mode != 0 (source-list.md)
 00420880	slink_delete	ECX node, flags (ret 4): unlinks it, frees it with flags bit 0 (FUN_00412650), returns it (source-list.md)
 00420db0	sbig_index_in_use	ECX number, n (ret 4): 1 when +0x10 + n is below the used count +4 (unsigned), else 0 (source-sbig.md)
 00420dd0	sbig_pool_take	ECX pool, counter pointer (ret 4): counter + 1 when non-null; returns pool + top * 0x14 (top +0x140), then top + 1 (source-sbig.md)
