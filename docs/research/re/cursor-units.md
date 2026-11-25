@@ -422,13 +422,20 @@ it with the path's target words (`FUN_00648a00` / `FUN_00648a10`: path +0x10 /
 +0x12, SP1, path.md). Both equal: the answer is the path's +0x65
 (`FUN_00648810`, the facing it turns to). Else the way from the unit's subtile
 to that target, `FUN_00621dc0` -> `FUN_0064fdc0` (rules::direction64, 64 ways),
-whatever +0x65 holds (nothing in it asks whether the unit walks; whether the
-target stays set after a walk ends is not traced). `tools/emu/search_facing.py` runs it natively on
+whatever +0x65 holds (nothing in it asks whether the unit walks). The function
+does not write the unit, path or globals; its only non-fatal effects are the calls
+to the position and target getters and, off target, the direction calculation.
+The only caller is `FUN_00467660`, which uses the returned byte for the
+SearchEnemyXY spot order. Whether the target stays set after a walk ends is not
+traced. `tools/emu/search_facing.py` runs it natively on
 4000 cases (the target on the unit, one off, a few and far away; the model
 matches, and each of its three mutants is caught). d2d: `rules::search_facing`
-(`search_walk.hpp`, fixture `search_facing_cases.inc`, 1500 of them,
-`test_search_facing`), used by `ClientSession::shift_pick` for a walking
-player with its `goal_x` / `goal_y` (SP3, path +0x18) as the target.
+(`search_facing.hpp`, fixture `search_facing_cases.inc`, 1500 of them,
+`test_search_facing`). `World::view` sends `Hero::target_x` / `target_y`, d2d's
+SP1, through `View::path_target_x` / `path_target_y`; `ClientSession::shift_pick`
+uses it for standing and walking players alike through `rules::search_facing`.
+`test_search_facing_view` checks that a standing player's off-position SP1
+changes the search facing, while a player on SP1 keeps path +0x65.
 
 **The walk order (`FUN_00641cb0`).** Its `FUN_00619790` near list is the room's
 own array (room +0 the rooms, +0x24 their count: `d2d_act5_rooms_near`), and
