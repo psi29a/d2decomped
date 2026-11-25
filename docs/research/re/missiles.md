@@ -84,6 +84,45 @@ minor axis, signs by the target's side. Length 4096.
    (2,3 / 3,2); 5×5 (3,3). A missile sized outside 1..3 (a blank Size: the
    explosions, trails, lights) strikes no unit. `rules::missile_touches`.
 
+### The unit walk — FUN_00641cb0
+
+`FUN_00641cb0(room, x, y, callback, ..., missile_size)` returns null when
+`room` is null or `missile_size` is outside 1..3. Otherwise
+`FUN_00619790` reads the room's near-list pointer (room +0) and count
+(room +0x24), and the function walks that array in order. `FUN_00641930`
+rejects a room whose rectangle (`FUN_00619730`) lies beyond a margin from
+the test point (the margin's source is not traced). An admitted room's unit
+chain starts at room +0x74 and follows unit +0xe8, so units made in or
+re-filed into that room most recently come first (`FUN_0064c2c0`). No global
+unit list is consulted.
+
+The chain admits type 0 (players) except modes 0 and 0x11, type 1 (monsters)
+except modes 0 and 0xc, and type 3 (missiles); other types (objects, items) do
+not reach the footprint test. It gets each admitted unit's size from
+`FUN_00620510`, skips sizes below 1 and clamps sizes above 3 to 3, reads x/y
+through `FUN_006488c0` / `FUN_00648900` (types 2, 4 and 5 read +0xc / +0x10),
+then applies the footprint shapes of step 5. On a geometric hit it calls
+`callback`; zero continues, nonzero returns that unit at once. Exhausting
+every room returns null.
+
+`FUN_005ae520` (missile do 5, a standing burner) ends in `FUN_005ae1f0`, which
+calls `FUN_00641cb0` on the missile's room (`FUN_00620bb0`) with the callback
+from the table at 0x73c720 (indexed by the missile's row field at +0x10 times 8)
+and, on a unit, hands it to `FUN_005adf10`. So two struck monsters in different
+rooms are not compared by creation time: the first near-list room with one
+wins, and only then that room's newest.
+
+d2d: `Fight::missile_tick`'s do 5 builds the missile's `near_rooms` (this
+level), `Fight::restamp` keeps each room chain's newest-first order, and
+`rules::room_order` over the monsters `standing_struck` takes gives the unit.
+Not traced: the 0x73c720 callback's own accept/reject for a burner row (d2d
+takes every struck, targetable monster), and the step list `FUN_005ae1f0`
+walks (d2d tests the missile's own position).
+`tools/emu/burner_room_order.py` runs the stock function on synthetic
+multi-room cases against that selection model; `--mutation-check` shows it
+catches reversed rooms, oldest-first chains, a global-newest walk and
+dead-mode admission.
+
 ### The move — FUN_00650840 → FUN_006502d0, FUN_00650660
 
 - Accel ≠ 0: a counter (+0x8c); past 4, velocity += Accel, clamp to
