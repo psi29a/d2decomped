@@ -929,8 +929,11 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
 - **A missile's physical from its owner's weapon** (`FUN_0064b860`'s
   record, `FUN_0064ac60`, `FUN_005a89a0`'s hit). The record: the weapon's
   stats 21 / 22 (or 23 / 24, 159 / 160) × 256 × SrcDamage / 128 toward
-  zero (0x64bc43..0x64bc67), then the row's own physical added unscaled
-  (0x64bdf7). Its +0x78 (0x64bdc2..0x64bddc): the unit's stat 25, the
+  zero (0x64bc43..0x64bc67), then the missile's own physical added
+  unscaled (0x64bdf7): the row's (`FUN_0064af20` / `FUN_0064aff0`), or
+  for a row with a Skill (+0x194 over 0) that skill's
+  (`d2d_skills_skill_phys` / `FUN_00647d00`), so one roll at the hit takes
+  both (d2d: `rules::row_into_record`, from `Fight::strike`). Its +0x78 (0x64bdc2..0x64bddc): the unit's stat 25, the
   mastery % (`FUN_00645830`), the str / dex bonus, the missile's stat 25
   and the larger of the unit's stats 18 / 17, at least -90; its +0x6c the
   unit's stat 121, its +0x70 stat 122 plus 50 with a Blunt weapon

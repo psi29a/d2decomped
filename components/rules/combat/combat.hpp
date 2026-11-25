@@ -497,6 +497,9 @@ struct MissilePhysical { std::int64_t low = 0, high = 0; int record_pct = 0, hit
 MissilePhysical missile_physical(const Fighter& fighter, const Target& target, const Swing& swing);
 // FUN_005a89a0: a rolled physical plus its `pct` %, toward zero.
 std::int64_t missile_scaled(std::int64_t roll, int pct);
+// A SrcDamage missile's own physical moved from `damage` into `swing`'s record (FUN_0064b860): one roll with
+// the weapon's, before missile_blow adds the element.
+void row_into_record(MissileDamage& damage, Swing& swing);
 
 // A monster's attack on the player (`motion`.
 // `missile`: a spike rather than a swing): hit chance against defense plus

@@ -1210,6 +1210,8 @@ auto Fight::strike(const Missile& missile, std::size_t monster_index, std::uint3
             swing.ed_pct = missile.ed_pct;
             swing.ar_pct = missile.ar_pct;
             swing.missile = true;
+            // ponytail: a burst's one roll (`roll`) keeps the skill's physical apart, shared; the weapon's share rolls per unit.
+            if (!roll) d2d::rules::row_into_record(damage, swing);   // one roll with the weapon's (FUN_0064b860, 0x64bdf7)
             blow = d2d::rules::player_blow(fighter, target, clvl, rng, swing);
         } else if (missile.info->to_hit) {
             blow.hit = int(rng(100)) < d2d::rules::hit_chance(fighter.attack_rating, target.armor_class, clvl, target.level);
