@@ -68,8 +68,13 @@ void draw_inventory(std::vector<std::uint8_t>& framebuffer, const Scene& scene, 
 // that lookup on the palette in use. Its red for cursor mode 8 with
 // Items.txt Transmogrify clear (0x48417a) never runs: mode 8 is only
 // FUN_00468040 with EDX set, and both its calls clear EDX (stubs.md).
-// ponytail: draw_inventory does not know a child stat list flagged 2. A
-// cursor item kept off the drawn list is not seen either.
+// The flag-2 child list is FUN_004c21f0's: a click that picks an item up or
+// moves it puts one (state 0x36's, expiry 0xc) on that item until the client's
+// stat-list sweep drops it (char-panel.md "Grid colours"). A cursor-held item is
+// never in the walk (FUN_0063e020 == 1 is the grid node), and the caller passes
+// no mouse while one is held. ponytail: draw_inventory has no way to be told an
+// item is in that window, as World applies a move at once; the arguments below
+// carry it (stat_list_flag_2) for a caller that does.
 inline void tint_cells(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const d2d::d2s::Item& item, const d2d::rules::Wearer& wearer,
                        const std::array<int, 4>& rect, const d2d::d2s::Header* header = nullptr, bool under_cursor = false,
                        bool stat_list_flag_2 = false, bool player_state_36 = false) {

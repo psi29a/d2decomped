@@ -317,6 +317,11 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
     if (const auto skill_desc = txt("SkillDesc"); skill_desc.size() > 0)
         for (std::size_t row_index = 0; row_index < skill_desc.size(); ++row_index)
             for (const char* column : { "descmissile1", "descmissile2", "descmissile3" }) skill_missiles.emplace(skill_desc.get(row_index, column));
+    // A monster's MissS1 / MissC rows (the Council's S1, the Wills o' the Wisp's casts: FUN_0063e6b0's mode
+    // fields), fired as its MissA1 / MissA2 are (the first pass below takes those).
+    for (const auto& type_info : monsters.types)
+        for (const auto* fired : { &type_info.miss_s1, &type_info.miss_c })
+            if (!fired->empty()) skill_missiles.emplace(*fired);
     // Thrown weapons' rows (weapons.txt missiletype: Missiles.txt Id), for
     // Double Throw.
     std::unordered_map<int, std::string> thrown_ids;
@@ -1960,6 +1965,7 @@ void load_game_world(GameData& game_data, d2d::mpq::Stack& mpqs, std::uint32_t m
             if (const auto row = d2d::drlg::level_row(act1->levels, level_id))
                 game_data.layouts.prest_automap_dt1s[level_id] = d2d::drlg::load_room_dt1s(
                     *act1, [&](const std::string& path) { return mpqs.try_read(path); }, d2d::drlg::to_int(act1->levels.get(*row, "LevelType")));
+    lay_camp_picks(game_data, *act1);
     // The other levels build when they're first wanted (GameData::level).
     game_data.builder = std::make_shared<GameData::LevelBuilder>();
     game_data.builder->act1 = std::move(act1);
@@ -2004,6 +2010,7 @@ void set_map_seed(GameData& game_data, std::uint32_t seed, int difficulty) {
                 .event_delay = old.event_delay, .light = old.light, .rain = old.rain, .mud = old.mud, .critters = old.critters };
     game_data.town = std::move(town);
     place_act1(game_data, game_data.mpqs, *game_data.builder->act1, seed);
+    lay_camp_picks(game_data, *game_data.builder->act1);
     game_data.shrines.clear();                          // load_npcs reads Shrines.txt again
     load_npcs(game_data, game_data.mpqs);
     seed_client_units(game_data.town);

@@ -337,7 +337,8 @@ Checked by `tools/emu/new_character_stacks.py` (`jav 60`, `stat 0x6b 36 =
 
 FUN_0065fec0 (item, row, kind: 1 superior, 3 unique, 4 set, 0 / 2 / 5
 affixes, through FUN_0065fe10) runs each mod's Properties.txt row through
-FUN_0065fd70: up to 7 (func, stat, set, val) entries, each func off the
+FUN_0065fd70 (an item of version 0 takes a table of its own instead: "A
+classic item's mods" below): up to 7 (func, stat, set, val) entries, each func off the
 table at 0x7462f8, called with ECX = kind and (item, mod, set, stat, val,
 first, ...). `first` is what the first func returned; later funcs reuse
 it. The value draw (FUN_0065e9e0) is min + rand(max - min + 1), none
@@ -347,6 +348,16 @@ when min == max; each func draws only when it needs one:
   / 8 / 9 / 10 / 14 / 24 reuse `first` (0: a draw). 17 is the param (0: a
   draw). 15 / 16 are min / max. 11 / 18 / 20 / 23 don't draw; 19 draws
   the charges.
+- The plain funcs, each nothing (0) for no mod: 1 (FUN_0065eb30) draws
+  and stores the stat with param 0; the ac rule when the item is a unit
+  of type 4 and ECX is 1. 2 (FUN_0065eba0) is the same with the ac rule
+  on any item. 3 / 4 (FUN_0065ec10 / FUN_0065ec80) are 1 / 2 with `first`
+  in place of the draw when it's nonzero. 8 (FUN_0065f2b0): `first` or a
+  draw, no ac rule. 24 (FUN_0065f390): the same with param = the mod's
+  param (+4). 9 (FUN_0065f310): `first` or a draw (0: nothing), param the
+  mod's param only when it is a Skills row (0 up to `[0x744304] + 0xba0`),
+  else nothing. 10 (FUN_0065f3f0): `first` or a draw (0: nothing), param
+  p % 3 + p / 3 × 8.
 - FUN_0065ea50 stores (stat, param, value) on the item's list and
   returns the value; nothing (and 0) for no stat or a 0. Stat 58 (poison
   max) adds 326 = 1.
@@ -729,6 +740,81 @@ classic one (FUN_0055a550). FUN_00557450 and its helpers branch on it (`FUN_0062
 d2d: `roll_item(..., classic)`, passed by drops (`Loot::put`), stores, gambling and the Cube
 from the character's expansion flag; `tests/test_classic_items.cpp`.
 Evidence: `python3 tools/ghidra/fn.py 00557450 005c2af0 005c1260 005c0d70 005566b0 005c2740 005c12f0 005c1e80`.
+
+### A classic item's mods — FUN_0065fe10's table
+
+FUN_0065fe10 (one mod; 3 callers, FUN_0065fec0 among them) sends an item
+of version 1 or more (`FUN_0062a670`) to FUN_0065fd70 and the
+Properties.txt funcs ("Item mods" above). An item of version 0 never
+reads those funcs. Its mod's Properties row (mod `+0`) indexes a
+compiled-in table of (handler, stat) pairs at `0x745b58`, 8 bytes a row
+(`0x65fe87`, `0x65fe98`). Rows 0..243 run in Properties.txt order (row 0
+`ac` is stat 31, row 41 `res-all` has no stat). The expansion func table
+at `0x7462f8` follows straight after. A row of -1, below 0 or not below
+the Properties count (`[0x744304] + 0xac`) does nothing; a null handler
+too. The handler gets ECX = the kind, EDX = FUN_0065fe10's second
+argument (0 from FUN_0065fec0), and on the stack the item, the mod (`+4`
+param, `+8` min, `+0xc` max), the row's stat, a remove flag
+(FUN_0065fec0's last argument), the stat list's state and flags (0 and
+0x40 from FUN_0065fec0), and FUN_0065fec0's second argument (`ret
+0x1c`). `first` isn't passed and the result isn't kept: each row stands
+alone.
+
+The draw. Every handler that draws the mod's value (all but FUN_0065dbc0,
+whose draw is the charges) does it as FUN_0065cf40 does: min ==
+max is min, no draw; else the two in order and min + rand(max - min) on
+the item's own seed, the `+ 1` added only for version 1 or more
+(`0x65cf71`: `cmp ax, 1` / `jb`). Only version 0 reaches this table, so a
+classic mod's value is min..max − 1: its max never rolls.
+
+The handlers, in address order (row numbers are Properties.txt rows):
+
+| Handler | Rows | What it does |
+|---|---|---|
+| `FUN_0065ce40` | (helper) | For stat (`EAX`) 6..11 or 0xd8 / 0xd9, shifts the value at `ECX` left by 8: life, mana and stamina, and the life and mana per-level stats, are kept in 1/256 units. |
+| `FUN_0065cf40` | (helper) | The classic stat add: the draw, then the ac rule (FUN_0065ccc0) when its flag is set or the kind is 1; a value of 0 does nothing. Scaled (FUN_0065ce40), the item's stat list (FUN_0065cbf0, fatal id 0x29d when none); with the remove flag the list's value negated (FUN_00625d00), else the value, added (FUN_00627030); stat 0x3a (poison max) also adds 0x146 = 1. |
+| `FUN_0065d070` | (helper) | The same add with the value given and the stat in `EDI`: no draw. The ac rule when its flag is set or the kind is 1; 0 does nothing; fatal id 0x2c5 with no list. |
+| `FUN_0065d110` | 141..177, 179, 180 (the `/lvl` rows, rep-dur, rep-quant) | No draw: the value is the mod's param; 0 does nothing. The ac rule for stats 0x10..0x12 or kind 1, then as FUN_0065d070. |
+| `FUN_0065d1c0`, `FUN_0065d2b0` | most single-stat rows; `FUN_0065d2b0` has ac%, mana%, hp%, dmg-to-mana, dur%, regen-stam, regen-mana, att%, dmg-demon, dmg-undead | FUN_0065cf40 with the row's stat, its flag 0 / 1 (1: the ac rule on any kind). |
+| `FUN_0065d1f0`, `FUN_0065d2e0` | none | FUN_0065d070 with its flag 0 / 1. Orphans: no call, jump or pointer (`f0 d1 65 00` and `e0 d2 65 00` found nowhere). |
+| `FUN_0065d220` | 133 sock | Item flag 0x800 (FUN_006280d0), then FUN_0062be00(item, the mod's param): no draw. FUN_0062be00 takes the grid (Items `+0x10f` × `+0x110`; 6 at most, `0x62be4e`; 0 or less sets nothing), caps it by FUN_0062bc20, takes the param as 1 at least and caps it by that (`0x62be72`..`0x62be80`), then sets flag 0x800 and stat 0xc2. No mod is fatal (id 0x312). |
+| `FUN_0065d270` | 242 indestruct | Sets stats 0x49 and 0x48 (max durability, durability) to 0 (FUN_00627260) on the item, or on the last argument when that is a unit of type 4. |
+| `FUN_0065d310`, `FUN_0065d4b0` | 41 res-all, 42 res-all-max | Version 0: FUN_0065cf40 four times, stats 0x27 / 0x29 / 0x2b / 0x2d (0x28 / 0x2a / 0x2c / 0x2e for max), each its own draw. The version-1 branch (one draw, FUN_0065d070 four times) can't be reached from the table. They return their stat argument. |
+| `FUN_0065d650`, `FUN_0065d7d0` | 27 dmg-min, 28 dmg-max | One draw. With the base (FUN_006335f0 of the item, or of `EDX` when that is an item): the one-hand stat 0x15 / 0x16 unless a weapon (type 0x2d) whose one-hand byte (`+0xfe` / `+0xff`) is 0 and two-hand byte (`+0x102` / `+0x103`) isn't; the two-hand stat 0x17 / 0x18 unless a weapon the other way round; the throw stat 0x9f / 0xa0 unless a weapon that isn't throwable (FUN_0062ba80). Each through FUN_0065d070, so the value goes in as drawn. |
+| `FUN_0065d950` | 29 dmg% | Version 0 (`0x65db44`): FUN_0065cf40 with flag 1 for stat 0x11, then 0x12: two draws. The version-1 branch (one draw, and 1 added to the max-damage stats when the percentage of the larger max byte rounds to 0 on a weapon) can't be reached from the table. |
+| `FUN_0065db90` | 104 allskills | FUN_0065cf40 for stat 0x7f. |
+| `FUN_0065dbc0` | 243 charged | Func 19's level, charges and packing (FUN_0065f6a0, "Item mods" above): the same draw, rand(c − c / 8) + c / 8 + 1 (`0x65dcf0`..`0x65dd1d`, `0x65f7e2`..`0x65f80e`), and the same (now & 0xff) + c × 256 with param skill << `[0x744304] + 0xc6c` + (level & the word at `+0xc70`) (`0x65dd2a`..`0x65dd5b`). It returns 1 where FUN_0065f6a0 returns c, and has no item check. |
+| `FUN_0065dd80` | 195..230 (the `/time` rows) | Func 18's packing (FUN_0065f870) without its stat-row check; max below min is fatal (id 0x444). |
+| `FUN_0065de40` | 134..136, 139, 140 (dmg-fire, -ltng, -mag, -throw, -norm) | No draw: min to the stat, max to stat + 1 (both scaled). For 0x15 (dmg-norm) the hands as FUN_0065d650, but the one-hand pair tests the max bytes (`+0xff`, `+0x103`) and the two-hand pair `+0x103` then `+0xfe`; the throw pair only when throwable (`0x65df76`: no weapon test first, unlike FUN_0065d650). |
+| `FUN_0065e070` | 137 dmg-cold, 138 dmg-pois | No draw: min, max and param to stats n, n + 1, n + 2 (length); stat 0x39 adds 0x146 = 1. Fatal id 0x4ad with no list. |
+| `FUN_0065e170` | 123 skill | A draw; the param must be a Skills row (below `[0x744304] + 0xba0`), else nothing; stat 0x6b, layer the param. |
+| `FUN_0065e230` | 103 fireskill | A draw (0: nothing); stat 0x7e, layer 1. |
+| `FUN_0065e2d0` | 67..71, 121, 122 (the class skill rows) | A draw (0: nothing); stat 0x53, layer by the row's stat: 0x53..0x57 → 0..4, 0xb3 → 5, 0xb4 → 6. |
+| `0x65e440` | 124..132, 178, 182..194, 231..241 | `mov eax, 1` / `ret 0x1c`, which Ghidra has no function for: these rows do nothing on a classic item. |
+| `FUN_0065e450` | 55..57, 76..87 (swing, move, balance, block, cast 1..3) | A draw, then FUN_0065d070 with the row's stat. |
+
+Rows 244..267 aren't in the table, but the bound is the whole Properties
+count, so they read the func table at `0x7462f8` as pairs: bugs.md #137.
+
+d2d: `apply_mod` hands an item of version 0 to `apply_classic_mod`
+(components/rules/items/classic_mod.cpp), the table by code in row
+order. Before, a classic item took the Properties.txt funcs as an
+expansion one does, so its draws could give the max, res-all and dmg%
+were one draw, dmg-min / dmg-max held a nonzero base, sock drew its
+count, indestruct put stat 152, and Wizendraw's `pierce-cold` (row 234,
+UniqueItems version 0) applied. `tools/emu/classic_mods.py` runs
+FUN_0065fe10 on a version-0 item for every row 0..243 against
+`tests/test_classic_mods` (14 bases: armor, one- and two-hand, thrown,
+a bow, a ring, an amulet; min above or below max; kinds 0..5; charged
+and skill params past Skills too). The README's "A classic item's mods"
+row prints the differences: none for `gen 2000 1` and `gen 6000 7`
+(2026-11-24). `tests/classic_mods_cases.inc` is `gen 2000 1`. The classic data
+reaches no row past 243: version-0 rows of MagicPrefix, MagicSuffix and
+UniqueItems, and the members of the 16 version-0 Sets, checked against
+Properties.txt.
+
+Evidence: `python3 tools/ghidra/fn.py 0065fe10 0065cf40 0065d070 0065d310 0065d950 0065de40`;
+the table: 244 × 8 bytes at file offset of `0x745b58` (Ghidra: `read_memory 0x745b58`).
 
 ## The class choice and its helpers (`FUN_005a6600` and what it calls)
 

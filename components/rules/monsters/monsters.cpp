@@ -857,7 +857,11 @@ int monster_mode_rate(const ModeRateIn& rate_in) {
     if (rate_in.mode == kBl) return stored(std::max<std::int64_t>(times((rate_in.blocking ? 100 : 50) + effective_speed(rate_in.fbr)), 1));
     if (rate_in.mode == kGh) return stored(times(50 + effective_speed(rate_in.fhr)));
     if (rate_in.mode == kKb) return stored(rate_in.base.walk);
-    const bool moving = rate_in.mode == 2 || rate_in.mode == kRn || (!rate_in.npc && rate_in.low_class && skill_mode);
+    // FUN_006214a0: an npc row moves only in WL / RN; else the mode table's word 1 (WL, RN, and under
+    // 0x19a S1..S4), or its word 0 (S1..S4, SQ) with the skill instance's flags 1 and not 0x1000.
+    const bool flagged = (rate_in.skill_flags & 1) != 0 && (rate_in.skill_flags & 0x1000) == 0;
+    const bool moving = rate_in.mode == 2 || rate_in.mode == kRn
+                     || (!rate_in.npc && ((rate_in.low_class && skill_mode) || ((skill_mode || sequence) && flagged)));
     if (moving) {
         const int pct = std::max(rate_in.velocity_pct + effective_speed(rate_in.frw, 150), 25);
         return stored(std::int64_t(rate_in.mode == kRn ? rate_in.base.run : rate_in.base.walk) * pct / 100);   // imul, sar: toward 0

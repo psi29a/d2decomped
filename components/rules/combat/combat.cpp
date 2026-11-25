@@ -752,6 +752,16 @@ Blow player_blow(const Fighter& fighter, const Target& target, int clvl, Rng& rn
         const std::int64_t physical_pct = std::max<std::int64_t>(fighter.phys_pct + swing.ed_pct + undead_bonus, -90);
         low = fighter.phys_lo + fighter.phys_lo * physical_pct / 100;
         high = fighter.phys_hi + fighter.phys_hi * physical_pct / 100;
+        // A missile row's own physical (FUN_0064af20 / FUN_0064aff0) joins the record's min and max (FUN_0064b860,
+        // 0x64bdf7); the hit (FUN_005a89a0) rolls the sum and scales it by the missile's stat 25, the record's +0x78
+        // (0x64ae64: stat 25, the mastery %, the str / dex bonus, the larger of stats 18 / 17), and the undead's %
+        // (0x5a8b09..0x5a8bff), and a crit doubles it (0x5a8c02..0x5a8c1e). The row's part takes physical_pct as the
+        // weapon's does.
+        // ponytail: SrcDamage scales only the weapon's part in game.exe (0x64bc43..0x64bc67); here the srcdam share
+        // below takes the row's too (the same for rogue1 and explodingarrow, SrcDamage 128). The unit's stats 17 / 18
+        // (0x64bdc2..0x64bddc) and the demons' % (stat 121) aren't in physical_pct, for either part.
+        low += std::int64_t(swing.row_lo) * (100 + physical_pct) / 100;
+        high += std::int64_t(swing.row_hi) * (100 + physical_pct) / 100;
     }
     std::int64_t damage = high > low ? low + rng(int(high - low)) : low;
     const int rolled = int(damage >> 8);                       // before crit: what Vengeance's elements are a share of

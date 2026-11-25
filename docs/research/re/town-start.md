@@ -88,3 +88,26 @@ rolls fewer picks on its seed (its room1 seed moves). d2d: `camp_rooms`
 and hands them to `level_room_tiles` as `outside`; no DT1s, so the
 camp's tiles are found, never picked. Checked: the same diff, every
 room1 and room seed of seeds 1-20.
+
+The camp's own rooms' room1 seeds (room1 +0x6c, FUN_006422a0: the room's
+tile seed, the DRLG room's, stepped once more after its tile picks): d2d's
+`keep_camp_seeds` keeps those for the first roll on a camp room (the hireling's
+teleport spot, Cain), from `preset_room1_seeds` (`level_room_tiles` on the camp's
+preset with LvlPrest def 1's DT1 list, the DRLG room seeds from
+`generate_preset`, the rooms up so far first). They depend on the order the
+rooms came up in (a shared edge's re-pick rolls on the later room's seed). Checked:
+`uv run python camp_room1.py 1-4 --mutation-check` (game.exe's rooms up in list,
+reverse and shuffled order against `drlg-dump ... 1 <dir> camp`). Not done: the
+seeds are taken once, with the rooms up at the first roll (`keep_camp_seeds`'
+ponytail), and the client's critters (apps/d2d/session/ambient.cpp) still use the
+DRLG room's seed.
+
+The camp's tiles: each cell's tile is the rarity pick (FUN_0066d820) on its
+room's DRLG seed, the picks of `level_room_tiles` on the camp's preset (LvlPrest def 1,
+DT1 list by its Dt1Mask, the three always-lists after). d2d's `lay_camp_picks`
+(gamedata.cpp) lays them once, rooms in list order, into `GameData::town`'s
+`Level::picks` through `lay_tiles` and re-runs `finish_level`, so drawing and the walk
+grid read the picked tiles where load_town's first match in the DT1s stood. Checked:
+`uv run python camp_tiles.py 1-8 --mutation-check` (every camp room brought up in game.exe
+against `drlg-dump ... 1 <dir> camptiles`, the tile sets equal). Not done: the order the
+rooms come up in as a player walks (shared edges re-pick by it; relevel doesn't run on the camp).

@@ -595,6 +595,7 @@ struct Fight {
     // The player's buffs as the fight goes.
     int absorb(Foe& foe, std::uint32_t now_ms);
     void buff_events(Foe& foe, std::uint32_t now_ms);
+    void frozen_armor_events(const Foe& foe, std::uint32_t now_ms);   // Frozen Armor's freeze, after the absorbs (hurt_side)
     // Chilling Armor's answer, after the frame's missiles have struck.
     void return_fire(const Foe& foe, std::uint32_t now_ms);
     // A monster's answer (its self state's srvmissilea) to the player's or
@@ -702,6 +703,10 @@ struct Fight {
     [[nodiscard]] MercGear merc_gear() const { return merc_gear(*actor); }
     // Its maximum life with its gear.
     [[nodiscard]] int merc_max_life() const;
+    // The Act 1 merc's shot (RogueMissile, do 110) at `skill_lvl`, with its gear's stats 157 / 158: the Missiles row and
+    // the level it's made at; null with no row.
+    struct MercShot { const GameData::MissileInfo* info = nullptr; int level = 0; };
+    [[nodiscard]] MercShot merc_shot(const d2d::rules::Skill& skill, int magic, int exploding, int skill_lvl) const;
 
     // The merc's turn.
     void merc_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd, bool town);

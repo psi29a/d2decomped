@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // test-links: game
 // `--armor-hit CASES`: Frozen Armor's answer to a melee striker (aura event
-// 2) through the REAL Fight::buff_events, the cases of tools/emu/armor_hit.py
+// 2) through the REAL Fight::buff_events / frozen_armor_events, the cases of tools/emu/armor_hit.py
 // (game.exe's FUN_005cac50 -> FUN_0057c6c0 -> FUN_0057af80 / FUN_0057b230):
 // `id chill freeze frames`, the ticks from now each ends (or `-`) and the
 // calc1 frames d2d computed, one line each, to diff.
@@ -110,6 +110,7 @@ int main(int argc, char** argv) try {
         foe.melee_by.push_back(world.fight.monsters.back().id);
         if (damage > 0) foe.damaged_by.push_back(world.fight.monsters.back().id);
         world.fight.buff_events(foe, now);
+        world.fight.frozen_armor_events(foe, now);
         const auto& struck = world.fight.monsters.back();
         const auto ticks = [&](std::uint32_t until) { return until > now ? std::to_string((until - now) / kTickMs) : std::string("-"); };
         std::printf("%d %s %s %d%s\n", id, ticks(struck.chill_until).c_str(), ticks(struck.stun_until).c_str(), world.fight.calc(*frozen_row, frozen_row->calc[0], level),

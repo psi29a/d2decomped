@@ -269,6 +269,22 @@ Four MonAI rows (0x73ca18 + AI × 16, the think at +8; all search type 1, no ini
 - **Special AI 8.** Its think (special table 0x73d358, row 8 +8 = 0x73d3e0) is FUN_005e7dc0, the TownRogue's code again (the same instructions and call targets). No call to the AI toggle FUN_005b0e00 passes a constant 8; several pass a variable, so which monster gets it is not traced. d2d gives no monster special AI 8.
 - **The strike.** The ElementalBeast's type-0 event is the action event a mode's own frames would file (council-s1.md), filed early, so its S1 hits a frame after it starts. `mon_ais_act1.py` logs it as the `strike` effect, not as a think event; ai.cpp does not act on it (a ponytail note in thinks/act1.hpp).
 
+## Unplaced spawners and special AIs
+
+Five more MonAI rows (read from the table at 0x73ca18, row + 8) whose monsters no 1.14d table or preset places, by the same checks as above (Levels.txt mon / nmon / umon, MonPreset.txt, SuperUniques.txt, the MonStats minion and spawn columns; class ids by MonStats hcIdx, since the "Expansion" divider row shifts the file's order). demonhole's only maker, `FUN_005e9dd0` (stubs.md), has no caller. Each think's branches are in ai-control.md; aip1..3 are its "signed difficulty-indexed words" at MonStats +0x56 / +0x5c / +0x62 (aip k at +0x56 + 6k).
+
+| AI (row) | think | MonStats rows (hcIdx) |
+|---|---|---|
+| EvilHole (76) | FUN_005fb410 | evilhole1..5 (321..325; only 1 enabled), demonhole (711) |
+| InvisoSpawner (82) | FUN_005e0160 | invisospawner (332) |
+| MosquitoNest (83) | FUN_005e0260 | suckernest1..4 (334..337, not enabled) |
+| 7TIllusion (88) | FUN_005ea080 | seventombs (355) |
+| InvisoPet (103) | FUN_005ea7a0 | invisopet (414) |
+
+The special table 0x73d358 (row + 4 the init, + 8 the think): 3 (`FUN_005e5730` init, `FUN_005e5870` think: a pack's formation), 5 (`FUN_005e7ac0`, GoodNpcRanged's), 6 (`FUN_005e7c10`: an NPC's melee), 9 (`FUN_005e7f80`: a minion's retreat), 12 (`FUN_005e8340`: a stationary NPC). No call to the AI toggle `FUN_005b0e00` passes 3, 9 or 12 as a constant (its callers: `awk -F'\t' '$2=="005b0e00"' docs/research/re/game-calls.tsv`, each call read in the decompiled C); `FUN_005424f0` (a unit back from inactive) and `FUN_0056d940` (a skill's spawn) pass a record's field. The merc's think `FUN_005e52d0` passes 6, or 5 for class 0x10f (roguehire), when it has no owner or the owner isn't a player (merc-ai.md), so special 6 runs in play.
+
+d2d ports them anyway: the five rows in `rules::mon_think` and the specials in `rules::special_think` / `rules::formation_init` (thinks/unplaced.hpp). Checked: `tools/emu/ai_group2.py all 3000 20261124` runs each in game.exe (30 000 runs, all paths taken; `tests/ai_group2_cases.inc`, `test_ai_group2`). Nothing in ai.cpp gives a monster these specials yet, and the merc keeps its owner, so none runs in d2d's play.
+
 ## Act 2's thinks
 
 Act 2's MonAIs (MonStats AI on levels 40..74, MonAI table 0x73ca18 + ai × 16: `{search type, init, think, other think}`). Params block as above: [0] AI control (+0x14 / +0x18 / +0x1c), [2] target, [5] AI distance, [6] in melee, [7] MonStats row. Search types 1 and 4 skip the think when none is found (FUN_005b1650), so every think below has a target.

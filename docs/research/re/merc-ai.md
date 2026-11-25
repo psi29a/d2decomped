@@ -16,7 +16,11 @@ teleport, attack hand-off and the merc's seed after, all equal);
 
 Calls: `FUN_005e52d0(ECX game, EDX merc, [8] AI params)`. The owner is
 `FUN_0058f0d0` (monster data +0x28 → AI control, +0x2c the owner's id); none,
-or not a player: it stands 10.
+or not a player: the AI toggle `FUN_005b0e00` puts it on special AI 6 (the
+NPC melee think `FUN_005e7c10`), or 5 (GoodNpcRanged's `FUN_005e7ac0`) for
+class 0x10f, roguehire (the toggle calls at 0x5e5312, 0x5e5337, 0x5e536a,
+0x5e538f), and it stands 10. d2d's merc
+always has its owner (monster-ai.md "Unplaced spawners and special AIs").
 
 1. In a walk or run (mode 2 / 0xf) it does nothing.
 2. Its distance to the owner, `FUN_005dc380`: per axis the gap less the

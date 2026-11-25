@@ -363,6 +363,12 @@ struct GameData::LevelBuilder {
 // A preset level's (no generated rooms.
 // `assets`: any generated level's (the presets' rows and DS1s).
 std::vector<d2d::drlg::BuiltRoom> preset_rooms(const GameData& game_data, const Level& level, const d2d::drlg::OutdoorAssets& assets);
+// The camp's tiles as game.exe's rooms pick them (rarity, on the DRLG room seeds), into Level::picks.
+void lay_camp_picks(GameData& game_data, const d2d::drlg::OutdoorAssets& assets);
+// Its rooms' room1 seeds by room_rects index, the rooms in `came_up` (room_rects indices) brought up in that
+// order; `generated`: drlg::generate_preset's rooms, which hold the DRLG room seeds.
+std::vector<std::uint32_t> preset_room1_seeds(const GameData& game_data, const Level& level, const d2d::drlg::OutdoorAssets& assets,
+                                              const std::vector<d2d::drlg::Outdoor::RoomSeed>& generated, const std::vector<std::size_t>& came_up);
 
 void stamp_footprints(Level& level);
 // One unit's footprint into the walk grid (stamp_footprints).
@@ -416,6 +422,8 @@ std::unique_ptr<Level> build_level(const GameData& game_data, GameData::LevelBui
 // The Act 1 camp's rooms with their seeds, as drlg-dump has them (GameData::town keeps none):
 // empty while the builder's busy (try again), or with no Act 1 tables.
 std::optional<std::vector<d2d::drlg::Outdoor::RoomSeed>> camp_room_seeds(const GameData& game_data);
+// The camp's rooms' room1 seeds by room_rects index (preset_room1_seeds), `came_up` first; nullopt while the builder's busy.
+std::optional<std::vector<std::uint32_t>> camp_room1_seeds(const GameData& game_data, const std::vector<std::size_t>& came_up);
 void place_objects(const GameData& game_data, GameData::LevelBuilder& builder, Level& level);
 // Room `index` of `level` coming into play.
 d2d::rules::Rng room_objects(const GameData& game_data, Spawning& spawning, const Level& level, std::size_t index);

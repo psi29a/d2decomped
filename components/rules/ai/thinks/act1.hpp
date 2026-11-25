@@ -522,7 +522,9 @@ struct Act1Thinks : Thinker {
     // GoodNpcRanged (60, FUN_005e7ac0; rogue2, the wanderer, FUN_0054ef50;
     // search type 0): not in NU it stands 5. Out of town with the second
     // target (FUN_005ddc30) under 20: 30 % A1 at it (class 0x10f, roguehire,
-    // would cast its Skill1, but its AI is Hireable), else 30 % circles 4 round
+    // casts its Skill1 instead: its merc think puts it on special AI 5, this
+    // think, without an owner, FUN_005e52d0; d2d's merc always has one, so
+    // that cast isn't here), else 30 % circles 4 round
     // it (FUN_005df7d0, flag 0), else stands 10. Else 20 % wanders 5, else
     // stands 10. tools/emu/ai_npc_ranged.py checks it.
     Think good_npc_ranged() {
