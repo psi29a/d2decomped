@@ -445,23 +445,26 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
     // hoist from the DS1 orientation dword's upper 24 bits when
     // present — for MVP we use the DT1's per-tile roof_height instead.
     //
-    // Walls go back to front by iso depth (gx + gy, one diagonal at a
-    // time), and each unit is drawn once its own cell's diagonal is done:
-    // a tent north of the player stays behind them, one south of them
-    // covers them. Units on the same diagonal go in screen-y order.
-    // game.exe buckets tiles by cell too (FUN_004dd7c0: FUN_00643340 gives
-    // the tile's cell of the screen grid, each cell a slot of lists).
-    // ponytail: how it interleaves units with a cell's walls isn't traced.
+    // game.exe buckets walls and units by cell (FUN_004dd7c0): FUN_00643340 turns a world pixel into the cell under
+    // it, (2y + x) / 0xa0 and (2y - x) / 0xa0. A wall's record sits at its cell's left corner and bottom (FUN_0066dde0
+    // -> FUN_00643310 of (x, y + 1), y + 0x28), and the fill takes 1 off the row (0x4dd7f9), so a wall goes in its own
+    // cell's slot; a unit goes in the slot of the cell it stands in (FUN_00620650 / FUN_006206b0). FUN_004df1c0 then
+    // draws the slots in the grid's memory order, row by row (cell y, then x), each its walls (+0x14) and then its
+    // units (+0x18): a tent north of the player stays behind them, one south of them covers them. Within a slot d2d
+    // draws the units in screen-y order (game.exe: its chain's, the rooms' unit lists).
     std::vector<const Unit*> order;
     for (const auto& unit : units) if (unit.anim || unit.sprite || unit.missile) order.push_back(&unit);
-    auto diag_of = [&](const Unit* unit) {
-        return (int(std::floor(unit->x)) - base_x) + (int(std::floor(unit->y)) - base_y);
+    auto slot_of = [&](const Unit* unit) {
+        return std::pair{ int(std::floor(unit->y)) - base_y, int(std::floor(unit->x)) - base_x };
     };
-    std::ranges::sort(order, {}, [](const Unit* unit) { return unit->x + unit->y; });
+    std::ranges::sort(order, [&](const Unit* left, const Unit* right) {
+        const auto left_slot = slot_of(left), right_slot = slot_of(right);
+        return left_slot != right_slot ? left_slot < right_slot : left->x + left->y < right->x + right->y;
+    });
     std::size_t next_unit = 0;
     const auto& upal0 = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
-    auto draw_units_through = [&](int diag) {
-        for (; next_unit < order.size() && diag_of(order[next_unit]) <= diag; ++next_unit) {
+    auto draw_units_through = [&](std::pair<int, int> slot) {
+        for (; next_unit < order.size() && slot_of(order[next_unit]) <= slot; ++next_unit) {
             const Unit& unit = *order[next_unit];
             // An object stands at game.exe's position, half a subtile before
             // its cell's (measured live: Lut Gholein's waypoint flames and braziers).
@@ -577,10 +580,9 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
     };
     struct Roof { int cell_x, cell_y; const d2d::dt1::Tile* tile; const void* source; };
     std::vector<Roof> roofs;
-    for (int diag = -2 * kReach; diag <= 2 * kReach; ++diag) {
-        draw_units_through(diag - 1);
-        for (int dx = std::max(-kReach, diag - kReach); dx <= std::min(kReach, diag + kReach); ++dx) {
-            const int dy = diag - dx;
+    for (int dy = -kReach; dy <= kReach; ++dy) {
+        for (int dx = -kReach; dx <= kReach; ++dx) {
+            draw_units_through({ dy, dx - 1 });           // a unit of an earlier slot (or left of the reach) goes first
             const int cell_x = base_x + dx;
             const int cell_y = base_y + dy;
             const auto [cell_level, off] = cell_at(cell_x, cell_y);
@@ -602,6 +604,7 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
                     if (pick.layer == 0 && pick.orient != 13 && pick.orient < 16 && !pick.hidden)
                         if (const auto* tile = game::animated_tile(cell_picks, index, elapsed_ms)) draw_wall(pick.orient, *tile, wall_index++, &pick, pick.no_fade);
                 }
+                draw_units_through({ dy, dx });
                 continue;
             }
             int wall_index = 0;
@@ -617,9 +620,10 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
                 // A corner (3) is two tiles: the second picked with orientation 4 (FUN_0066e9b0).
                 if (type == 3) if (auto* tile = find_tile(*cell_level, cell.style, cell.sequence, 4)) draw_wall(4, *tile, wall_index, &cell, Level::never_fades(word, tile->material_flags));
             }
+            draw_units_through({ dy, dx });                // the slot's units after its walls
         }
     }
-    draw_units_through(1 << 20);
+    draw_units_through({ 1 << 20, 0 });
     for (const auto& roof : roofs) {
         const auto& tile = *roof.tile;
         // Roof — hoist by the DT1's own roof_height.
