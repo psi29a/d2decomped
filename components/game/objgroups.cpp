@@ -530,22 +530,22 @@ struct ObjectRooms {
     // FUN_00463740 on room `from`: (x, y) in its own bounds, else the first room
     // of its near list (FUN_0066c370's, via d2d_act5_rooms_near, null slots skipped)
     // whose bounds hold it; none when no room does. The near list holds
-    // neighbour levels' rooms too (missile_rooms), and game.exe returns one.
+    // neighbour levels' rooms too, and game.exe returns one: holder() has
+    // its level and room.
+    [[nodiscard]] std::optional<NearHolder> holder(std::size_t from, int x, int y) const {
+        return near_room_holder(game_data, level, from, x, y, spawning_now);
+    }
     // ponytail: the answer is an index into this level's rooms, so a spot held
     // only by a neighbour level's room (a free-area spot past this level's edge:
     // Level::blocked reads the neighbour's grid) counts as none; making the NPC
-    // in that room (its bounds, seed and spawn list, FUN_005b2f20) isn't ported.
+    // in that room (its bounds, the room's seed (Spawning::LevelState::room_seeds
+    // of that Level, its up / early state) and a spawn in that level's spawns in
+    // its own coordinates, with its collision grid, FUN_005b2f20) isn't ported.
     [[nodiscard]] std::optional<std::size_t> near_holder(std::size_t from, int x, int y) const {
-        if (from >= level.rooms.size()) return std::nullopt;
-        const auto& source = level.rooms[from];
-        const auto rects = missile_rooms(game_data, level, (float(source.x * 5 + source.width * 5 / 2) + 0.5f) / 5, (float(source.y * 5 + source.height * 5 / 2) + 0.5f) / 5, spawning_now);
-        for (std::size_t i = 0; i < level.rooms.size(); ++i) {
-            const auto& held = level.rooms[i];
-            if (x < held.x * 5 || y < held.y * 5 || x >= (held.x + held.width) * 5 || y >= (held.y + held.height) * 5) continue;
-            const std::array<int, 4> rect{ held.x * 5, held.y * 5, held.width * 5, held.height * 5 };
-            if (i == from || std::ranges::contains(rects, rect)) return i;
-        }
-        return std::nullopt;
+        if (from >= level.rooms.size()) return std::nullopt;                  // a preset level's 8x8 split has no seeds here
+        const auto found = holder(from, x, y);
+        if (!found || found->level != &level) return std::nullopt;
+        return found->room;
     }
     // The room FUN_005b2f20 is handed (FUN_00545340's room_out) while a marker
     // makes its NPC; none: the room being populated.

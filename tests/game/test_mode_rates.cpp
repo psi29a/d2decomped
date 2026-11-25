@@ -38,7 +38,7 @@ int rate_cases(const GameData& data) {
     while (std::getline(std::cin, line)) {
         if (line.empty()) continue;
         std::istringstream fields(line);
-        int cls = 0, mode = 0, skill = 0, speed = 0, vel = 0, frw = 0, fhr = 0, fbr = 0, held = 0, ias = 0, rate68 = 0, rate69 = 0;
+        int cls = 0, mode = 0, skill = 0, speed = 0, vel = 0, frw = 0, fhr = 0, fbr = 0, held = 0, ias = 0, rate68 = 0, rate69 = 0, flags = 0;
         if (!(fields >> cls >> mode >> skill >> speed >> vel >> frw >> fhr >> fbr >> held >> ias >> rate68 >> rate69) || mode < 0 || mode >= 16) {
             std::fprintf(stderr, "malformed case: %s\n", line.c_str());
             return 1;
@@ -49,6 +49,7 @@ int rate_cases(const GameData& data) {
                                    .npc = known && std::size_t(cls) < data.mon_is_npc.size() && data.mon_is_npc[std::size_t(cls)],
                                    .use_attack_rate = row && row->use_attack_rate, .speed = speed, .velocity_pct = vel, .frw = frw, .fhr = fhr,
                                    .fbr = fbr, .ias = ias, .blocking = held != 0, .attack_rate = rate68, .other_rate = rate69 };
+        if (fields >> flags) rate_in.skill_flags = flags;   // the skill instance's flags, when the case gives them
         if (known) rate_in.base = { data.monsters.types[std::size_t(cls)].walk_base, data.monsters.types[std::size_t(cls)].run_base };
         const int rate = d2d::rules::monster_mode_rate(rate_in);
         std::printf("%s | %d\n", line.c_str(), rate);
@@ -86,6 +87,21 @@ void base_check() {
     assert(monster_run_base(false, 192, 12, 8) == 288 && monster_run_base(true, 192, 12, 8) == 192 && monster_run_base(false, 0, 12, 8) == 0);
     assert(monster_walk_base(false, 0x7fff, 9, 1) == 0x7fff);
     std::puts("OK: the walk / run base as FUN_00650f00 derives it");
+    // FUN_006214a0: SQ (and S1..S4 from class 0x19a) moves with the skill instance's flags 1 and not 0x1000
+    // (DiabRun's do sets 1): the walk base x walk %, not the attack / other rate; an npc row never.
+    using d2d::rules::ModeRateIn;
+    const ModeRateIn sequence_rate{ .mode = 14, .low_class = false, .speed = 256, .base = { 300, 600 }, .velocity_pct = 100, .other_rate = 100 };
+    auto flagged = sequence_rate;
+    flagged.skill_flags = 1;
+    assert(d2d::rules::monster_mode_rate(sequence_rate) == 256 && d2d::rules::monster_mode_rate(flagged) == 300);
+    flagged.skill_flags = 0x1001;
+    assert(d2d::rules::monster_mode_rate(flagged) == 256);
+    auto skill_rate = flagged;
+    skill_rate.mode = 8; skill_rate.skill_flags = 1;
+    assert(d2d::rules::monster_mode_rate(skill_rate) == 300);
+    skill_rate.npc = true;
+    assert(d2d::rules::monster_mode_rate(skill_rate) == 256);
+    std::puts("OK: a flagged skill's SQ / S1..S4 as a moving mode (FUN_006214a0)");
 }
 
 // With the game data: rules::monster_mode_rate's get-hit is rules::get_hit_rate

@@ -283,10 +283,10 @@ void render_world(std::vector<std::uint8_t>& framebuffer,
     // FUN_00476bc0 in level 74, before the lower walls): each a point in its
     // palette index (the driver's line, FUN_004f6380, from (x, y) to itself),
     // then the drift. Made once a run, on the screen's size then.
-    // ponytail: not traced whether a side panel moves them (the driver's view offset).
+    // A side panel doesn't move them (stars.md): the field is the screen's width by its height less 0x28.
     if (level.id == d2d::rules::level_ids::kArcaneSanctuary) {
         static d2d::rules::Stars stars;
-        const int screen_h = int(framebuffer.size() / 4) / std::max(screen_w, 1);
+        const int screen_h = d2d::rules::Stars::field_height(int(framebuffer.size() / 4) / std::max(screen_w, 1));   // 0x7a521c
         if (!stars.made)
             stars.make(std::uint32_t(std::uint64_t(std::time(nullptr)) & 0xffffffffu) + elapsed_ms, screen_w, screen_h,   // game.exe: time() and the clock mixed (FUN_00650de0)
                        [&](int red, int green, int blue) { return upal_splash.nearest(red, green, blue); });

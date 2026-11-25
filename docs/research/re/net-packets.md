@@ -621,8 +621,9 @@ ids).
   (`npcalert`, the "!") on the NPC as a kind-3 loop (`FUN_00470390`,
   `FUN_00470c30`; LoopWaitTime is unused). d2d:
   `NetGame::npc_alerts` → an independent balloon start at the packet's
-  arrival, AnimRate 9 at 25 ticks/s; the existing local expiration after
-  16 * 111 ms remains an approximation (quests.md).
+  arrival, AnimRate 9 at 25 ticks/s; it stays until an NPC's talk
+  opens (0x28 of another unit than ours: `FUN_004b6dd0` -> `FUN_004b2390`,
+  quests.md "The balloon over an NPC").
   In full (asm 0x4b3380..0x4b346c):
   - class 0x216 (act5pow, the Act 5 prisoners) gets no "!": a sound on it
     (`FUN_004b9a00`, the sound player, EDX the unit): 0x11fb

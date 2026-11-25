@@ -63,6 +63,8 @@ address	name	evidence
 0041aa80	sfile_async_signal	SFILE.CPP: null sets 0x57; else FUN_0041a8f0() and, for a second argument > 0, SetEvent(DAT_00779054) (frontier-ring.md)
 0041b050	sfile_read5	SFILE.CPP: FUN_0041aad0 with its five arguments and two zeros (frontier-ring.md)
 0041ba60	sfile_open_plain	Opens a plain file as an archive record: name required (0x57), made absolute unless it starts with \ or a drive spec, CreateFileA read; a 0x25c-byte AUARCHIVEREC (SFile.Storm) with the path, handle, flags from the ... (source-frontier.md)
+0041c0d0	storm_strpbrk	Tail-calls the MSVC CRT _strpbrk(str, charset): returns the pointer to the first character of str that is in charset, or 0. Two stack args (cdecl); the args remain on the stack after the CRT returns. No callers found (source-small.md)
+0041c0e0	serr_set_blizzard_error	DAT_007790f8 = the ECX argument (a function pointer), no return value. Only caller FUN_00408ce0 (source-small.md)
 0041c1f0	rtti_name_short	A name of the form .?AU<name>@... (at least 6 characters): <name> up to ? or @, trailing _ trimmed, between two fixed strings (0x6cf328, 0x6cf324), into ESI (EBX characters); 1, else 0. Only caller FUN_0041caf0 (source-frontier.md)
 0041c560	slist_link_or_terminator_2	Same as slist_link_or_terminator (FUN_00420520), another copy (source-list.md)
 0041c630	slist_next_node_2	Same as slist_next_node (FUN_004205f0), another copy (source-list.md)

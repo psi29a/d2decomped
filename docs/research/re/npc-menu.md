@@ -92,6 +92,25 @@ FUN_006637f0 on {entry seed, 666}): the row pick, then the level roll —
 no other draw; the name is the entry's. The window's list box
 (FUN_004bf8f0) shows seven of them and scrolls.
 
+**How a hire names its offer** (read from the decompile, no oracle):
+C->S 0x36 (size 9, `FUN_0054bbd0`) carries the NPC's unit id (u32 +1) and the
+offer as a u16 (+5), both handed to `FUN_00577fe0`, which looks the NPC up
+(`FUN_00552f60`) and, when it is the player's talking NPC (`FUN_00554d00`),
+runs `FUN_005770e0`. That one takes the u16 as the entry's name id: it must
+lie in NameFirst..NameLast (`d2d_rules_hire_names`), the record is
+`(id - NameFirst) * 0x10` into the list, and the record's own first u16 must
+equal it, its hired word (+8) clear, else a refusal (lines 0x685, 0x693,
+0x69a). Offers are not numbered 0..9: they are the entries whose offered word
+(+0xc) is set. d2d: `cmd::Hire::offer` is the index among the offered,
+unhired entries (`for_hire`), while `HireEntry::name` (hire.hpp) is the
+entry's name id the packet carries, so the command could carry it. Buying names its item the same
+way (store.md): C->S 0x32 (size 0x11, `FUN_0054bac0`) has the NPC (u32 +1),
+the item's unit id (u32 +5), a dword at +9 (bit 31 the multibuy fill, the
+rest split into a u16 high and low word, `FUN_00577f30` ->
+`FUN_00577830`) and the cost (u32 +0xd); the server finds the item by id
+(`FUN_00552f60`). d2d's `cmd::Buy::stock` is an index into the store tab;
+`apps/d2d/session/net.cpp` already maps it to `item.id` for a host.
+
 **The window** (`FUN_004b7eb0` with ECX (W − 490) / 2, EDX H / 2 − 0xc3,
 width 0x1ea, height 0x15e, +0x58 0): with +0x58 0, `FUN_004b85f0` centres
 each line (`FUN_004b83a0`) and lays out nothing, so the window stays
