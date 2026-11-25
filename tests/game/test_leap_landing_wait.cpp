@@ -54,6 +54,13 @@ int main(int argc, char** argv) try {
     assert(!leap_hold(leaper, 0x21c, 40));
     leaper.leap_until = 1000 + 11 * 40;
     assert(!leap_hold(leaper, 5, 40));
+    // On the landing's subtile short of its centre (FUN_005da120 compares the path's subtile words): 10 cells at Run 13
+    // (0.1625 a frame) are on subtile 100 at frame 61, 0.44 subtile short; it lands there, not a tick later. Frame 60 waits.
+    leaper.leap_pace = leap_cells_per_frame(13);
+    leaper.leap_until = 1000 + 60 * 40;
+    assert(leap_hold(leaper, 0x21c, 40));
+    leaper.leap_until = 1000 + 61 * 40;
+    assert(!leap_hold(leaper, 0x21c, 40));
     // The real update path (monster_update): Korlic's Leap Attack (ancientbarb1's BaseId 0x21c, seq_ancientleap, made-up rows) in the
     // air at the landing event, row 11. On the old logic it snaps to the landing there and its mode ends on row 17; now it waits a
     // tick at a time (FUN_005da120) till the flight is done (80 frames at pace 0.125 cells), its row held, its mode's end moved on as far.
