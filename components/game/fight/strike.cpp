@@ -702,6 +702,20 @@ auto Fight::skill_swing(const d2d::rules::Skill& skill_row, int lvl, const d2d::
         return swing;
     }
 
+// FUN_0057ac50 gives every unit the same one-poison-at-a-time state: the
+// stronger per-frame hpregen loss replaces the old value and its end time.
+// A monster may be the target of another monster's record too (Fight::world).
+static void apply_monster_poison(Monster& target, double rate, int poison_ticks, std::uint32_t now_ms) {
+        if (rate > 0 && (now_ms >= target.poison_until || rate >= target.poison_rate)) {
+            target.poison_rate = rate;
+            target.poison_until = now_ms + std::uint32_t(poison_ticks) * 40;
+        }
+    }
+
+void apply_monster_foe_poison(Monster& target, int poison, int poison_ticks, std::uint32_t now_ms) {
+        apply_monster_poison(target, poison / (256.0 * 40.0), poison_ticks, now_ms);
+    }
+
 // A hit on monster i (the player's or the merc's): blocked, it blocks; otherwise the damage, life/mana leech
 // (the player's), poison and bleeding over time, a chill, a knockback.
 // `striker`: the Foe::id it came from (-1 none), kept even on a miss or
@@ -744,11 +758,7 @@ auto Fight::land(std::size_t monster_index, const d2d::rules::Blow& blow, bool b
             actor->merc->set_life_fine(int(std::min<std::int64_t>(std::int64_t(merc_max_life()) << 8, std::int64_t(actor->merc->life_fine()) + blow.life)));
         // One poison at a time, the stronger wins (FUN_0057ac50); at 0 life
         // the monster dies to it, the kill the poisoner's (FUN_005a6920).
-        if (const double rate = double(blow.poison) / (std::max(blow.poison_ticks, 1) * 40.0);
-            blow.poison > 0 && (now_ms >= target.poison_until || rate >= target.poison_rate)) {
-            target.poison_rate = rate;
-            target.poison_until = now_ms + std::uint32_t(blow.poison_ticks) * 40;
-        }
+        apply_monster_poison(target, double(blow.poison) / (std::max(blow.poison_ticks, 1) * 40.0), blow.poison_ticks, now_ms);
         // Chilled (state 11, FUN_0057af80): not at coldeffect 0, the length
         // over MonsterColdDivisor when it's negative, at least a tick, only
         // ever lengthened. Then rand % 100 < 20 on the monster's seed puts state
@@ -828,6 +838,10 @@ auto Fight::struck_event(Monster& target, bool knockback) const -> void {
 // blow out of GH keeps its event though a later one in the tick puts it in GH.
 // The knockback is the tick's: d2d keeps none per blow.
 auto Fight::take_blows(Monster& struck, const Foe& foe, std::uint32_t now_ms) -> bool {
+        // Foe::poison is the record's per-frame value in 256ths; Blow::poison
+        // above is a total over its length, so the two paths intentionally
+        // have different conversions to life per millisecond.
+        apply_monster_foe_poison(struck, foe.poison, foe.poison_ticks, now_ms);
         for (const auto& blow : foe.blows) {
             const int taken = soak(struck, blow.physical << 8, blow.damage << 8);
             if (hurt(*game_data, struck, taken >> 8, now_ms, taken & 255, blow.hit_class, blow.marked)) return true;
