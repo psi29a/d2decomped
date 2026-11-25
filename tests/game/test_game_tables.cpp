@@ -18,6 +18,7 @@
 #include <monsters.hpp>
 #include <montypes.hpp>
 #include <rules.hpp>
+#include <set_list.hpp>
 #include <skills.hpp>
 #include <sound_ids.hpp>
 #include <spawning.hpp>
@@ -266,6 +267,46 @@ int main() try {
         auto value = [&](int stat) { const auto found = std::ranges::find(bonus, stat, &d2d::d2s::ItemProp::stat); return found != bonus.end() ? found->value : -1; };
         assert(worn.size() == 4 && value(d2d::d2s::kColdMinDamage) == 15 && value(d2d::d2s::kColdMaxDamage) == 20);
         std::printf("OK: Vidala's Rig's full set, 15-20 cold\n");
+    }
+    {
+        // A set's mods go by the piece whose stats went on last (FUN_00660120's ESI ->
+        // FUN_0065fe10 -> FUN_0065ecf0 / FUN_0065ee80): Hsarus' Defense (row 1, all armour)
+        // FCode1 dmg-max on the one-hand, two-hand and thrown max; Death's Disguise (row 12)
+        // FCode2 dmg-min on all three with the gloves or belt last, one-hand with Death's
+        // Touch (a war sword) last. tools/emu/set_list.py, tests/test_set_list.cpp.
+        auto set_worn = [&](int set) {
+            std::vector<d2d::d2s::Item> worn;
+            for (std::size_t row = 0; row < data->rules.sets.size(); ++row)
+                if (data->rules.sets[row].set == set) {
+                    d2d::d2s::Item piece{ .code = data->rules.sets[row].code };
+                    piece.quality = 5; piece.set_id = int(row);
+                    piece.location = d2d::d2s::item_location::kEquipped;
+                    piece.slot = std::uint8_t(d2d::d2s::body_location::kFirst + int(worn.size()));
+                    worn.push_back(std::move(piece));
+                }
+            return worn;
+        };
+        auto value = [&](const std::vector<d2d::d2s::Item>& worn, int stat) {
+            int sum = 0;
+            for (const auto& prop : set_props(*data, worn)) if (prop.stat == stat) sum += prop.value;
+            return sum;
+        };
+        assert(data->rules.set_bonuses.size() > 12 && data->rules.set_bonuses[1].full[0].code == "dmg-max"
+               && data->rules.set_bonuses[12].full[1].code == "dmg-min");
+        const auto hsarus = set_worn(1);
+        const int most = value(hsarus, d2d::d2s::kMaxDamage);
+        assert(hsarus.size() == 3 && most > 0 && value(hsarus, d2d::d2s::kSecondaryMaxDamage) == most
+               && value(hsarus, d2d::d2s::kThrowMaxDamage) == most);
+        auto death = set_worn(12);
+        const auto sword = std::ranges::find_if(death, [&](const d2d::d2s::Item& piece) { return data->rules.item_info.at(piece.code).kind == 2; });
+        assert(death.size() == 3 && sword != death.end());
+        for (auto& piece : death) if (&piece != &*sword) d2d::rules::stats_on(death, piece);
+        const int least = value(death, d2d::d2s::kMinDamage);
+        assert(least > 0 && value(death, d2d::d2s::kSecondaryMinDamage) == least && value(death, d2d::d2s::kThrowMinDamage) == least);
+        d2d::rules::stats_on(death, *sword);
+        assert(value(death, d2d::d2s::kMinDamage) == least && value(death, d2d::d2s::kSecondaryMinDamage) == 0
+               && value(death, d2d::d2s::kThrowMinDamage) == 0);
+        std::printf("OK: Hsarus' +%d max damage on all three hands; Death's Disguise's +%d min by the last piece on\n", most, least);
     }
     {
         // FUN_0062b5b0: an affix of the wearer's class takes its classlevelreq

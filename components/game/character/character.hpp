@@ -47,16 +47,8 @@ std::vector<d2d::d2s::ItemProp> set_bonus_props(const GameData& game_data, const
 // A row's min / max are its property's own: a damage range (Vidala's Rig
 // dmg-cold 15-20), gethit-skill's chance and level (Cow King's 25, 5).
 // `only`: that Sets.txt row's alone (the hover text's, FUN_004e6680).
-// ponytail: game.exe's list goes on with the set piece that last refreshed
-// it (FUN_00663b40 -> FUN_00660120, the item in ESI, which FUN_0065fe10 hands
-// on): a dmg-min / dmg-max / dmg% bonus (Hsarus' FCode1, Death's Disguise's
-// FCode2, Aldur's FCode6) then lands on the one-hand, two-hand and thrown
-// stats for an armour piece, one-hand for a one-hand weapon (apply_mod); here
-// with none (one-hand), as d2d keeps no order of the pieces' changes. Equipping
-// (FUN_0055c2c0 -> FUN_00663cc0(.., 0, 0)) rebuilds the set's list with that
-// piece; unequipping (FUN_0055c730 -> FUN_00663cc0(.., 1, 0) -> FUN_00663b40
-// with 1) frees the whole list, read so; whether the partial bonuses then
-// stay off until a piece goes on again isn't checked in play.
+// Each set's mods go by the piece whose stats went on last
+// (rules::set_list_piece): dmg-min / dmg-max on its hands.
 std::vector<d2d::d2s::ItemProp> set_props(const GameData& game_data, const std::vector<d2d::d2s::Item>& items, int only = -1);
 
 // An item whose stats reach the character: worn (slots 1..10, the weapon
