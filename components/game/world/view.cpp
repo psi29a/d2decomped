@@ -48,6 +48,7 @@ auto World::view() const -> View {
         View view;
         view.level = level;
         view.player = actor->player;
+        view.path_target_x = actor->target_x; view.path_target_y = actor->target_y;
         view.running = actor->running;
         view.dead = fight.dead();
         view.poisoned = std::ranges::any_of(actor->regen, [](const Fight::Regen& regen_entry) { return regen_entry.poison; });

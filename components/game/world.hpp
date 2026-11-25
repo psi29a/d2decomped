@@ -130,6 +130,7 @@ using Event = std::variant<ev::LevelChanged, ev::Reassigned, ev::Lightning, ev::
 struct View {
     const Level* level = nullptr;
     UnitState player;
+    float path_target_x = 0, path_target_y = 0;  // player's path +0x10 / +0x12 (SP1), for FUN_006238c0's facing
     bool running = false, dead = false;
     bool poisoned = false;                 // a monster's poison on the player (the life globe's green, state 2)
     bool chilled = false;                  // a monster's cold on the player (state 11, its blue)
