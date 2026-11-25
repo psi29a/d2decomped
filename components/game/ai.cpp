@@ -3488,7 +3488,8 @@ float leap_done(const Monster& monster, std::uint32_t elapsed_ms, std::uint32_t 
     return std::clamp(float(elapsed_ms) / float(std::max<std::uint32_t>(span_ms, 1)), 0.f, 1.f);
 }
 
-// FUN_005da120's wait (d2d::rules::leap_wait): the unit's subtile against the landing's, the rewound row's event a tick on.
+// FUN_005da120's wait (d2d::rules::leap_wait): the unit's subtile (its path's 16.16 x / y, the words at +2 / +6:
+// FUN_006488c0 / FUN_00648900) against the landing's; on it, short of the centre, it lands. Else the rewound row's event a tick on.
 // ponytail: only the BaseIds that leap in play (sandleaper1, the ancients) rewind to a row; the landing's own one-row cut of the length (+0x48) isn't ported.
 bool leap_hold(Monster& monster, int base_id, std::uint32_t step_ms) {
     if (monster.leap_pace <= 0) return false;
@@ -3496,7 +3497,9 @@ bool leap_hold(Monster& monster, int base_id, std::uint32_t step_ms) {
     if (flown >= 1.f) return false;
     const auto subtile = [](float cells) { return int(std::floor(cells * 5)); };
     const float at_x = monster.leap_from_x + (monster.leap_to_x - monster.leap_from_x) * flown, at_y = monster.leap_from_y + (monster.leap_to_y - monster.leap_from_y) * flown;
-    const int apart = d2d::rules::ai_distance(subtile(at_x) - subtile(monster.leap_to_x), subtile(at_y) - subtile(monster.leap_to_y));
+    const int off_x = subtile(at_x) - subtile(monster.leap_to_x), off_y = subtile(at_y) - subtile(monster.leap_to_y);
+    if (off_x == 0 && off_y == 0) return false;
+    const int apart = d2d::rules::ai_distance(off_x, off_y);
     const auto wait = d2d::rules::leap_wait(base_id, apart, 0, 0);
     if (wait.position == 0) return false;
     monster.leap_hold_row = int(wait.position >> 8) + 1;

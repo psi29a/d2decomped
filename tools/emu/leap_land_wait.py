@@ -9,7 +9,10 @@ path's x / y getters hooked as the accessors they are) and must return 0 with th
 its row and the length (+0x48) one row longer. Rows: BaseId 0x4e 8, 0x21c 12 within 2 of the landing else 10, any other 0.
 The model below is written from the decompile. `--cases-out FILE` also writes the cases for d2d's `leap_wait`
 (tests/game/test_leap_landing_wait.cpp `--oracle FILE > answers`), and `--d2d-answers FILE` compares that output. A unit on the landing returns 1
-(checked, its effects hooked, not ported). Not covered: the landed branch's own effects, a player.
+(checked, its effects hooked, not ported). A second world runs the real getters (FUN_006488c0 / FUN_00648900) on a path
+whose 16.16 x / y (+0 / +4) lie within a subtile and a half of the landing: it lands exactly when their integer parts
+(the words at +2 / +6) are the landing's, short of the centre included (d2d's `leap_hold`).
+Not covered: the landed branch's own effects, a player.
 """
 import argparse
 import random
@@ -19,7 +22,8 @@ import sys
 import _monster_world as mw
 from _monster_world import require
 
-MUTATIONS = ("row-0x4e", "row-near-10", "row-far-12", "near-limit-3", "length-keeps", "position-no-low-byte", "other-row-8")
+MUTATIONS = ("row-0x4e", "row-near-10", "row-far-12", "near-limit-3", "length-keeps", "position-no-low-byte", "other-row-8",
+             "lands-at-centre")
 mutation = None
 BASES = (0x4e, 0x21c, 0x21d, 0x21b, 0, 5, 0x7f, 0x4f)
 CLASSES = 800
@@ -59,13 +63,21 @@ def make_cases(count, seed):
     return cases
 
 
-def run_game():
-    """Build the world once; return run(case) -> (eax, position, length)."""
+def lands(fine_x, fine_y, lx, ly):
+    """The model's landing test on a 16.16 path position: its subtile words (+2 / +6) against the landing."""
+    if mutation == "lands-at-centre":
+        return (fine_x, fine_y) == ((lx << 16) + 0x8000, (ly << 16) + 0x8000)
+    return (fine_x >> 16, fine_y >> 16) == (lx, ly)
+
+
+def run_game(real_getters=False):
+    """Build the world once; return run(case) -> (eax, position, length). real_getters: the path's own x / y words."""
     world = mw.World()
     machine = world.m
     state = {}
-    machine.hook(0x6488C0, lambda current: state["x"], 1)    # the path's x and y getters
-    machine.hook(0x648900, lambda current: state["y"], 1)
+    if not real_getters:
+        machine.hook(0x6488C0, lambda current: state["x"], 1)    # the path's x and y getters
+        machine.hook(0x648900, lambda current: state["y"], 1)
     # The landed branch's callees (stack arguments popped), hooked to nothing: it only has to return 1.
     for address, popped in {0x64EC10: 4, 0x648C30: 2, 0x648CE0: 2, 0x648CF0: 2, 0x644660: 2, 0x649180: 2, 0x643CE0: 3, 0x5DA020: 3,
                             0x5544B0: 0, 0x571B70: 0, 0x540E60: 2, 0x5417D0: 4}.items():
@@ -89,6 +101,9 @@ def run_game():
         machine.w32(record + 0x18, lx)
         machine.w32(record + 0x1C, ly)
         state["x"], state["y"] = ux, uy
+        if real_getters:                                         # (ux, uy) a 16.16 position on the path (+0 / +4)
+            machine.w32(path, ux)
+            machine.w32(path + 4, uy)
         eax = world.run(0x5DA120, 0, record, regs={"eax": unit}, nstack=2)
         return eax, machine.r32(unit + 0x38), machine.r32(unit + 0x48), (world, unit, record, lx, ly)
 
@@ -111,6 +126,14 @@ def check(count, seed, cases_out=None, d2d_answers=None):
         base, ux, uy = case[:3]
         eax = run((base, ux, uy, ux, uy, 0, 0))[0]
         require(eax == 1, f"on the landing: returned {eax}")
+    fine_run = run_game(real_getters=True)[0]                 # the real getters on a 16.16 position near the landing
+    rng = random.Random(seed + 1)
+    for _ in range(max(count // 4, 50)):
+        lx, ly = rng.randrange(8, 4000), rng.randrange(8, 4000)
+        fine_x = (lx << 16) + 0x8000 + rng.choice((0, rng.randrange(-0x18000, 0x18000)))
+        fine_y = (ly << 16) + 0x8000 + rng.choice((0, rng.randrange(-0x18000, 0x18000)))
+        eax = fine_run((0x21C, fine_x, fine_y, lx, ly, 0, 0))[0]
+        require(eax == (1 if lands(fine_x, fine_y, lx, ly) else 0), f"path ({fine_x:#x}, {fine_y:#x}), landing ({lx}, {ly}): returned {eax}")
     if cases_out:
         with open(cases_out, "w", encoding="utf-8") as handle:
             for index, (base, distance, position, length, _, _) in enumerate(answers):
