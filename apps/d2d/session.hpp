@@ -27,6 +27,7 @@
 #include "panels/scroll.hpp"
 #include "panels/store.hpp"
 #include "platform.hpp"
+#include "render/ground_arrival.hpp"
 #include "render/tile_blit.hpp"
 #include "render/unit_slide.hpp"
 #include "render/world_view.hpp"
@@ -185,7 +186,8 @@ void view_units(const Scene& scene, const View& view, float camera_x, float came
 // cells in order (game::automap_rooms, FUN_00619790), each room's items
 // newest first (FUN_0064c2c0 adds a unit at its room's head). Sets each
 // one's Unit::label_rank; one in no near room keeps -1.
-void rank_ground_labels(const GameData& game_data, const Level& level, float x, float y, std::span<Unit> units);
+// Within a room, by `arrival` (by View::ground index; client::GroundArrival), the last arrived first.
+void rank_ground_labels(const GameData& game_data, const Level& level, float x, float y, std::span<Unit> units, std::span<const std::uint32_t> arrival);
 // Over the world: the hovered (else attacked) monster's life bar in `bar_span` (rules::monster_bar_span; empty:
 // none), the death message.
 void view_overlays(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const View& view, int hovered,
@@ -240,6 +242,8 @@ struct ClientSession {
     struct ShownMode { int mode = -1; std::uint32_t skill_ms = 0, since = 0; };   // since: world ms
     std::unordered_map<std::uint32_t, ShownMode> net_other_modes;   // another player's mode, by unit id   // the host's monsters as d2d draws them, by unit id
     int net_attack = -1, net_attack_type = 1, net_attack_skill = 0;   // the host unit being attacked (type 0 player, 1 monster), with what
+    client::GroundArrival ground_arrival;                    // the ground items' order in the client's room lists
+    const d2d::game::Level* ground_arrival_level = nullptr;  // the level it's for
     // The client's own skill delay for its player (0x7a04fc, FUN_004c6680 at 0x4c68b8): set at its do to the clock plus
     // min(delay, 12) frames; FUN_004d9fc0 turns a status 0 into 8 before then. World ms; net_seen_delay is the
     // World's Hero::skill_delay last seen, so a do that set it is caught once.

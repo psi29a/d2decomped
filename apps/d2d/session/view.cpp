@@ -156,11 +156,16 @@ std::pair<std::string_view, std::uint32_t> portal_mode(const Scene& scene, const
 
 }  // namespace
 
-void rank_ground_labels(const GameData& game_data, const Level& level, float x, float y, std::span<Unit> units) {
+void rank_ground_labels(const GameData& game_data, const Level& level, float x, float y, std::span<Unit> units, std::span<const std::uint32_t> arrival) {
     std::vector<Unit*> ground;
     for (auto& unit : units)
         if (unit.npc <= -1000 && unit.npc > -2000) ground.push_back(&unit);
-    std::ranges::sort(ground, {}, [](const Unit* unit) { return unit->npc; });   // the newest (last in View::ground) first
+    const auto arrived = [&](const Unit* unit) {
+        const auto index = std::size_t(-1000 - unit->npc);
+        return index < arrival.size() ? arrival[index] : 0u;
+    };
+    // The last arrived first; equal (none yet), the newest (last in View::ground) first.
+    std::ranges::sort(ground, [&](const Unit* left, const Unit* right) { return arrived(left) != arrived(right) ? arrived(left) > arrived(right) : left->npc < right->npc; });
     int rank = 0;
     for (const auto& room : d2d::game::automap_rooms(game_data, level, x, y)) {
         if (room.level != &level) continue;                                      // View::ground is this level's

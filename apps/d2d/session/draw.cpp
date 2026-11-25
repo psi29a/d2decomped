@@ -33,6 +33,7 @@
 #include <font.hpp>
 #include <hire.hpp>
 #include <hover_box.hpp>
+#include <level.hpp>
 #include <level_ids.hpp>
 #include <light.hpp>
 #include <log.hpp>
@@ -209,7 +210,18 @@ auto ClientSession::draw_view(std::vector<std::uint8_t>& framebuffer, std::vecto
             else cairn_flash.reset();
         }
         view_units(*scene, view, cam_x, cam_y, &merc_label, extra, client_effects, frame_ms, &character.name, std::max(character.character_class, 0), &state_clock);
-        if (view.level) rank_ground_labels(*world.game_data, *view.level, unit.x, unit.y, extra);
+        if (view.level) {
+            if (ground_arrival_level != view.level) { ground_arrival.clear(); ground_arrival_level = view.level; }
+            std::vector<std::pair<int, int>> lying;
+            for (const auto& item : view.ground) lying.emplace_back(item.id, d2d::game::room_of(*view.level, item.x, item.y));
+            std::vector<int> in_play;
+            for (const auto& [room_level, room] : d2d::game::near_rooms(*world.game_data, *view.level, unit.x, unit.y))
+                if (room_level == view.level) in_play.push_back(room);
+            ground_arrival.step(lying, in_play);
+            std::vector<std::uint32_t> arrival;
+            for (const auto& item : view.ground) arrival.push_back(ground_arrival.of(item.id));
+            rank_ground_labels(*world.game_data, *view.level, unit.x, unit.y, extra, arrival);
+        }
         for (const auto& critter : critters)                      // the client's critters: walking or standing, never hovered
             if (std::size_t(critter.row) < world.game_data->mon_npc.size() && std::abs(critter.x - cam_x) < 14 && std::abs(critter.y - cam_y) < 14) {
                 const auto& anim = scene->npc_anim(world.game_data->mon_npc[std::size_t(critter.row)], critter.walking ? std::string_view("WL") : std::string_view("NU"));

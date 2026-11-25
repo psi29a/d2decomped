@@ -97,12 +97,12 @@ removal packet; the client's side not read). The client heads its room list
 with each arriving item (`FUN_004c1910` modes 3 and 5: `FUN_00620ae0`,
 `FUN_00620a70`, `d2d_unit_link_in`), so a drop made while the room is in
 play lists first, and the items a room brings with it when it comes into play
-list after, oldest first (the reverse of their server order). d2d keeps
-`View::ground`'s one order (`rank_ground_labels` takes the last first): right
-for items dropped in play, reversed for a floor that comes back with its
-room; the level come back to and a room re-entering play on a walk both
-need the arrival order kept, which `world/tick.cpp`'s push and
-`world/view.cpp`'s copy would carry, so it is not ported. The spot is the item's client position less the
+list after, oldest first (the reverse of their server order). d2d's client
+keeps that arrival order (`client::GroundArrival`, `test_ground_arrival`): each
+frame a new item in a room already in play arrives alone, the items of a room
+just come into the near list arrive newest first, and a room gone from it drops
+its items; `rank_ground_labels` walks a room's items by it, the last arrived
+first. The spot is the item's client position less the
 view's, 16 up: x = `FUN_00620650` − `FUN_0045afc0`, y = `FUN_006206b0` −
 0x10 − `FUN_0045afd0` (an item's static path +4 / +8). The rect: left =
 x − (w + 8) / 2 (`sar`), right = left + w + 8, top = y − h + 4, bottom =
