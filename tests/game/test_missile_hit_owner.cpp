@@ -3,7 +3,6 @@
 // Baal Taunt's two controls (hit 58 FUN_005acdf0, hit 59 FUN_005acf20) lay their sub missiles only
 // when FUN_00552fd0 finds the missile's owner; one with none (owner -1) lays nothing at its end.
 
-#include <ai.hpp>
 #include <ai/units.hpp>
 #include <ds1.hpp>
 #include <gamedata.hpp>
@@ -12,7 +11,6 @@
 
 #include <array>
 #include <cassert>
-#include <cstdint>
 #include <cstdio>
 #include <exception>
 #include <utility>
