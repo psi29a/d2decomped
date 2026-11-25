@@ -955,7 +955,9 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
         // Stat 0x148 + 1 for each skill packet the server takes (FUN_00549d00, 0x549fc0): none for a click
         // the ask refuses (no packet), one for Attack in its place (AttackNoMana) or a skill the server then
         // refuses in town (FUN_0056f640, after the packet).
-        // ponytail: a held click's own rate (the client's) isn't d2d's: the count can still drift over a run.
+        // A held click asks once a drawn frame in both: FUN_0044efa0 runs the hold (0x44f031..0x44f046) each pass,
+        // FUN_004f6190 only sleeps a frame out to 5 ms, and FUN_00478350 exempts skill packets (0x05..0x11) from its
+        // 200 ms repeat drop; so the count follows the frame rate, game.exe's too (deviations.md #16).
         if (goes >= 0) ++actor->pierce_idx;
         if (goes != use_skill.skill) {
             // Attack in the skill's place goes at the spot; a refusal swings nothing.
