@@ -7,6 +7,7 @@
 #include "platform.hpp"
 #include "render/ingame.hpp"
 #include "scene.hpp"
+#include "session/host_npcs.hpp"
 #include "session/worn_frw.hpp"
 #include "ui.hpp"
 
@@ -586,8 +587,9 @@ auto ClientSession::net_items(const Command& command) -> bool {
 // A joined game: the host's monsters stand in for the World's (it makes
 // none: Fight::remote_monsters) and its other players are drawn, each hostile
 // when our S->C 0x8c relation flags toward it have bit 8 (FUN_004dc440); act
-// subtiles to the level's cells (a subtile's centre: d2d's x.5 is a cell's). The host's NPCs are left out: d2d's own
-// walk the camp (ponytail: matched by class and position later, M6).
+// subtiles to the level's cells (a subtile's centre: d2d's x.5 is a cell's). The host's NPCs (MonStats npc rows)
+// aren't monsters here: each of d2d's level NPCs is drawn where the host's of its class nearest its spot is, as it
+// walks there (each host unit taken once, in the level's NPC order).
 auto ClientSession::net_overlay() -> void {
         if (!level || !scene) return;
         // The World's do for our player set its skilldelay (Fight::start_delay, the action frame): the client's own
@@ -605,6 +607,31 @@ auto ClientSession::net_overlay() -> void {
         auto cell_y = [&](float subtile_y) { return (subtile_y + 0.5f) / 5.f - float(level->world_y); };
         view.monsters.clear();
         view.others.clear();
+        {
+            std::vector<d2d::client::NpcSpot> spots;
+            for (std::size_t index = 0; index < level->npcs.size(); ++index) {
+                const auto& npc = level->npcs[index];
+                spots.push_back({ npc.id, (npc.x + float(level->world_x)) * 5.f, (npc.y + float(level->world_y)) * 5.f,
+                                  npc.root == "objects" || index >= view.npc_states.size() || view.npc_states[index].hidden });
+            }
+            std::vector<const NetGame::Unit*> units;
+            std::vector<d2d::client::HostNpc> hosts;
+            for (const auto& [unit_key, unit] : net_game->units)
+                if (unit.type == 1 && unit.cls >= 0 && std::size_t(unit.cls) < scene->monsters.types.size()) {
+                    units.push_back(&unit);
+                    hosts.push_back({ scene->monsters.types[std::size_t(unit.cls)].id, unit.x, unit.y });
+                }
+            const auto paired = d2d::client::pair_host_npcs(spots, hosts);
+            for (std::size_t index = 0; index < paired.size(); ++index) {
+                if (paired[index] < 0) continue;
+                const auto& host = *units[std::size_t(paired[index])];
+                auto& state = view.npc_states[index];
+                state.x = cell_x(host.x);
+                state.y = cell_y(host.y);
+                state.walking = host.moving;
+                if (host.moving) state.dir = direction16(host.goal_x - host.x, host.goal_y - host.y);
+            }
+        }
         auto host_states = [&](const std::vector<int>& rows) {
             std::vector<std::string_view> names;
             for (const int row : rows) if (std::size_t(row) < scene->state_names.size()) names.emplace_back(scene->state_names[std::size_t(row)]);
