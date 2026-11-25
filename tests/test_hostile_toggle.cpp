@@ -17,11 +17,11 @@ int main() try {
 #include "hostile_toggle_cases.inc"
     };
     for (const auto& row : cases) {
-        d2d::rules::HostileToggleInput in;
-        in.in_room = row.in_room != 0; in.room_level_id = row.level_id; in.self_level = row.self_level;
-        in.other_level = row.other_level; in.other_level_again = row.other_again; in.hostile = row.hostile != 0;
-        in.pair_stamp = row.stamp; in.now = row.now; in.requested = row.on;
-        const int got = int(d2d::rules::hostile_toggle(in));
+        d2d::rules::HostileToggleInput input;
+        input.in_room = row.in_room != 0; input.room_level_id = row.level_id; input.self_level = row.self_level;
+        input.other_level = row.other_level; input.other_level_again = row.other_again; input.hostile = row.hostile != 0;
+        input.pair_stamp = row.stamp; input.now = row.now; input.requested = row.on;
+        const int got = int(d2d::rules::hostile_toggle(input));
         if (got != row.outcome)
             std::fprintf(stderr, "FAIL: room %d level %d levels %d/%d hostile %d stamp %#x now %#x on %u: d2d %d, game.exe %d\n", row.in_room, row.level_id,
                          row.self_level, row.other_level, row.hostile, row.stamp, row.now, row.on, got, row.outcome);
