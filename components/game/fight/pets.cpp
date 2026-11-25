@@ -139,12 +139,20 @@ auto Fight::pet_foe(const Pet& pet) const -> Foe {
 
 // A hurt pet with a regeneration (stat 0x4a), alive after the hit, files its unit event 3 for the next frame
 // (FUN_0057c6c0 0x57c8fd..0x57c92f), removing a filed one first (0x57c916): pet_regen.
-// ponytail: game.exe's Crushing Blow (FUN_005bffc0) sets the life itself and files no event; here it's a pet_hurt.
 auto Fight::pet_hurt(Pet& pet, int damage, std::uint32_t now_ms, int hit_class, bool marked, int fraction) -> void {
         if ((damage > 0 || fraction > 0 || pet.monster.lifeless) && pet.monster.mode != "DT") {
             (void)hurt(*game_data, pet.monster, damage, now_ms, fraction, hit_class, marked);
             if (pet.monster.alive() && pet.monster.stats.regen > 0) pet.monster.regen_from = now_ms + 40;
         }
+    }
+
+// Crushing Blow (FUN_005bffc0) sets the life itself (FUN_00627260 on stat 6, at least 0) and files no event:
+// no get-hit roll and no regeneration event (pet_regen) of its own; at 0 the record marks the kill (flag 2).
+auto Fight::pet_crushed(Pet& pet, int divisor, int damage_resist, std::uint32_t now_ms) -> void {
+        auto& monster = pet.monster;
+        if (!monster.alive() || monster.mode == "DT") return;
+        monster.hit_points = int(std::max<std::int64_t>(monster.hit_points - crushing_blow(monster.hit_points, divisor, damage_resist), 0));
+        if (!monster.alive()) { monster.life_frac = 0; set_mode(*game_data, monster, "DT", now_ms); }
     }
 
 auto Fight::pets_cross(const Level* from, const Level* destination, float dx, float dy) -> void {
