@@ -8,6 +8,7 @@
 // remove packet for a missile: FUN_0053bda0), so no explosion goes off; its
 // drawn copy flies on. No game data: rows typed in.
 
+#include <ai/units.hpp>
 #include <ds1.hpp>
 #include <gamedata.hpp>
 #include <missile_flight.hpp>
