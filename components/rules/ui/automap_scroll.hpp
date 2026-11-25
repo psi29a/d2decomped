@@ -6,6 +6,8 @@
 // draws, which is what puts an object's icon on the map.
 #pragma once
 
+#include <array>
+
 namespace d2d::rules {
 
 struct AutomapScroll { int x, y; };
@@ -31,6 +33,14 @@ constexpr AutomapScroll automap_scroll(int client_x, int client_y, int width, in
 // A client px coordinate's tile (FUN_00643340: 2y + x for x, 2y - x for
 // y, over 160; one less below zero, an exact multiple too).
 constexpr int client_tile(int value) { return value < 0 ? value / 160 - 1 : value / 160; }
+
+// The grid slot of cell (x, y)'s wall (FUN_004dd7c0): its record's px (FUN_0066dde0: FUN_00643310 of (x, y + 1), y +
+// 0x28), its tile (FUN_00643340), one row up (0x4dd7f9): the cell itself. FUN_004df1c0 draws a slot's walls, then the
+// units standing in it. {x, y}.
+constexpr std::array<int, 2> wall_slot(int cell_x, int cell_y) {
+    const int record_x = (cell_x - (cell_y + 1)) * 0x50, record_y = ((cell_y + 1 + cell_x) * 0x50 >> 1) + 0x28;
+    return { client_tile(2 * record_y + record_x), client_tile(2 * record_y - record_x) - 1 };
+}
 
 // Whether a unit at client px (unit_x, unit_y) lands in the view's unit
 // grid, the draw list that sets its flag 0x10000000 and so its automap

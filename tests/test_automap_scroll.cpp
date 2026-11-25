@@ -5,6 +5,7 @@
 // portraits, side panels.
 #include <automap_scroll.hpp>
 
+#include <array>
 #include <cassert>
 #include <cstdio>
 #include <iterator>
@@ -45,6 +46,9 @@ int main() {
     assert(!in_grid(90.5f, 100.5f) && !in_grid(125.5f, 100.5f) && !in_grid(100.5f, 82.5f) && !in_grid(100.5f, 117.5f));
     // A room's box against the view: room (8, 0) 8 x 8's corners (560 .. ., ...).
     assert(d2d::rules::room_in_view(0, 0, 800, 560, 0, 0, 8, 8) && !d2d::rules::room_in_view(0, 0, 800, 560, 40, 40, 8, 8));
+    // A wall goes in its own cell's slot (FUN_0066dde0, FUN_00643340, the row less one), as a unit standing there does.
+    for (int cell_y = -3; cell_y <= 300; cell_y += 7)
+        for (int cell_x = -3; cell_x <= 300; cell_x += 11) assert((d2d::rules::wall_slot(cell_x, cell_y) == std::array<int, 2>{ cell_x, cell_y }));
     std::printf("automap unit grid: game.exe's tiles and bounds\n");
     return 0;
 }
