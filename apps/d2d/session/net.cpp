@@ -320,9 +320,9 @@ auto ClientSession::send(const Command& command) -> void {
             net_game->log.note("a trade with no host NPC: not made (d2d's own store would make it here only)");
             return;
         } else if (const auto* buy = std::get_if<cmd::Buy>(&command); buy && net_game->trade_npc) {
-            const auto& tab = hero.store.tabs[std::size_t(std::clamp(buy->tab >= 0 ? buy->tab : store.tab, 0, 3))];
-            if (buy->stock >= 0 && std::size_t(buy->stock) < tab.size()) {
-                const auto& item = tab[std::size_t(buy->stock)];
+            const auto& tab = hero.store.tabs[std::size_t(std::clamp(store.tab, 0, 3))];
+            if (const auto found = std::ranges::find(tab, buy->item, &d2d::d2s::Item::id); found != tab.end()) {
+                const auto& item = *found;
                 const int cost = d2d::rules::item_price(scene->rules, item, hero.store.npc_id, false, hero.store.header, store.reduced);
                 net_game->buying = true;
                 net_game->send_items({ d2d::net::d2gs::c2s::buy(net_game->trade_npc, std::uint32_t(item.id), buy->fill ? 0x80000000u : 0u, std::uint32_t(cost)) });
@@ -470,6 +470,13 @@ auto ClientSession::send(const Command& command) -> void {
 // The host's NPC for d2d's NPC `index`: a unit of the same MonStats Id
 // (Akara for Akara), the nearest if several (rogues); nullptr while the
 // host hasn't sent it (out of range).
+// The stock item under the cursor goes by its unit id (C->S 0x32 +5, FUN_004b2650): the World's, or the host's in a
+// joined game (its 0x9c stock items, net_items).
+auto ClientSession::buy_stock(int index, bool fill) -> void {
+        const auto& tab = store.tabs[std::size_t(std::clamp(store.tab, 0, 3))];
+        if (index >= 0 && std::size_t(index) < tab.size()) send(cmd::Buy{ tab[std::size_t(index)].id, fill });
+    }
+
 auto ClientSession::net_npc(int index) const -> const NetGame::Unit* {
         if (!net_game || !level || index < 0 || std::size_t(index) >= level->npcs.size()) return nullptr;
         const auto& npc = level->npcs[std::size_t(index)];

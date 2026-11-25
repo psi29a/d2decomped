@@ -252,6 +252,13 @@ auto World::item_ids() -> void {
         if (actor->held && actor->held->id < 0) actor->held->id = loot.next_id++;
     }
 
+// A store's stock items are units too (the vendor's inventory, the player's gamble list): each its id
+// as it's made, which C->S 0x32 names (FUN_00577830 -> FUN_00552f60).
+auto World::store_ids() -> void {
+        for (auto& page : actor->store.tabs)
+            for (auto& stocked : page) if (stocked.id < 0) stocked.id = loot.next_id++;
+    }
+
 // What the client is told (View).
 // A monster's colour as the client picks it (FUN_00466360): its
 // TransLvl + 2 (8 and up: 2); a unique's (and superunique's) roll from

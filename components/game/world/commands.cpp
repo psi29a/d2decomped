@@ -147,6 +147,7 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
                                     fight.spawning.proxy, fight.spawning.game, &loot.found_uniques);
             actor->store.npc = trade->npc;
             actor->store.header = actor->character.header;
+            store_ids();
             actor->events.push_back(ev::OpenUI{ ev::OpenUI::trade, trade->npc });
             return true;
         }
@@ -155,18 +156,27 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
             actor->events.push_back(ev::OpenUI{ ev::OpenUI::hire, hire->npc });
             return true;
         }
+        // The stock item by its unit id on any tab (FUN_00577830: FUN_00552f60, then the vendor's
+        // inventory or the player's gamble list holds it, else refused, line 0x7e0 / 0x7f7 / 0x805).
         if (const auto* buy = std::get_if<cmd::Buy>(&command)) {
-            if (actor->store.npc < 0 || buy->stock < 0) return true;
+            if (actor->store.npc < 0 || buy->item < 0) return true;
             actor->store.reduced = reduced_prices();
-            if (buy->tab >= 0 && buy->tab < 4) actor->store.tab = buy->tab;   // the client's tab: the world's stays where the store opened
-            if (std::size_t(buy->stock) >= actor->store.tabs[std::size_t(actor->store.tab)].size()) return true;
+            int stock = -1;
+            for (std::size_t page = 0; page < actor->store.tabs.size() && stock < 0; ++page)
+                if (const auto found = std::ranges::find(actor->store.tabs[page], buy->item, &d2d::d2s::Item::id); found != actor->store.tabs[page].end()) {
+                    actor->store.tab = int(page);
+                    stock = int(found - actor->store.tabs[page].begin());
+                }
+            if (stock < 0) { actor->events.push_back(ev::TradeResult{ d2d::rules::Trade::refused }); return true; }
             const auto& belt = game_data->belts[std::size_t(belt_index(*game_data, actor->character.items))];
             const auto worn_by = wearer(*game_data, actor->character.header.cls, actor->character.items, actor->character.stats);
-            const auto& stocked = actor->store.tabs[std::size_t(actor->store.tab)][std::size_t(buy->stock)];
-            const auto result = actor->store.gamble ? d2d::rules::store_gamble(item_rules, actor->store, buy->stock, actor->character.items, actor->character.stats)
-                                                    : d2d::rules::store_buy(item_rules, actor->store, buy->stock, actor->character.items, actor->character.stats, belt.boxes, buy->fill,
+            const auto& stocked = actor->store.tabs[std::size_t(actor->store.tab)][std::size_t(stock)];
+            const auto result = actor->store.gamble ? d2d::rules::store_gamble(item_rules, actor->store, stock, actor->character.items, actor->character.stats)
+                                                    : d2d::rules::store_buy(item_rules, actor->store, stock, actor->character.items, actor->character.stats, belt.boxes, buy->fill,
                                                                             &worn_by, required_level(*game_data, stocked, worn_by.cls));
             if (result != d2d::rules::Trade::done) actor->events.push_back(ev::TradeResult{ result });   // a gamble's buy is a buy (C->S 0x32, FUN_00577830)
+            item_ids();
+            store_ids();
             return true;
         }
         if (const auto* sell = std::get_if<cmd::Sell>(&command)) {
@@ -239,13 +249,15 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
             if (scroll->code == "isc") items.erase(scroll);
             return true;
         }
+        // The entry of that name (FUN_005770e0: the record at (id - NameFirst) x 0x10, its own name the
+        // same, not hired, else refused, lines 0x685 / 0x693 / 0x69a); offered, as the list shows it.
         if (const auto* hire = std::get_if<cmd::Hire>(&command)) {
-            auto offers = hire_offers(act());
-            if (hire->offer >= 0 && std::size_t(hire->offer) < offers.size() && d2d::rules::hire(offers[std::size_t(hire->offer)], actor->character.header, actor->character.stats)) {
+            const auto offers = hire_offers(act());
+            const auto offer = std::ranges::find(offers, hire->name, &d2d::rules::MercOffer::name);
+            if (offer != offers.end() && d2d::rules::hire(*offer, actor->character.header, actor->character.stats)) {
                 // The entry's taken (packet 0x50 subtype 2); none left, the list rolls anew (FUN_00577010).
-                int seen = 0;
                 for (auto& entry : hire_lists[std::size_t(act())])
-                    if (d2d::rules::for_hire(entry) && seen++ == hire->offer) { entry.hired = true; break; }
+                    if (d2d::rules::for_hire(entry) && entry.name == hire->name) { entry.hired = true; break; }
                 hire_list(act());
                 spawn_merc();
             }

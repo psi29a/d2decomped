@@ -1055,7 +1055,7 @@ auto ClientSession::update(std::vector<std::uint8_t>& framebuffer, const Mouse& 
                 const auto& stock = store.tabs[std::size_t(store.tab)][std::size_t(store_index)];
                 const auto base = scene->rules.item_base.find(stock.code);
                 const bool fill = mouse.rpress_this_frame && (SDL_GetModState() & SDL_KMOD_SHIFT) != 0 && base != scene->rules.item_base.end() && base->second.multibuy;
-                send(cmd::Buy{ store_index, store.tab, fill });
+                buy_stock(store_index, fill);
             }
             // Sell: an inventory item; repair: that or a worn one.
             if (mouse.press_this_frame && (store.mode == 3 || (store.mode == 2 && !pad_a_edge)))

@@ -694,6 +694,7 @@ Trade store_buy(const Tables& tables, Store& store, int index, std::vector<d2d::
         if (purse() < price) return Trade::no_gold;
         auto copy = item;
         copy.quantity = quantity;
+        if (store_perm(store, item.code)) copy.id = -1;   // a perm item stays: the copy is a new unit (the stock item moves otherwise)
         if (const int box = belt_box(tables, items, copy, boxes); box >= 0) {
             copy.location = d2d::d2s::item_location::kBelt; copy.column = box; copy.row = 0; copy.panel = 0; copy.slot = 0;
         } else if (const int slot = wearer && !(weapon(copy) && std::ranges::any_of(items, in_hand)) ? auto_equip_slot(tables, items, copy, *wearer, required_level) : -1;
