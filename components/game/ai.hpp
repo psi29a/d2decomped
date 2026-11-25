@@ -149,6 +149,9 @@ inline float leap_moved(float pace, std::uint32_t elapsed_ms, float length) { re
 // How far along its line a takeoff has flown after `elapsed_ms` (0..1): at the takeoff's pace when it has one,
 // else along `span_ms`, the sequence's time.
 float leap_done(const Monster& monster, std::uint32_t elapsed_ms, std::uint32_t span_ms);
+// FUN_005da120's wait: at the landing event (leap_until) with the flight not done, the sequence waits a tick (leap_until and
+// mode_until move on step_ms). False: it is there (or the BaseId's rewind isn't traced), so it lands.
+bool leap_hold(Monster& monster, int base_id, std::uint32_t step_ms);
 
 // A knocked-back unit's slide (mode KB, Fight::knock_back.
 bool knock_slide(Monster& monster, std::uint32_t now_ms);

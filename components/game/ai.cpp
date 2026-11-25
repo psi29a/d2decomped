@@ -15,6 +15,7 @@
 #include <combat.hpp>
 #include <d2s_items.hpp>
 #include <item_gen.hpp>
+#include <leap_wait.hpp>
 #include <level_ids.hpp>
 #include <merc.hpp>
 #include <missiles.hpp>
@@ -296,6 +297,7 @@ void set_mode(const GameData& game_data, Monster& monster, std::string_view mode
         }
     }
     monster.seq_frame = -1;                                   // a sequence's row: drawn again as it plays
+    monster.leap_hold_row = -1; monster.seq_shift_ms = 0;     // no wait at a landing in the new mode
     monster.unit.mode_ms = now_ms;
     monster.unit.walking = mode == "WL" || mode == "RN";
     monster.scheduled_action_ms.reset();
@@ -1766,8 +1768,8 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             // unit bit 0x1000) till it lands (FUN_005da120 clears it): `landing_mark` in the crowd's
             // held marks (Fight::crowd), so no other unit steps or lands there meanwhile, those that
             // think later this frame included.
-            // ponytail: the wait at the landing for a unit not there yet (FUN_005da120 -> FUN_006212c0)
-            // isn't ported: a flight slower than its sequence is snapped to the landing at the end.
+            // The wait at the landing for a unit not there yet (FUN_005da120 -> FUN_006212c0): `leap_hold`.
+            // ponytail: Leap's (sandleaper) landing row isn't traced, so only Leap Attack waits; the takeoff row's start of the flight isn't either.
             if (landing) {
                 monster.leaping = true;
                 monster.leap_from_x = unit.x; monster.leap_from_y = unit.y;
@@ -2156,7 +2158,9 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
         if (seq) {
             const auto step_ms = active_skill && active_skill->srvdofunc == d2d::rules::ServerDoFunction::kDeathMaul
                 ? 40u : std::max<std::uint32_t>(timing.ms_per_frame() * 100 / std::uint32_t(100 + anim_rate_pct(game_data, monster, "SQ")), 1);
-            const int reached = std::min(int((now_ms - unit.mode_ms) / step_ms), int(seq->size()) - 1);
+            // Waiting at a leap's landing (FUN_005da120) it shows the row it rewinds to and steps back on; landed, the rows run on from there.
+            const int played = monster.leap_hold_row >= 0 ? monster.leap_hold_row * int(step_ms) : std::max(int(now_ms - unit.mode_ms) - monster.seq_shift_ms, 0);
+            const int reached = std::min(played / int(step_ms), int(seq->size()) - 1);
             monster.seq_mode = (*seq)[std::size_t(reached)].mode;
             monster.seq_frame = (*seq)[std::size_t(reached)].frame;
             for (; monster.seq_done <= reached; ++monster.seq_done) {
@@ -2935,7 +2939,14 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
             unit.x = monster.leap_from_x + (monster.leap_to_x - monster.leap_from_x) * done;
             unit.y = monster.leap_from_y + (monster.leap_to_y - monster.leap_from_y) * done;
         }
+        // FUN_005da120: the landing event with the unit not on the landing yet waits there a tick at a time.
+        const auto leap_step = std::max<std::uint32_t>(game_data.npc_timing(monster.npc, monster.mode).ms_per_frame() * 100 / std::uint32_t(100 + anim_rate_pct(game_data, monster, "SQ")), 1);
+        while (monster.leaping && monster.leap_until && now_ms >= monster.leap_until && leap_hold(monster, type_info.base, leap_step)) {}
         if (monster.leaping && monster.leap_until && now_ms >= monster.leap_until) {   // Leap Attack down at row 11
+            if (monster.leap_hold_row >= 0) {                          // the rows go on from the row it landed on
+                monster.seq_shift_ms = int(monster.leap_until - unit.mode_ms) - monster.leap_hold_row * int(leap_step);
+                monster.leap_hold_row = -1;
+            }
             monster.leaping = false; monster.leap_until = 0; unit.x = monster.leap_to_x; unit.y = monster.leap_to_y;
         }
         if (mode_over()) {
@@ -3472,6 +3483,22 @@ float leap_done(const Monster& monster, std::uint32_t elapsed_ms, std::uint32_t 
     const float length = std::hypot(monster.leap_to_x - monster.leap_from_x, monster.leap_to_y - monster.leap_from_y);
     if (monster.leap_pace > 0 && length > 0) return leap_moved(monster.leap_pace, elapsed_ms, length) / length;
     return std::clamp(float(elapsed_ms) / float(std::max<std::uint32_t>(span_ms, 1)), 0.f, 1.f);
+}
+
+// FUN_005da120's wait (d2d::rules::leap_wait): the unit's subtile against the landing's, the rewound row's event a tick on.
+// ponytail: only the BaseIds that leap in play (sandleaper1, the ancients) rewind to a row; the landing's own one-row cut of the length (+0x48) isn't ported.
+bool leap_hold(Monster& monster, int base_id, std::uint32_t step_ms) {
+    if (monster.leap_pace <= 0) return false;
+    const float flown = leap_done(monster, monster.leap_until - monster.unit.mode_ms, 1);
+    if (flown >= 1.f) return false;
+    const auto subtile = [](float cells) { return int(std::floor(cells * 5)); };
+    const float at_x = monster.leap_from_x + (monster.leap_to_x - monster.leap_from_x) * flown, at_y = monster.leap_from_y + (monster.leap_to_y - monster.leap_from_y) * flown;
+    const int apart = d2d::rules::ai_distance(subtile(at_x) - subtile(monster.leap_to_x), subtile(at_y) - subtile(monster.leap_to_y));
+    const auto wait = d2d::rules::leap_wait(base_id, apart, 0, 0);
+    if (wait.position == 0) return false;
+    monster.leap_hold_row = int(wait.position >> 8) + 1;
+    monster.leap_until += step_ms; monster.mode_until += step_ms;
+    return true;
 }
 
 // A knocked-back unit's slide (mode KB, Fight::knock_back: a monster, a
