@@ -1558,6 +1558,19 @@ address	name	evidence
 0055a200	player_kill_drop_ear	code "ear " (0x20726165) row via FUN_00633640, spot FUN_00555da0, made by FUN_00559ce0, placed by FUN_00558aa0; called from FUN_00580ec0
 0055a550	drop_item_make	thiscall (ECX item index, ESI dropper): spot FUN_00555da0, 0x84-byte record, level by the dropper's type, FUN_00558d90; nothing when no spot (drops.md "Making the item")
 0055afa0	drop_class_roll	fastcall (ECX game, EDX dropper; killer, class, forced, ilvl, noNoDrop, out, count, max): class moved on by the monster's level (FUN_00654e00) in expansion past normal for a non-noRatio non-boss monster, then FUN_0055a6d0 (drops.md "The class moved on by level")
+0055b110	player_relation_find_for_add	EDI self, ESI other: self's player-data +0x38 list by other id; no self match (party.md)
+0055b140	player_relation_add	game ECX, self EDX, other stack: unique five-dword node after state-7 gates (party.md; player_relations.py)
+0055b1e0	player_relation_remove	game ECX, self EDX, other stack: unlink and free the matching node (party.md; player_relations.py)
+0055b260	player_relation_flags_set	game ECX, self EDX, then other, mask, on: update flags and broadcast S-to-C 0x8c (party.md; player_relations.py)
+0055b300	player_relation_flags_test	self ECX, other EDX, mask stack: node flags masked, else zero (party.md; player_relations.py)
+0055b350	player_relation_flags	low 16 node flag bits, else zero (party.md)
+0055b3a0	player_relation_party_set	write the matching node's +0xc party bool (party.md)
+0055b3f0	player_relation_party_test	read the matching node's +0xc bool; self true, absent false (party.md)
+0055b440	player_relation_party_send	send the matching node's low +0xc byte through FUN_0053ddc0 (party.md)
+0055b4c0	player_relation_flags_send	send the matching node's low 16 flags through FUN_0053de20, S-to-C 0x8c (party.md)
+0055b540	player_relations_join_sync	add both ways, update party bools, send both and all self relation flags (party.md)
+0055b6c0	player_relation_hostile_stamp	self ECX, other EDX: pair +8, or player data +0x160 for null other (party.md; player_relations.py)
+0055b720	player_relation_hostile_stamp_set	self ECX, other EDX, stamp stack: pair +8 if present, self +0x160 = GetTickCount (party.md; player_relations.py)
 0055b7e0	monster_stats_of	ECX unit: type 1 with unit +0x14 set, the first dword there (FUN_005c5f50 reads Drain, record +0xa0 by difficulty, off it); 0 for a null unit, a player or no data (cited, decompile and FUN_005c5f50's asm)
 0055bed0	unit_mode3_notify	FUN_00537860, FUN_0053ec90 / FUN_0053ecf0 by flag 0x1000
 0055bf30	unit_mode3_notify_if	unit +0xc4 bit 0
