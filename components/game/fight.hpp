@@ -258,6 +258,8 @@ struct Fight {
         SkillMove smove;
         float move_x = 0, move_y = 0;          // where the click sent a moving skill
         std::uint32_t whirl_next = 0;
+        // Whirlwind's skill node: +0x24 set (its first pass struck) and flag 0x2000 (weapsel 2's left hand), both clear at its start.
+        bool whirl_begun = false, whirl_left = false;
         // A charge-up's charges (FUN_005d3320: its aurastate, the skill and
         // level in stats 0x15e / 0x15f, the count, at most 3, in aurastat1),
         // until auralencalc ticks after the last one.

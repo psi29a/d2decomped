@@ -4,9 +4,12 @@
 // (FUN_00648ce0: walls, no units), walked to its last point. On the camp's
 // grid, a point the straight line can't reach through a wall gets a route
 // round it, every point open.
-// Its hit gap (FUN_005d9320): the wielded weapon's own attack frames
-// (FUN_0062a710: AnimData's A1 for its class, the item's IAS and WSM),
-// banded 4..16; 10 frames with no weapon.
+// Its passes (FUN_005d9580 -> FUN_005d9320): the first strikes once and comes
+// back 4 frames on; then the gap of the weapon weapsel 2 picks (the right, the
+// left under the node's flag 0x2000): its own attack frames (FUN_0062a710:
+// AnimData's A1 for its class, the item's IAS and WSM), banded 4..16; 10 frames
+// with no weapon. The flag flips after each strike and on a pass that finds no
+// unit, so with a weapon in each hand the empty passes alternate the gaps.
 // Needs the game data (D2_MPQ_DIR); SKIPs without it.
 
 #include <character.hpp>
@@ -95,6 +98,8 @@ int main() try {
         const int rate = (100 + ias - data->rules.item_base.at(weapon->code).speed) * int(anim.speed) / 100;
         return d2d::rules::whirlwind_gap(int((std::int64_t(anim.frames) << 8) / rate));
     };
+    world.fight.move_event(*whirlwind, 1500);                          // the first pass: 4 frames, whatever the weapon
+    assert(actor.whirl_begun && actor.whirl_next == 1500 + 4 * 40);
     const auto gap_now = [&](std::uint32_t when) { actor.whirl_next = 0; world.fight.move_event(*whirlwind, when); return int(actor.whirl_next - when) / 40; };
     const int plain = gap_now(2000);
     assert(plain == gap_for(0) && plain == d2d::rules::whirlwind_gap(weapon_attack_frames(*data, *weapon, 4)));
@@ -107,6 +112,29 @@ int main() try {
     assert(gap_now(4000) == 10);
     actor.character.items = worn;
     std::printf("OK: Whirlwind hits every %d frames, %d with +60%% IAS on the weapon, 10 bare-handed\n", plain, quick);
+
+    // A weapon in each hand, the left's with +60% IAS: a new whirl's first pass (4 frames) flips to the left, and with
+    // no unit about each later pass flips once, so the gaps go left, right, left (no monsters in the camp).
+    assert(world.fight.monsters.empty());
+    std::erase_if(actor.character.items, [](const d2d::d2s::Item& item) {
+        return item.location == d2d::d2s::item_location::kEquipped && item.slot == d2d::d2s::body_location::kLeftArm; });
+    auto second = *weapon_at();
+    second.slot = d2d::d2s::body_location::kLeftArm;
+    second.props.push_back({ d2d::d2s::kFasterAttackRate, 0, 60 });
+    actor.character.items.push_back(second);
+    world.fight.start_move(*whirlwind, 5000);
+    assert(!actor.whirl_begun && !actor.whirl_left);
+    world.fight.move_event(*whirlwind, 5000);
+    assert(actor.whirl_next == 5000 + 4 * 40 && actor.whirl_left);
+    std::uint32_t when = actor.whirl_next;
+    std::vector<int> gaps;
+    for (int pass = 0; pass < 3; ++pass) {
+        world.fight.move_event(*whirlwind, when);
+        gaps.push_back(int(actor.whirl_next - when) / 40);
+        when = actor.whirl_next;
+    }
+    std::printf("two weapons: gaps %d, %d, %d (left %d, right %d)\n", gaps[0], gaps[1], gaps[2], quick, plain);
+    assert(gaps[0] == quick && gaps[1] == plain && gaps[2] == quick);
 
     return 0;
 } catch (const std::exception& error) {

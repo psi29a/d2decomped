@@ -304,6 +304,10 @@ every other row 0):
 - 1: the left hand's.
 - 2: the right hand's, unless the left holds a weapon and the skill
   node's flags (`d2d_skill_get_flags`) have 0x2000: then the left's.
+  Whirlwind's start (`FUN_005d8f50`) sets the flags to 1; its do
+  (`FUN_005d9580`) flips 0x2000 after each strike and on a pass that finds
+  no unit (0x5d978c), so the hands alternate strike by strike, and
+  `FUN_005d9320` takes the next gap from the hand the flag picks.
 - 3: by bit 8 of the unit's `+0x38` (with the sign fix-up of an `& 0x80000001`
   test): clear, the right hand's; set, the left hand's. Frenzy's and Double
   Swing's dos (`FUN_005d8e00`, `FUN_005d8470`) test the same bit to send the
