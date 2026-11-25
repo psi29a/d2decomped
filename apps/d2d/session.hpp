@@ -70,10 +70,9 @@
 
 namespace d2d::client {
 
-// The hovered monster's name on its life bar, top centre (FUN_00503000's
-// hover box: the name + 8 wide, its life share dark red, the rest dimmed).
-// ponytail: where game.exe puts it on screen isn't traced.
-void draw_monster_bar(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const Monster& monster);
+// The hovered monster's name on its life bar (FUN_00503000's hover box: the name + 8 wide, its life share dark red,
+// the rest dimmed), its bottom 0x22, in the middle of `span` (rules::monster_bar_box), its label lines under it.
+void draw_monster_bar(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const Monster& monster, std::array<int, 2> span);
 
 // The client's drawing of what the World told it (View): the ground
 // items, fires, the merc, pets, missiles and monsters near (cx, cy) as
@@ -187,10 +186,10 @@ void view_units(const Scene& scene, const View& view, float camera_x, float came
 // newest first (FUN_0064c2c0 adds a unit at its room's head). Sets each
 // one's Unit::label_rank; one in no near room keeps -1.
 void rank_ground_labels(const GameData& game_data, const Level& level, float x, float y, std::span<Unit> units);
-// Over the world: the hovered (else attacked) monster's life bar, the
-// death message.
+// Over the world: the hovered (else attacked) monster's life bar in `bar_span` (rules::monster_bar_span; empty:
+// none), the death message.
 void view_overlays(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const View& view, int hovered,
-                   float camera_x, float camera_y, float hero_x, float hero_y, const Lighting* light);
+                   float camera_x, float camera_y, float hero_x, float hero_y, const Lighting* light, std::array<int, 2> bar_span);
 // An SQ skill's frame now: the mode and when it started, as Fight::seq_view.
 std::pair<int, std::uint32_t> view_seq(const Scene& scene, int cls, const View& view, std::uint32_t now_ms);
 
