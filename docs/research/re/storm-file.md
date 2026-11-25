@@ -91,6 +91,74 @@ decompression, the request queue's worker, the checksum arithmetic.
 | `FUN_00420970` | ECX = window list, stack = record: unlinks it, frees it (tag `.?AUWNDREC@@`), returns the following record or 0. A null record faults (not run). |
 | `FUN_00420a70` | ESI = handler, EDI = window, stack (tag, code): a null handler gives error 0x57 and 0; an unknown window gets a record via `FUN_004208e0`; then `FUN_00426420(tag, window, code, 0, handler)` and its result is returned. |
 
+## SEVT.CPP: the handler register `FUN_00426420` (`LAB_0042644a` is inside it)
+
+Traced 2026-11-25 from the disassembly and run by
+`tools/emu/storm_event_register.py` (`gaps-runs: FUN_00426420 FUN_0042644a`):
+
+```sh
+tools/emu/.venv/bin/python tools/emu/storm_event_register.py --mutation-check
+python3 tools/ghidra/fn.py 00426420 0042644a 00426270
+```
+
+**`0x42644a` is not a function entry.** `FUN_00426420` is one function, 0x426420
+to 0x42670e (`RET 0x14`). Its first 42 bytes check the arguments; the
+`jne` at 0x426439 jumps to 0x42644a, which pushes `ebx`/`esi`/`edi` and
+carries on in the same stack frame (the decompile of "FUN_0042644a" reads the
+caller's arguments through `unaff_EBP`). It is the `LAB_0042644a` of
+`FUN_00426420`, listed as a function in `game-functions.tsv` only because Ghidra
+split the body; `game-srcfiles.tsv` gives it `SEVT.CPP`. Its one "caller" in
+`game-calls.tsv` is that jump.
+
+Signature: `(tag, window, code, flags, handler)`, `RET 0x14`; callers:
+`FUN_00420a70` (and through it `FUN_00420bf0`, `FUN_00420c10`, `FUN_00420c30`,
+`FUN_00420c50`). Callees: `FUN_0041c340` (stores the error in `DAT_007790f4`
+and calls `SetLastError`), `FUN_00426270` (node lookup, tag in ESI, window in
+EDX), `FUN_00413020` (SMemAlloc) and `FUN_00412650` (SMemFree), all with the
+file `.\SOURCE\SEVT.CPP`; the critical section `0x77930c`.
+
+1. **Guard.** It goes on only when `handler != 0` and `flags == 0`. Otherwise
+   `FUN_0041c340(0x57)` and 0, before the section is entered.
+2. **Node.** `FUN_00426270` looks (tag, window) up in the node hash: buckets
+   `DAT_00779300`, size `DAT_00779304`, count `DAT_00779308`, bucket
+   `(tag ^ window) & (size - 1)`, chain through node `+0x10`. A node is 0x14
+   bytes: `+0` tag, `+4` window, `+8` the handler counter, `+0xc` its handler
+   table, `+0x10` next. Missing: if `size >> 1 <= count` (always true at 0)
+   the hash is rebuilt first: the new size is the smallest power of two above
+   `2 * count + 2` (4 when empty; 0x143), the nodes are moved bucket by
+   bucket, each to the *head* of its new chain (so chains reverse), and the
+   old array is freed (0x154). Then the node (0x15d) and its 0x10-byte handler
+   table (0x160) are allocated, the count rises, the node goes at the head of
+   its chain.
+3. **Handler table.** `+0` buckets, `+4` size, `+8` count. If `size >> 1 <=
+   count` (true when empty) it is rebuilt: size the smallest power of two above
+   `2 * size + 2` (4 when empty); a bucket array (0x16e) and an array of tail
+   pointers (0x16f); the old records are walked bucket by bucket, chain by
+   chain, and each is appended at the *tail* of bucket `code & (newsize - 1)`
+   (record `+0xc` zeroed first), so their order is kept; the tail array is
+   freed (0x182) and the old bucket array when there is one (0x184).
+4. **The record** (0x10 bytes, 0x18d): `+0` code, `+4` the node's counter
+   after incrementing it (a sequence number), `+8` handler, `+0xc` next. It
+   goes at the *head* of bucket `(size - 1) & code`, the table's count rises,
+   `DAT_007792f8` is set to 1 (`FUN_00426f90` re-reads the table while it is set, and clears it after a
+   lookup when `DAT_007792fc` is 1), the section is left, return 1.
+
+The dispatcher takes the newest record of a code first, which is what the
+WM_CHAR oracle above shows. Oracle: 60 runs of up to 600 random calls (some
+with a non-zero `flags` or a null handler, tags and windows from a handful of
+pairs up to 40, codes from a few common to random 32-bit values) compare every
+return value, the SMemAlloc / SMemFree log (size, line, flags, which block a
+free takes back), `DAT_007790f4`, `DAT_007792f8` and both tables chain by
+chain with a model; five planted defects (ignored flags, a handler table grown
+one record late, a node rehash that keeps order, a zero sequence number,
+a record added at the tail) are all caught.
+
+d2d: no counterpart. It has no Storm event table; `rules::enter_takers` models
+only the dispatch result, already checked by `test_storm_char_dispatch`.
+Not traced: the size-overflow cases (a count of 0x7fffffff or more, which
+cannot be reached), allocation failure (SMemAlloc is hooked and never returns
+null; the function does not test for it), and a second thread in the section.
+
 ## More SFILE.CPP code, read from the decompile and the assembly
 
 Traced 2026-11-20 by reading, not run: the rest of the functions between

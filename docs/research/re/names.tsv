@@ -193,6 +193,7 @@ address	name	evidence
 00425d90	sha1_init	Count 0, state 0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476, 0xc3d2e1f0 (SHA-1). Callers FUN_0041d300, d2d_warden_digest, FUN_0051dbf0 (source-frontier.md)
 00425dd0	sha1_update	Adds n × 8 to the 64-bit bit count, buffers to 64 bytes at +0x1c and runs the block function (FUN_00425850) per full block (source-frontier.md)
 00425f00	sha1_final	Pads (0x708890) to 56 mod 64, appends the count, writes the five state words big-endian (20 bytes) (source-frontier.md)
+00426420	storm_event_register	(tag, window, code, flags, handler) ret 0x14: SEVT.CPP; one function to 0x42670e, LAB_0042644a is inside it; adds a handler record to the (tag, window) node's table, growing both hashes (storm-file.md "SEVT.CPP: the handler register")
 00426e80	break_cmd_add	Under 0x77930c: a 12-byte AUBREAKCMD node holding the argument pushed on the list 0x7088ec. Only caller FUN_00420290 (unnamed-frontier.md)
 0042e5d0	words_byteswap	ECX words, EDX count: swaps the two bytes of each word (ROL 8) (frontier-ring.md)
 0042fb20	title_screen_build	The title screen's records (FUN_0042f430), its texts: a string with the year (2000 classic, 2001 with FUN_00408f20; read from 0x6d4190) rewritten to 2000 - 2016, into text lists (FUN_004fc9b0); FUN_004fa410(0); the ... (unnamed-frontier.md)
