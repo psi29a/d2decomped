@@ -18,9 +18,11 @@
 #include <d2s.hpp>
 #include <d2s_items.hpp>
 #include <drink.hpp>
+#include <hit_records.hpp>
 #include <item_price.hpp>
 #include <leap.hpp>
 #include <monsters.hpp>
+#include <overlays.hpp>
 #include <pets.hpp>
 #include <points.hpp>
 #include <rules.hpp>
@@ -509,6 +511,16 @@ auto Fight::start_swing(std::uint32_t now_ms, bool shown) -> bool {
         const auto* used = game_data->skills.get(actor->swing_skill);
         set_pmode(swing_mode(), now_ms);
         start_sequence(now_ms);
+        // A do-2 skill's start builds its blow now (the Bash family's FUN_005d7ea0 -> FUN_0057dbf0) and keeps it
+        // for its do (FUN_0057ca80, hit): a miss with no roll when the monster is no foe (FUN_00554200) or out of
+        // reach (FUN_0057ec10 returns 0 before its to-hit draw); before the self state goes on.
+        if (used && actor->swing_skill != 0 && used->srvdofunc == ServerDoFunction::kResolveHit && !shown && actor->attack_mon >= 0
+            && std::size_t(actor->attack_mon) < monsters.size()) {
+            const auto struck = std::size_t(actor->attack_mon);
+            const auto& target = monsters[struck];
+            const bool foe = target.targetable() && target.align != 2 && melee_reach_to(target, true);
+            actor->hit_records.add(player_key(), { 1, target.id }, foe ? build_blow(struck) : Hero::BuiltBlow{});
+        }
         if (used && actor->swing_skill != 0 && used->srvdofunc == ServerDoFunction::kResolveHit && used->aurastat[0] >= 0) self_state(*used, now_ms);
         actor->pstruck = false;
         return true;
@@ -1019,35 +1031,40 @@ auto Fight::restart_swing(int keep, std::uint32_t now_ms) -> void {
         actor->pstruck = false;
     }
 
+// A do-2 skill's (FUN_0056f1f0) blow is the one its start built (start_swing):
+// the newest record against this monster (FUN_0057d690); none, no blow. A
+// landed one (the record's +4 bit 0) plays the skill's srvoverlay (+0x4e, an
+// Overlay.txt row over 0) on the monster as a one-shot (FUN_00621e40):
+// Concentrate's doubledamage1, Fire Claws' fire_hit. Then the resolve
+// (FUN_0057d4f0) drops the pair's records (FUN_0057c9f0) and, in reach,
+// lands the blow; out of reach it only drops them. Its auratargetstate
+// (+0x82) on a landed record no 1.14d do-2 row has (stubs.md).
 auto Fight::hit(std::uint32_t now_ms, float reach ) -> void {
         if (actor->attack_mon < 0) return;
         auto& target_monster = monsters[std::size_t(actor->attack_mon)];
+        const auto* skill = game_data->skills.get(actor->swing_skill);
+        std::optional<Hero::BuiltBlow> built;
+        if (skill && actor->swing_skill != 0 && skill->srvdofunc == ServerDoFunction::kResolveHit) {
+            const d2d::rules::UnitKey struck{ 1, target_monster.id };
+            const auto* record = actor->hit_records.find(player_key(), struck);
+            if (!record) return;
+            built = *record;
+            actor->hit_records.drop(player_key(), struck);
+            if (const int overlay = game_data->overlay_row(skill->srvoverlay); built->blow.hit && overlay > 0) d2d::rules::add_one_shot(target_monster.one_shots, overlay, now_ms);
+        }
         // Converted while the swing was on: no foe of the player's side (FUN_00554200, as land),
         // so no blow, and no charge, Frenzy or wear off it.
         if (!target_monster.targetable() || target_monster.align == 2
             || (reach < 0.f ? !melee_reach_to(target_monster, true)
                             : std::hypot(target_monster.unit.x - actor->player.x, target_monster.unit.y - actor->player.y) > reach)) return;
-        auto current_swing = swing();
-        const auto* skill = game_data->skills.get(actor->swing_skill);
-        auto fighter = current_swing.kick ? actor->pf_kick : blow_fighter(skill);
         const bool charging = skill && skill->srvstfunc == ServerStartFunction::kChargeUp, finishing = finisher(skill);
         std::erase_if(actor->charges, [&](const Charge& charge) { return now_ms >= charge.until; });
-        if (finishing) add_charges(fighter, current_swing);
-        if (skill && skill->srvstfunc != ServerStartFunction::kVengeance && std::ranges::contains(std::array{ ServerDoFunction::kResolveHit, ServerDoFunction::kRepeatedHit, ServerDoFunction::kSacrifice, ServerDoFunction::kJab, ServerDoFunction::kDragonClaw,
-                ServerDoFunction::kFrenzy, ServerDoFunction::kDoubleSwing, ServerDoFunction::kWhirlwind, ServerDoFunction::kCharge, ServerDoFunction::kLeapAttack,
-                ServerDoFunction::kPoisonDagger, ServerDoFunction::kChargedStrike, ServerDoFunction::kLightningStrike, ServerDoFunction::kRabies }, skill->srvdofunc)) skill_element(fighter, *skill);
-        // Hunger (do 122, FUN_005c7f10): calc1 damage %, calc2 / calc3 life /
-        // mana stolen.
-        if (skill && skill->srvdofunc == ServerDoFunction::kHunger) {
-            const int lvl = skill_level ? skill_level(skill->id) : 1;
-            current_swing.ed_pct += calc(*skill, skill->calc[0], lvl);
-            fighter.life_steal += calc(*skill, skill->calc[1], lvl); fighter.mana_steal += calc(*skill, skill->calc[2], lvl);
-        }
         const int hp_before = target_monster.hit_points;
         const auto target = std::size_t(actor->attack_mon);
+        auto made = built ? *built : build_blow(target);
+        auto& blow = made.blow;
         const auto target_view = target_of(target);
-        auto blow = d2d::rules::player_blow(fighter, target_view, int(actor->character.stats.get(d2d::d2s::kLevel)), rng, current_swing);
-        const auto frozen = freeze_on(target, target_view, blow, current_swing.freeze_len);
+        const auto frozen = freeze_on(target, target_view, blow, made.freeze_len);
         if (land(target, blow, true, now_ms, player_foe_id())) player_thorns(target, blow);
         stand(target, frozen, now_ms);
         if (blow.hit && charging) charge(*skill, now_ms);
@@ -1077,6 +1094,24 @@ auto Fight::hit(std::uint32_t now_ms, float reach ) -> void {
                                                                             skill_level ? skill_level(skill->id) : 1) / 100;
         }
         if (!monsters[target].alive()) actor->attack_mon = -1;
+    }
+
+auto Fight::build_blow(std::size_t monster_index) -> Hero::BuiltBlow {
+        auto current_swing = swing();
+        const auto* skill = game_data->skills.get(actor->swing_skill);
+        auto fighter = current_swing.kick ? actor->pf_kick : blow_fighter(skill);
+        if (finisher(skill)) add_charges(fighter, current_swing);
+        if (skill && skill->srvstfunc != ServerStartFunction::kVengeance && std::ranges::contains(std::array{ ServerDoFunction::kResolveHit, ServerDoFunction::kRepeatedHit, ServerDoFunction::kSacrifice, ServerDoFunction::kJab, ServerDoFunction::kDragonClaw,
+                ServerDoFunction::kFrenzy, ServerDoFunction::kDoubleSwing, ServerDoFunction::kWhirlwind, ServerDoFunction::kCharge, ServerDoFunction::kLeapAttack,
+                ServerDoFunction::kPoisonDagger, ServerDoFunction::kChargedStrike, ServerDoFunction::kLightningStrike, ServerDoFunction::kRabies }, skill->srvdofunc)) skill_element(fighter, *skill);
+        // Hunger (do 122, FUN_005c7f10): calc1 damage %, calc2 / calc3 life /
+        // mana stolen.
+        if (skill && skill->srvdofunc == ServerDoFunction::kHunger) {
+            const int lvl = skill_level ? skill_level(skill->id) : 1;
+            current_swing.ed_pct += calc(*skill, skill->calc[0], lvl);
+            fighter.life_steal += calc(*skill, skill->calc[1], lvl); fighter.mana_steal += calc(*skill, skill->calc[2], lvl);
+        }
+        return { d2d::rules::player_blow(fighter, target_of(monster_index), int(actor->character.stats.get(d2d::d2s::kLevel)), rng, current_swing), current_swing.freeze_len };
     }
 
 // What Conversion (FUN_005d0350) and Mind Blast (FUN_005d7430) do once
