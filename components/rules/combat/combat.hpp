@@ -461,7 +461,7 @@ struct Swing {
     int ar_pct = 0, ed_pct = 0, flat = 0, srcdam = 128;
     bool kick = false, knockback = false;
     int skill_lo = 0, skill_hi = 0;
-    int row_lo = 0, row_hi = 0;           // a missile row's own physical (256ths): in the roll with the weapon's, so a crit doubles it
+    int row_lo = 0, row_hi = 0;           // a missile row's own physical (256ths): in the roll with the weapon's, not scaled by srcdam
     int stun_ticks = 0;                   // EType stun: the target stands this long (FUN_0057aae0)
     int hit_class = 0;                    // the skill's HitClass, OR-ed into the weapon's
     int conv_type = -1, conv_pct = 0;     // calc4 % of the physical becomes this element (Skill::etype order)

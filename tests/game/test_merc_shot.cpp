@@ -83,7 +83,32 @@ void row_point_checks() {
     bow.phys_pct = 0;
     bow.deadly = 100;
     assert(blow(with_row).phys == 22);
-    std::puts("OK: rogue1's point joins the roll, scaled by the damage % and doubled by a deadly strike (FUN_0064b860, FUN_005a89a0)");
+    bow.deadly = 0;
+    // SrcDamage scales the weapon's part only (0x64bc43..0x64bc67), the row's point goes in whole (0x64bdf7).
+    plain.srcdam = with_row.srcdam = 64;
+    assert(blow(plain).phys == 5 && blow(with_row).phys == 6);
+    plain.srcdam = 128;
+    // The record's % takes the larger of the owner's stats 18 / 17 (0x64bdc2..0x64bddc).
+    bow.unit_min_pct = 20; bow.unit_max_pct = 40;
+    assert(blow(plain).phys == 14);
+    bow.unit_min_pct = bow.unit_max_pct = 0;
+    // The hit adds the demons' % on a demon, the undead's (+50 Blunt) on an undead (FUN_005a89a0, 0x5a8b09..0x5a8bff).
+    bow.demon_pct = 30; bow.undead_pct = 10; bow.blunt = true;
+    auto demon = zombie;
+    demon.demon = true;
+    assert(blow(plain).phys == 10);
+    const auto struck = [&](const d2d::rules::Target& target) {
+        d2d::rules::Rng roll{ 3 };
+        auto landed = d2d::rules::player_blow(bow, target, 2, roll, plain);
+        for (int tries = 0; tries < 20 && !landed.hit; ++tries) landed = d2d::rules::player_blow(bow, target, 2, roll, plain);
+        return landed.phys;
+    };
+    auto undead = zombie;
+    undead.undead = true;
+    assert(struck(demon) == 13 && struck(undead) == 16);
+    bow.phys_pct = -200;                                         // at least -90, twice
+    assert(struck(zombie) == 1);
+    std::puts("OK: rogue1's point joins the roll whole, the weapon's part x SrcDamage, the % with stats 17 / 18 and the demons' (FUN_0064b860, FUN_005a89a0)");
 }
 
 }  // namespace
