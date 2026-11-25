@@ -69,6 +69,7 @@ address	name	evidence
 0041c0e0	serr_set_blizzard_error	DAT_007790f8 = the ECX argument (a function pointer), no return value. Only caller FUN_00408ce0 (source-small.md)
 0041c1f0	rtti_name_short	A name of the form .?AU<name>@... (at least 6 characters): <name> up to ? or @, trailing _ trimmed, between two fixed strings (0x6cf328, 0x6cf324), into ESI (EBX characters); 1, else 0. Only caller FUN_0041caf0 (source-frontier.md)
 0041c560	slist_link_or_terminator_2	Same as slist_link_or_terminator (FUN_00420520), another copy (source-list.md)
+0041c580	slist_link_2	Same as slist_link (FUN_00420540), another copy: ECX list, node, mode, anchor (ret 0xc); only caller FUN_0041c840 (source-list.md)
 0041c630	slist_next_node_2	Same as slist_next_node (FUN_004205f0), another copy (source-list.md)
 0041c690	slist_unlink_2	Same as slist_unlink (FUN_00420650), another copy (source-list.md)
 0041c700	slist_raw_next_2	Same as slist_raw_next (FUN_004206e0), another copy (source-list.md)
