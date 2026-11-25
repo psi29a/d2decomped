@@ -32,6 +32,7 @@
 #include <d2s_items.hpp>
 #include <font.hpp>
 #include <hire.hpp>
+#include <hover_box.hpp>
 #include <level_ids.hpp>
 #include <light.hpp>
 #include <log.hpp>
@@ -415,7 +416,10 @@ auto ClientSession::draw_view(std::vector<std::uint8_t>& framebuffer, std::vecto
                 }
             }
         }
-        view_overlays(framebuffer, *scene, view, hovered_monster(), cam_x, cam_y, unit.x, unit.y, &light);
+        // FUN_00454880's panels: the left ones, the right ones (inventory, skill tree), and those that hide the bar.
+        const bool left_up = char_open || quest_log.open || waypoint.open || party.open || hireling.open;
+        const auto bar_span = d2d::rules::monster_bar_span(int(kScreenWidth), left_up, inv_open || tree_open, store.npc >= 0 || stash_open || cube_open);
+        view_overlays(framebuffer, *scene, view, hovered_monster(), cam_x, cam_y, unit.x, unit.y, &light, bar_span);
         draw_hold_cue(framebuffer);
         if ((!coop_hud_hidden() || skillbar.picking) && (!touch_hides_classic_hud() || skillbar.picking != 0))
             skillbar.draw(framebuffer, held ? -1 : mouse.x, held ? -1 : mouse.y, tip_env());
