@@ -1485,7 +1485,12 @@ status, links +0x1c / +0xe8; FUN_0061b210 moves it).
   (FUN_0066f1a0) only when DRLG act +0x8c & 1 (FUN_00642a00). That bit is
   1 on the client (FUN_006194a0's client branch passes 1) and 0 on the
   server. The client's frame (FUN_0044c790 → FUN_0061b920) also brings
-  up one status-2 room every 5 frames. The server never does: its room1s
+  up one status-2 room every 5 frames (`+0x45c` counts down from 5 on the
+  client, 7 on the server), the first without a room1 (`+0x30`) from a
+  cursor (`+0x460`) on the circular status-2 list, which FUN_0061b210 fills
+  at its tail: the rooms first reached at depth 2, depth first, whichever
+  level they're of (d2d: `player_moved`'s ring, `test_client_ring`; all at
+  once, not one each 5 frames). The server never does: its room1s
   come only from depth 1 (and a warp's landing room, FUN_0052d0f0).
 - **Freeing** (FUN_0052d240, every 12th server frame from FUN_0052d870):
   for each act's room1 (list +0x10, next +0x7c), FUN_0061a790 resets the

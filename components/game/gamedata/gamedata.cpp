@@ -643,23 +643,27 @@ std::vector<std::pair<const Level*, std::size_t>> player_moved(const GameData& g
         fresh.push_back(near_room);
     }
     for (const auto& near_room : fresh) bring_up(near_room.level, std::size_t(near_room.room));
-    // The client draws further out: every room of this level within two rooms
-    // of the player's (live Lut Gholein: the 5x5 block, 20 rooms with the
-    // level's edge), after the near list, made order (Level::drawn only).
-    // ponytail: this level's rooms only, two 8-cell rooms out; the client's own
-    // reach (FUN_?) isn't traced, nor whether it crosses into the next level.
-    if (level.rooms.size() == rects.size()) {
-        auto& state = spawning.levels[&level];
-        const auto& here = rects[std::size_t(room)];
-        const std::size_t ring_from = state.client_order.size();
-        for (std::size_t index = 0; index < rects.size(); ++index) {
-            const auto& other = rects[index];
-            const bool reach = other.x < here.x + here.width + 16 && other.x + other.width > here.x - 16
-                            && other.y < here.y + here.height + 16 && other.y + other.height > here.y - 16;
-            if (reach && !std::ranges::contains(state.client_order, index)) state.client_order.push_back(index);
+    // The client draws further out (drlg.md "Entering a room"): FUN_0061b390 walks the near list three deep, and
+    // every room first reached at depth 2 (a near room's near list, whichever level it's of) goes on the act's
+    // status-2 list at its tail (FUN_0061bb10 -> FUN_0061b210); the depth-1 rooms leave it for status 1. The client's
+    // frame (FUN_0044c790 -> FUN_0061b920) brings up the first one there without a room1, one each 5 frames, walking
+    // the list from its head: so they're made in that depth-first order (live Lut Gholein: the 5x5 block).
+    // ponytail: they come up at once here, not one each 5 client frames.
+    {
+        const auto first = near_list(game_data, level, room);
+        const auto known = [](const std::vector<NearRoom>& rooms, const NearRoom& candidate) {
+            return std::ranges::any_of(rooms, [&](const NearRoom& other) { return other.level == candidate.level && other.room == candidate.room; });
+        };
+        std::vector<NearRoom> ring;
+        for (const auto& near_room : first)
+            for (const auto& further : near_list(game_data, *near_room.level, near_room.room))
+                if (!known(first, further) && !known(ring, further)) ring.push_back(further);
+        for (const auto& further : ring) {
+            auto& state = spawning.levels[further.level];
+            if (std::ranges::contains(state.client_order, std::size_t(further.room))) continue;
+            state.client_order.push_back(std::size_t(further.room));
+            if (!std::ranges::contains(moved, further.level)) moved.push_back(further.level);
         }
-        std::sort(state.client_order.begin() + std::ptrdiff_t(ring_from), state.client_order.end());
-        if (state.client_order.size() > ring_from && !std::ranges::contains(moved, &level)) moved.push_back(&level);
     }
     lay();
     for (auto it = fresh.rbegin(); it != fresh.rend(); ++it) {
