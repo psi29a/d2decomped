@@ -26,7 +26,9 @@ using namespace d2d::game;
 int main() try {
     d2d::test::TestData fixture;
     auto& golem_type = fixture.monster(0, "irongolem");
+    golem_type.no_ratio = true;   // every player summon's row is noRatio: its life as written (monster_stats, FUN_00573cb0)
     for (auto& per_difficulty : golem_type.diff) { per_difficulty.min_hp = per_difficulty.max_hp = 100; per_difficulty.a1_min = 5; per_difficulty.a1_max = 10; }
+    fixture.mon_level(0, 1, 1, 1, 1);
     auto& skill = fixture.skill(90, "IronGolem");
     skill.srvdofunc = d2d::rules::ServerDoFunction::kIronGolem;
     skill.summon = "irongolem";
