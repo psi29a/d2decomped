@@ -260,3 +260,197 @@ what is game logic:
 
 What d2d could take from these is in
 [docs/design/rendering.md](../../design/rendering.md).
+
+## Inside the Glide driver
+
+The Glide functions behind the slots above, by source file (the files
+are the asserts' and the alloc calls' `.\Src\gl*.cpp`). Nothing here is
+ported: d2d draws through its own renderer (docs/design/rendering.md),
+so these rows say what the 3D look is made of, not what to copy. Read in
+the decompiler and, for the register arguments and jump tables, in the
+disassembly; none of it is run.
+
+**The Glide entry points.** `FUN_00508970` (the slot `+0x00` path, which
+loads `glide3x.dll`) stores each of its 45 `GetProcAddress` results in a
+global. Those the rows below use: `0x87e978` `grDrawLine`, `0x87e97c`
+`grDepthMask`, `0x87eab0` `grGlideShutdown`, `0x87eab4`
+`grDitherMode`, `0x87eab8` `grTexDownloadMipMap`, `0x87eabc`
+`guGammaCorrectionRGB`, `0x87eac4` `grDrawVertexArrayContiguous`,
+`0x87eacc` `grAlphaBlendFunction`, `0x87ead0` `grTexCombine`, `0x87ead8`
+`grLfbUnlock`, `0x87eadc` `grLfbLock`, `0x87eae0` `grLoadGammaTable`,
+`0x87eaf0` `grAlphaCombine`, `0x87eaf4` `grSstWinOpen`, `0x87eafc`
+`grTexFilterMode`, `0x87eb04` `grGlideInit`, `0x87eb14` `grFinish`, `0x87eb1c` `grGet`, `0x87eb24`
+`grTexMinAddress`, `0x87eb2c` `grColorCombine`, `0x87eb30` `grColorMask`, `0x87eb34`
+`grChromakeyValue`, `0x87eb38` `grCoordinateSpace`, `0x87eb3c`
+`grSstSelect`, `0x87eb40`
+`grTexDownloadTable`, `0x87eb44` `grTexMaxAddress`, `0x87eb88`
+`grBufferClear`, `0x87eb8c` `grChromakeyMode`, `0x87eb90`
+`grBufferSwap`, `0x87eb98` `grTexSource`, `0x87eb9c` `grVertexLayout`,
+`0x87efa0` `grConstantColorValue`, `0x87efa4` `grSstWinClose`. Re-check: pair each `push <name>` with the next
+`mov [global], eax` in `0x508970..0x508f60`. The rows name the call;
+what a numeric Glide argument means is the Glide SDK's, not traced here.
+
+**Start and stop.** Slot `+0x04` (`0x50a010`, table-only) is fatal when
+called twice (string 0x2a6), keeps ECX / EDX as the other drivers do,
+then makes the buffers: `FUN_0050f870`, `FUN_0050dc80`, `FUN_0050db20`,
+`grGlideInit`, `grSstSelect(0)`, hands `0x509fd0` (a `jmp` to
+`FUN_00509e10`) to the CRT call `0x683824`, then `FUN_0050db70`,
+`FUN_0050dcd0`, `FUN_0050c760`, `FUN_0050d540`, `FUN_0050df10` and the
+critical section `DAT_007c9134`. The cutscene slot `+0x34` (`0x509fe0`)
+reopens the window at 640×480 (`FUN_00509f70`, EDX 0) and on success sets
+gamma 100 (`FUN_005090b0(0x64)`): videos play with a flat ramp.
+
+### `Src/glCore.cpp`
+
+The draw functions don't call Glide's state functions directly: four
+setters keep the last state and skip the call when it hasn't changed.
+
+| Function | What |
+|---|---|
+| `FUN_005090b0` | Slot `+0x58`, set gamma (ECX). With the contrast `DAT_0087efd4` (option 11 of slot `+0x30`, `0x509430`, which answers option 10 from `DAT_0087efe4`) below 1 (Glide's default, above): `guGammaCorrectionRGB(g / 100.0)` for all three. Otherwise `grGet(5)` and `grGet(0x2a)` for the table's entries and bits, the ramp `FUN_006be190` (contrast, 4, entries, `(1 << bits) − 1`), `grLoadGammaTable`; buffer freed with the assert `glCore.cpp` line 0x43a. Also from the cutscene slot |
+| `FUN_00509210` | Slot `+0x28`, the frame as 24-bit RGB: `grLfbLock(0, 1, 0xff, 0, 0, info)` (0 on failure), each 16-bit pixel `p` to `p >> 8 & 0xf8`, `(p >> 5) << 2`, `p << 3` (low bytes), width `DAT_007c9138` × height `DAT_007c913c`, the lock's stride; `grLfbUnlock(0, 1)`, 1 |
+| `FUN_00509300` | Slot `+0x70`, set palette: only while the window is open (`DAT_0087efc8`), 256 entries of 4 bytes to `0xffRRGGBB` at `0x87eba0`, then `grTexDownloadTable(2, 0x87eba0)` |
+| `FUN_005093f0` | Palette entry ECX shifted left 8 (from `FUN_0050bf50`, `FUN_0050c0f0`, `FUN_0050c270`) |
+| `FUN_00509400` | Slot `+0x74`, copies the 0x48 PL2 table pointers to `0x87e980` and points `DAT_007c9150` at the copy |
+| `FUN_00509460` | Tex-combine state `DAT_0072f254`: 1 is `grTexCombine(0, 3, 8, 3, 8, 0, 0)`, 0 is `(0, 1, 0, 1, 0, 0, 0)`; any other value is only stored |
+| `FUN_005094b0` | Colour-combine state `DAT_0087efd8`: 1 is `grColorCombine(3, 1, 0, 1, 0)`, 2 is `(1, 0, 1, 2, 0)` (12 callers) |
+| `FUN_00509500` | Blend state `DAT_0087efdc`, `grAlphaCombine` then `grAlphaBlendFunction`: 1 `(0,0,1,2,0)` + `(4, 0)`; 2 `(1,0,1,2,0)` + `(4, 4)`; 3 the same + `(0, 2)`; 4 the same + `(1, 5)` (12 callers) |
+| `FUN_005095d0` | Filter state `DAT_0087efe0`: 1 is `grTexFilterMode(0, 0, 0)`, 2 is `(0, 1, 1)`, and the same for TMU 1 when there are two or more |
+| `FUN_00509650` | Returns `DAT_0087efe8` (below), for `FUN_0050b7b0` |
+| `FUN_00509670` | Shares out the card's texture memory, from the open. Sums each TMU's `grTexMaxAddress − grTexMinAddress` (kept at `0x87eae4` / `0x87eaa4`); under 3.5 MB (`3670016.0`) logs "Doesn't have enough video memory (3.5 MB) to adequately run Diablo II!" and returns 0. With `DAT_0087efe8` 0 (and only at 800×600): the video area `FUN_0050dfe0`, then three texture caches `FUN_0050e890` of 0x10000, 0x4000 and 0x1000-byte slots (each rounded up to the alignment `DAT_0087efbc`) ending at 50 %, 75 % and the top of TMU 0 (two TMUs: 50 %, the top, then TMU 1). With it set: `FUN_0050b860`'s area, the floor cache `FUN_0050f320` (0x8000-byte slots, half the rest, at most 3 MB; with two TMUs three quarters, at least 0x1ccccc), the subtile cache `FUN_0050ed90` (0x400-byte slots, a quarter, at most 1 MB), then the three texture caches at 25 %, 65 % and the top. The sizes go to the stats record (`0x7c90c8`, `+0xc`, `+0x18..+0x20`, slot `+0x4c`). Then `FUN_0050b7b0`, `FUN_00604a30(FUN_0050fcb0)`, 1 |
+| `FUN_00509aa0` | Slot `+0x10`, close: when open, `grFinish`; with `DAT_0087efe8` 0 `FUN_0050e030`, else the floor and subtile caches' frees (`FUN_0050f7c0`, `FUN_0050f210`); the texture caches' free `FUN_0050ecb0` three times, `FUN_0050a0c0`, `grSstWinClose` up to 100 times until it returns 1, `FUN_0050bb70`, `DAT_007c9140` = 0 |
+| `FUN_00509b60` | Slot `+0x38`: unless paused (`DAT_007c9144`), `grBufferClear(0, 0, 0)`, `grBufferSwap` of whether the record at `DAT_007c9148` (the start's ECX) has `+0x10` set, then `FUN_0050fdf0(arg)` with `DAT_0087efd0` set around it |
+| `FUN_00509bc0` | Opens the Glide window (from `FUN_00509e90`, slot `+0x0c`, and `FUN_00509f70`, slot `+0x24`). Fatal (string 0x143) when already open. EAX 0 is 640×480; anything else 800×600, and `DAT_0087efe8` is set for 0 and 2. "Opening Glide window failed!" when `grSstWinOpen` returns 0. The first time: `grGet` 0x13 into `DAT_0087efb4` (the TMU count the rest reads; capped at 3, 0 fails the open), 0x24 into the alignment `DAT_0087efbc`, 0xe into `DAT_0087efb8` (the 2 MB rule below), 0x11 (above 1 sets `DAT_0087efc0`), 0xa and 0xb. Then the vertex layout (`grCoordinateSpace(0)`, four `grVertexLayout`, six with two TMUs), `grDepthMask(0)`, `grColorMask(1, 0)`, the tex-combine and filter defaults per TMU, `grChromakeyValue(0xff)`, and `FUN_00509670` |
+| `FUN_00509e10` | Slot `+0x08`, shut down: when started, frees the video buffers `FUN_0050df70`, closes (`FUN_00509aa0`), `grGlideShutdown`, frees `FUN_0050f8c0`, `FUN_0050dca0`, `FUN_0050db40`; deletes the critical section; `FreeLibrary(glide3x)`. Also reached at exit through `0x509fd0` |
+
+### `Src/glSprite.cpp`
+
+A sprite record on the caller's stack: `+0` the cel, `+4` width, `+8`
+height, `+0xc` / `+0x10` the cel's offsets, `+0x14` / `+0x18` the
+texture's size, `+0x1c` its area, `+0x20..+0x2c` the s / t extents,
+`+0x30` the larger side's log2, `+0x34` the aspect index. A quad is four
+0x1c-byte vertices at `0x87eff8`, drawn with
+`grDrawVertexArrayContiguous(5, 4, 0x87eff8, 0x1c)`.
+
+| Function | What |
+|---|---|
+| `FUN_0050a0c0` | Frees `DAT_0087f0c8` and `DAT_0087f0cc`, from the close |
+| `FUN_0050a260` | Fills the record from the cel ESI: `FUN_006001f0(cel, 0, 1)` (0 fails), fatal (0xce) when the cel's `+0x3c` is 0, then the four sizes `FUN_006018c0`, `FUN_006018f0`, `FUN_00601920`, `FUN_00601950` of it |
+| `FUN_0050a2d0` | The texture's size: width and height each rounded up to a power of two from 8 to 256; `+0x30` the larger's log2 (3..8); the smaller side doubled at most three times toward the larger, and `+0x34` from `0x72f258` (taller) or `0x72f268` (wider) by the count, 0 when square. Without perspective (`FUN_0050dd30` 0) s runs to width / texture width and t from 1 − height / texture height to 1; with it the whole 0..1 |
+| `FUN_0050a7b0` | The shadow quad, from `FUN_0050b690`: halves the record's `+0x10` and the height, the top edge half the (halved) height left of the bottom one (a slant), scaled by `DAT_00880b64` / 256 under perspective |
+| `FUN_0050a9a0` | The sprite quad at (x, y): the colour and filter states; the colour is `FUN_0050dc30`'s (the light) when EAX and the last argument are 0, else the RGB of entry EAX in PL2 table `+0x114`; size scaled by `DAT_00880b64` / 256 under perspective; then `grDitherMode(2)` |
+| `FUN_0050abf0` | Draw mode ESI to blend (jump table `0x50ac70`): 3 is blend 2 (`(4, 4)`) with constant alpha 0xff; 4 blend 3 (`(0, 2)`) with 0xff; 5 and 7 blend 1 (`(4, 0)`); 0, 1, 2 blend 4 (`(1, 5)`) with constant alpha 0x40, 0x80, 0xc0; 6 blend 4 with no constant set. `grDitherMode(0)` except for 5 and 7 |
+| `FUN_0050acc0` | Slot `+0x80`, a unit's cel: projects the four corners (`FUN_0050dd60`); the fourth stack argument 1 moves them left by a quarter of the width, 2 right. Drawn only if a corner lies in 0..width × 0..height − 47 (above the control panel), through the texture `FUN_0050a450(arg, 0, 1)`, the blend, the light colour. Returns 1 when culled too |
+| `FUN_0050b0d0` | Slot `+0x84`: 0 when the cel is off the screen (x + offset > width, x + offset + width < 0, y + offset < 0, y + offset − height ≥ height). Mode 7 asks `FUN_0050a450(table, 0, 2)`, the others `(table, 0, 1)`; then the blend and the quad |
+| `FUN_0050b190` | Slot `+0x88`, the fonts: the same test, `FUN_0050a450(0, 0, 1)`, the quad in the colour argument |
+| `FUN_0050b230` | Slot `+0x8c`: y minus the fourth argument when it isn't 0 (in both perspective branches, the same code); quad colour −1 |
+| `FUN_0050b390` | Clips the cel to the rectangle `{x0, x1, y0, y1}` (x0 at least 0, y0 + 2 at least 0, x1 / y1 at most the screen): returns 1 when it is wholly outside, 0 with `{left skip, width, top skip, height}` filled. A clipped height of 0 or less is fatal (0x424) |
+| `FUN_0050b500` | Slot `+0x98`, the automap: clips (`FUN_0050b390`), then moves the quad by the left and top skips; the texture coordinates aren't cut |
+| `FUN_0050b690` | Slot `+0x90`, a unit's shadow: `FUN_0050a450(0, 0, 4)`, blend 4 with constant 0xc0 when `FUN_0050bf40` is non-zero, else the blend state alone, then `FUN_0050a7b0` |
+
+### `Src/glPerspective.cpp`, `Src/glBlocks.cpp`
+
+| Function | What |
+|---|---|
+| `FUN_0050dc80` | Allocates the projection table `DAT_00880b6c` (above, "Perspective"), from slot `+0x04` |
+| `FUN_0050dca0` | Frees it, from the shutdown |
+| `FUN_0050f870` | Allocates `DAT_00880bfc` and `DAT_00880c00` and puts them in the texture records at `0x72f6b8` / `0x72f6cc`, from slot `+0x04` |
+| `FUN_0050f8c0` | Frees them, from the shutdown |
+
+### `Src/glSmack.cpp`
+
+The video record is GDI's `{ smack, kind }` (gdi-driver.md "Videos").
+Glide decodes into one 512×64 8-bit buffer and shows it as two 256×64
+RGB565 textures.
+
+| Function | What |
+|---|---|
+| `FUN_0050df10` | From slot `+0x04`: the three 0x8000-byte buffers, `DAT_00880b70` / `DAT_00880b74` (the two textures) and `DAT_00880bf0` (the 8-bit frame), and the quad's colours (`0x880b80`, `+0x1c` × 3) to −1 |
+| `FUN_0050df70` | Frees the three, from the shutdown |
+| `FUN_0050dfe0` | From `FUN_00509670`: the two textures' card addresses `DAT_00880be8` (aligned) and `DAT_00880bec` (0x8000 on, rounded), their records `0x72f690` / `0x72f6a4` pointed at the buffers; returns the space used |
+| `FUN_0050e030` | A bare `ret` (the close's call when `DAT_0087efe8` is 0) |
+| `FUN_0050e040` | Slot `+0x48`, close: `_SmackClose_4` when the kind is `'s'` and there is a handle, then kind 0. The buffers stay |
+| `FUN_0050e070` | The 8-bit frame through the palette ECX (3 bytes an entry) to RGB565, `(r & 0xf8) << 8 | (g & 0xfc) << 3 | b >> 3`: columns 0..255 into `DAT_00880b70`, 256..511 into `DAT_00880b74` |
+| `FUN_0050e330` | `grTexDownloadMipMap` of both textures (TMU `DAT_00880bf4`, mode 3, records `0x72f680` / `0x72f694`) |
+| `FUN_0050e370` | Draws the frame, from slot `+0x44`: the four states, `grChromakeyMode(0)`, the left texture as a quad up to 256 wide, the right one for the rest (width − 256), `grChromakeyMode(1)` |
+| `FUN_0050e5d0` | Slot `+0x40`, open. Fatal (0x8e) without the frame buffer; clears all three and, unless paused, downloads them. `'p'`: loads and decodes as GDI does (type 2, assert `glSmack.cpp` line 0xdb), only 468×60 at 8 bits, then moves each row to a 512-byte stride, converts and downloads. `'s'`: when the record has no handle, `_SmackOpen_12(name, 0xfe000, −1)` and `_SmackToBuffer_28(h, 0, 0, 0x200, 0x40, frame, 0)`. A failure closes as `FUN_0050e040` |
+
+### `Src/glTextureCache.cpp`, `Src/glSubtileCache.cpp`, `Src/glFloorCache.cpp`
+
+Three copies of one slot pool for the card's texture memory, each slot
+on a used list (least recently used first) or a free list. The header is
+eight words: `+0` the slot's bytes, `+4` the slot count, `+8` the used
+count, `+0xc` / `+0x10` the used list's head and tail, `+0x14` / `+0x18`
+the free list's, `+0x1c` the slots. A texture slot is 0x1c bytes (`+0`
+its index, `+4` its card address, `+8` / `+0xc` the owner table and
+index, `+0x14` / `+0x18` next and previous); a subtile or floor slot 0x14
+(`+0` index, `+4` address, `+8` owner, `+0xc` / `+0x10` next and
+previous). An id is the index plus 1.
+
+**The 2 MB rule.** When `DAT_0087efb8` is 0, each init unlinks the first
+slot that straddles card address 0x200000 (counting it used, so it is
+never given out) and drops a last slot that does.
+
+| Texture | Subtile | Floor | What |
+|---|---|---|---|
+| `FUN_0050e890` | `FUN_0050ed90` | `FUN_0050f320` | Init (ECX the header, EDX start, then end and slot size): count = (end − start) / size, every slot on the free list at start + i × size, the 2 MB rule; returns start + count × size. The subtile and floor ones are the same text and are fatal (0x2a) when the allocation fails |
+| `FUN_0050ea40` | `FUN_0050ef40` | `FUN_0050f4d0` | Append slot ECX to the used tail |
+| `FUN_0050eae0` | `FUN_0050efe0` | `FUN_0050f570` | Unlink slot (the index) from the used list and return it. Subtile: index in EAX, fatal (0x17d) without slots, the head through `FUN_0050ef80` |
+| — | `FUN_0050ef80` | — | Pop the used list's head |
+| `FUN_0050eb60` | `FUN_0050f070` | `FUN_0050f5f0` | Take the free head onto the used tail and return its id; 0 when all are used; fatal (0xc1, 0x9d, 0x9f) when the free list is empty anyway |
+| `FUN_0050ebe0` | `FUN_0050f0f0` | `FUN_0050f670` | Mark id EDX used (move it to the tail), only with two or more in use; fatal for id 0, above the count, or negative |
+| `FUN_0050ec40` | — | `FUN_0050f6d0` | Evict the head to the free list, clearing the owner's entry: the texture's 8 bytes at owner + index × 8; the floor's 16-bit `+0x42` (fatal 0xd3 with no owner) |
+| — | `FUN_0050f1b0` | `FUN_0050f750` | Release one slot to the free list (subtile: the owner's 16-bit `+4` cleared; floor: `+0x42`, fatal 0xf1 with no owner) |
+| `FUN_0050ecb0` | `FUN_0050f210` | `FUN_0050f7c0` | Free: with EDX set evict every slot first, free the slots, zero the header. From the close and from `FUN_00508970` |
+
+## Inside the Direct3D driver
+
+The Direct3D twins of the Glide files, by `.\Src\d3d*.cpp`. Quads go into
+a 44-vertex ring: the vertex buffer `DAT_00970f3c` (its vtable `+0xc`
+with flags 0x21 to get a pointer, `+0x10` to give it back), then the
+device `DAT_00970e78`'s vtable `+0x88` with (6, buffer, `DAT_00970f40`,
+4, 0x1c); `DAT_00970f40` steps by 4 and wraps to 0 past 0x2b. A vertex is
+0x20 bytes: x, y, 0.5, 1.0, the colour at `+0x10` (alpha in the top
+byte), s and t at `+0x18`. What each COM call is was not looked up.
+
+### `Src/d3dSprite.cpp`
+
+| Function | What |
+|---|---|
+| `FUN_006b5b10` | From `FUN_006b32b0`: releases the vertex buffer and the six objects at `0x970f1c` / `0x970f28` (vtable `+8`), frees `DAT_00970f34` and `DAT_00970f38` |
+| `FUN_006b5c80` | `FUN_0050a260`'s twin, but a cel with no `+0x3c` logs "error loading sprite unit:%d  class:%d  mode:%d  %s" and returns 0 instead of the fatal |
+| `FUN_006b5cf0` | The texture's size: square, 32 when both sides fit, else 128, else 256 (a larger cel leaves it unset); s and t always span 0..1 |
+| `FUN_006b61a0` | The shadow quad (`FUN_0050a7b0`'s shape), the alpha byte argument in all four colours |
+| `FUN_006b63f0` | The sprite quad: the colour and filter states; the light colour (`FUN_006b9780`) when the index and the last argument are 0, else PL2 table `+0x114`'s RGB, with the alpha byte |
+| `FUN_006b6680` | Draw mode ESI to blend (`FUN_006b1f40`, ECX; jump table `0x6b66e4`) and an alpha byte: the same mapping as `FUN_0050abf0`, with mode 6 alpha 0xff; the alpha goes in the vertex colour |
+| `FUN_006b6730` | Slot `+0x80`: as `FUN_0050acc0` (the quarter-width shift, the test above the panel, 1 when culled), the texture `FUN_006b5d40(arg, 0)` |
+| `FUN_006b6b40` | Slot `+0x84`: as `FUN_0050b0d0`, but every mode asks `FUN_006b5d40(table, 0)`: no mode 7 case |
+| `FUN_006b6bf0` | Slot `+0x88`: as `FUN_0050b190` |
+| `FUN_006b6c90` | Slot `+0x8c`: as `FUN_0050b230` |
+| `FUN_006b6d70` | The clip, `FUN_0050b390`'s text (fatal 0x45a) |
+| `FUN_006b6ee0` | Slot `+0x98`: as `FUN_0050b500` |
+| `FUN_006b7000` | Slot `+0x90`: alpha 0xc0 when `FUN_006b77a0` is non-zero, else 0xff, then `FUN_006b61a0` |
+
+### `Src/d3dTextureCache.cpp`, `Src/d3dSubtileCache.cpp`, `Src/d3dFloorCache.cpp`
+
+The same pool with seven header words (no slot size: `+0` the count,
+`+4` used, `+8` / `+0xc` the used list, `+0x10` / `+0x14` the free list,
+`+0x18` the slots) and a texture object per slot made at init
+(`FUN_006b58a0(w, h)`). A texture slot is 0x20 bytes (`+4` / `+8` owner
+and index, two objects at `+0x10` / `+0x14`, next / previous at `+0x18` /
+`+0x1c`); a subtile or floor slot 0x18 (`+4` owner, objects at `+8` /
+`+0xc`, next / previous at `+0x10` / `+0x14`). There is no 2 MB rule.
+The three inits are called from `FUN_006b3080`, the frees from
+`FUN_006b1b60` and `FUN_006b32b0`.
+
+| Texture | Subtile | Floor | What |
+|---|---|---|---|
+| `FUN_006ba420` | `FUN_006ba9a0` | `FUN_006bafc0` | Init: count = (end − start) / slot size, capped at 0x400 (subtile 0x800); texture slots are `DAT_00970e80` × w × h bytes, subtile textures 32×32, floor `DAT_0096f4dc` × `DAT_009702b8`. The first object that can't be made ends the count there (fatal 0x5a / 0x49 when it is the first) |
+| `FUN_006ba550` | `FUN_006baac0` | `FUN_006bb0e0` | With EDX set and more than one slot: calls the first object's vtable `+0x7c(EDX)` for slots 0 to count − 2 and on the first non-zero answer calls `FUN_006b20e0`. No caller, no pointer to them in game.exe |
+| `FUN_006ba5c0` | `FUN_006bab30` | `FUN_006bb150` | Append to the used tail |
+| `FUN_006ba660` | `FUN_006babd0` | `FUN_006bb1f0` | Unlink index EDX from the used list |
+| `FUN_006ba6d0` | `FUN_006bac50` | `FUN_006bb270` | Take a free slot; texture fatal 0xd7 (empty free list) and 0xd8 (index past the count). Subtile and floor have no check: an empty free list with free count left would read through a null slot |
+| `FUN_006ba760` | `FUN_006bacb0` | `FUN_006bb2d0` | Mark id EDX used, as Glide's |
+| `FUN_006ba7c0` | — | — | Evict the head (the owner's 8 bytes cleared) |
+| — | `FUN_006bad70` | `FUN_006bb390` | Release one slot (owner's 16-bit `+4`; floor `+0x42`) |
+| `FUN_006ba830` | `FUN_006badc0` | `FUN_006bb3e0` | Free: fatal for a null header (0x71 / 0x60) or used slots with no array (0x74 / 0x63); releases both objects of every slot, evicts all with EDX, frees the array, zeroes the header |
