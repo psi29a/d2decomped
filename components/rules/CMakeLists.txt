@@ -50,6 +50,7 @@ add_library(rules STATIC
     world/ambient_dip.cpp
     world/click_spot.cpp
     world/light.cpp
+    world/player_relations.cpp
     world/shake.cpp
     world/shrines.cpp
     world/weather.cpp)
