@@ -720,11 +720,16 @@ classic one (FUN_0055a550). FUN_00557450 and its helpers branch on it (`FUN_0062
   found bit (`d2d_unique_found_test`) is clear or the base a quest item: no draw, no level
   test, and `FUN_00556530` (the found mark) isn't called. None: FUN_00557450 adds no x3
   (version 100+ only) and remakes it rare.
-- Set (`FUN_005c2940` → `d2d_set_pick_old`, 0x5c2740): durability x2; n the Sets rows before
-  the first of version 100+; rand(n) on the item's own seed (none for n < 1); from that set,
-  all n round, each set's first member (`+0x110`, `+0xc` of them) of the item's code. The
-  loop doesn't stop, so the last found wins. None: the own seed back to its start
-  (`FUN_00650e40`), no x2 in FUN_00557450, remade magic.
+- Set (`FUN_005c2940` → `d2d_set_pick_old`, `FUN_005c2740`; its tail `LAB_005c276a` is a label
+  inside it; d2d `classic_set_pick`, oracle `tools/emu/set_pick_old.py`): durability x2; n the
+  Sets rows before the first of version 100+ (the count loop at `0x5c27f1` reads only the row's version); rand(n) on the item's own seed (none for n < 1); from that set,
+  the n rows round, each set's first member (`+0x110`, `+0xc` of them) of the item's code. The
+  loop has no break out of the rows, so the last found wins. A hit clears the item's flag 0x10 (the identified
+  bit, `FUN_006280d0(item, 0x10, 0)`: a zero third argument clears; in d2d `loot.hpp` and the gamble
+  list set `identified` themselves, so only a result used as it comes out of `generate_item` shows it:
+  `cube.cpp` and `drops.cpp` do not override it; `test_set_pick_old` checks it there). None: the own seed back to
+  (its low at entry, 0x29a) (`FUN_00650e40`), no x2 in FUN_00557450, remade magic. Not traced:
+  `FUN_00625480` / `FUN_006253b0` (hooked in the oracle) and the order of a Sets row's members.
 - Magic and rare affixes (`FUN_005c18e0` / `FUN_005c1940` → `FUN_005c12f0`; `EDX` 1, the
   spawnable test): the coin; the rows of version < 100, spawnable (`+0x54`), level (`+0x58`)
   at most ilvl + 2 (1..99), that `FUN_0065e620` takes (a version-0 item: none when stackable

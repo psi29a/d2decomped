@@ -1517,6 +1517,28 @@ int books_row(const Tables& tables, const std::string& code, bool scroll) {
     return int(tables.books.size());
 }
 
+// A classic item's set (FUN_005c2740, its tail LAB_005c276a): both durabilities
+// x2 (at most 255), n = the Sets rows before the first of version 100+, a start
+// of rand(n) on the item's own seed (none for n < 1), then all n rows round,
+// each one's first member of the item's code, the last row's find winning.
+// None puts the seed back to (its low at entry, 666) (FUN_00650e40).
+int classic_set_pick(const Tables& tables, const std::string& code, Rng& rng, int& durability, int& max_durability) {
+    const std::uint32_t entry_low = rng.low;
+    durability = std::min(durability * 2, 255);
+    max_durability = std::min(max_durability * 2, 255);
+    int count = 0;
+    while (std::size_t(count) < tables.set_bonuses.size() && tables.set_bonuses[std::size_t(count)].version < 100) ++count;
+    const int first = count < 1 ? 0 : rng(count);
+    int picked = -1;
+    for (int step = 0; step < count; ++step) {
+        const int set = (step + first) % count;
+        const auto member = std::ranges::find_if(tables.sets, [&](const Special& row) { return row.set == set && row.member >= 0 && row.code == code; });
+        if (member != tables.sets.end()) picked = int(member - tables.sets.begin());
+    }
+    if (picked < 0) rng = Rng(entry_low);
+    return picked;
+}
+
 // A new item of `code` at level ilvl and quality (4 magic, 5 set, 6 rare,
 // 7 unique; a set / unique none fits is remade, below), identified, with
 // its defence and durability rolled. A set 29 (the Cow King's) drops only
@@ -1805,16 +1827,8 @@ d2d::d2s::Item roll_item(const Tables& tables, const std::string& code, int ilvl
             }
             return -1;
         }
-        times(2);
-        int count = 0;
-        while (std::size_t(count) < tables.set_bonuses.size() && tables.set_bonuses[std::size_t(count)].version < 100) ++count;
-        const int first = count < 1 ? 0 : rng(count);
-        int picked = -1;
-        for (int step = 0; step < count; ++step) {
-            const int set = (step + first) % count;
-            const auto member = std::ranges::find_if(tables.sets, [&](const Special& row) { return row.set == set && row.member >= 0 && row.code == code; });
-            if (member != tables.sets.end()) picked = int(member - tables.sets.begin());
-        }
+        const int picked = classic_set_pick(tables, code, rng, item.durability, item.max_durability);
+        if (picked >= 0) item.identified = false;          // FUN_006280d0(item, 0x10, 0) clears the identified flag
         return picked;
     };
     if (quality == 7 || quality == 5) {
