@@ -2163,7 +2163,9 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
             const int reached = std::min(played / int(step_ms), int(seq->size()) - 1);
             monster.seq_mode = (*seq)[std::size_t(reached)].mode;
             monster.seq_frame = (*seq)[std::size_t(reached)].frame;
-            for (; monster.seq_done <= reached; ++monster.seq_done) {
+            // The row it waits on still shows, but its event stays pending till it lands: run in the air it strikes nothing and would be spent.
+            const int events_to = monster.leaping && monster.leap_hold_row >= 0 ? reached - 1 : reached;
+            for (; monster.seq_done <= events_to; ++monster.seq_done) {
                 const int event = (*seq)[std::size_t(monster.seq_done)].event;
                 if (event == 4 || ((event == 1 || event == 2) && !monster.seq_once)) ++due;
                 // Jab's client do (cltdofunc 16, FUN_004f4590) on an event-3 row: Duriel's.
