@@ -926,6 +926,28 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
   `Fight::merc_shot`, `Swing::row_lo` / `row_hi`; tools/emu/merc_shot.py
   runs `FUN_005ce1b0` and the row's physical (0 of 100,144 differ, seeds 1
   and 2, 2026-11-23).
+- **A missile's physical from its owner's weapon** (`FUN_0064b860`'s
+  record, `FUN_0064ac60`, `FUN_005a89a0`'s hit). The record: the weapon's
+  stats 21 / 22 (or 23 / 24, 159 / 160) × 256 × SrcDamage / 128 toward
+  zero (0x64bc43..0x64bc67), then the row's own physical added unscaled
+  (0x64bdf7). Its +0x78 (0x64bdc2..0x64bddc): the unit's stat 25, the
+  mastery % (`FUN_00645830`), the str / dex bonus, the missile's stat 25
+  and the larger of the unit's stats 18 / 17, at least -90; its +0x6c the
+  unit's stat 121, its +0x70 stat 122 plus 50 with a Blunt weapon
+  (`FUN_00629bb0` type 0x39, 0x64bbf9). SrcDamage 0 takes none of the
+  unit's (0x64bcfe). `FUN_0064ac60` puts them on the missile as stats
+  21 / 22 / 25 / 121 / 122. The hit (0x5a89bf..0x5a89fd): none unless
+  both ends are over 0, else the lower end + rand(the gap) on the
+  missile's seed (+0x20), the ends swapped when the min is the larger;
+  then its % (0x5a8b09..0x5a8bde): stat 25, + 121 against a demon, + 122
+  against the undead (no floor of its own), the MonProp stat 0xb4 list
+  (`FUN_0057a830`), at least -90; the roll + roll × % / 100 (0x5a8bff),
+  and a crit doubles it after (0x5a8c02..0x5a8c1e). d2d:
+  `rules::missile_physical` / `missile_scaled`, player_blow's missile
+  swing; tools/emu/missile_record.py runs the three for real (4000 cases,
+  0 differ, 2026-11-25), its fixture `tests/missile_record_cases.inc`.
+  Not in d2d: the MonProp %, the row's +0x12e owner branch (0x64bd07), the
+  halved SrcDamage of row flag 0x6ce280 (`FUN_006289c0`, 0x64bb09).
 - **A crossbow's bolts** (do 8 `FUN_005db410` 0x5db51e..0x5db53d, do 10
   `FUN_005db6d0` 0x5db74f..0x5db76b, do 12 `FUN_005dba40`
   0x5dbb20..0x5dbb3f): srvmissilea (+0x48), or srvmissileb (+0x4a) when it

@@ -57,6 +57,7 @@ struct Fighter {
     int smite_lo = 0, smite_hi = 0, smite_pct = 0;  // the shield's (Smite, FUN_005ce9f0 -> FUN_0057b420 on the shield)
     bool blunt = false;                             // the weapon is a Blunt type (ItemTypes Equiv chain: club, hammer, mace, scepter, wand, staff)
     int undead_pct = 0;                             // stat 122 (item_undeaddamage_percent) over all the gear (the game reads the unit's own stat)
+    int demon_pct = 0;                              // stat 121 (item_demondamage_percent), the same way: a missile's record carries it
     std::array<std::pair<int, int>, 5> elem{};      // added damage (poison: its total over poison_len)
     int cold_len = 0, poison_len = 0;               // ticks
     int stun_len = 0;                               // stat 66 (gear), ticks
@@ -472,7 +473,9 @@ struct Swing {
     // marked built (flags 2), so FUN_0057dbf0 skips FUN_0057b7d0: no crit,
     // gear elements, leech, crushing blow or open wounds.
     bool smite = false;
-    bool missile = false;                 // a missile's blow: Crushing Blow's divisor doubled (event 6, FUN_005bffc0)
+    // A missile's blow: its record and hit path (missile_physical: FUN_0064b860 + FUN_005a89a0),
+    // no SrcDam scale after the crit, and Crushing Blow's divisor doubled (event 6, FUN_005bffc0).
+    bool missile = false;
 };
 
 // A player's leech of a blow, in 256ths.
@@ -484,6 +487,13 @@ int leech_fine(int physical_fine, const Target& target, int steal, int divisor);
 // takes the life left / the target's divisor (less physical resistance). `damage_rng`
 // is the attacker's unit seed when its physical roll is separate from the fight rolls.
 Blow player_blow(const Fighter& fighter, const Target& target, int clvl, Rng& rng, const Swing& swing = {}, Rng* damage_rng = nullptr);
+
+// A missile blow's physical in 256ths (FUN_0064b860's record, FUN_005a89a0's hit): the range the hit rolls
+// (low + rand(high - low); both 0 for none), the record's +0x78 percent and the hit's, which scales the roll.
+struct MissilePhysical { std::int64_t low = 0, high = 0; int record_pct = 0, hit_pct = 0; };
+MissilePhysical missile_physical(const Fighter& fighter, const Target& target, const Swing& swing);
+// FUN_005a89a0: a rolled physical plus its `pct` %, toward zero.
+std::int64_t missile_scaled(std::int64_t roll, int pct);
 
 // A monster's attack on the player (`motion`.
 // `missile`: a spike rather than a swing): hit chance against defense plus
