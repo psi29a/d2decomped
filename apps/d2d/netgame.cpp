@@ -288,6 +288,8 @@ auto NetGame::Unit::animation_stats() const -> d2d::net::d2gs::s2c::AnimationSta
     return total;
 }
 
+// One S->C packet from the host into the NetGame's state (game.exe's client
+// dispatch, FUN_0045f7b0; net-packets.md lists each).
 auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
     auto unit_at = [&](int type, std::uint32_t id) -> Unit& {
         auto& unit = units[key(type, id)];
@@ -344,6 +346,7 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
         if (size >= 10) {
             auto& unit = unit_at(packet[1], read_u32(packet, 2));
             place(unit, read_u16(packet, 6), read_u16(packet, 8));
+            if (unit.type == 0) unit.mode = -1;   // a player's respawn (C->S 0x41 -> 0x15 in town)
             if (unit.type == 0 && unit.id == self_id) { self_x = host_x = unit.x; self_y = host_y = unit.y; reassigned = true; spot_heard_ms = steady_ms(); }
         }
         break;
@@ -627,7 +630,11 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
         }
         break;
     case 0x0d:   // a unit stops at x, y: +6 its unit command (0x13 hit, 8 dying, 9 dead)
-        if (size >= 11) place(unit_at(packet[1], read_u32(packet, 2)), read_u16(packet, 7), read_u16(packet, 9));
+        if (size >= 11) {
+            auto& unit = unit_at(packet[1], read_u32(packet, 2));
+            place(unit, read_u16(packet, 7), read_u16(packet, 9));
+            if (unit.type == 0) unit.mode = packet[6];   // a player's death (8, then its corpse's 9): net-packets.md "Player death"
+        }
         if (size >= 11 && packet[1] == 0 && read_u32(packet, 2) == self_id && packet[6] == 8) died = true;
         break;
     case 0x8c:   // player relation: +1 the player, +5 toward whom, +9 u16 flags (1 loot, 2 not heard, 4 squelched, 8 hostile)

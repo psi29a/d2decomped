@@ -240,7 +240,7 @@ struct ClientSession {
     const d2d::game::Level* net_missile_level = nullptr;
     struct ShownMode { int mode = -1; std::uint32_t skill_ms = 0, since = 0; };   // since: world ms
     std::unordered_map<std::uint32_t, ShownMode> net_other_modes;   // another player's mode, by unit id   // the host's monsters as d2d draws them, by unit id
-    int net_attack = -1, net_attack_skill = 0;               // the host monster being attacked, with what
+    int net_attack = -1, net_attack_type = 1, net_attack_skill = 0;   // the host unit being attacked (type 0 player, 1 monster), with what
     int net_warp_sent = -1;                                  // the warp whose 0x13 went to the host
     int net_pick = -1;                                       // the host item being walked to, to pick up
     std::uint32_t net_cursor = 0;                            // the host's id for the item in our hand
@@ -774,8 +774,9 @@ struct ClientSession {
     [[nodiscard]] int hovered_monster() const;
     [[nodiscard]] int shift_pick(int skill) const;   // a shift-click's SearchEnemyXY monster (FUN_00467660), or -1
     // A SearchEnemyNear skill's unit nearest the click (FUN_00467490): false for another skill, else
-    // `unit` (a monster id, -1 the ground) and the spot (cells) as the search leaves them.
-    [[nodiscard]] bool near_pick(int skill, int& unit, float& at_x, float& at_y) const;
+    // `unit` (a player or monster id, -1 the ground), its native `unit_type`, and the spot
+    // (cells) as the search leaves them.
+    [[nodiscard]] bool near_pick(int skill, int& unit, int& unit_type, float& at_x, float& at_y) const;
     // A SearchOpenXY skill's free spot off a wall (FUN_004677b0), in cells, or none.
     [[nodiscard]] std::optional<std::pair<float, float>> open_spot(int skill, int unit, float click_x, float click_y) const;
     [[nodiscard]] int hovered_ground() const;

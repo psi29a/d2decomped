@@ -191,7 +191,7 @@ struct View {
     // A joined game's other players (a game.exe host's 0x59 / 0x0f): not
     // replicated, the client sets them after each View (apps/d2d netgame).
     struct OtherPlayer { UnitState unit; int cls = 0; std::string name; std::uint32_t id = 0; GameData::Appearance gfx{}; int mode = -1; bool running = false;
-                        std::vector<std::string_view> states; bool ghost = false; int walk_percent = 100; d2d::rules::OneShots one_shots; };   // id: the host's unit; mode: an act, -1 walk / stand; states: the host's on it (States.txt names); ghost: local co-op's dead; walk_percent: as View's (a joined game's: its class's run or walk and chill, no FRW); flash: as View's
+                        std::vector<std::string_view> states; bool ghost = false, hostile = false, dead = false; int walk_percent = 100; d2d::rules::OneShots one_shots; };   // id: the host's unit; mode: an act, -1 walk / stand; states: the host's on it (States.txt names); ghost: local co-op's dead; hostile: relation flag 8 from this client; dead: a joined game's, dying or dead on the host (0x0d command 8 / 9; not replicated); walk_percent: as View's (a joined game's: its class's run or walk and chill, no FRW); flash: as View's
     std::vector<OtherPlayer> others;
     // Local co-op's death (docs/design/local-coop.md): the screen's player a
     // ghost; everyone dead (the death screen, Esc back to town); the bodies

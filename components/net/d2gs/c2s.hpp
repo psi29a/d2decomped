@@ -142,6 +142,8 @@ inline auto skill_at(bool left, std::uint16_t x, std::uint16_t y) -> Bytes {
 }
 
 // 0x06 / 0x0d: the left / right skill on a unit (type, id), walking up to it.
+// FUN_00461700 -> FUN_00481030 -> FUN_00480b40 -> FUN_004786a0 sends the
+// target unit's type (its +0) at +1, its id (+0xc) at +5: a player 0, a monster 1.
 inline auto skill_on(bool left, std::uint32_t type, std::uint32_t id) -> Bytes {
     Bytes out;
     put_u8(out, left ? 0x06 : 0x0d);

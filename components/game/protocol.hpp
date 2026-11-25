@@ -32,7 +32,7 @@ struct Move { float x = 0, y = 0; bool fresh = false; };
 // again while the button's held keeps an attack going. `item`: the
 // charged entry's item (its unit id; -1 a skill of the character's own),
 // as the skill select carries the entry's owner (SelectSkillLeft's guid).
-struct UseSkill { int skill = 0; float x = 0, y = 0; int unit = -1; bool left = false; int item = -1; bool stand = false; };   // stand: shift (stand still) held, the click flag 0x20
+struct UseSkill { int skill = 0; float x = 0, y = 0; int unit = -1; bool left = false; int item = -1; bool stand = false; int unit_type = 1; };   // stand: shift (stand still) held, the click flag 0x20; unit_type: 0 player, 1 monster
 // 0x13: interact with an object or NPC (walk up, then operate / talk), by
 // its Level::npcs index: objects and NPCs come with their rooms and never
 // go, and every machine makes the same list from the map seed.

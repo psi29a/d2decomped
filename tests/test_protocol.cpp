@@ -13,6 +13,7 @@
 
 using namespace d2d::game;
 
+// Every command through encode / decode, then through the local transport.
 int main() try {
     const std::vector<Command> all{
         cmd::Move{ 12.5f, 3.25f, true }, cmd::UseSkill{ 36, 1.f, 2.f, 77, true }, cmd::UseSkill{ 0, 4.f, 5.f, -1, false }, cmd::UseSkill{ 0, 4.f, 5.f, 9, true, -1, true },
@@ -36,6 +37,9 @@ int main() try {
         const auto held = decode(encode(cmd::UseSkill{ 0, 3.f, 4.f, 17, true, -1, true }));   // shift held (stand still)
         const auto* shift = held ? std::get_if<cmd::UseSkill>(&*held) : nullptr;
         assert(shift && shift->unit == 17 && shift->left && shift->stand);
+        const auto player_target = decode(encode(cmd::UseSkill{ 0, 3.f, 4.f, 23, true, -1, false, 0 }));
+        const auto* player = player_target ? std::get_if<cmd::UseSkill>(&*player_target) : nullptr;
+        assert(player && player->unit == 23 && player->unit_type == 0);
     }
     // Through the transport, in order.
     LocalTransport transport;
