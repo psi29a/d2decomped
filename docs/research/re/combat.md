@@ -329,6 +329,15 @@ the state-list owner needed to credit a later poison kill.
   dex × DexBonus / 100 + mastery damage (`madm`), at least −90. Then
   `min' = min + min × (stat 18 + p) / 100`, `max' = max + max × (stat 17 + p)
   / 100`, a roll between them, times SrcDam / 128.
+- Before that build, `FUN_0057b7d0` adds to the skill's enhanced damage
+  (record +0xc) for a player, or a unit of alignment 2 (`FUN_006259b0`),
+  striking a monster: the attacker's stat 121 against a demon
+  (`FUN_0063e940`) when it is over 0 (0x57b857..0x57b86f), then
+  `FUN_0057b660`'s against the undead: 50 with a Blunt weapon (type 0x39)
+  plus stat 122, when that sum is over 0. d2d: `rules::melee_record_pct`;
+  `tools/emu/melee_record.py` runs `FUN_0057b7d0` up to its call of
+  `FUN_0057b420` (0x57b8a4) for a player (4000 cases, 0 differ,
+  2026-11-25), its fixture `tests/melee_record_cases.inc`.
 - A monster's blow (`FUN_0057b420` on its mode damage, stats 21 / 22): the
   roll is `(min << 8) + rand((max - min) << 8)` on the attacker's seed, one
   draw, the top not rolled; min is taken at least 1 and max at least min + 1

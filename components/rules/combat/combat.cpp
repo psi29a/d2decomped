@@ -720,6 +720,16 @@ int leech_fine(int physical_fine, const Target& target, int steal, int divisor) 
     return amount / 64;
 }
 
+// FUN_0057b7d0 for a player (or an alignment 2 unit, FUN_006259b0) against a monster, before FUN_0057b420: the
+// record's enhanced damage (+0xc) takes the unit's stat 121 against a demon when it is over 0 (0x57b857..0x57b86f),
+// then FUN_0057b660's against the undead: 50 with a Blunt weapon plus stat 122, when that sum is over 0. A merc or a
+// Shadow is not excluded here.
+int melee_record_pct(const Fighter& fighter, const Target& target, const Swing& swing) {
+    const int demon_bonus = target.demon ? std::max(fighter.demon_pct, 0) : 0;
+    const int undead_bonus = target.undead ? std::max((fighter.blunt ? 50 : 0) + fighter.undead_pct, 0) : 0;
+    return swing.ed_pct + demon_bonus + undead_bonus;
+}
+
 // A missile's record (FUN_0064b860) from its owner's weapon: stats 21 / 22 x 256 x SrcDamage / 128 toward zero
 // (0x64bc43..0x64bc67, only the weapon's part), + the row's own physical (FUN_0064af20 / FUN_0064aff0, 0x64bdf7).
 // Its +0x78 (0x64bdc2..0x64bddc): the unit's stat 25, the mastery % and the str / dex bonus (d2d: phys_pct), + the
@@ -792,11 +802,7 @@ Blow player_blow(const Fighter& fighter, const Target& target, int clvl, Rng& rn
         high = physical.high;
         missile_pct = physical.hit_pct;
     } else {
-        // Against an undead monster FUN_0057b660 adds 50 with a Blunt weapon plus stat 122 to the
-        // record's enhanced damage, only when that sum is over 0. FUN_0057b7d0 asks for it when the attacker is
-        // a player unit or has alignment 2 (FUN_006259b0), so a merc or a Shadow is not excluded here.
-        const int undead_bonus = target.undead ? std::max((fighter.blunt ? 50 : 0) + fighter.undead_pct, 0) : 0;
-        const std::int64_t physical_pct = std::max<std::int64_t>(fighter.phys_pct + swing.ed_pct + undead_bonus, -90);
+        const std::int64_t physical_pct = std::max<std::int64_t>(fighter.phys_pct + melee_record_pct(fighter, target, swing), -90);
         low = fighter.phys_lo + fighter.phys_lo * physical_pct / 100;
         high = fighter.phys_hi + fighter.phys_hi * physical_pct / 100;
     }
