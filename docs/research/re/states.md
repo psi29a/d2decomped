@@ -137,3 +137,32 @@ rows as visual-only missiles on its corpse.
 - The player's own chill ("cold") and poison show as on a monster
   (View chilled / poisoned, `player_states`). The chill's −50 on
   other_animrate (stat 69) isn't applied.
+
+## What a death keeps
+
+`FUN_00639fb0` (stdcall, unit and a boss flag) is run by the player's death
+mode (`FUN_0057f330`, from `FUN_00580ec0` and `FUN_0057fca0`: life stat 6 to 0,
+`FUN_00627540`, this, `FUN_00649f70`) and by a monster's death start
+(`FUN_005a6520`: with `FUN_0063e9f0`'s boss test, a MonStats boss). A unit's stat
+block (`+0x5c`, flag `0x80000000`) holds two state bitmaps, (states + 31) / 32
+dwords each: the first at `+0x58` (`FUN_00625bb0`, the one `FUN_00625b70`
+tests), the second behind it (`FUN_00625be0`, `FUN_00639e30` / `FUN_00639e90`).
+Per dword: second |= ~keep & first, then first &= keep, with keep the States.txt
+mask data tables `+0x108` (`bossstaydeath`) for a nonzero boss flag, else `+0x104`
+(`monstaydeath`) for a unit whose type is not 0, else `+0x100` (`plrstaydeath`);
+then `FUN_0064c040(unit)`. Null unit, no stat block, no flag or a null bitmap:
+nothing. The three column names are the loader `FUN_00618100`'s strings; which
+bit of the data tables each is built from was not traced (names.tsv, the use in
+`FUN_0063a4a0`: `+0x100`, `+0x104` for a unit of type 1). The player's call has the
+boss flag 0 at `0x57f330`'s `FUN_00639fb0(unit, 0)`.
+
+d2d: `rules::states_leave_on_death` (state_death.hpp), the States.txt columns in
+`GameData::StateInfo`, and `Fight::die` runs the player's skill states
+(`self_states`) through it, so a state not marked plrstaydeath ends with the death
+(`tests/game/test_death_states.cpp`, game data). Not done: potion states, curses,
+charges and the merc's states (separate containers in d2d), and the monsters'
+side (`monstaydeath`, `bossstaydeath`: d2d's monsters keep no state bitmap), so
+`FUN_005a6520`'s call is not ported. Oracle: `tools/emu/state_death.py`
+(`--mutation-check`), against `tests/test_state_death.cpp`. `FUN_00627540`, which
+then drops the stat lists of the states gone, is a separate claim
+(frontier-ring.md).

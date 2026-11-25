@@ -134,6 +134,7 @@ struct GameData {
         bool restrict_form = false;        // States.txt restrict (wolf, bear, delerium): a skill's restrict asks for it (FUN_0063a510, FUN_00644060)
         int row = -1;                      // its States.txt row, the state id
         bool aura = false;                 // States.txt aura (bit 1, list +0xd0, FUN_0063a210): overlay1 / 2 rotate as kind 8 (FUN_004d9920)
+        bool plr_stay_death = false, mon_stay_death = false, boss_stay_death = false;   // States.txt plrstaydeath / monstaydeath / bossstaydeath: kept at a death (data tables +0x100 / +0x104 / +0x108, FUN_00639fb0)
         std::string item_type;
         std::array<const OverlayInfo*, 4> over{};
         const OverlayInfo* cast = nullptr;
