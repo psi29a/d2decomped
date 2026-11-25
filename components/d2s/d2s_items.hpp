@@ -246,6 +246,7 @@ enum StatId { kStr = 0, kEne = 1, kDex = 2, kVit = 3, kStatPts = 4, kSkillPts = 
               kSingleSkill = 107,                   // item_singleskill: +n to one skill (param)
               kPoisonLengthReduction = 110,         // item_poisonlengthresist
               kNormalDamage = 111, kStupidity = 113, kPreventHeal = 117, kHalfFreezeDuration = 118, kToHitPercent = 119,
+              kDemonDamagePercent = 121,            // item_demondamage_percent
               kUndeadDamagePercent = 122,           // item_undeaddamage_percent
               kAllSkills = 127, kAttackerTakesLightningDamage = 128, kThornsPercent = 131,
               kBoneArmor = 132,
