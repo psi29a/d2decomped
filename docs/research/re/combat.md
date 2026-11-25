@@ -245,6 +245,14 @@ shift-click to the hireling.
 So poison kills monsters and credits the poisoner, but never kills a player.
 d2d matches both, and the one-poison-at-a-time rule.
 
+The target kind does not gate `FUN_0057ac50`: the same state-2 stat list is
+created on a monster struck by another monster. Its stat 0x4a is the negated
+per-tick damage and its end is the current frame plus the record's poison
+length. An existing poison is replaced, including its end, when the new
+per-tick damage is equal or greater; a weaker one is left alone. d2d applies
+that record from a monster foe in `Fight::take_blows`. It does not yet retain
+the state-list owner needed to credit a later poison kill.
+
 ## To hit — FUN_0057ec10 → FUN_0057d9b0
 
 - Reach first (0x57ec7e..0x57eca6): FUN_00622c40(attacker, target, extra)
