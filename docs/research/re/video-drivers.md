@@ -370,7 +370,7 @@ RGB565 textures.
 | `FUN_0050dfe0` | From `FUN_00509670`: the two textures' card addresses `DAT_00880be8` (aligned) and `DAT_00880bec` (0x8000 on, rounded), their records `0x72f690` / `0x72f6a4` pointed at the buffers; returns the space used |
 | `FUN_0050e030` | A bare `ret` (the close's call when `DAT_0087efe8` is 0) |
 | `FUN_0050e040` | Slot `+0x48`, close: `_SmackClose_4` when the kind is `'s'` and there is a handle, then kind 0. The buffers stay |
-| `FUN_0050e070` | The 8-bit frame through the palette ECX (3 bytes an entry) to RGB565, `(r & 0xf8) << 8 | (g & 0xfc) << 3 | b >> 3`: columns 0..255 into `DAT_00880b70`, 256..511 into `DAT_00880b74` |
+| `FUN_0050e070` | The 8-bit frame through the palette ECX (3 bytes an entry) to RGB565, `(r & 0xf8) << 8 \| (g & 0xfc) << 3 \| b >> 3`: columns 0..255 into `DAT_00880b70`, 256..511 into `DAT_00880b74` |
 | `FUN_0050e330` | `grTexDownloadMipMap` of both textures (TMU `DAT_00880bf4`, mode 3, records `0x72f680` / `0x72f694`) |
 | `FUN_0050e370` | Draws the frame, from slot `+0x44`: the four states, `grChromakeyMode(0)`, the left texture as a quad up to 256 wide, the right one for the rest (width − 256), `grChromakeyMode(1)` |
 | `FUN_0050e5d0` | Slot `+0x40`, open. Fatal (0x8e) without the frame buffer; clears all three and, unless paused, downloads them. `'p'`: loads and decodes as GDI does (type 2, assert `glSmack.cpp` line 0xdb), only 468×60 at 8 bits, then moves each row to a 512-byte stride, converts and downloads. `'s'`: when the record has no handle, `_SmackOpen_12(name, 0xfe000, −1)` and `_SmackToBuffer_28(h, 0, 0, 0x200, 0x40, frame, 0)`. A failure closes as `FUN_0050e040` |
