@@ -53,6 +53,13 @@ int main() try {
     ring.slot = 6;
     ring.props = { { d2d::d2s::kItemSlow, 0, 40 }, { d2d::d2s::kLifeDrainMinDamage, 0, 50 } };
     character.merc_items.push_back(ring);
+    // And a short bow: a weaponless merc's arrow reads its stats 21 / 22, none (FUN_0064b860), so no physical to leech.
+    d2d::d2s::Item bow;
+    bow.code = "sbw";
+    bow.location = d2d::d2s::item_location::kEquipped;
+    bow.slot = d2d::d2s::body_location::kRightArm;
+    bow.identified = true;
+    character.merc_items.push_back(bow);
     World world(&*data, -1, -1);
     world.enter(character);
     auto& fight = world.fight;

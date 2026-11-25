@@ -71,6 +71,9 @@ Result strike(GameData& data, bool crushing, int type, long maxlife, long life, 
     fighter.crushing = crushing ? 100 : 0;
     d2d::rules::Swing swing;
     swing.missile = missile;
+    // A missile's record takes its physical from the row's own part, in 256ths and unscaled (FUN_0064b860), the oracle's
+    // pinned value as it is; a swing's from the weapon's.
+    if (missile) { fighter.phys_lo = fighter.phys_hi = 0; swing.row_lo = swing.row_hi = int(phys); }
     const auto target = fight.monsters[0].target(data);
     assert(target.crush_divisor == divisor && target.res[2] == 0 && target.res[0] == 0);
     d2d::rules::Blow blow;

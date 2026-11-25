@@ -149,6 +149,7 @@ Fighter simple_fighter(int min, int max, int attack_rating, int defense) {
     Fighter fighter;
     fighter.min = min; fighter.max = std::max(max, min); fighter.attack_rating = fighter.ar_base = attack_rating; fighter.defense = defense;
     fighter.phys_lo = min << 8; fighter.phys_hi = fighter.max << 8;
+    fighter.stat_lo = min; fighter.stat_hi = fighter.max;
     return fighter;
 }
 
