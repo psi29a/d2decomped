@@ -39,6 +39,7 @@
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <utility>
 
 namespace fs = std::filesystem;
 using namespace d2d::game;
@@ -156,6 +157,41 @@ int main(int argc, char** argv) try {
         std::printf("poisoned: %d -> %d in 4 frames\n", start, skeleton.life_fine());
     }
     std::puts("OK: a poisoned skeleton loses its poison a frame, its regeneration off (pet_regen)");
+    // A zombie's poisoned arrow at the skeleton (its own poison stats, every hit it lands): the pet takes the arrow's
+    // damage and its poison though the missiles fly after the pets' own hits are read (Fight::world).
+    {
+        auto& skeleton = pet.monster;
+        skeleton.hit_points = skeleton.stats.hit_points; skeleton.life_frac = skeleton.max_life_frac;
+        skeleton.poison_until = 0; skeleton.poison_rate = 0; skeleton.regen_from = 0;
+        skeleton.stats.armor_class = -1000;
+        using MonType = decltype(data->monsters.types)::value_type;
+        const auto zombie = std::ranges::find(data->monsters.types, std::string_view("zombie1"), &MonType::id);
+        assert(zombie != data->monsters.types.end());
+        auto shooter = make_monster(*data, int(zombie - data->monsters.types.begin()), skeleton.unit.x + 3.f, skeleton.unit.y, rng, 0, true, 1, open.id);
+        shooter.id = 0x7ffff1;
+        world.fight.monsters.push_back(std::move(shooter));
+        Missile shot;
+        shot.info = &data->missiles.at("arrow");
+        shot.owner = world.fight.monsters.back().id; shot.owner_align = 0;
+        shot.src.a2_min = shot.src.a2_max = 3;
+        shot.src.poison_min = shot.src.poison_max = 40; shot.src.poison_len = 25;
+        shot.src.no_hit_roll = shot.src.unblockable = true;
+        shot.x = skeleton.unit.x + 1.f; shot.y = skeleton.unit.y;
+        shot.velocity_x = -5.f;
+        shot.aim_at = std::pair{ skeleton.unit.x - 3.f, skeleton.unit.y };
+        shot.born = now; shot.dies = now + 40 * 40;
+        world.fight.missiles.push_back(std::move(shot));
+        const int full_life = skeleton.life_fine();
+        for (int frame = 0; frame < 20 && skeleton.poison_until <= now; ++frame, now += 40) {
+            world.fight.monsters.back().next_act = ~0u;
+            skeleton.next_act = ~0u;
+            world.tick({}, now, now - 40);
+        }
+        std::printf("the arrow at the skeleton: %d off (256ths), poisoned until +%d ms\n", full_life - skeleton.life_fine(),
+                    skeleton.poison_until > now ? int(skeleton.poison_until - now) : 0);
+        assert(skeleton.life_fine() < full_life && skeleton.poison_until > now);
+    }
+    std::puts("OK: a monster's arrow hurts and poisons a pet (Fight::world after missiles_update)");
     return 0;
 } catch (const std::exception& error) {
     std::printf("test_pet_regen: %s\n", error.what());
