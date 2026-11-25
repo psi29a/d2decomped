@@ -1815,7 +1815,9 @@ repeat skill.
   FUN_005c3de0). Dim Vision and Terror swap the monster's AI (special 10 / 11)
   and land only where FUN_0056e2f0 lets (monster-ai.md "Curse thinks"). **59** (FUN_005c3b90, Attract) on the one unit. **6**
   (FUN_005db1c0, Inner Sight / Slow Missiles) round the caster. **71**
-  (FUN_005d8570, Taunt) on the monster (or the nearest within 20).
+  (FUN_005d8570, Taunt) on the monster (or the nearest within 20); after
+  the put, taken or not, FUN_005dd330(monster, 0) at 0x5d8718 clears its
+  leader (monster-ai.md, `tools/emu/taunt_leader.py`).
 - War cries: do **68** (FUN_005d83e0): a nova of srvmissilea (FUN_0056d400)
   and the state on the caster (FUN_005d8290). Hit **18** (FUN_005ab0b0):
   the state on an ally it reaches. **21** (FUN_005ab500, Battle Cry): the
