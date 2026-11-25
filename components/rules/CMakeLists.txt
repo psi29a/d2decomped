@@ -23,6 +23,7 @@ add_library(rules STATIC
     items/cube.cpp
     items/drops.cpp
     items/replenish.cpp
+    items/set_list.cpp
     items/shop_action.cpp
     items/stack_qol.cpp
     monsters/mon_equip.cpp

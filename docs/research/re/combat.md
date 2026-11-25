@@ -448,6 +448,65 @@ d2d has no literal node list for this queue — its equivalents
 than scheduling and later freeing/searching nodes — so there is nothing to
 port for either function; documented for the record only.
 
+## A set's bonus list — FUN_00663b40 → FUN_00660120 (ITEMS)
+
+game.exe keeps one stat list per set worn on its owner, in one of six
+states (`0x6ee424`), found by its stat 0x47 (the Sets.txt row,
+`FUN_00625d00`). `FUN_00663cc0(owner, item, off, …)` (an item of quality 5
+in the owner's inventory) runs `FUN_00663b40` (ECX owner, EDX item, `off`):
+
+- **On** (`off` 0): the set's list is cleared (`FUN_00627340`), or made in
+  the first free state (`FUN_006251f0`, `FUN_00626e10`, `FUN_006252d0`); its
+  0x47 is set (`FUN_00627030`) and `FUN_00660120` refills it with **that
+  item** (EDX = `[EBP-0x10]` at `0x663c98`).
+- **Off** (`off` 1): the list is unlinked and freed (`FUN_006277e0`,
+  `FUN_00626cd0`); nothing rebuilds it.
+
+`FUN_00660120` (ECX owner, EDX item, the state): n = `0x6eda40[mask]`
+(`FUN_0062a370`'s worn-member mask, a bit count); the partial rows 0 ..
+min(n, pieces − 1) × 2 − 3 whose property (+0 of each 16-byte row, the
+Sets record's +0x10) is set, then with n ≥ pieces the full rows (+0x90)
+in order, **stopping at the first unused one** (`0x660206`; stock Sets.txt
+has no gap). Each row goes through `FUN_0065fe10(4, owner, …)` with the
+item in ESI (`0x66012e`), which hands it to the Properties funcs as their
+item (`FUN_0065fd70`: ECX the kind, EDX the owner, then the item and the
+mod). So dmg-min / dmg-max (`FUN_0065ecf0` / `FUN_0065ee80`, drops.md)
+land by that piece's hands: all three (0x15 / 0x17 / 0x9f, or 0x16 / 0x18
+/ 0xa0) for a piece that isn't a weapon (`FUN_00629bb0(item, 0x2d)`), the
+weapon's own for one. With no item those funcs put nothing.
+
+`FUN_0055c2c0` (stats on) calls `FUN_00663cc0(.., 0, 0)` for a set item;
+its callers (xrefs) are ItemMode.cpp's moves: a body item on (`FUN_005606b0`, the load's
+too, `FUN_00560f00`, `FUN_00561220`, `FUN_00563d20`), the weapon switch
+(`FUN_005616a0`), a stack refill (`FUN_00562a30`), the corpse
+(`FUN_00562f30`), the requirements pass (`FUN_0055dbc0`); a mend calls it
+itself (`FUN_0055f900`). The off side: `FUN_0055c730` (.., 1, 0), a break
+`FUN_0055f850` and `FUN_0057f410` (.., 1, 1). So the list holds the piece
+put on last.
+
+Sets.txt's codes use Properties funcs 1, 3, 5, 6, 7, 8, 11, 15, 16, 17,
+21, 22 and 24 only, none of the ones that write the item (2 / 4's
+defence, 13, 14, 19, 20, 23); what the piece changes is dmg-max (Hsarus'
+Defense FCode1, three armour pieces: all three hands), dmg-min (Death's
+Disguise FCode2: all three, or one-hand when Death's Touch, a war sword,
+went on last) and dmg% (Aldur's Watchtower FCode6, func 7 `FUN_0065f010`,
+which reads a weapon piece's damage bytes too), and a classic (version 0)
+piece takes the classic table (`FUN_0062a670`, drops.md).
+
+d2d: `rules::stats_on` stamps an item where its stats go on
+(`wield_enters`, `equip_from_bag`), `rules::set_list_piece` takes the worn
+member with the highest stamp (the later in the save on a tie: a load puts
+them on in its order), `rules::set_list_rows` the rows, and `set_props`
+hands the piece to `apply_mod`. Not ported: the off side, which leaves the
+pieces still worn with no partial bonus until one goes on again (not
+checked in play; `set_list.cpp`'s ponytail).
+Oracle: `tools/emu/set_list.py` runs `FUN_00663b40` and `FUN_00660120`
+over runs of pieces going on and off (the owner's lists a Python model,
+`FUN_0065fe10` logged): 0 of 19,383 lines differ from
+`tests/test_set_list.cpp` (gen 2000 1, 2026-11-25).
+Re-check: `python3 tools/ghidra/fn.py 00663cc0 00663b40 00660120 0065fe10
+0065fd70 0065ecf0`.
+
 ## Corrections applied (phase 0)
 
 1. Hit chance rounds as game.exe does: percent first, then × 2 × alvl /
@@ -533,7 +592,8 @@ for seeds 1 and 7. It has no reduction and no resistance on the defender
   of a set worn (a popcount of its piece mask, 0x6eda40), the partial
   PCode2a, 2b .. na, nb, at most (pieces − 1)'s; with every piece worn the
   full FCode1..8 too (pieces: the Sets record's +0xc). An add func 1 list (keyed to another piece)
-  counts pieces.
+  counts pieces. The mods go by the piece whose stats went on last: "A
+  set's bonus list" below.
 - Monster life regeneration: FUN_00573cb0 sets stat 0x4a = its rolled
   life (256ths) x MonStats DamageRegen (+0x1a0) >> 12 (past 0x7fffffff /
   DamageRegen the life shifts first); FUN_005a6920 (event 3, every frame)
