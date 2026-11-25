@@ -1223,8 +1223,8 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     // leader gone or dead, or itself without WL, and it never does again.
     // d2d's leader is its group's first's place in the level's monster list (Fight::rooms_up translates a
     // spawn's through Spawning::LevelState::spawn_slots).
-    // ponytail: FUN_005dd330's other units (a revived monster's owner, item_reanimate's FUN_005c07a0, Taunt's
-    // taunter) aren't monsters with that leader here.
+    // A revived monster's owner (FUN_005c55c0) is Fight::pets_turn's. Taunt (FUN_005d8570) sets none (0x5d8718).
+    // ponytail: item_reanimate's monster (FUN_005c07a0: its player, 0x5c08ca) isn't made; Taunt's clear isn't ported.
     if (monster.boss == d2d::rules::Boss::minion && !monster.leader_lost && monster.leader >= 0 && std::size_t(monster.leader) < pack.size()
         && &pack[std::size_t(monster.leader)] != &monster && pack[std::size_t(monster.leader)].boss != d2d::rules::Boss::none
         && pack[std::size_t(monster.leader)].boss != d2d::rules::Boss::minion) {

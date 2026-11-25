@@ -36,7 +36,8 @@ and goes, stopping at the first step that acts:
 
 1. FUN_005b10e0: state 0x15 stands 3; FUN_005b0f50; FUN_005b0ff0, the walk back to the unit AI control +0x0c / +0x10 names
    (FUN_005dd330 sets it: a unique's minions their leader, FUN_005a0c00 0x5a0cb9; a revived monster its owner, FUN_005c55c0;
-   item_reanimate's monster its player, FUN_005c07a0; Taunt's its taunter, FUN_005d8570). Without WL (FUN_0046c140(row, 2)), the unit not found or dead or dying: +0xc cleared.
+   item_reanimate's monster its player, FUN_005c07a0 0x5c08ca). Taunt (FUN_005d8570) sets none: FUN_005dd330(ECX the taunted
+   monster, EDX 0) at 0x5d8718, -1 and 1, so its monster never walks back. Without WL (FUN_0046c140(row, 2)), the unit not found or dead or dying: +0xc cleared.
    Within 1 of a player (+0x10 0): a back-off 0x13 from it (FUN_005defe0), failing that the walk. Over 0x14 (FUN_005dc380,
    its own size off): FUN_005de190(7, 0, 0x28), a walk to a spot 0x13 about it (FUN_005df530); the step acts.
    `tools/emu/leader_follow.py`, `rules::leader_follow`; d2d: a unique's minions (`Monster::leader_lost`).
