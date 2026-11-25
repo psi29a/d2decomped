@@ -647,7 +647,7 @@ auto Fight::prg(const d2d::rules::Skill& skill, ServerDoFunction func, int count
         // Their path callbacks (FUN_005d40f0 for 37, FUN_005d4680 for 143) cap
         // the range at 77 (0x4d) and give the path type 10, a route of points.
         // FUN_005d4680 lays 143's a wobbling route (rules::wobble_route) on the
-        // missile's seed: the fight's rng here (deviations.md approximation 18).
+        // missile's seed (unit +0x20: Missile::seed, which launch takes off the game seed).
         if (!missile_info) return;
         if (func == ServerDoFunction::kReleaseAtTarget) { launch(*missile_info, skill, lvl, target_x, target_y, 0, 0, missile_info->range, now_ms); return; }
         if (func == ServerDoFunction::kReleaseSpread) {
@@ -672,7 +672,7 @@ auto Fight::prg(const d2d::rules::Skill& skill, ServerDoFunction func, int count
                     // first frame follows before the route's points (missile_fly).
                     missile.aim_at = std::pair{ target_x + float(offset.first) / 5, target_y + float(offset.second) / 5 };
                     const int from_x = level->world_x * 5 + int(std::floor(target_x * 5)), from_y = level->world_y * 5 + int(std::floor(target_y * 5));
-                    missile.route = d2d::rules::wobble_route(from_x, from_y, from_x + offset.first, from_y + offset.second, range, rng);
+                    missile.route = d2d::rules::wobble_route(from_x, from_y, from_x + offset.first, from_y + offset.second, range, missile.seed ? *missile.seed : rng);
                 }
             });
             return;
