@@ -695,6 +695,7 @@ struct World {
     void act5_update(std::uint32_t now_ms);
     // Every item of the character has a unit id (new ones get theirs).
     void item_ids();
+    void store_ids();                    // the open store's stock items without an id take the next ones
 
     // A new game: the player at (start_x, start_y) cells, or the town's start when they're negative.
     World(const GameData* loaded_data, int start_x, int start_y);

@@ -486,7 +486,7 @@ bool ClientSession::touch_event(std::int64_t finger, touch::Phase phase, float x
             }
         };
         const auto run_sheet_action = [&](touch::ItemAction action) {
-            if (action == touch::ItemAction::Buy && touch_stock >= 0 && store.npc >= 0) send(cmd::Buy{ touch_stock, store.tab });
+            if (action == touch::ItemAction::Buy && touch_stock >= 0 && store.npc >= 0) buy_stock(touch_stock);
             else if (action == touch::ItemAction::Sell && touch_item >= 0) send(cmd::Sell{ touch_item });
             else if (action == touch::ItemAction::Use && touch_item >= 0) {
                 const auto found = std::ranges::find(character.items, touch_item, &d2d::d2s::Item::id);

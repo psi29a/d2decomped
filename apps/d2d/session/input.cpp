@@ -875,7 +875,7 @@ auto ClientSession::bag_at(int mouse_x, int mouse_y) const -> const d2d::d2s::It
 // A store's X buys the stock under the cursor. Selling is Hold A, so X does not sell.
 auto ClientSession::pad_trade(int mouse_x, int mouse_y) -> void {
         if (store.npc < 0 || !scene) return;
-        if (const int stock = store_item_at(*scene, store, mouse_x, mouse_y, touch_store_panel_x()); stock >= 0) send(cmd::Buy{ stock, store.tab });
+        if (const int stock = store_item_at(*scene, store, mouse_x, mouse_y, touch_store_panel_x()); stock >= 0) buy_stock(stock);
     }
 
 /**

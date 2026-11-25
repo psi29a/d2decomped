@@ -82,23 +82,20 @@ struct Socket { int item = -1; };
 // (stored; its quantity under the max).
 struct ScrollToBook { int book = -1; };
 // NPC deals: 0x38 an NPC's trade / gamble window or hire list (the server
-// rolls the stock / offers); 0x32 buy stock item `stock` (a gamble too);
-// 0x33 sell an item (by unit id; the one in hand too); 0x35 repair one
-// (-1: everything); 0x34 Cain identifies everything; 0x36 hire offer
-// `offer`; closing the window.
-// ponytail: stock and offers by index; game.exe's 0x32 names the stock item by
-// its unit id (+5, FUN_0054bac0 -> FUN_00577830, looked up by FUN_00552f60) and
-// 0x36 the offer by its name id (u16 +5, FUN_0054bbd0 -> FUN_005770e0: the
-// entry's 16-byte record, NameFirst..NameLast, HireEntry::name; npc-menu.md). Porting
-// them takes world/commands.cpp, which others are changing.
+// rolls the stock / offers); 0x32 buy the stock item of unit id `item` (a
+// gamble too: +5, FUN_0054bac0 -> FUN_00577830, found by FUN_00552f60 on any
+// tab); 0x33 sell an item (by unit id; the one in hand too); 0x35 repair one
+// (-1: everything); 0x34 Cain identifies everything; 0x36 hire the entry of
+// name `name` (u16 +5, FUN_0054bbd0 -> FUN_005770e0: HireEntry::name, from
+// NameFirst; npc-menu.md); closing the window.
 struct OpenTrade { int npc = -1; bool gamble = false; };
 struct OpenHire { int npc = -1; };
-struct Buy { int stock = -1; int tab = -1; bool fill = false; };   // the tab the stock index is on (-1: the store's own); fill: shift held on a multibuy item (C->S 0x32's 0x80000000)
+struct Buy { int item = -1; bool fill = false; };   // fill: shift held on a multibuy item (C->S 0x32's 0x80000000)
 struct Sell { int item = -1; };
 struct Repair { int item = -1; };
 struct Identify {};
 struct IdentifyWith { int scroll = -1; int item = -1; };   // a Scroll / Tome of Identify on an item (C→S 0x27, FUN_0054b280)
-struct Hire { int offer = -1; };
+struct Hire { int name = -1; };
 // 0x62 (FUN_00579c00): resurrect the dead merc at hire NPC `npc`.
 struct ResurrectMerc { int npc = -1; };
 struct CloseTrade {};
