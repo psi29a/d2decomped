@@ -2302,6 +2302,7 @@ address	name	evidence
 00639db0	unit_set_state_checked	(unit, state, on): only for 0 <= state < [0x744304]+0xc4; FUN_00625a70 sets or clears the bit, then FUN_0064c040 links the unit into a list once (flag 0x2000); skills.md "Skill accessors"
 00639ee0	state_words_clear	The unit's state words (FUN_00625be0) zeroed ((state count + 31) / 32 dwords). Only caller FUN_00553220 (unnamed-frontier.md)
 00639f20	state_words_any	Whether any state word is set. Callers FUN_00598220 and one more (unnamed-frontier.md)
+00639fb0	states_leave_on_death	Stdcall (unit, boss flag): the unit's state bitmaps (FUN_00625bb0 first, FUN_00625be0 second; (states + 31) / 32 dwords each) with keep = data tables +0x108 (boss flag), else +0x104 (unit type not 0), else +0x100 (a player): per dword second |= ~keep & first, first &= keep, then FUN_0064c040(unit). Callers FUN_0057f330, FUN_005a6520 (states.md)
 0063a100	state_words_get	FUN_00625bb0(). Callers unit_stats_packet, FUN_005d6410 (unnamed-frontier.md)
 0063a130	state_words_intersect	EAX unit, EBX set: any shared bit between FUN_00625bb0 words and the set over (count [+0xc4] + 31) / 32 words (drops.md "Does a unit have a state of one set")
 0063a2d0	state_set_test_dc	FUN_0063a180(arg, data tables +0xdc). Only caller FUN_005d5220 (unnamed-frontier.md)

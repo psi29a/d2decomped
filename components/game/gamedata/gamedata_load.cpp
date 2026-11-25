@@ -932,6 +932,9 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             state.restrict_form = states_table.get(row, "restrict") == "1";
             state.row = int(row);
             state.aura = states_table.get(row, "aura") == "1";
+            state.plr_stay_death = states_table.get(row, "plrstaydeath") == "1";
+            state.mon_stay_death = states_table.get(row, "monstaydeath") == "1";
+            state.boss_stay_death = states_table.get(row, "bossstaydeath") == "1";
             for (int k = 0; k < 4; ++k) state.over[std::size_t(k)] = overlay(states_table.get(row, ("overlay" + std::to_string(k + 1)).c_str()));
             state.cast = overlay(states_table.get(row, "castoverlay"));
             state.gfx_type = std::atoi(std::string(states_table.get(row, "gfxtype")).c_str());
