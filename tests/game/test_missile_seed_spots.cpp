@@ -39,6 +39,7 @@ void update(const Level& level, std::vector<Missile>& missiles, std::uint32_t no
 
 }  // namespace
 
+// Runs the hit-spawn cases: lightning and poison ends, each with an owner (FUN_00552fd0).
 int main() try {
     Level open;
     open.ds1 = d2d::ds1::Map(8, 8, 1, 1);           // 40 x 40 subtiles, nothing blocked

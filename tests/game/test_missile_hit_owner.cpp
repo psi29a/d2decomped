@@ -33,6 +33,7 @@ std::size_t ends_with(const Level& level, Missile control) {
 
 }  // namespace
 
+// Runs the hit-spawn cases: lightning and poison ends, each with an owner (FUN_00552fd0).
 int main() try {
     Level open;
     open.ds1 = d2d::ds1::Map(8, 8, 1, 1);
