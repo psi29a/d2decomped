@@ -24,7 +24,6 @@
 #include <exception>
 #include <filesystem>
 #include <memory>
-#include <string_view>
 #include <vector>
 
 using namespace d2d::game;
