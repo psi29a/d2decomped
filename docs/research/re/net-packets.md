@@ -643,7 +643,9 @@ ids).
     `FUN_004649d0` → `FUN_00463c90`) are searched for class 0x13e (318,
     the eunuch harem blocker `ss`) in mode 2 (`LAB_004b3360` sets
     `DAT_007c0dda`); none found, sound 0xf8f (3983 guard_halt) on the
-    guard.
+    guard. d2d keeps each host object's mode (0x51 +0xc, then 0x0e:
+    `NetGame::Unit::object_mode`) and asks `NetGame::object_in_mode`
+    (`test_harem_blocker_mode`).
 - **0x58 open UI** (7; `0x45e490`): +1 u32 unit id, +5 u8 UI (0 open;
   1 / 4 / 5 / 6 / 7 close variants) **(?)** which is which.
 - **0x77 button action** (2; `FUN_004b8cf0`): +1 u8 action on the trade
