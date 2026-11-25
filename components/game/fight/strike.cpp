@@ -1072,6 +1072,7 @@ auto Fight::hit(std::uint32_t now_ms, float reach ) -> void {
 // 1..max; d2d applies a minimum of one whole point during Conversion.
 auto Fight::turn_good(Monster& turned, int caster_level) -> void {
         turned.align = 2; turned.set_kind = 0; turned.chase = -1;
+        turned.pet_serial = ++actor->list_serial;   // FUN_005b1900: the caster's newest in its list
         if (turned.stats.level > caster_level && turned.own_level == 0) {
             turned.own_level = turned.stats.level; turned.own_max_life = turned.stats.hit_points;
             turned.own_max_life_frac = turned.max_life_frac;
