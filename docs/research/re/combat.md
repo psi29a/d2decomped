@@ -1065,9 +1065,15 @@ disassembly, `0056e1c1`). Run with FUN_00647bc0 / FUN_00647d00 hooked (logged,
 scripted results) and the real seed draw, 36 cases:
 `tools/emu/skills_combat_helpers.py`. Their formulas and d2d are not compared.
 
-d2d: keeps no record; `Fight::hit` builds and lands the player's blow at
-once on the action frame, so a do-2 skill's srvoverlay (Concentrate's
-doubledamage1, Fire Claws' fire_hit) never plays.
+d2d: `rules::HitRecords` (hit_records.hpp; `tools/emu/hit_records.py`,
+`test_hit_records`), one per player (`Hero::hit_records`). A do-2 skill's
+swing builds its blow as it starts (`Fight::start_swing`, `build_blow`: a
+miss with no roll out of reach or at no foe) and its action frame lands
+that one (`Fight::hit`): none, no blow; a landed one plays the srvoverlay
+on the monster (`test_hit_records_swing`). Every other skill still builds
+and lands its blow at once on the action frame. A player's list goes with
+its `Hero`; nothing calls `drop_self` yet (d2d has no player freeze).
+ponytail: the monsters', merc's and pets' blows keep no record.
 Re-check: `python3 tools/ghidra/fn.py 0057ca80 0057d690 0057c9f0 0057c980
 0057dbf0 0057ec10 0057d4f0 0056f1f0 005d7ea0 0057e240 0044be50 00451f50
 005d3140`.

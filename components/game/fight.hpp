@@ -16,6 +16,7 @@
 #include <combat.hpp>
 #include <d2s_items.hpp>
 #include <hire.hpp>
+#include <hit_records.hpp>
 #include <hud_globe.hpp>
 #include <overlays.hpp>
 #include <rules.hpp>
@@ -268,6 +269,10 @@ struct Fight {
         // swing does (made with no length; its removal isn't traced), Berserk's
         // calc2 ticks (FUN_005d97f0, 10 when that's 0).
         std::vector<SelfState> self_states;
+        // The blows a do-2 skill's swings built as they started (the record FUN_0057dbf0 builds, with
+        // the swing's freeze length), by the monster each is against, till its do lands it (unit +0xac).
+        struct BuiltBlow { d2d::rules::Blow blow; int freeze_len = 0; };
+        d2d::rules::HitRecords<BuiltBlow> hit_records;
         int absorb_pool = 0, absorb_skill = -1;        // Bone / Cyclone Armor's damage left to absorb, whole points
         int absorb_frac = 0;                           // and the 256ths of a point the pool holds beyond them
         std::pair<int, int> blaze_subtile{ -1, -1 };   // the subtile the player stood in at the last Blaze check
@@ -555,6 +560,9 @@ struct Fight {
     // one on the attack's event frame.
     void strike(std::uint32_t now_ms);
     void hit(std::uint32_t now_ms, float reach = -1.f);   // reach < 0: game.exe's (FUN_0057ec10); else the cells
+    // The swing's blow at a monster as it stands now: the to-hit roll, the damage, what it leaves.
+    Hero::BuiltBlow build_blow(std::size_t monster_index);
+    [[nodiscard]] d2d::rules::UnitKey player_key() const { return { 0, actor->id }; }   // the player as unit lists name it
 
     // Charged Strike: calc1 of its missile from the monster struck, on away from the player (to twice its spot
     // less the player's), each wandering as Charged Bolt's.
