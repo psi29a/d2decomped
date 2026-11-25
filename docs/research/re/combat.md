@@ -304,7 +304,9 @@ d2d matches both, and the one-poison-at-a-time rule.
   DeathMaul, so it stays blockable. Read by `monster_blow` for a missile. Checked by
   `tools/emu/missile_block.py` against `test_monster_missile --missile-block` and
   `--missile-block-skill`. Limits: the compared shooters are `mm_diff.py`'s Act 1 / 2 rows
-  (36 rows, 51 monsters) and the skill launches of `mm_launch.py` (with the Death Mauler's
+  (36 rows, 51 monsters, and since 2026-11-24 the Wills o' the Wisp's MissC rows: a cast carries the
+  owner's damage, its S1 stats 21 / 22 as FUN_005a4f50 sets them for SC, and its enchants, as any
+  shot; 3000 cases, 107 of them casts, 0 differ) and the skill launches of `mm_launch.py` (with the Death Mauler's
   maul); Act 3 to 5 shooters go through the same `monster_shot_stats` (read, not run). The
   area path (`FUN_005ad730` from `0x57e203`, a loop that copies a caller's record) uses the
   same `record + 8` rule; d2d's monster area missiles were not checked.

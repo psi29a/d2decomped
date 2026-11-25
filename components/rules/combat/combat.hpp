@@ -68,6 +68,7 @@ struct Fighter {
     bool prevent_heal = false;                      // stat 117 (item_preventheal)
     int hit_class = 1;                              // the weapon's (Weapons.txt hit class; 1 hand to hand), FUN_00623c20
     int attack_start = 0;                           // the frame an A1 swing starts on with this weapon (attack_start_frame)
+    bool bow = false;                               // its weapon's wclass is bow: a do 8 / 10 / 12 keeps srvmissilea
     int life_steal = 0, mana_steal = 0;             // %
     int ias = 0, wsm = 0, frw = 0, fhr = 0, fbr = 0, fcr = 0;
     int sias = 0;           // stat 68 attackrate the states give (auras, skills): added raw, not diminished (FUN_00623f50, 0x6241e7)
@@ -459,6 +460,7 @@ struct Swing {
     int ar_pct = 0, ed_pct = 0, flat = 0, srcdam = 128;
     bool kick = false, knockback = false;
     int skill_lo = 0, skill_hi = 0;
+    int row_lo = 0, row_hi = 0;           // a missile row's own physical (256ths): in the roll with the weapon's, so a crit doubles it
     int stun_ticks = 0;                   // EType stun: the target stands this long (FUN_0057aae0)
     int hit_class = 0;                    // the skill's HitClass, OR-ed into the weapon's
     int conv_type = -1, conv_pct = 0;     // calc4 % of the physical becomes this element (Skill::etype order)

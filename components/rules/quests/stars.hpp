@@ -45,7 +45,12 @@ struct Stars {
     // The first call (FUN_00476290's head): eight colours from grey 128 to
     // white, each channel ± 32 (capped at 255), as the palette's nearest
     // (FUN_004fb180: `nearest(r, g, b)`), then every star placed.
-    // `width` / `height`: the screen's (0x7a5220 / 0x7a521c).
+    // `width` / `height`: 0x7a5220 / 0x7a521c, the screen's width and its height less field_margin
+    // (FUN_0044ba20 sets both with the resolution and nothing else writes them: an open side panel
+    // doesn't move them; the line slot +0xc0 of the GDI, DirectDraw, Glide and Direct3D tables takes
+    // buffer coordinates, bounds-checked against 0x7c9138 / 0x7c913c, with no view offset).
+    static constexpr int kFieldMargin = 0x28;
+    [[nodiscard]] static constexpr int field_height(int screen_height) { return screen_height - kFieldMargin; }
     template <class Nearest>
     void make(std::uint32_t seed, int width, int height, Nearest&& nearest) {
         rng = Rng(seed);

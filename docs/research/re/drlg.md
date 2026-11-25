@@ -847,6 +847,17 @@ animated tile becomes its key's candidate with rarity 0, and the ones with
 rarity 1..n−1 (the frames; n the key's candidates) follow it onto the same
 list, flagged 8, at the same spot. The pick before it still rolled the
 room seed. d2d: `level_room_tiles` (`Preset::animate`).
+Each frame is a new entry past the end of the room's wall / floor / shadow
+array (the entry at index count, count + 1: FUN_0066dc50, FUN_0066def0,
+FUN_0066df40 with a null link, so the frame joins no share chain), made from
+the same word as its key (FUN_0067c570), so it has the key's draw group. The
+floor draw (FUN_004de730, then FUN_004de410 per entry: it skips flags & 0x408)
+walks each near room's array in index order, group (flags >> 14 & 7) 1 then
+2, so the shown frame draws in its own place, after the room's other tiles of
+its group, not in frame 0's. d2d: `animated_tile` (gamedata.cpp) draws the
+shown frame at its own pick (`lay_tiles` lists a room's tiles in array order).
+Not traced: the tick (one a game frame is assumed), and cross-cell order (d2d
+draws a cell's picks cell by cell, game.exe a room's array).
 
 **FillBlanks** is the preset's own flag (LvlPrest FillBlanks, preset
 +0x1c): 34 rows have 0, Act 4's lava among them; their empty floors stay

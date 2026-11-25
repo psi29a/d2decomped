@@ -143,7 +143,13 @@ int unit_test() {
         row.src_damage = 96;
         const auto scaled = monster_shot_stats(row, boss, false, false, false, 1);
         assert(scaled.enchants[0] == std::pair(7, 15) && scaled.enchants[2] == std::pair(3, 6) && scaled.enchant_len == 75);
-        assert(!monster_shot_stats(row, boss, false, true, false, 1).enchants[0]);
+        // A cast (MissC: the Wisps') carries them as any shot (FUN_0064b860's plain branch), and its S1 damage.
+        assert(monster_shot_stats(row, boss, false, true, false, 1).enchants[0] == std::pair(7, 15));
+        auto caster = boss;
+        caster.s1_min = 4; caster.s1_max = 8; caster.a2_min = 50; caster.a2_max = 60;
+        row.src_damage = 128;
+        const auto cast_shot = monster_shot_stats(row, caster, false, true, false, 1);
+        assert(cast_shot.a2_min == 4 && cast_shot.a2_max == 8);
     }
     return 0;
 }
@@ -201,7 +207,8 @@ int main(int argc, char** argv) try {
         const auto found = data->missiles.find(row);
         if (found == data->missiles.end()) { std::fprintf(stderr, "no row %s\n", row.c_str()); return 1; }
         const auto& info = found->second;
-        const auto phys = monster_shot_phys(info, first ? owner.a1_min : s1_shot ? owner.s1_min : owner.a2_min, first ? owner.a1_max : s1_shot ? owner.s1_max : owner.a2_max, cast != 0, lvl);
+        const bool s1_damage = s1_shot || cast != 0;   // a cast's owner damage is S1's (FUN_005a4f50)
+        const auto phys = monster_shot_phys(info, first ? owner.a1_min : s1_damage ? owner.s1_min : owner.a2_min, first ? owner.a1_max : s1_damage ? owner.s1_max : owner.a2_max, lvl);
         auto stats = monster_shot_stats(info, owner, first != 0, cast != 0, s1_shot != 0, lvl);
         if (block_mode) {
             // The shot through the real monster_blow against a defender whose only roll is Block 75: how many of 400 are blocked.

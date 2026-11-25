@@ -364,7 +364,8 @@ int mode_rate(const GameData& game_data, const Monster& monster, std::string_vie
     d2d::rules::ModeRateIn rate_in{ .mode = mon_mode(mode), .low_class = monster.type >= 0 && monster.type < 0x19a, .npc = npc_row(game_data, monster),
                                .use_attack_rate = skill && skill->use_attack_rate, .speed = anim_speed(game_data, monster, mode),
                                .velocity_pct = monster.walk_pct, .fhr = monster.props.fhr, .fcr = monster.props.fcr, .ias = monster.props.ias,
-                               .attack_rate = 100 + monster.attack_pct + monster.aura_rate, .other_rate = 100 + monster.anim_pct };
+                               .attack_rate = 100 + monster.attack_pct + monster.aura_rate, .other_rate = 100 + monster.anim_pct,
+                               .skill_flags = monster.diab_run >= 2 ? 1 : 0 };   // DiabRun's do (FUN_005cd380, 0x5cd498) sets 1
     if (known) rate_in.base = { game_data.monsters.types[std::size_t(monster.type)].walk_base, game_data.monsters.types[std::size_t(monster.type)].run_base };
     return d2d::rules::monster_mode_rate(rate_in);
 }
@@ -372,14 +373,16 @@ int mode_rate(const GameData& game_data, const Monster& monster, std::string_vie
 // Whether a mode's rate in game.exe is other than a % of its AnimData speed: a moving one (FUN_006214a0:
 // WL, RN; S1..S4 for a class under 0x19a that isn't a MonStats npc), KB, BL, DT, DD.
 
-// ponytail: FUN_006214a0 also makes SQ (and S1..S4 for a class at or above 0x19a) a moving mode when the unit's
-// skill instance has flags & 1 and not 0x1000 (FUN_006446a0: set by do-funcs such as DiabRun's, 0x5cd498); d2d
-// keeps no skill instance flags, so those play at their attack / other rate.
+// FUN_006214a0 also makes SQ (and S1..S4 for a class at or above 0x19a) a moving mode when the unit's
+// skill instance has flags & 1 and not 0x1000 (FUN_006446a0). Of the server do-funcs that set 1 (Whirlwind
+// FUN_005d8f50, Charge's end FUN_005cf900, DiabRun FUN_005cd380, FUN_005cb940, FUN_005da020), only
+// DiabRun's plays one of those modes (SQ); d2d keeps it as diab_run past its wind-up.
 bool own_rate_mode(const GameData& game_data, const Monster& monster, std::string_view mode) {
     const int index = mon_mode(mode);
-    const bool skill_mode = index >= 8 && index <= 11;
+    const bool skill_mode = index >= 8 && index <= 11, flagged = monster.diab_run >= 2;
     return index == 0 || index == 2 || index == 6 || index == 12 || index == 13 || index == 15
-        || (skill_mode && monster.type >= 0 && monster.type < 0x19a && !npc_row(game_data, monster));
+        || (skill_mode && monster.type >= 0 && monster.type < 0x19a && !npc_row(game_data, monster))
+        || ((skill_mode || index == 14) && flagged && !npc_row(game_data, monster));
 }
 
 int chill_pct(const GameData& game_data, const Monster& monster) {
@@ -401,10 +404,16 @@ int anim_rate_pct(const GameData& game_data, const Monster& monster, std::string
 // mode_rate) and files the event frame's marker on the first tick that
 // reaches it, rules::frame_tick (council-s1.md).
 // ponytail: a mode with no event frame files no marker there (flags 1, 2, 4
-// only), but a skill's mode can still cast: FUN_005a75c0, the start, runs the
-// skill path when the unit has an active skill entry (council-s1.md), and
-// stock 1.14d's ZMS1HTH (a teleporting zombie's MonTeleport) has no event. Not
-// traced which; d2d strikes such a mode halfway.
+// only): FUN_005539b0 has no fallback (only the end, type 1), FUN_005a8030
+// (the end) runs no do, and FUN_005a75c0's skill path (FUN_0056faf0 ->
+// FUN_0056f640) runs only the srvstfunc (table 0x732140). So with no MonSeq
+// sequence (FUN_006634c0's rows instead) such a mode's action never runs:
+// stock 1.14d's ZMS1HTH plays MonTeleport (srvdofunc 98, no srvstfunc) without
+// the teleport. 25 monster modes have no marker in AnimData (ZMS1 / ZMS2, FAS1
+// / FAS2, MMS1, SKS1*, SUS1, SMS1 and more); which of them play through a
+// sequence isn't checked yet, so d2d still strikes such a mode halfway; with no
+// action there, test_game_missiles' teleporting unique zombie would not land,
+// so an oracle run of game.exe's own update on it settles which before a port.
 std::uint32_t action_due_ms(const GameData& game_data, const Monster& monster, std::string_view mode) {
     const auto& timing = game_data.npc_timing(monster.npc, mode);
     if (timing.action < 0) return timing.action_ms() * 100 / std::uint32_t(100 + anim_rate_pct(game_data, monster, mode));
@@ -1206,9 +1215,10 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     // over 0x14 from its leader (FUN_005dc380, its own size off) walks to a spot 0x13 about it (FUN_005df530 on
     // its seed) on path type 7 with 0x28 steps (FUN_005de190(7, 0, 0x28)), before any search or think; the
     // leader gone or dead, or itself without WL, and it never does again.
-    // ponytail: d2d's leader is its group's spawn index, which a pack grown since (births, trap risers) can
-    // shift: a leader that isn't a boss is taken as not known, not as gone. FUN_005dd330's other units (a revived
-    // monster's owner, item_reanimate's FUN_005c07a0, Taunt's taunter) aren't monsters with that leader here.
+    // d2d's leader is its group's first's place in the level's monster list (Fight::rooms_up translates a
+    // spawn's through Spawning::LevelState::spawn_slots).
+    // ponytail: FUN_005dd330's other units (a revived monster's owner, item_reanimate's FUN_005c07a0, Taunt's
+    // taunter) aren't monsters with that leader here.
     if (monster.boss == d2d::rules::Boss::minion && !monster.leader_lost && monster.leader >= 0 && std::size_t(monster.leader) < pack.size()
         && &pack[std::size_t(monster.leader)] != &monster && pack[std::size_t(monster.leader)].boss != d2d::rules::Boss::none
         && pack[std::size_t(monster.leader)].boss != d2d::rules::Boss::minion) {
@@ -2015,10 +2025,13 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
         const auto& par = run_skill->par;
         const int lvl = skill_level(game_data, monster, monster.skill);
         // A sequence skill (seq_diablorun): game.exe plays it in SQ (mode 14) at the SQ rate, not the run's.
-        // ponytail: the do-func sets the skill instance's flags to 1 (FUN_005cd380, 0x5cd498), which makes a later
-        // FUN_00623f50 rate it as a moving mode (walk base x walk %); d2d keeps the SQ rate throughout.
-        const std::uint32_t frame_ms = std::max<std::uint32_t>(game_data.npc_timing(monster.npc, "RN").ms_per_frame() * 100 / std::uint32_t(100 + anim_rate_pct(game_data, monster, "SQ")), 1);
-        const int frames = int((now_ms - monster.diab_run_ms) / frame_ms);
+        // Its do-func (FUN_005cd380, past the wind-up) sets the skill instance's flags to 1 (0x5cd498), so
+        // FUN_00623f50 rates SQ as a moving mode from then on: walk base x walk % (mode_rate), 256ths of a
+        // frame a tick, so the rows passed are the ticks x that rate / 256 (no whole-ms frame to round).
+        const int frames = monster.diab_run >= 2
+            ? int(std::int64_t((now_ms - monster.diab_run_ms) / 40) * std::max(mode_rate(game_data, monster, "SQ"), 1) / 256)
+            : int((now_ms - monster.diab_run_ms)
+                  / std::max<std::uint32_t>(game_data.npc_timing(monster.npc, "RN").ms_per_frame() * 100 / std::uint32_t(100 + anim_rate_pct(game_data, monster, "SQ")), 1));
         const auto contact = [&] {
             if (!foe.alive || d2d::rules::unit_distance(subtile(foe.x) - subtile(unit.x), subtile(foe.y) - subtile(unit.y), type_info.size, foe.size) > type_info.melee_rng + 1) return;
             auto stats = monster.swing_stats();
@@ -2173,7 +2186,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 Missile x{ &missile_info, unit.x, unit.y, aim_x / distance * speed, aim_y / distance * speed, missile_facing(unit.x, unit.y, aim_x, aim_y), now_ms,
                            now_ms + std::uint32_t(missile_info.range) * 40, monster.stats };
                 x.level = lvl; x.aim_at = { unit.x + aim_x, unit.y + aim_y }; x.owner = monster.id; x.owner_align = monster.align;
-                const bool first = monster.mode == "A1", cast = monster.mode == "SC";   // an A1 shot carries A1's damage; S1's S1's; SC's only its elements (El SC)
+                const bool first = monster.mode == "A1", cast = monster.mode == "SC";   // an A1 shot carries A1's damage; S1's and SC's S1's (FUN_005a4f50)
                 x.src = monster_shot_stats(missile_info, monster.swing_stats(), first, cast, s1_shot, lvl);
                 missiles.push_back(x);
                 // Multishot (FUN_005a3610, the missile hook): two more, aimed a
@@ -3588,10 +3601,10 @@ d2d::rules::MonStats missile_blow(const GameData::MissileInfo& info, const d2d::
     return stats;
 }
 
-MonsterShotPhys monster_shot_phys(const GameData::MissileInfo& info, int src_min, int src_max, bool cast, int lvl) {
+MonsterShotPhys monster_shot_phys(const GameData::MissileInfo& info, int src_min, int src_max, int lvl) {
     const int shift = info.hitshift & 31;
     const auto part = [&](int src, int row, const std::array<int, 5>& lev) {
-        const int owner = cast || info.src_damage <= 0 ? 0 : int(std::int64_t(src) * 256 * info.src_damage / 128);
+        const int owner = info.src_damage <= 0 ? 0 : int(std::int64_t(src) * 256 * info.src_damage / 128);
         return owner + ((row + d2d::rules::level_bonus(lev, lvl)) << shift);
     };
     return { part(src_min, info.min, info.min_lev), part(src_max, info.max, info.max_lev) };
@@ -3606,9 +3619,10 @@ MonsterShotPhys monster_shot_phys(const GameData::MissileInfo& info, int src_min
 // +0x3c hold and what monster_blow applies on every hit); the owner's own poison is
 // dropped on a SrcDamage-0 row and summed in otherwise (the rule below).
 d2d::rules::MonStats monster_shot_stats(const GameData::MissileInfo& info, d2d::rules::MonStats stats, bool first, bool cast, bool s1_shot, int lvl) {
-    const int src_min = first ? stats.a1_min : s1_shot ? stats.s1_min : stats.a2_min;
-    const int src_max = first ? stats.a1_max : s1_shot ? stats.s1_max : stats.a2_max;
-    const auto phys = monster_shot_phys(info, src_min, src_max, cast, lvl);
+    // A cast's (SC) owner damage is the S1 columns' (FUN_005a4f50: modes 7 and 8 take FUN_006538a0's 0x20 set).
+    const int src_min = first ? stats.a1_min : s1_shot || cast ? stats.s1_min : stats.a2_min;
+    const int src_max = first ? stats.a1_max : s1_shot || cast ? stats.s1_max : stats.a2_max;
+    const auto phys = monster_shot_phys(info, src_min, src_max, lvl);
     stats.a2_min = phys.low >> 8; stats.a2_max = phys.high >> 8;
     if (s1_shot) stats.to_hit = stats.to_hit_s1;                    // S1TH (monster_blow rolls to_hit)
     stats.no_hit_roll = !info.to_hit;
@@ -3638,10 +3652,10 @@ d2d::rules::MonStats monster_shot_stats(const GameData::MissileInfo& info, d2d::
     // SrcDamage / 128, the length too; so an A1, A2 or S1 shot alike. Kept in whole points.
     // A MissC shot takes this plain branch too: FUN_0064b860's other one is for a row with a Skill
     // (+0x194), and the only MissC rows in 1.14d, the Wills o' the Wisp's willowisplightningbolt /
-    // willowisplightningbolt2, have none (SrcDamage 128; MonStats / Missiles read in tools/emu).
-    // ponytail: whether the Wisp's cast carries its enchants and physical (FUN_0064a930 by SrcDamage;
-    // the owner's stats 21 / 22 as its SC mode set them, FUN_005a4f50) isn't traced; d2d drops both.
-    if (cast || src_damage == 0) stats.enchants = {};
+    // willowisplightningbolt2, have none (SrcDamage 128; MonStats / Missiles read in tools/emu). So a
+    // cast carries the enchants as any shot, and the owner's stats 21 / 22 as its SC mode set them
+    // (FUN_005a4f50, the S1 columns: empty for every willowisp row, so no physical).
+    if (src_damage == 0) stats.enchants = {};
     for (auto& enchant : stats.enchants)
         if (enchant) *enchant = { enchant->first * src_damage / 128, enchant->second * src_damage / 128 };
     stats.enchant_len = stats.enchant_len * src_damage / 128;

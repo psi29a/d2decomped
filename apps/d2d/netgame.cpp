@@ -514,7 +514,7 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
         if (size >= 103 && packet[1] == 6) {
             quest_words.emplace();
             std::copy_n(packet.begin() + 7, 96, quest_words->begin());
-        }
+        } else if (size >= 2 && packet[1] != 6) npc_talk_opened = true;   // FUN_004b6dd0 takes the "!" off every NPC (FUN_004b2390)
         break;
     case 0x27:   // NPC info: +1 mode, +2 unit id (the answer to an 0x13 on an NPC)
         if (size >= 6) npc_info = read_u32(packet, 2);

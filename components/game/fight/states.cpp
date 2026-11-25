@@ -259,23 +259,40 @@ auto Fight::absorb(Foe& foe, std::uint32_t now_ms) -> int {
         const auto armor_at = std::ranges::find(actor->self_states, actor->absorb_skill, &SelfState::skill) - actor->self_states.begin();
         if (shield_at > armor_at) { shield_pass(); armor(); }
         else { armor(); shield_pass(); }
+        // Frozen Armor's test (damagedinmelee, FUN_005cac50) reads the record's +8 after the absorbs lowered
+        // it and the reduction ran (FUN_0057c6c0: event 0xb at 0x57c2fc first): a striker none of whose blows
+        // still carries physical is no longer one that damaged the wearer.
+        const auto physical_left = [](const d2d::rules::StruckBlow& blow) {
+            return blow.raw >= 0 ? d2d::rules::reduce_fine_signed(blow.raw, blow.pct, blow.flat) : blow.physical * 256 + blow.frac;
+        };
+        std::erase_if(foe.damaged_by, [&](int striker) {
+            return std::ranges::none_of(foe.blows, [&](const d2d::rules::StruckBlow& blow) { return blow.striker == striker && physical_left(blow) > 0; });
+        });
         foe.frac = int(fine & 255);
         return int(fine >> 8);
     }
 
+// Frozen Armor (event 2, FUN_005cac50, damagedinmelee) after the absorbs (FUN_0057c6c0 raises 0xb
+// first): a striker in melee whose blow still did physical damage (damaged_by, as absorb left it) is
+// frozen (frozen_armor_freeze); its think at the freeze's end + 1 gives way to the thaw's (mon_think).
+auto Fight::frozen_armor_events(const Foe& foe, std::uint32_t now_ms) -> void {
+        const auto* frozen_armor = state_of("frozenarmor");
+        if (!frozen_armor) return;
+        for (const int striker : foe.melee_by) {
+            const int found = monster_index(striker);
+            if (found < 0 || !monsters[std::size_t(found)].alive() || !std::ranges::contains(foe.damaged_by, striker)) continue;
+            const auto* skill = game_data->skills.get(frozen_armor->skill);
+            frozen_armor_freeze(std::size_t(found), calc(*skill, skill->calc[0], frozen_armor->level), pierce()[2], now_ms);
+        }
+    }
+
 auto Fight::buff_events(Foe& foe, std::uint32_t now_ms) -> void {
-        // Frozen Armor (event 2, FUN_005cac50, damagedinmelee): a striker whose
-        // blow did damage (frozen_armor_freeze). Shiver Armor (3, FUN_005cad40,
-        // attackedinmelee): its element (FUN_0056e0c0) on any.
-        // The freeze's think at its end + 1 gives way to the thaw's (mon_think).
+        // Shiver Armor (3, FUN_005cad40, attackedinmelee): its element (FUN_0056e0c0) on any. Frozen
+        // Armor's (event 2) runs after the absorbs (hurt_side, past Fight::absorb).
         for (const int striker : foe.melee_by) {
             const int found = this->monster_index(striker);
             if (found < 0 || !monsters[std::size_t(found)].alive()) continue;
             const auto monster_index = std::size_t(found);
-            if (const auto* frozen_armor = state_of("frozenarmor"); frozen_armor && std::ranges::contains(foe.damaged_by, striker)) {
-                const auto* skill = game_data->skills.get(frozen_armor->skill);
-                frozen_armor_freeze(monster_index, calc(*skill, skill->calc[0], frozen_armor->level), pierce()[2], now_ms);
-            }
             if (const auto* shiver_armor = state_of("shiverarmor")) {
                 const auto* skill = game_data->skills.get(shiver_armor->skill);
                 land(monster_index, d2d::rules::missile_blow(d2d::rules::missile_damage(game_data->skills, *skill, calc_env(), shiver_armor->level), target_of(monster_index), pierce(), rng),

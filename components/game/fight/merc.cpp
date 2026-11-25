@@ -28,6 +28,7 @@
 #include <format>
 #include <optional>
 #include <span>
+#include <string>
 #include <string_view>
 #include <unordered_map>
 #include <utility>
@@ -170,6 +171,19 @@ auto Fight::merc_max_life() const -> int {
                                               + std::int64_t(actor->merc_st.life) * (gear.sum[d2d::d2s::kMaxLifePercent] + merc_cry_stat(d2d::d2s::kMaxLifePercent)) / 100, 1));
     }
 
+// FUN_005ce1b0: the row from FUN_00645f00 for a unit not a player (0x645f17..0x645f5c): magicarrow (0x1b) at its
+// stat 157's value when that's over 0, else explodingarrow (0x29) at stat 158's, else none, and then the skill's
+// srvmissilea (+0x48, rogue1) at the skill's level. tools/emu/merc_shot.py runs it.
+auto Fight::merc_shot(const d2d::rules::Skill& skill, int magic, int exploding, int skill_lvl) const -> MercShot {
+        const auto row = [&](std::string_view name, int row_level) {
+            const auto found = game_data->missiles.find(std::string(name));
+            return found != game_data->missiles.end() ? MercShot{ &found->second, row_level } : MercShot{};
+        };
+        if (magic > 0) return row("magicarrow", magic);
+        if (exploding > 0) return row("explodingarrow", exploding);
+        return skill.srvmissilea.empty() ? MercShot{} : row(skill.srvmissilea, skill_lvl);
+    }
+
 // A think's move as a path by its type (FUN_00649970) from subtile
 // (from_x, from_y): the cells to walk, empty when none. Type 7 found empty
 // takes the wall pather (FUN_005a6290: 0xf).
@@ -303,13 +317,18 @@ auto Fight::merc_turn(std::uint32_t now_ms, float /* elapsed: a turn is a frame 
                 }
                 else {
                 const float dx = target.unit.x - unit.x, dy = target.unit.y - unit.y, distance = std::max(std::hypot(dx, dy), 0.01f);
-                if (!skill && archer && game_data->missiles.contains("arrow")) {
-                    const auto& missile_info = game_data->missiles.at("arrow");
-                    const float speed = missile_speed(missile_info, actor->merc_st.level);
+                const auto& worn = merc_gear().sum;
+                const auto shot = skill && skill->srvdofunc == ServerDoFunction::kRogueMissile
+                                ? merc_shot(*skill, int(worn[d2d::d2s::kItemMagicArrow]), int(worn[d2d::d2s::kItemExplosiveArrow]), caster.level) : MercShot{};
+                if (shot.info) {                                            // RogueMissile (do 110): its shot at the foe
+                    const auto& missile_info = *shot.info;
+                    const float speed = missile_speed(missile_info, shot.level);
                     Missile missile{ &missile_info, unit.x, unit.y, dx / distance * speed, dy / distance * speed, missile_facing(unit.x, unit.y, dx, dy), now_ms, now_ms + std::uint32_t(missile_info.range) * 40, {} };
                     missile.aim_at = { target.unit.x, target.unit.y };
                     const auto fighter = merc_fighter();                    // its bow's damage and attack rating with its gear
-                    missile.min = fighter.min; missile.max = fighter.max; missile.attack_rating = fighter.attack_rating; missile.level = actor->merc_st.level; missile.friendly = true; missile.caster = actor->id; missile.by_merc = true;
+                    missile.min = fighter.min; missile.max = fighter.max; missile.attack_rating = fighter.attack_rating; missile.level = shot.level; missile.friendly = true; missile.caster = actor->id; missile.by_merc = true;
+                    // A row with a Skill (magicarrow: Magic Arrow) carries that skill's damage at the level (FUN_0064b860, row +0x194).
+                    if (const auto* row_skill = skill_named(missile_info.skill)) missile.skill = row_skill->id;
                     seed_pierce(missile, true);                             // FUN_0059f940: the maker's, for every missile of a Pierce row
                     missiles.push_back(std::move(missile));
                 } else if (target.alive() && distance <= kMeleeReach + 0.3f) {

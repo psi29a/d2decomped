@@ -145,6 +145,11 @@ int main() try {
         assert(d2d::rules::monster_props(data->rules, data->monsters.types[267], 2, seed).knock == 1);
         std::printf("OK: MonProp rows match game.exe's (%zu slots)\n", slots);
     }
+    // Every monster's MissA1 / MissA2 / MissS1 / MissC row is loaded: the Wills o' the Wisp 5..8 cast
+    // willowisplightningbolt2, which no skill names.
+    for (const auto& type : data->monsters.types)
+        for (const auto* fired : { &type.miss_a1, &type.miss_a2, &type.miss_s1, &type.miss_c })
+            assert(fired->empty() || data->missiles.contains(*fired));
     // Skill and missile sounds (unit-sounds.md): Fire Bolt's cast, Bash's grunt (the
     // Barbarian's own), its swing held back; the fire bolt's flight and impact.
     if (const auto* fire_bolt = data->skills.get(36); fire_bolt && data->missiles.contains("firebolt")) {

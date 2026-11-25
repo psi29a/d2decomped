@@ -576,9 +576,18 @@ The client keeps an independent start clock for each NPC's alert, so a
 new balloon begins at frame 0. Clocks reset with the level and on
 `ClientSession::enter` (the same Town is reused for the next game);
 joined alerts take their start from the host packet's arrival time,
-including a repeated packet while already showing. The joined game's
-existing local expiration after 16 * 111 ms and palace-guard handling
-remain open (`ClientSession::net_quests`). See states.md for the original-code
+including a repeated packet while already showing (`FUN_00470390`
+first removes the unit's overlay of that row, `FUN_0046f0c0`). A kind-3
+loop has no end in `FUN_00470c30`; the "!" goes when an NPC's talk
+opens: `FUN_004b6dd0` (S->C 0x28 of a unit other than our own, type 6)
+runs `FUN_004b2390` over the client's monster hash (`FUN_00464990` ->
+`FUN_00463c90`, hash `0x7a6070`), and a unit whose MonStats `+0xd` bit 0
+(npc) is set loses overlay row 0x48. d2d: `NpcAlertBoard`
+(`npc_alert.hpp`), cleared by `NetGame::npc_talk_opened`; `test_npc_alert`.
+Not ported: `FUN_004b6dd0`'s check that its unit exists client-side
+(`FUN_00463990`) before the removal, and which of a frame's 0x28 and 0x8a
+comes first (the board clears before it rings). The palace-guard harem
+check remains open (`ClientSession::net_quests`). See states.md for the original-code
 timing oracle and regression cases.
 
 ## Akara's Reset Stat/Skill Points (quest 41)
