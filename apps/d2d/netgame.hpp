@@ -20,6 +20,7 @@
 #include <shake.hpp>
 #include <tcp.hpp>
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <expected>
@@ -51,6 +52,7 @@ struct NetGame {
         int life = 128;               // of 128
         int hit_class = 0;            // the last hit's (0x0c +7 -> unit +0xb0): a monster's impact sound on GH / KB / DT
         int mode = -1;                // a monster's last unit command (0x69..0x6c: 8 dying, 0xa attack, ...), a player's last 0x0d one (8 dying, 9 dead; -1 again at its 0x15), -1 none
+        int object_mode = 0;          // an object's mode (0x51 +0xc, then 0x0e): a door open, a chest used, the harem blocker's 2
         std::uint32_t owner = 0;      // a pet's or merc's player (0xac's owner), 0 none
         std::uint32_t mode_ms = 0;    // when it came (steady ms)
         std::optional<std::pair<float, float>> attack_aim;
@@ -164,6 +166,10 @@ struct NetGame {
     std::uint32_t waypoint_menu = 0;  // the waypoint whose menu the host opened for us (0x63); 0x49 only then
     std::uint32_t walked_ms = 0;      // the host's last word of our walk (0x96), steady ms: still walking
     std::unordered_map<std::uint64_t, Unit> units;
+    // Whether any object the host sent is of Objects.txt row `cls` in `mode` (the client's object hash walk, FUN_004649d0).
+    [[nodiscard]] static bool object_in_mode(const std::unordered_map<std::uint64_t, Unit>& known, int cls, int mode) {
+        return std::ranges::any_of(known, [&](const auto& entry) { return entry.second.type == 2 && entry.second.cls == cls && entry.second.object_mode == mode; });
+    }
     std::vector<std::array<std::uint8_t, 16>> monster_parts;   // MonStats2 HDv..S8v entry counts by MonStats row (0xac's component widths)
     std::vector<int> monster_velocity;   // MonStats Velocity by row: a monster's walk (empty: a player's walk)
     std::unordered_map<std::uint32_t, GroundItem> ground;   // by the host's item id

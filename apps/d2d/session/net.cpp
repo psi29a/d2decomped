@@ -828,8 +828,8 @@ auto ClientSession::take_npc_quest(int npc, std::vector<d2d::rules::QuestMsg> li
 // then says "Halt" (ArcaneQuest::guard_halts, net-packets.md 0x8a).
 // The "!" stays until an NPC's talk opens (0x28: FUN_004b6dd0 -> FUN_004b2390 removes overlay 0x48
 // from every NPC); FUN_00470c30 never ends a kind-3 loop.
-// ponytail: the guard's harem blocker check (object 318 in mode 2, LAB_004b3360) is taken as
-// shut: the client keeps no host object's mode but a door's.
+// The guard's harem blocker check (LAB_004b3360): any host object of class 318 in mode 2, its mode
+// from its 0x51 (+0xc) and every 0x0e since.
 auto ClientSession::net_quests(std::uint32_t frame_ms) -> void {
         for (auto& host_quest : net_game->npc_quests) {
             const auto* host_npc = npc_menu.npc >= 0 ? net_npc(npc_menu.npc) : nullptr;
@@ -880,11 +880,12 @@ auto ClientSession::net_quests(std::uint32_t frame_ms) -> void {
                             (host->second.x + 0.5f) / 5.f - float(level->world_x), (host->second.y + 0.5f) / 5.f - float(level->world_y));
         }
         const bool talk_open = npc_menu.npc >= 0 || speech.npc >= 0 || store.npc >= 0;   // FUN_004b1620: a talk with anyone
+        const bool harem_open = NetGame::object_in_mode(net_game->units, d2d::rules::ArcaneQuest::kHaremBlocker, 2);
         const auto& quest_bits = hero.character.header.quests[std::size_t(std::clamp(hero.character.header.active_difficulty(), 0, 2))];
         for (std::size_t i = 0; level && i < view.npc_states.size() && i < level->npcs.size(); ++i) {
             const auto* host_npc = level->npcs[i].root != "objects" ? net_npc(int(i)) : nullptr;
             if (host_npc && level->npcs[i].hc_idx == d2d::rules::ArcaneQuest::kGuard && std::ranges::contains(net_game->npc_alerts, host_npc->id)
-                && d2d::rules::ArcaneQuest::guard_halts(talk_open, quest_bits, false))
+                && d2d::rules::ArcaneQuest::guard_halts(talk_open, quest_bits, harem_open))
                 cues.cue_on(d2d::game::unit_key(d2d::game::kSoundOnMonster, -1 - int(i)), d2d::rules::ArcaneQuest::kGuardHalt, frame_ms, view.npc_states[i].x, view.npc_states[i].y);
             view.npc_states[i].alert = host_npc && net_alerts.start(host_npc->id);
         }
