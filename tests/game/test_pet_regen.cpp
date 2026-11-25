@@ -190,8 +190,32 @@ int main(int argc, char** argv) try {
         std::printf("the arrow at the skeleton: %d off (256ths), poisoned until +%d ms\n", full_life - skeleton.life_fine(),
                     skeleton.poison_until > now ? int(skeleton.poison_until - now) : 0);
         assert(skeleton.life_fine() < full_life && skeleton.poison_until > now);
+        // Again with the zombie's MonProp Crushing Blow sure (monprop_hit on the missile's hit): the crush lands too,
+        // more than the arrow's 3 points.
+        skeleton.hit_points = skeleton.stats.hit_points; skeleton.life_frac = skeleton.max_life_frac;
+        skeleton.poison_until = 0; skeleton.poison_rate = 0; skeleton.regen_from = 0;
+        world.fight.monsters.back().props.crush = 100;
+        Missile crusher;
+        crusher.info = &data->missiles.at("arrow");
+        crusher.owner = world.fight.monsters.back().id; crusher.owner_align = 0;
+        crusher.src.a2_min = crusher.src.a2_max = 3;
+        crusher.src.no_hit_roll = crusher.src.unblockable = true;
+        crusher.x = skeleton.unit.x + 1.f; crusher.y = skeleton.unit.y;
+        crusher.velocity_x = -5.f;
+        crusher.aim_at = std::pair{ skeleton.unit.x - 3.f, skeleton.unit.y };
+        crusher.born = now; crusher.dies = now + 40 * 40;
+        world.fight.missiles.clear();
+        world.fight.missiles.push_back(std::move(crusher));
+        const int before_crush = skeleton.life_fine();
+        for (int frame = 0; frame < 20 && skeleton.life_fine() == before_crush; ++frame, now += 40) {
+            world.fight.monsters.back().next_act = ~0u;
+            skeleton.next_act = ~0u;
+            world.tick({}, now, now - 40);
+        }
+        std::printf("the crushing arrow at the skeleton: %d off (256ths)\n", before_crush - skeleton.life_fine());
+        assert(before_crush - skeleton.life_fine() > 3 * 256);
     }
-    std::puts("OK: a monster's arrow hurts and poisons a pet (Fight::world after missiles_update)");
+    std::puts("OK: a monster's arrow hurts, poisons and crushes a pet (Fight::world after missiles_update)");
     return 0;
 } catch (const std::exception& error) {
     std::printf("test_pet_regen: %s\n", error.what());
