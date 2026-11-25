@@ -57,7 +57,7 @@ struct Fighter {
     int smite_lo = 0, smite_hi = 0, smite_pct = 0;  // the shield's (Smite, FUN_005ce9f0 -> FUN_0057b420 on the shield)
     bool blunt = false;                             // the weapon is a Blunt type (ItemTypes Equiv chain: club, hammer, mace, scepter, wand, staff)
     int undead_pct = 0;                             // stat 122 (item_undeaddamage_percent) over all the gear (the game reads the unit's own stat)
-    int demon_pct = 0;                              // stat 121 (item_demondamage_percent), the same way: a missile's record carries it
+    int demon_pct = 0;                              // stat 121 (item_demondamage_percent), the same way: against demons, melee or missile
     std::array<std::pair<int, int>, 5> elem{};      // added damage (poison: its total over poison_len)
     int cold_len = 0, poison_len = 0;               // ticks
     int stun_len = 0;                               // stat 66 (gear), ticks
@@ -488,6 +488,9 @@ int leech_fine(int physical_fine, const Target& target, int steal, int divisor);
 // is the attacker's unit seed when its physical roll is separate from the fight rolls.
 Blow player_blow(const Fighter& fighter, const Target& target, int clvl, Rng& rng, const Swing& swing = {}, Rng* damage_rng = nullptr);
 
+// A melee blow's record enhanced damage % (FUN_0057b7d0's +0xc before FUN_0057b420): the swing's, + the demons' and
+// the undead's against such a monster.
+int melee_record_pct(const Fighter& fighter, const Target& target, const Swing& swing);
 // A missile blow's physical in 256ths (FUN_0064b860's record, FUN_005a89a0's hit): the range the hit rolls
 // (low + rand(high - low); both 0 for none), the record's +0x78 percent and the hit's, which scales the roll.
 struct MissilePhysical { std::int64_t low = 0, high = 0; int record_pct = 0, hit_pct = 0; };
