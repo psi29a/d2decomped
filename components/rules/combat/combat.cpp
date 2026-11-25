@@ -767,6 +767,15 @@ std::int64_t missile_scaled(std::int64_t roll, int pct) {
     return roll * pct / 100 + roll;
 }
 
+// FUN_0064b860 adds the missile's own physical, a skill's (d2d_skills_skill_phys / FUN_00647d00) or the row's
+// (FUN_0064af20 / FUN_0064aff0), to the weapon's share in the record (0x64bdf7) for every missile; FUN_005a89a0
+// rolls the whole once, so the crit, the hit's % and stat 121 take that part too.
+void row_into_record(MissileDamage& damage, Swing& swing) {
+    swing.row_lo += damage.phys_lo;
+    swing.row_hi += damage.phys_hi;
+    damage.phys_lo = damage.phys_hi = 0;
+}
+
 // A player's blow: melee's record (FUN_0057b7d0 -> FUN_0057b420), a missile's from its record
 // at the hit (FUN_0064b860 -> FUN_005a89a0): the roll, the %, the crit, the blow's events.
 Blow player_blow(const Fighter& fighter, const Target& target, int clvl, Rng& rng, const Swing& swing, Rng* damage_rng) {

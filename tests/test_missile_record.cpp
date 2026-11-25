@@ -66,6 +66,17 @@ int missile_phys(const Fighter& fighter, const Target& target, const Swing& swin
     return landed.phys;
 }
 
+// A SrcDamage skill missile's blow as Fight::strike lands it: its own physical into the record (row_into_record),
+// player_blow, then missile_blow for the rest; the first that lands, on the same draws each time.
+int skill_missile_phys(const Fighter& fighter, const Target& target, MissileDamage damage, Swing swing) {
+    row_into_record(damage, swing);
+    Rng roll{ 3 };
+    auto landed = player_blow(fighter, target, 2, roll, swing);
+    for (int tries = 0; tries < 20 && !landed.hit; ++tries) landed = player_blow(fighter, target, 2, roll, swing);
+    assert(landed.hit);
+    return missile_blow(damage, target, {}, roll, landed).phys;
+}
+
 }  // namespace
 
 int main() try {
@@ -89,6 +100,12 @@ int main() try {
     auto demon = zombie;
     demon.demon = true;
     assert(missile_phys(gear, demon, whole) == 20);
+    // A skill missile's own 5 points join the weapon's half in the one roll (0x64bdf7): 10, + stat 121's 100 % against
+    // a demon, a sure crit doubling it: 40, not the weapon's 20 and the skill's 5 apart.
+    gear.critical = 100;
+    Swing skill_shot{ .srcdam = 64 };
+    skill_shot.missile = true;
+    assert(skill_missile_phys(gear, demon, MissileDamage{ .phys_lo = 5 * 256, .phys_hi = 5 * 256 }, skill_shot) == 40);
     std::puts("OK: a missile's record and hit (FUN_0064b860, FUN_005a89a0)");
     return 0;
 } catch (const std::exception& error) {
