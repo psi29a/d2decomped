@@ -630,6 +630,7 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                     const auto& foe = foes[side.pets + k];
                     for (const auto& blow : foe.blows) pet_hurt(pet, blow.damage, now_ms, blow.hit_class, blow.marked, blow.frac);   // a record a blow, as the monsters'
                     for (const int divisor : foe.crushed) pet_crushed(pet, divisor, foe.pick.damage_resist, now_ms);   // after the hits (FUN_005bffc0)
+                    pet_poisoned(pet, foe, now_ms);
                     if (foe.knocked_from && pet.monster.alive()) knock_back(pet.monster, foe.knocked_from->first, foe.knocked_from->second, now_ms);
                     clay_slows(pet, foe, now_ms);
                     if (const auto curse = monster_curse(foe.cursed, now_ms); curse.skill >= 0 && pet.monster.alive()) { pet.curse = curse; pet_buffs(pet); }
