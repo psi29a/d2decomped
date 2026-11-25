@@ -10,6 +10,8 @@
 // regains its stat 0x4a a frame from the frame after (Fight::pet_hurt,
 // pets_turn). A Crushing Blow (FUN_005bffc0: Fight::pet_crushed) takes its
 // life outright and files no event: no regeneration of its own, no get-hit.
+// Poisoned (FUN_0057ac50), its event runs the poison alone each frame: the base
+// regeneration is off (FUN_0063a750 in FUN_005a6920).
 
 #include <ai.hpp>
 #include <ai/units.hpp>
@@ -132,6 +134,28 @@ int main(int argc, char** argv) try {
     std::printf("crushed: %d -> %d, mode %s, regen from %u\n", before, pet.monster.hit_points, std::string(pet.monster.mode).c_str(), pet.monster.regen_from);
     assert(pet.monster.hit_points == before - before / 4 && pet.monster.regen_from == 0 && pet.monster.mode == "NU");
     std::puts("OK: a crushed skeleton loses the life with no event or get-hit (Fight::pet_crushed)");
+    // A poisoned blow on the skeleton (its foe's poison: 40/256 a frame for 25 frames): it's poisoned with its event
+    // filed for the next frame (FUN_0057ac50, Fight::pet_poisoned); from then it loses 40/256 a frame, its 5/256
+    // regeneration off. A weaker one meanwhile doesn't replace it, though it refiles the event.
+    {
+        auto& skeleton = pet.monster;
+        skeleton.regen_from = 0;
+        Foe poisoner{};
+        poisoner.poison = 40; poisoner.poison_ticks = 25;
+        world.fight.pet_poisoned(pet, poisoner, now);
+        assert(skeleton.regen_from == now + 40 && skeleton.poison_until == now + 25 * 40);
+        poisoner.poison = 20; poisoner.poison_ticks = 100;
+        world.fight.pet_poisoned(pet, poisoner, now);
+        assert(skeleton.poison_until == now + 25 * 40);
+        const int start = skeleton.life_fine();
+        now += 40;
+        for (int frame = 1; frame <= 4; ++frame, now += 40) {
+            world.tick({}, now, now - 40);
+            assert(actor.pets.size() == 1 && skeleton.life_fine() == start - 40 * frame);
+        }
+        std::printf("poisoned: %d -> %d in 4 frames\n", start, skeleton.life_fine());
+    }
+    std::puts("OK: a poisoned skeleton loses its poison a frame, its regeneration off (pet_regen)");
     return 0;
 } catch (const std::exception& error) {
     std::printf("test_pet_regen: %s\n", error.what());

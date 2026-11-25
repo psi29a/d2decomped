@@ -45,6 +45,8 @@
 
 namespace d2d::game {
 
+void apply_monster_foe_poison(Monster& target, int poison, int poison_ticks, std::uint32_t now_ms);   // strike.cpp: FUN_0057ac50's one-at-a-time rule
+
 namespace {
 
 // FUN_00645460: a skill's kind, Skills.txt range — none 0, h2h 1, rng 2,
@@ -72,15 +74,21 @@ int skill_class(const d2d::rules::Skill& skill) {
 // after a hurt (pet_hurt), its stat 0x4a (rules::monster_regen of the life it was made with, FUN_00573cb0) onto its
 // life each frame (rules::regen_frame), the event over once that passes its max life; under state 0x34 the event
 // ends without a gain (0x5a695c returns before it files itself again). tools/emu/pet_regen.py runs both.
+// Poisoned (state 2, FUN_0057ac50: its list's stat 0x4a is minus the poison a frame, and it files the event for the
+// next frame), FUN_0063a750 takes the base regeneration off (FUN_005a6920): the rate is the poison's alone, and state
+// 0x34 doesn't stop a falling rate (0x5a695c). A rate of 0 ends the event; life stays 0..max, and at 0 the pet dies.
 // ponytail: which runs first in a frame, a pet's hits or its event 3, isn't traced: here the hits (tick.cpp).
-// ponytail: FUN_0063a750 takes the base regeneration off under its states (poison, preventheal, open wounds);
-// d2d's pets take none of them.
-void pet_regen(Monster& monster, std::uint32_t now_ms) {
+// ponytail: preventheal and open wounds (FUN_0063a750's other states) aren't on d2d's pets; the room test that spares
+// a unit under a point (FUN_0061ab00) isn't kept.
+void pet_regen(const GameData& game_data, Monster& monster, std::uint32_t now_ms) {
     if (monster.regen_from == 0 || now_ms < monster.regen_from || !monster.alive()) return;
-    if (now_ms < monster.no_heal_until) { monster.regen_from = 0; return; }
-    const auto frame = d2d::rules::regen_frame(monster.life_fine(), monster.max_life_fine(), monster.stats.regen);
-    monster.set_life_fine(frame.life);
+    const bool poisoned = now_ms < monster.poison_until && monster.poison_rate > 0;
+    const int rate = poisoned ? -int(std::lround(monster.poison_rate * 256 * 40)) : monster.stats.regen;   // poison_rate: points a ms
+    if ((now_ms < monster.no_heal_until && rate >= 0) || rate == 0) { monster.regen_from = 0; return; }
+    const auto frame = d2d::rules::regen_frame(monster.life_fine(), monster.max_life_fine(), rate);
+    monster.set_life_fine(std::max(frame.life, 0));
     if (!frame.filed) monster.regen_from = 0;
+    if (monster.hit_points <= 0 && monster.life_frac <= 0) { monster.hit_points = 0; monster.life_frac = 0; set_mode(game_data, monster, "DT", now_ms); }
 }
 
 }  // namespace
@@ -153,6 +161,15 @@ auto Fight::pet_crushed(Pet& pet, int divisor, int damage_resist, std::uint32_t 
         if (!monster.alive() || monster.mode == "DT") return;
         monster.hit_points = int(std::max<std::int64_t>(monster.hit_points - crushing_blow(monster.hit_points, divisor, damage_resist), 0));
         if (!monster.alive()) { monster.life_frac = 0; set_mode(*game_data, monster, "DT", now_ms); }
+    }
+
+// FUN_0057ac50: on a monster (a pet is one) it first refiles the unit's event 3 for the next frame (pet_regen),
+// whatever comes of the poison; then one poison at a time, a new one at least as strong replaces it.
+auto Fight::pet_poisoned(Pet& pet, const Foe& foe, std::uint32_t now_ms) -> void {
+        auto& monster = pet.monster;
+        if (!monster.alive() || foe.poison <= 0 || foe.poison_ticks <= 0) return;
+        monster.regen_from = now_ms + 40;
+        apply_monster_foe_poison(monster, foe.poison, foe.poison_ticks, now_ms);
     }
 
 auto Fight::pets_cross(const Level* from, const Level* destination, float dx, float dy) -> void {
@@ -371,7 +388,7 @@ auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
         const auto save_class = std::size_t(std::max(actor->character.character_class, 0));
         for (const auto& made : std::exchange(actor->pet_summons, {}))            // a Shadow's traps and Blade Sentinel from last turn
             if (const auto* skill = game_data->skills.get(made.skill)) summon(*skill, made.level, made.x, made.y, now_ms);
-        for (auto& pet : actor->pets) pet_regen(pet.monster, now_ms);
+        for (auto& pet : actor->pets) pet_regen(*game_data, pet.monster, now_ms);
         for (auto& pet : actor->pets) {
             auto& monster = pet.monster;
             auto& unit = monster.unit;
