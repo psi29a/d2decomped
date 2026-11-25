@@ -7,6 +7,7 @@
 #include "platform.hpp"
 #include "render/ingame.hpp"
 #include "scene.hpp"
+#include "session/worn_frw.hpp"
 #include "ui.hpp"
 
 #include <ai/units.hpp>
@@ -657,9 +658,12 @@ auto ClientSession::net_overlay() -> void {
                 other.hostile = (unit.flags & 8) != 0;
                 other.dead = unit.mode == 8 || unit.mode == 9;
                 other.one_shots = unit.cast_overlays;
-                // Its walk's % from its class's run / walk and the host's chill (state 11);
-                // ponytail: its FRW isn't sent, so a faster run / walk's legs don't show.
-                other.walk_percent = World::walk_percent(*world.game_data, unit.cls, other.running, 0, std::ranges::find(other.states, std::string_view("cold")) != other.states.end());
+                // Its walk's % (FUN_00623f50 on its client unit's stats): its class's run / walk, the host's chill (state 11),
+                // FRW (stat 96) and velocitypercent (stat 67). Its worn items carry their props in their 0x9d stream, the
+                // active set's (slots 0xb / 0xc, the switch, aren't), and the states' stat lists (0xa8 / 0xaa) theirs.
+                const auto state_stats = unit.animation_stats();
+                other.walk_percent = World::walk_percent(*world.game_data, unit.cls, other.running, d2d::client::worn_frw(unit.worn, state_stats.frw),
+                                                         std::ranges::find(other.states, std::string_view("cold")) != other.states.end(), state_stats.velocity);
                 view.others.push_back(std::move(other));
                 continue;
             }

@@ -132,7 +132,11 @@ is, and the server walks it there, resyncs it (`FUN_0054cb10` /
 The look comes afterwards, from the items the player wears (0x9d).
 Another player's arrive as 0x9d action 6 with them as owner (type 0,
 their id), one per worn item (50 for one Amazon on joining, 2026-10-05);
-d2d draws the look from them as from its own (`GameData::look_of`).
+d2d draws the look from them as from its own (`GameData::look_of`). Each
+carries its props, so its faster run / walk (stat 96, the active set only) joins
+its states' (0xa8 / 0xaa stat lists) in its walk % (`FUN_00623f50` on the client
+unit; d2d: `client::worn_frw`, `test_worn_frw`). Where the client links the item's
+stat list to its owner isn't traced.
 
 **0xac assign monster** (variable; builder `0x53e2e0`, handler
 `0x45f190`). NPCs, the merc and summons are monsters too.
