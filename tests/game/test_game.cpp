@@ -1542,6 +1542,16 @@ int main(int argc, char** argv) try {
     for (std::uint32_t tick = 800; tick < 800 + 60 && world.cain_walk.npc >= 0; ++tick) world.tick({}, tick * kTickMs, (tick - 1) * kTickMs);
     assert(world.cain_walk.npc < 0 && world.cain_walk.stage == 3 && world.cain_walk.spot_x == spot_x + 403 && world.cain_walk.spot_y == spot_y + 403 && !world.cain_portal.level);
     std::printf("OK: a spot with no room moves on 3 and opens no portal\n");
+    // A second Cain unit, the spot noted already (FUN_005944b0 returns 0): FUN_005944f0, then stat 6 = 0 and mode 0xc
+    // (DD) at his spot (FUN_005e77a0): he lies dead and walks no more.
+    world.npc_states[cain_index].hidden = false;
+    world.npc_states[cain_index].mode = {};
+    world.cain_walk = { .npc = int(cain_index) };
+    const float lay_x = world.npc_states[cain_index].x, lay_y = world.npc_states[cain_index].y;
+    for (std::uint32_t tick = 900; tick < 900 + 60; ++tick) world.tick({}, tick * kTickMs, (tick - 1) * kTickMs);
+    assert(world.cain_walk.npc < 0 && world.npc_states[cain_index].mode == "DD" && !world.npc_states[cain_index].hidden);
+    assert(world.npc_states[cain_index].x == lay_x && world.npc_states[cain_index].y == lay_y);
+    std::printf("OK: a second Cain with the spot noted lies dead where he stood\n");
 
     // Hover text (FUN_0048dd90), top line first, for a level 1 Amazon:
     // a plain short sword and cap.
