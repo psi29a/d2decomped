@@ -1090,7 +1090,15 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
   (0x59fe8d), hit flag 0x80 (0x5ad8a0), so FUN_0057c6c0 skips the
   shooter's event 6 (domissiledamage, 0x57c7bd) for a side one; calc2 is
   the request's +0x44, its activation delay (flag 0x800). d2d: `rules::missile_fan`; V:
-  `tools/emu/missile_fan.py` (`test_missile_fan --missile-fan`). Do 17 (**FUN_005c9300**,
+  `tools/emu/missile_fan.py` (`test_missile_fan --missile-fan`). The side
+  flag's damage path is `tools/emu/fan_owner_events.py`: `FUN_005ad730`
+  copies missile flag 2 to record flag 0x80 at `0x5ad8a0`, and
+  `FUN_0057c6c0` tests its sign at `0x57c7bd`, skipping only the event-6
+  call at `0x57c7cc` while still making the target's event-2 call at
+  `0x57c7f3`. d2d tags the side missiles in `Fight::fire` and clears the
+  ported event-6 item effects (Crushing Blow, Open Wounds, item_slow and
+  item knockback) before `player_blow`; the middle missiles keep them
+  (`test_fan_owner_events`). Do 17 (**FUN_005c9300**,
   Charged Bolt): calc1 missiles at the target, each with FUN_005c9290
   steering it. Do 22 (**FUN_005c9b50** → FUN_0056d400, the novas): 64
   missiles toward the offsets in 0x6e1288 / 0x6e1388, lasting
@@ -1098,9 +1106,8 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
   calc1. A row with no Skill (Multiple
   Shot's) carries the weapon's damage at its SrcDamage (96).
   Built as `skill_missile` / `fire` (fight.hpp); a nova's missiles share
-  their struck list, so a monster takes one hit from it. Not yet: the
-  0x10000 flag's meaning (Charged Bolt's wander: missiles.md), the
-  other do functions
+  their struck list, so a monster takes one hit from it. Not yet: calc2's
+  activation delay, and the other do functions
   (Guided Arrow 10, Strafe 12, Chain Lightning 26, Meteor / Blizzard 28,
   Fire Wall, Blaze, Inferno, Bone Spirit, Blessed Hammer, ...).
 
