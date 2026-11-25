@@ -16,6 +16,7 @@ add_library(game STATIC
     ai/act5.cpp
     character/character.cpp
     character/character_store.cpp
+    client_ask.cpp
     fight/deaths.cpp
     fight/merc.cpp
     fight/missiles.cpp
