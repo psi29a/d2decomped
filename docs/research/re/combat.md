@@ -977,53 +977,71 @@ ponytail: the gold pile isn't split; requirements aren't checked when
 items go back; a saved corpse lies by the camp's start (the save's x / y
 aren't read); goldlost isn't kept.
 
-## A unit's paired records — unit +0xac (SUnitDmg.cpp)
+## A unit's hit records — unit +0xac (SUnitDmg.cpp)
 
-A unit's +0xac is the head of its own singly-linked list of allocated
-records, each one naming a **pair** of units: +4 / +8 a u32 type and id
-(the list owner's own, i.e. the unit this list hangs off), +0xc / +0x10 a
-second unit's type and id, +0x14.. a payload not traced here, +0x84 the
-next node. `FUN_0040b430` / `FUN_0040b480` (file, line, size or pointer,
-a register the decompile drops) are the allocator's alloc / free, as in
-`path.md`'s `STRUCT_FreePath` and `items.md`'s inventory free; `0057c980`
-and `0057c9f0` free through them, so this is a pool-backed list, not a
-flag.
+A melee skill's start builds its blow's damage record against the unit it
+swings at, and its do (the action frame) resolves that record. Between the
+two the record waits in the attacker's own list: unit +0xac is the head of
+a singly-linked list of 0x88-byte nodes from a pool (`FUN_0040b430`
+/ `FUN_0040b480`, the allocator's alloc / free with the pool in ECX, the
+size or the node in EDX, file and line on the stack, `RET 0xc`; as in
+`path.md`'s `STRUCT_FreePath`); each of the three that change it takes in ECX a
+context whose +0x1c is that pool (what it is was not traced). A node: +0
+that context, +4 / +8 the attacker's
+type and id as it was added, +0xc / +0x10 the struck unit's, +0x14 the
+0x70-byte damage record (a copy), +0x84 the next. The record's +0 holds the
+hit flags (2: built, so `FUN_0057dbf0` skips `FUN_0057b7d0`) and its +4 the
+result flags: bit 0 the blow landed (the to-hit roll passed and nothing
+stopped it: `FUN_0057ec10` clears it when `FUN_0057dfb0` returns any bit,
+setting 0x10 / 0x100 / 0x80 / 0x8000 for its bits 1 / 2 / 4 / 0x10), bit 1
+it kills (`FUN_0057dbf0`: the record's damage over the unit's life).
 
-- **`FUN_0057d690`** (`__fastcall`, ECX unit A, EDX unit B; no stack args):
-  read-only. Null A or B: 0. Else walks A's own +0xac list; a node
-  matches when its +4/+8 equal A's own type/id (`FUN_0044be50` /
-  `FUN_00451f50`, both already d2d-verified null-safe accessors) **and**
-  its +0xc/+0x10 equal B's. Returns the matching node +0x14 (the
-  payload), or 0 when A, B or no match. Callers: `FUN_0056f1f0`
-  (skills.md's srvdofunc [2], already ported, `components/game/fight.hpp`)
-  uses it to test "does A already have a record for (A, B)" before
-  granting the skill's target state at Skills.txt +0x82; `FUN_0056f115`
-  (not otherwise traced here) the same, before a freeze-length clamp. So
-  the pair is (self, the other unit a skill's state concerns), and the
-  payload holds at least a tick count the skills.md citation already
-  describes as "the calc at +0x60 ticks".
-- **`FUN_0057c9f0`** (`__fastcall`, ECX a pool-context pointer whose +0x1c
-  is passed to the free call, EDX unit A, one stack arg unit B): frees
-  (SUnitDmg.cpp:0x79f) every node in A's own +0xac list whose +4/+8 /
-  +0xc/+0x10 match (A, B) exactly (raw unit +0 / +0xc, not through the
-  accessors above), unlinking it from the list first. Null A, null B, or
-  an empty list: no-op. Callers run from `005caf30`..`005d8e00`
-  (monster/skill handling the batch didn't open) and `0057d4f0`: the
-  mirror of `FUN_0057d690`'s lookup, dropping the (A, B) record once it's
-  no longer wanted.
-- **`FUN_0057c980`** (`__fastcall`, ECX the same pool-context, EDX unit A;
-  no stack args, no null check on A — a null A faults reading `A[0x2b]`):
-  frees (SUnitDmg.cpp:0x769) every node in A's own +0xac list whose +4/+8
-  equal **A's own** type/id, regardless of what +0xc/+0x10 say — i.e.
-  every record this list's owner still tags as being about itself. Two
-  callers, both teardown: `FUN_005349d0` (a unit's death/removal chain,
-  passing the room/game's own pool at the caller's own +0x1c) and
-  `FUN_00553570` (freeze/resume, oracle `tools/emu/freeze_resume.py:188`,
-  which calls it right before `FUN_00624690` clears the freeze state).
-  Not traced: why a live node's self pair would ever stop matching its
-  own owner — this reads as a guard against stale self-tagged records
-  surviving a unit's teardown (and the pool slot's later reuse for a
-  different unit), not an everyday no-op.
+- **`FUN_0057ca80`** (ECX the context, EBX the attacker, EAX the struck unit,
+  the record on the stack, `RET 4`): only for a struck unit of type 0 or 1
+  (a player or a monster; the test for an object of class 7 / 0xb before it
+  can't change that), allocates a node (SUnitDmg.cpp:0x7cb), fills it as
+  above and makes it the list's new head. A null struck unit faults reading
+  its type (0x57ca9f); a null attacker, once the struck unit passes, reading
+  its type (0x57cac5). One caller: `FUN_0057dbf0`, the build's end (34
+  callers: the melee starts, `FUN_005d7ea0` the Bash family's, `FUN_005d5880`
+  Dragon Talon's, `FUN_005d7090` Dragon Tail's, and dos that build a record
+  of their own, `FUN_005d3490`, `FUN_005d7850` ...), the record added
+  whether the blow landed or not.
+- **`FUN_0057d690`** (ECX the attacker, EDX the struck unit; no stack
+  args): read-only. Null either: 0. Else the first node from the head (the
+  newest) whose +4 / +8 equal the attacker's type and id now (`FUN_0044be50`
+  / `FUN_00451f50`) and +0xc / +0x10 the struck unit's; returns its +0x14,
+  the record, or 0. Callers: the Bash family's start itself (`FUN_005d7ea0`
+  adds calc2 x 256 to the record's +8 after the build) and the dos that
+  read the record before resolving it: `FUN_0056f1f0` (srvdofunc 2: its
+  srvoverlay, Skills.txt +0x4e, on the struck unit through `FUN_00621e40`
+  when the record's +4 bit 0 is set; its auratargetstate, +0x82, the same
+  way, which no 1.14d do-2 row has; with neither column it doesn't look and
+  no record means no blow), `FUN_0056f115`, `FUN_005ce8e0` (Sacrifice),
+  `FUN_005d0350` (Conversion), `FUN_005d3490`, `FUN_005d5a30`, `FUN_005d7850`
+  and others.
+- **`FUN_0057d4f0`** resolves it: the same lookup (through the accessors),
+  a copy of the record, the reach test (`FUN_00622c40`, range 3 for a
+  monster attacker, else 1), then the hit's effects and `FUN_0057cee0`
+  (the damage), and last `FUN_0057c9f0` on the pair; out of reach it only
+  drops the pair. No record: nothing. A landed blow by a player or monster
+  in mode 0 (its death) returns before the drop, leaving the record.
+- **`FUN_0057c9f0`** (ECX the context, EDX the attacker, the struck unit on the
+  stack, `RET 4`): frees (SUnitDmg.cpp:0x79f) every node whose +4 / +8 /
+  +0xc / +0x10 equal the two units' raw +0 / +0xc, unlinking each first.
+  Null either or an empty list: nothing. Callers: `FUN_0057d4f0`, and
+  `005caf30`, `005cbfc7`, `005cdf10`, `005d8e00`, which drop a record they
+  won't resolve.
+- **`FUN_0057c980`** (ECX the context, EDX the attacker; no null check, a null
+  one faults reading +0xac): frees (SUnitDmg.cpp:0x769) every node whose
+  +4 / +8 equal the attacker's raw type and id, whatever it struck. Two
+  callers, both teardown: `FUN_005349d0` (a unit's removal) and
+  `FUN_00553570` (freeze, `tools/emu/freeze_resume.py`). A node names
+  another type or id only after the unit's own changed since it was added.
+
+So the newest record of a pair wins, a swing cut short leaves its record
+in the list until the pair's next resolve or the attacker's removal frees
+it, and a record against an object (a barrel's) is built but never kept.
 - **`FUN_0057e240`** (`__fastcall`, ECX / EDX plus two stack args, `RET
   0x8`): forwards the same four arguments, unchanged and in the same
   order, first to the already-ported `FUN_0056e170` (physical/leech
@@ -1047,13 +1065,12 @@ disassembly, `0056e1c1`). Run with FUN_00647bc0 / FUN_00647d00 hooked (logged,
 scripted results) and the real seed draw, 36 cases:
 `tools/emu/skills_combat_helpers.py`. Their formulas and d2d are not compared.
 
-d2d: no function of its own for the +0xac list; nothing in `ai.cpp` or
-`fight.hpp` was found keeping a per-(caster, target) record list, so this
-is cited, not matched. Not a behavioural difference by itself — the
-callers above are already ported and credited to the functions that use
-this list's result.
-Re-check: `python3 tools/ghidra/fn.py 0057d690 0057c9f0 0057c980 0057e240
-0044be50 00451f50 0056f1f0 005d3140`.
+d2d: keeps no record; `Fight::hit` builds and lands the player's blow at
+once on the action frame, so a do-2 skill's srvoverlay (Concentrate's
+doubledamage1, Fire Claws' fire_hit) never plays.
+Re-check: `python3 tools/ghidra/fn.py 0057ca80 0057d690 0057c9f0 0057c980
+0057dbf0 0057ec10 0057d4f0 0056f1f0 005d7ea0 0057e240 0044be50 00451f50
+005d3140`.
 
 ## A unit's +0xdc field — FUN_00553980 (SUnit.cpp)
 
