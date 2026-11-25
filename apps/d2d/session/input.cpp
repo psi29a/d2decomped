@@ -40,6 +40,7 @@
 #include <inventory.hpp>
 #include <item_gen.hpp>
 #include <item_text.hpp>
+#include <level.hpp>
 #include <level_ids.hpp>
 #include <log.hpp>
 #include <monsters.hpp>

@@ -5,6 +5,8 @@
 // rules::search_enemy_xy_walk against game.exe's own run (tools/emu/search_walk.py writes the
 // cases). With a case file (`search_walk.py gen`) it prints `id pick` for each line, as the
 // oracle's `game` does.
+#include <monsters.hpp>
+#include <search_enemy.hpp>
 #include <search_walk.hpp>
 
 #include <algorithm>

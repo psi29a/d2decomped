@@ -4,7 +4,6 @@
 // against game.exe's own run of it (tools/emu/search_facing.py inc writes the cases).
 #include <search_walk.hpp>
 
-#include <array>
 #include <cassert>
 #include <cstdio>
 

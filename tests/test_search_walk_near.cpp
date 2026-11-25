@@ -5,6 +5,8 @@
 // rules::search_enemy_near_walk against game.exe's own run of FUN_00467490 (tools/emu/search_walk_near.py
 // writes the cases). With a case file (`search_walk_near.py gen`) it prints `id pick x y` for each line,
 // as the oracle's `game` does.
+#include <monsters.hpp>
+#include <search_enemy.hpp>
 #include <search_walk.hpp>
 
 #include <algorithm>
