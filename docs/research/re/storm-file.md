@@ -249,6 +249,46 @@ use (stubs.md).
 | `FUN_0041b080` | (6 words; `ret 0x18`): `FUN_0041aad0(a0, a1, a2, a3, a4, 0, a5)` |
 | `FUN_0041ba30` | (3 words; `ret 0xc`): `FUN_0041b280(a0, a1, a2, 0, 0x7fffffff, 0x7fffffff, 0)` |
 
+## PKWARE implode and explode (`0x6b01b0..0x6b1290`)
+
+The library behind `FUN_00415240`'s sector decompression above: its
+tables run up to the string "PKWARE Data Compression Library for
+Win32" (then "Copyright 1989-1995 PKWARE Inc.") at `0x74be60`, and `FUN_006b0870` reads the last table to
+that address. Both halves take a read and a write callback, a work
+record and a user value that goes back to the callbacks. Read in the
+decompiler; not run. d2d reads archives through StormLib, which has its
+own implementation, so nothing here is ported.
+
+**Explode** (`FUN_006b01b0`, from `FUN_00415240`; the 0x3134-byte work
+record): `+8` the output position, `+0xc` / `+0x10` the dictionary's
+bits and mask, `+0x14` / `+0x18` the bit buffer and its count, `+0x1c` /
+`+0x20` the input position and end, `+0x24` the user value, `+0x28` /
+`+0x2c` the read and write callbacks, `+0x30` a 0x2000-byte window,
+`+0x2234` a 0x800-byte input buffer, the decode tables from `+0x2a34`.
+
+| Function | What |
+|---|---|
+| `FUN_006b0330` | The main loop (from `0x6b0303`): the output position starts at 0x1000; each code from `FUN_006b0430` below 0x100 is a literal byte, 0x100..0x304 a repeat of code − 0xfe bytes at `FUN_006b05e0`'s distance (0 there is error 0x306); above 0x304 it writes what is past 0x1000 through the write callback and returns the code (0x305 the end, 0x306 an error). At 0x2000 it writes 0x1000 bytes and slides the window back 0x1000 (`FUN_006b0830`) |
+| `FUN_006b0430` | The next code. A first bit of 1: a length, its index from `+0x2b34` (bits `+0x30f4`), then `+0x3104` extra bits added to the base `+0x3114`, plus 0x100. A 0: a literal, 8 raw bits when the type (`+4`) is 0 (binary), else through the text tables (`+0x2c34`, and `+0x2d34`, `+0x2e34`, `+0x2eb4` for the longer codes; lengths `+0x2fb4`). Running out of input gives 0x306, except where the extra bits would make the end code |
+| `FUN_006b05e0` | A repeat's distance: the high bits by `+0x2a34` (lengths `+0x30b4`), then 2 low bits for a 2-byte repeat, else the dictionary's bits; returns the distance plus 1, 0 when the input runs out |
+| `FUN_006b0660` | Drops n bits from the bit buffer, refilling it a byte at a time from the input buffer, which the read callback fills 0x800 bytes at a time; 1 when the callback gives 0 |
+| `FUN_006b06f0` | Fills a 256-entry decode table (from `0x6b02a1`, `0x6b02fa`): for each code i, last first, every index code[i] + k × 2^length[i] below 0x100 gets i |
+| `FUN_006b0730` | The text tables from the 256 codes at `0x74b7e8` (from `0x6b0274`): codes up to 8 bits into `+0x2c34`; a longer one whose low byte is 0 into `+0x2eb4` (length − 8); the rest mark `+0x2c34` with 0xff and go into `+0x2e34` when their low 6 bits are 0 (length − 6), else `+0x2d34` (length − 4) |
+| `FUN_006b0830` | A copy, dwords then the 0..3 bytes left |
+
+**Implode** (from `FUN_0041df40`, Storm's `SCOMP.CPP`, at `0x41dfcc`).
+
+| Function | What |
+|---|---|
+| `FUN_006b0870` | The entry: (read, write, work, user value, &type, &dictionary size). Size 0x400, 0x800 or 0x1000 gives 4, 5 or 6 dictionary bits (mask 0xf, 0x1f, 0x3f); anything else returns 1. Type 0 (binary) codes every literal in 9 bits, type 1 (text) from the lengths at `0x74bb60` (plus 1) and codes at `0x74bc60`; anything else returns 2. Then the 16 length groups from `0x74bb30` / `0x74bb40` / `0x74bb50`, the distance lengths and codes (`0x74bab0`, `0x74baf0`, 0x40 each, into `+0x1c` / `+0x5c`), `FUN_006b0a10`, and returns 0 |
+| `FUN_006b0a10` | The main loop: two header bytes (the type, the dictionary bits), then reads 0x1000 bytes at a time through the read callback into the window (`+0x29d0`, after a dictionary's worth of history), indexes them (`FUN_006b1290`) and at each position takes the longest match (`FUN_006b0d90`). No match, or a 2-byte one whose distance − 1 is 0x100 or more, is a literal. A match under 8 bytes is checked against the one a byte later: it is kept when that one is no longer, or only one longer while its own distance − 1 is under 0x81; otherwise the byte goes out as a literal and the later match is taken. A match writes its length code, the distance's high bits and its low 2 or dictionary bits. At the end of the input it writes the end code and hands the output to the write callback; between blocks it slides the window by 0x1000 (`FUN_006b1160`) |
+| `FUN_006b0d90` | The longest match at a position: the pair hash `(b0 × 4 + b1 × 5)` picks a run of earlier positions (heads at `+0xdc8`, positions at `+0x49d0`), skipping those out of the window; compares each, up to 0x204 bytes, keeping the distance − 1 in `+0`; past 10 bytes it steps through the candidates with a skip table built at `+0x9bc`; returns the length, 0 for under 2 |
+| `FUN_006b10d0` | Appends n bits (8 at a time above 8) to the output buffer (`+0x1fca`, byte `+4`, bit `+8`); at 0x800 bytes `FUN_006b1210` |
+| `FUN_006b1160` | A copy, dwords then bytes |
+| `FUN_006b11a0` | A fill with one byte, dwords then bytes |
+| `FUN_006b1210` | Writes 0x800 bytes through the write callback, clears the buffer (0x802 bytes) and puts back the byte past them and the partly filled byte |
+| `FUN_006b1290` | Indexes a range by pair hash: counts each pair, turns the counts into running totals, then fills the position list from the range's end, so each hash's positions run in order |
+
 ## Remaining gaps
 
 The archive search, sector decompression, request-queue worker, checksum
