@@ -609,6 +609,7 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
             boss_events(foes, now_ms);
             monster_dots(now_ms, elapsed);
             for (auto& monster : monsters) { monster.in_aura = false; monster.res_cut = {}; }
+            std::vector<std::size_t> pet_blows_taken(allies, 0);    // each pet foe's blows the pet loop applied (the missiles' come after)
             for (const auto& side : sides) {
                 act_as(*side.hero);
                 if (now_ms >= actor->curses[0].until) actor->curses[0] = {};   // its state's end (blood_mana asks for it gone)
@@ -635,6 +636,8 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                     clay_slows(pet, foe, now_ms);
                     if (const auto curse = monster_curse(foe.cursed, now_ms); curse.skill >= 0 && pet.monster.alive()) { pet.curse = curse; pet_buffs(pet); }
                     if (foe.flashed >= 0) d2d::rules::add_one_shot(pet.monster.one_shots, foe.flashed, now_ms);
+                    pet_blows_taken[side.pets + k] = foe.blows.size();
+                    foes[side.pets + k].poison = foes[side.pets + k].poison_ticks = 0;   // taken: what's left after the missiles is theirs
                 }
                 pets_turn(now_ms, elapsed, crowd);
                 player_shots(now_ms);
@@ -732,6 +735,16 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
             for (const auto& side : sides) {
                 act_as(*side.hero);
                 hurt_side(std::span(foes).subspan(side.at, 2), now_ms);
+                // A monster's missile that struck a pet (missiles_update, Foe::take) after the pet loop read its foe:
+                // those blows and that poison now, the pet found by its id (pets_turn may have dropped or added some).
+                for (std::size_t slot = side.pets; slot < allies && foes[slot].pet; ++slot) {
+                    const auto& foe = foes[slot];
+                    const auto pet = std::ranges::find_if(actor->pets, [&](const Pet& owned) { return owned.monster.id == foe.id; });
+                    if (pet == actor->pets.end()) continue;
+                    for (std::size_t index = pet_blows_taken[slot]; index < foe.blows.size(); ++index)
+                        pet_hurt(*pet, foe.blows[index].damage, now_ms, foe.blows[index].hit_class, foe.blows[index].marked, foe.blows[index].frac);
+                    pet_poisoned(*pet, foe, now_ms);
+                }
             }
         }
         for (Hero* hero : heroes) {
