@@ -35,6 +35,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <functional>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <ranges>
@@ -49,8 +50,27 @@ namespace d2d::game {
 namespace {
 
 constexpr int kTerror = 77;                     // Skills.txt Terror: Howl's state (FUN_005ddd00, 0x4d)
+constexpr int kFanSideEventTag = std::numeric_limits<int>::min();
 
 }  // namespace
+
+// FUN_005db410 gives the fan's side requests flag 0x10000. FUN_0059fa30
+// turns it into missile flag 2; FUN_005ad730 turns that into damage-record
+// flag 0x80; and FUN_0057c6c0 then skips the shooter's event 6. target_id is
+// otherwise unused by a friendly fan missile (guided monster missiles use it).
+auto fan_side_event_tag(bool side) -> int { return side ? kFanSideEventTag : -1; }
+
+// The event-6 item effects d2d has ported. The hit's ordinary weapon damage,
+// elements, leech, deadly / critical strike and skill knockback are not event
+// callbacks and remain on a side missile.
+auto missile_owner_event_fighter(d2d::rules::Fighter fighter, int event_tag) -> d2d::rules::Fighter {
+        if (event_tag != kFanSideEventTag) return fighter;
+        fighter.crushing = 0;
+        fighter.open_wounds = 0;
+        fighter.item_slow = 0;
+        fighter.knockback = false;
+        return fighter;
+    }
 
 // Concentration's share at (x, y) of a skill with that Param1, % (FUN_006461d0): Blessed Hammer's.
 auto Fight::concentration_share(float x, float y, int param1) const -> int {
@@ -560,9 +580,8 @@ auto Fight::fire(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
         if (skill.srvdofunc == ServerDoFunction::kMissileFan) {
             // FUN_005db410: calc1 of them across the line from the caster's subtile to the point's, calc3 in the
             // middle (rules::missile_fan), each aimed at its subtile's centre.
-            // ponytail: a side one's flag 0x10000 (Multiple Shot's) skips the shooter's domissiledamage events in
-            // game.exe (0x59fe8d -> hit flag 0x80 -> 0x57c7bd: no Crushing Blow, Open Wounds or chance to cast from
-            // it); calc2's activation delay isn't modelled either.
+            // A side one's flag 0x10000 (Multiple Shot's) skips the shooter's domissiledamage events in game.exe
+            // (0x59fe8d -> hit flag 0x80 -> 0x57c7bd). calc2's activation delay isn't modelled.
             const int from_x = int(std::floor(caster.x * 5)), from_y = int(std::floor(caster.y * 5));
             for (const auto& shot : d2d::rules::missile_fan(from_x, from_y, int(std::floor(caster.to_x * 5)), int(std::floor(caster.to_y * 5)), calc1,
                                                             calc(skill, skill.calc[2], lvl))) {
@@ -570,7 +589,9 @@ auto Fight::fire(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
                 // One at the caster's own subtile: FUN_0059fa30 aims it a subtile on (+1, +1), as missile_fly does;
                 // it needs a direction to launch.
                 const bool own = shot.x == from_x && shot.y == from_y;
-                send(own ? 0.2f : aim_x - caster.x, own ? 0.2f : aim_y - caster.y, range).aim_at = std::pair{ aim_x, aim_y };
+                auto& missile = send(own ? 0.2f : aim_x - caster.x, own ? 0.2f : aim_y - caster.y, range);
+                missile.aim_at = std::pair{ aim_x, aim_y };
+                missile.target_id = fan_side_event_tag(shot.side);
             }
         } else if (skill.srvdofunc == ServerDoFunction::kScatteredBolts) {
             for (int k = 0; k < std::max(calc1, 1); ++k) send(dx, dy, range).bolt = k;   // each wandering (FUN_005c9290)
@@ -1155,7 +1176,7 @@ auto Fight::strike(const Missile& missile, std::size_t monster_index, std::uint3
         // level; its skill's calcs see no synergies (mercs have none).
         const int clvl = missile.by_merc ? actor->merc_st.level : int(actor->character.stats.get(d2d::d2s::kLevel));
         const auto merc = missile.by_merc ? merc_fighter() : d2d::rules::Fighter{};
-        const auto& fighter = missile.by_merc ? merc : actor->player_combat;
+        const auto fighter = missile_owner_event_fighter(missile.by_merc ? merc : actor->player_combat, missile.target_id);
         const auto env = missile.by_merc ? merc_calc_env() : calc_env();
         auto damage = missile.fixed >= 0 ? d2d::rules::MissileDamage{ .etype = missile.info->etype < 0 ? 0 : missile.info->etype, .elo = missile.fixed, .ehi = missile.fixed }
                 : missile.info->skill.empty() ? row_damage(*missile.info, missile.level, env, missile.skill)

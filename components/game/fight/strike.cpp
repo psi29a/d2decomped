@@ -775,7 +775,8 @@ auto Fight::land(std::size_t monster_index, const d2d::rules::Blow& blow, bool b
         // Its striker's gear item_slow (ItemStatCost item_slow's events, func 19, FUN_005c0310; FUN_0057c6c0 raises
         // domeleedamage / domissiledamage on the striker as the hit lands, event 5 / 6): state 0x18 on the target,
         // held to 50 on a champion, unique, superunique or MonStats boss, 90 on another (rules::item_slow).
-        // ponytail: a fan's side missile (flag 0x10000, rules::missile_fan) skips event 6 in game.exe; not here.
+        // A fan's side missile skips this event-6 effect through missile_owner_event_fighter
+        // (FUN_0059fa30 -> FUN_005ad730 -> FUN_0057c6c0).
         if (const auto* slow_type = target.type >= 0 ? &game_data->monsters.types[std::size_t(target.type)] : nullptr; blow.slow != 0 && slow_type) {
             const bool special = target.boss != d2d::rules::Boss::none && target.boss != d2d::rules::Boss::minion;
             if (const int slow = d2d::rules::item_slow(blow.slow, 1, special, slow_type->boss_column, false, target.boss == d2d::rules::Boss::superunique))
