@@ -1039,6 +1039,18 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
   brackets and DmgSymPerCalc (+0xe0) % (FUN_0064af20 / FUN_0064aff0), the
   element with EDmgSymPerCalc (FUN_0064b100 / FUN_0064b1d0), its length
   FUN_0064b2a0 (`Fight::row_damage`).
+  A row with **MissileSkill** (+5 bit 7) takes the missile's own skill
+  (FUN_0064a280) instead when that's over 0, else the row's Skill
+  (0x64b9b6..0x64b9c2: ECX is the row's +0x194); no skill row returns the
+  zeroed record (0x64b9d4 to 0x64bf19). Four 1.14d rows have it: firearrow,
+  coldarrow and freezingarrowexp3, made by their own skill (the same pick),
+  and explodingarrowexp2 (Skill Exploding Arrow, 16): hit function 4
+  (FUN_005b07a0) makes it
+  with the arrow's skill and level (FUN_0064a280 / FUN_0064a210), so a
+  player's Attack arrow (skill 0, at stat 158's level: FUN_0056f070 →
+  FUN_00645f00) bursts with Exploding Arrow's damage, a merc's (RogueMissile,
+  336: FUN_005ce1b0 → FUN_0056ecb0) with RogueMissile's, none
+  (`Fight::damage_skill`).
 - Elemental damage with flag 1 (FUN_00644c90): + the element's mastery %
   of the damage after the synergy: fire 329, lightning 330, cold (and
   freeze) 331, poison 332; none for magic.

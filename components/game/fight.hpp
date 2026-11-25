@@ -622,6 +622,8 @@ struct Fight {
     // A row with no Skill: its own physical and element at level lvl with their synergies (DmgSymPerCalc,
     // EDmgSymPerCalc on `env`), the weapon at its SrcDamage.
     [[nodiscard]] d2d::rules::MissileDamage row_damage(const GameData::MissileInfo& missile_info, int lvl, const d2d::rules::CalcEnv& env, int skill_id) const;
+    // The skill whose damage a missile's hit takes (FUN_0064b860), null for a row with no Skill (row_damage's).
+    [[nodiscard]] const d2d::rules::Skill* damage_skill(const Missile& missile) const;
     // A finishing hit on monster `on` releases every charge (FUN_005d5220):
     // with n charges (1..3) the skill's srvprgfunc n runs — prgstack skills
     // (Fists of Fire, Claws of Thunder, Blades of Ice) run 1..n, each with

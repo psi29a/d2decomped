@@ -2,7 +2,11 @@
 // test-links: game
 // A player's exploding arrow (FUN_00645f00: explodingarrow with stat 158, item_explosivearrow): Attack's do
 // (FUN_0056f070) makes it at that stat's value (FUN_0056ecb0's level), not at Attack's own level; magicarrow
-// (stat 157) the same. The REAL Fight::fire. Needs the game data; SKIPs without it.
+// (stat 157) the same. Its blast (hit function 4, FUN_005b07a0: explodingarrowexp2 with the arrow's skill and
+// level) takes FUN_0064b860's MissileSkill pick: the missile's skill when over 0, else the row's Skill, so off
+// Attack (skill 0) Exploding Arrow's fire, off a merc's RogueMissile (336) RogueMissile's (none). The REAL
+// Fight::fire, Fight::damage_skill and Fight::strike. Needs the game data; SKIPs without it.
+#include <ai.hpp>
 #include <ai/units.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
@@ -25,6 +29,7 @@
 #include <filesystem>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <utility>
 
 using namespace d2d::game;
@@ -80,6 +85,32 @@ int main() try {
     assert(exploding.first == "explodingarrow" && exploding.second == 7);
     assert(magic.first == "magicarrow" && magic.second == 5);
     std::puts("OK: a magic or exploding arrow flies at its stat's level");
+
+    // The blast's skill.
+    Missile blast;
+    blast.info = &data->missiles.at("explodingarrowexp2");
+    blast.friendly = true; blast.caster = actor->id; blast.level = 7;
+    assert(blast.info->missile_skill && blast.info->skill == "Exploding Arrow");
+    blast.skill = 0;
+    const auto* off_attack = fight.damage_skill(blast);
+    blast.skill = data->skills.by_name.at("RogueMissile");
+    const auto* off_rogue = fight.damage_skill(blast);
+    assert(off_attack && off_attack->name == "Exploding Arrow" && off_rogue && off_rogue->name == "RogueMissile");
+    // Off Attack it burns: a zombie immune to physical damage loses life to the fire alone.
+    blast.skill = 0;
+    using MonType = decltype(data->monsters.types)::value_type;
+    const auto zombie = std::ranges::find(data->monsters.types, std::string_view("zombie1"), &MonType::id);
+    assert(zombie != data->monsters.types.end());
+    fight.monsters.clear();
+    Monster foe = make_monster(*data, int(zombie - data->monsters.types.begin()), actor->player.x + 3.f, actor->player.y, rng, 0, true, 1, open.id);
+    foe.id = 0x7ffff0;
+    foe.hit_points = foe.stats.hit_points = 100000;
+    foe.stats.armor_class = -1000;                                    // Exploding Arrow's SrcDam swing lands
+    foe.boss_res[0] = 100;                                            // no physical
+    fight.monsters.push_back(std::move(foe));
+    for (int tries = 0; tries < 20 && fight.monsters[0].hit_points == 100000; ++tries) fight.strike(blast, 0, 1000 * kTickMs, 0, nullptr);
+    std::printf("the blast off Attack at level 7: %d off\n", 100000 - fight.monsters[0].hit_points);
+    assert(fight.monsters[0].hit_points < 100000);
     return 0;
 } catch (const std::exception& error) {
     std::printf("test_exploding_arrow: %s\n", error.what());

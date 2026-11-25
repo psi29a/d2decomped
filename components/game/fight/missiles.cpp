@@ -891,9 +891,10 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
             }
             if (missile_info.srv_do == 5) {
                 // A row with no Skill (Meteor's, Immolation Arrow's fire) burns its own element with its synergy.
+                const auto* hurts_by = damage_skill(missile);
                 const auto damage = missile.fixed >= 0 ? d2d::rules::MissileDamage{ .etype = 0, .elo = missile.fixed, .ehi = missile.fixed }
-                                  : missile_info.skill.empty() ? row_damage(missile_info, missile.level, calc_env(), missile.skill)
-                                                               : d2d::rules::missile_damage(game_data->skills, *skill, calc_env(), missile.level);
+                                  : !hurts_by ? row_damage(missile_info, missile.level, calc_env(), missile.skill)
+                                              : d2d::rules::missile_damage(game_data->skills, *hurts_by, calc_env(), missile.level);
                 // Each flame its own (FUN_005ae1f0 -> FUN_00641cb0): the first unit its footprint finds, then
                 // FUN_005adf10 on it and no other this frame; overlapping flames each burn (no list across
                 // missiles: FUN_0064a470 is the missile's own last unit, for LastCollide rows, none of these).
@@ -1193,9 +1194,10 @@ auto Fight::strike(const Missile& missile, std::size_t monster_index, std::uint3
         const auto merc = missile.by_merc ? merc_fighter() : d2d::rules::Fighter{};
         const auto fighter = missile_owner_event_fighter(missile.by_merc ? merc : actor->player_combat, missile.target_id);
         const auto env = missile.by_merc ? merc_calc_env() : calc_env();
+        const auto* hurts_by = damage_skill(missile);
         auto damage = missile.fixed >= 0 ? d2d::rules::MissileDamage{ .etype = missile.info->etype < 0 ? 0 : missile.info->etype, .elo = missile.fixed, .ehi = missile.fixed }
-                : missile.info->skill.empty() ? row_damage(*missile.info, missile.level, env, missile.skill)
-                                        : d2d::rules::missile_damage(game_data->skills, *skill, env, missile.level);
+                : !hurts_by ? row_damage(*missile.info, missile.level, env, missile.skill)
+                            : d2d::rules::missile_damage(game_data->skills, *hurts_by, env, missile.level);
         damage = d2d::rules::influenced(damage, missile.influence);
         if (missile.info->dmg_func == 5) {                  // FUN_005ad2f0: Blessed Hammer's bonus against the undead and the demons
             damage.undead_pct = missile.info->dmg_par1;
