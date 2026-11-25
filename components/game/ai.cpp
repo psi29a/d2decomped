@@ -981,8 +981,12 @@ Search search_target(const GameData& game_data, const Level& level, Monster& mon
         std::vector<Foe*> pick_foes;
         // The player's pets in game.exe's list order: the one that entered the list last first (FUN_005b1900).
         std::vector<d2d::rules::ListEntry> entries;
-        for (const auto& foe : foes)
-            entries.push_back({ foe.monster ? d2d::rules::ListKind::other : foe.pet ? d2d::rules::ListKind::pet : d2d::rules::ListKind::player, foe.listed });
+        // A converted monster (FUN_005d0350 at 0x5d0501: FUN_005b1900(game, monster, 0, caster's list)) is the caster's newest.
+        for (const auto& foe : foes) {
+            const bool turned = foe.monster && foe.monster->align == 2 && foe.monster->listed && foe.monster->pet_serial > 0;
+            entries.push_back({ turned ? d2d::rules::ListKind::pet : foe.monster ? d2d::rules::ListKind::other : foe.pet ? d2d::rules::ListKind::pet : d2d::rules::ListKind::player,
+                                turned ? foe.monster->pet_serial : foe.listed });
+        }
         for (const std::size_t slot : d2d::rules::search_order(entries)) {
             auto& foe = foes[slot];
             // List 9: neutral monsters; a converted one is in its caster's list,

@@ -487,6 +487,19 @@ pgsv, the six progressive_* states, so the Shadow holds charges. A
 monster's states for the AIs are its curse / cry (their auratargetstate).
 Blade Shield strikes as skills.md do 54 says, from the Shadow.
 
+### A pet's physical roll
+
+`FUN_0057b420` builds the physical range from the attacker's stats 21 / 22,
+adds stat 111 to both ends, makes a low below one point one point and a high
+not above it low + one point, then applies the damage-percent sum. At
+`0x57b5f2` it passes the range difference in EDX and the attacker at
+`unit + 0x20` in ECX to `FUN_0045c3e0`; the returned value is added to the
+low. Thus a pet's physical roll advances the pet's unit seed. The enclosing
+hit and block checks do not run in this helper. d2d passes `Monster::seed`
+only for this roll (`Fight::pets_turn` and `Fight::pet_think_turn`); its hit
+and block rolls remain on `Fight::rng`. `tools/emu/pet_damage_seed.py` runs
+the helper natively and checks the same split.
+
 ## A summon's stats (FUN_005c4470)
 
 Before it, FUN_005c49e0(game, owner; pet, forced, bonus) gives the pet its
@@ -514,7 +527,15 @@ each sumskill (+0xc4) at its calc (+0xd0) above 0 given to the pet
 last, its MonEquip gear (FUN_005d6b60, the Valkyrie's), at the gear level
 passed or min(max(3 x level, 1), the owner's level). So Skeleton Mastery's
 maxhp gets the skeleton's calc1 % too, and the % leaves a fraction of a
-point.
+point. Before this function, the Valkyrie's `FUN_00573cb0` stat init calls
+`FUN_005739d0`. With no region set, it asks `FUN_006647c0` for each of the
+sixteen MonStats2 variant counts at `+0x15`; Valkyrie's are all zero, so
+`FUN_0045c3e0` returns zero without stepping the seed. Then
+`0x573f83..0x573f94` rolls life over the inclusive MonStats range on that
+seed. `FUN_005c4470`'s final `FUN_005d6b60` therefore begins on the second
+seed state. d2d's `Fight::summon_one` preserves that order before
+`rules::monster_gear`; `tools/emu/valkyrie_seed_order.py` runs the stat init
+through its gear call and checks the life and seed at that boundary.
 Its callers: every summoning skill's do but the Shadows' (the golems'
 through FUN_005c50c0, the traps' through FUN_005d5e10, Bone Wall's and
 Bone Prison's through FUN_005c58b0 / FUN_005c5bc0), and FUN_005aeda0. The

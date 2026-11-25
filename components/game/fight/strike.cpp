@@ -702,6 +702,20 @@ auto Fight::skill_swing(const d2d::rules::Skill& skill_row, int lvl, const d2d::
         return swing;
     }
 
+// FUN_0057ac50 gives every unit the same one-poison-at-a-time state: the
+// stronger per-frame hpregen loss replaces the old value and its end time.
+// A monster may be the target of another monster's record too (Fight::world).
+static void apply_monster_poison(Monster& target, double rate, int poison_ticks, std::uint32_t now_ms) {
+        if (rate > 0 && (now_ms >= target.poison_until || rate >= target.poison_rate)) {
+            target.poison_rate = rate;
+            target.poison_until = now_ms + std::uint32_t(poison_ticks) * 40;
+        }
+    }
+
+void apply_monster_foe_poison(Monster& target, int poison, int poison_ticks, std::uint32_t now_ms) {
+        apply_monster_poison(target, poison / (256.0 * 40.0), poison_ticks, now_ms);
+    }
+
 // A hit on monster i (the player's or the merc's): blocked, it blocks; otherwise the damage, life/mana leech
 // (the player's), poison and bleeding over time, a chill, a knockback.
 // `striker`: the Foe::id it came from (-1 none), kept even on a miss or
@@ -744,11 +758,7 @@ auto Fight::land(std::size_t monster_index, const d2d::rules::Blow& blow, bool b
             actor->merc->set_life_fine(int(std::min<std::int64_t>(std::int64_t(merc_max_life()) << 8, std::int64_t(actor->merc->life_fine()) + blow.life)));
         // One poison at a time, the stronger wins (FUN_0057ac50); at 0 life
         // the monster dies to it, the kill the poisoner's (FUN_005a6920).
-        if (const double rate = double(blow.poison) / (std::max(blow.poison_ticks, 1) * 40.0);
-            blow.poison > 0 && (now_ms >= target.poison_until || rate >= target.poison_rate)) {
-            target.poison_rate = rate;
-            target.poison_until = now_ms + std::uint32_t(blow.poison_ticks) * 40;
-        }
+        apply_monster_poison(target, double(blow.poison) / (std::max(blow.poison_ticks, 1) * 40.0), blow.poison_ticks, now_ms);
         // Chilled (state 11, FUN_0057af80): not at coldeffect 0, the length
         // over MonsterColdDivisor when it's negative, at least a tick, only
         // ever lengthened. Then rand % 100 < 20 on the monster's seed puts state
@@ -775,7 +785,8 @@ auto Fight::land(std::size_t monster_index, const d2d::rules::Blow& blow, bool b
         // Its striker's gear item_slow (ItemStatCost item_slow's events, func 19, FUN_005c0310; FUN_0057c6c0 raises
         // domeleedamage / domissiledamage on the striker as the hit lands, event 5 / 6): state 0x18 on the target,
         // held to 50 on a champion, unique, superunique or MonStats boss, 90 on another (rules::item_slow).
-        // ponytail: a fan's side missile (flag 0x10000, rules::missile_fan) skips event 6 in game.exe; not here.
+        // A fan's side missile skips this event-6 effect through missile_owner_event_fighter
+        // (FUN_0059fa30 -> FUN_005ad730 -> FUN_0057c6c0).
         if (const auto* slow_type = target.type >= 0 ? &game_data->monsters.types[std::size_t(target.type)] : nullptr; blow.slow != 0 && slow_type) {
             const bool special = target.boss != d2d::rules::Boss::none && target.boss != d2d::rules::Boss::minion;
             if (const int slow = d2d::rules::item_slow(blow.slow, 1, special, slow_type->boss_column, false, target.boss == d2d::rules::Boss::superunique))
@@ -827,6 +838,10 @@ auto Fight::struck_event(Monster& target, bool knockback) const -> void {
 // blow out of GH keeps its event though a later one in the tick puts it in GH.
 // The knockback is the tick's: d2d keeps none per blow.
 auto Fight::take_blows(Monster& struck, const Foe& foe, std::uint32_t now_ms) -> bool {
+        // Foe::poison is the record's per-frame value in 256ths; Blow::poison
+        // above is a total over its length, so the two paths intentionally
+        // have different conversions to life per millisecond.
+        apply_monster_foe_poison(struck, foe.poison, foe.poison_ticks, now_ms);
         for (const auto& blow : foe.blows) {
             const int taken = soak(struck, blow.physical << 8, blow.damage << 8);
             if (hurt(*game_data, struck, taken >> 8, now_ms, taken & 255, blow.hit_class, blow.marked)) return true;
@@ -1072,6 +1087,7 @@ auto Fight::hit(std::uint32_t now_ms, float reach ) -> void {
 // 1..max; d2d applies a minimum of one whole point during Conversion.
 auto Fight::turn_good(Monster& turned, int caster_level) -> void {
         turned.align = 2; turned.set_kind = 0; turned.chase = -1;
+        turned.pet_serial = ++actor->list_serial;   // FUN_005b1900: the caster's newest in its list
         if (turned.stats.level > caster_level && turned.own_level == 0) {
             turned.own_level = turned.stats.level; turned.own_max_life = turned.stats.hit_points;
             turned.own_max_life_frac = turned.max_life_frac;

@@ -481,8 +481,9 @@ int leech_fine(int physical_fine, const Target& target, int steal, int divisor);
 // The player's melee hit on `t` (hit chance, then the monster's block):
 // critical or deadly strike doubles the physical damage; physical resistance cuts it;
 // leech is the physical damage dealt x steal % x Drain %; crushing blow
-// takes the life left / the target's divisor (less physical resistance).
-Blow player_blow(const Fighter& fighter, const Target& target, int clvl, Rng& rng, const Swing& swing = {});
+// takes the life left / the target's divisor (less physical resistance). `damage_rng`
+// is the attacker's unit seed when its physical roll is separate from the fight rolls.
+Blow player_blow(const Fighter& fighter, const Target& target, int clvl, Rng& rng, const Swing& swing = {}, Rng* damage_rng = nullptr);
 
 // A monster's attack on the player (`motion`.
 // `missile`: a spike rather than a swing): hit chance against defense plus

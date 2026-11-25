@@ -222,6 +222,7 @@ struct Monster {
     // good one only from list 8. A prisoner (FUN_00588600's) is in none till its
     // think finds its door broken (FUN_005ee3c0 -> FUN_005b1990(8)).
     bool listed = true;
+    int pet_serial = 0;                       // Hero::list_serial when Conversion / Mind Blast put it in its caster's list (FUN_005b1900 at 0x5d0501 / 0x5d73xx), 0 never
     int seq_sound = 0, seq_sounds = 0;        // a Jab sequence's event-3 rows passed and its dosound b: played or dropped each frame (Fight::monster_sounds)
     std::uint32_t sound_ms = 0, neutral_ms = 0, step_ms = 0;   // its last sound, Neutral, footstep (unit +0x7c / +0x80 / +0x84)
     std::uint32_t sound_tick = 0;             // the tick its Neutral last rolled

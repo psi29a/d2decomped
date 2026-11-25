@@ -515,9 +515,10 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
             // gets the experience when the killer or the dead one carries
             // its curse (FUN_0057e7b0: the stat list's owner, flag 0x800).
             // The monsters' missiles fly with these foes too (missiles_update).
-            // ponytail: a monster's poison and Mana Burn reach only the players'
-            // side; monsters block as a player does; the experience is the
-            // first player's.
+            // A monster's poison reaches a monster foe through take_blows, and
+            // monster_blow uses that foe's block chance as it does a player's.
+            // ponytail: monsters keep no mana for Mana Burn; a poison kill has
+            // no state owner, so its experience is still the first player's.
             const std::size_t allies = foes.size();
             // `for_missiles`: a monster's CollideFriend missile in flight (FUN_005a8730) strikes its owner's
             // friends, so the monsters are foes then too, aligned or not.

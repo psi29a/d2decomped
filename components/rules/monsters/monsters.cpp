@@ -427,7 +427,7 @@ SearchPick search_pick(std::span<const SearchFoe> foes, int best, bool need_sigh
 // it is made; the merc when it is hired or joins and again when it is revived (FUN_00579aa0 at 0x579b43).
 // `serial` is the order they entered (greater is newer). With one player the pets after it are sorted newest first
 // (equal serials keep d2d's order) and the rest (monsters) follow; with several players d2d's order stays.
-// ponytail: a converted monster (FUN_005d0350 at 0x5d0501) is the caster's newest pet in game.exe; here it stays after the pets.
+// A converted monster (FUN_005d0350 at 0x5d0501, FUN_005d7430's Mind Blast alike) enters as the caster's newest: d2d passes it as a pet.
 std::vector<std::size_t> search_order(std::span<const ListEntry> entries) {
     std::vector<std::size_t> order(entries.size());
     std::iota(order.begin(), order.end(), std::size_t(0));
