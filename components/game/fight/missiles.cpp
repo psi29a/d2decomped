@@ -719,8 +719,6 @@ auto Fight::land_range(const GameData::MissileInfo& missile_info, float dx, floa
 // 256ths a frame (FUN_004cc7c0).
 // Also Strafe's queued arrows and Inferno's flames.
 // A guided one cast at nothing (do 10) flies to the point and ends there.
-// ponytail: a burner takes the newest monster in its footprint; across rooms game.exe walks
-// the near list's rooms in order (FUN_00641cb0), which d2d's one list doesn't keep.
 // The acting player's own shots this frame: Strafe's arrows due, a
 // channelled skill's (Inferno, Blade Fury).
 auto Fight::player_shots(std::uint32_t now_ms) -> void {
@@ -895,12 +893,25 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
                 // Each flame its own (FUN_005ae1f0 -> FUN_00641cb0): the first unit its footprint finds, then
                 // FUN_005adf10 on it and no other this frame; overlapping flames each burn (no list across
                 // missiles: FUN_0064a470 is the missile's own last unit, for LastCollide rows, none of these).
-                // A room's units run newest first (its list's head, FUN_0064c2c0); monsters is oldest first.
-                for (std::size_t i = monsters.size(); i-- > 0;)
-                    if (monsters[i].targetable() && standing_struck(missile, monsters[i].unit.x, monsters[i].unit.y, game_data->monsters.types[std::size_t(monsters[i].type)].size)) {
-                        burn(i, damage, now_ms, soft_hit(missile, rng));
-                        break;
-                    }
+                // A room's units run newest first (its list's head, FUN_0064c2c0). FUN_00641cb0
+                // walks the missile's room and near list in order and stops at the first callback hit.
+                std::vector<int> rooms;
+                std::vector<d2d::rules::RoomUnit> units;
+                if (level) {
+                    for (const auto& [room_level, near_room] : near_rooms(*game_data, *level, missile.x, missile.y))
+                        if (room_level == level) rooms.push_back(near_room);
+                    restamp();
+                    units.reserve(monsters.size());
+                    for (const auto& monster : monsters)
+                        units.push_back({ room_of(*level, monster.unit.x, monster.unit.y),
+                                          monster.targetable() && standing_struck(missile, monster.unit.x, monster.unit.y,
+                                                                                  game_data->monsters.types[std::size_t(monster.type)].size),
+                                          monster.unit.room_stamp });
+                }
+                // The first of the walk (eligible = footprint struck) is the one FUN_00641cb0 returns.
+                // ponytail: the 0x73c720 callback's accept/reject for a burner row is not traced; every struck monster is taken.
+                if (const auto order = d2d::rules::room_order(units, rooms); !order.empty())
+                    burn(std::size_t(order.front()), damage, now_ms, soft_hit(missile, rng));
             }
             // 13 (FUN_005aeda0, Bone Wall's maker): while it has pieces left and the first piece
             // (FUN_00552f60 on its id) stands, one at its own subtile on a frame it entered a new one
