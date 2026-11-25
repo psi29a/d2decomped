@@ -7,6 +7,7 @@
 #include "monster_ids.hpp"
 #include "object_ids.hpp"
 #include "quest_clock.hpp"
+#include "quest_log_send.hpp"
 
 #include <algorithm>
 #include <array>

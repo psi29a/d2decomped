@@ -278,6 +278,7 @@ Good: `level 2: 20/20 seeds match game.exe`.
 | Quest item and party check (`FUN_00591cd0`, callees hooked; `--mutation-check` three ways) | `uv run python quest_horadric_party.py` | `ok: 48 quest item party cases` |
 | Quest callback wrapper (`FUN_005b30e0`, receiver hooked; `--mutation-check` three ways) | `uv run python quest_izual_forward.py` | `ok: 24 quest callback wrapper cases` |
 | Quest level warning (`FUN_00545cd0`, lookups and warning hooked; `--mutation-check` three ways) | `uv run python quest_level_warning.py` | `ok: 72 quest level warning cases` |
+| Quest-log record act gate (FUN_00544190: a record is sent only in the player's current act; synthetic record and player, downstream log/send hooked; `--mutation-check` 2 ways; `inc --out ../../tests/quest_log_act_cases.inc` writes the fixture) | `uv run python quest_log_act.py --mutation-check` | `ok: 30 FUN_00544190 quest-log act-gate cases`, then two caught mutants (each after its differing cases) |
 | Talk-submenu quest names (FUN_0049f910, table 0x722678) vs `rules::quest_name` | `uv run python quest_name.py` | `65536 messages match d2d's 32 runs; 527 have a name; 164 (row 100) is 3716`, then `ok` |
 | Quest object-class dispatch (`FUN_005447a0`, handlers hooked; `--mutation-check` three ways) | `uv run python quest_object_dispatch.py` | `ok: 48 quest object dispatch cases` |
 | Quest 0x11 object timer (`FUN_005b9cd0`, lookups and scheduler hooked; `--mutation-check` three ways) | `uv run python quest_object_timer.py` | `ok: 24 quest object timer cases` |
