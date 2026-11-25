@@ -18,12 +18,14 @@
 #include <combat.hpp>
 #include <d2s_items.hpp>
 #include <hire.hpp>
+#include <hostile_toggle.hpp>
 #include <item_gen.hpp>
 #include <item_price.hpp>
 #include <level_ids.hpp>
 #include <merc.hpp>
 #include <monster_ids.hpp>
 #include <object_ids.hpp>
+#include <player_relations.hpp>
 #include <points.hpp>
 #include <quests.hpp>
 #include <quests_act3.hpp>
@@ -67,6 +69,59 @@ void right_skill_set(Fight::Hero& hero, int skill) {
 }
 
 }  // namespace
+
+// FUN_005a5e50 after C->S 0x5d action 4 has resolved both player units.
+// FUN_005a5dc0 makes the declarer hostile both ways with the target, or with
+// every level-9+ member of the target's party. FUN_005a5d20 removes the
+// declarer when both players were in that party. FUN_00535430 closes the
+// declarer's town-portal pair before the party comparison.
+auto World::toggle_hostility(Player& other, std::uint32_t requested, std::uint32_t now_ms) -> d2d::rules::HostileToggle {
+    const Level* const actor_level = level_of(*actor);
+    const int self_level = int(actor->character.stats.get(d2d::d2s::kLevel));
+    const int other_level = int(other.character.stats.get(d2d::d2s::kLevel));
+    const auto result = d2d::rules::hostile_toggle({
+        .in_room = actor_level != nullptr,
+        .room_level_id = actor_level ? actor_level->id : 0,
+        .self_level = self_level,
+        .other_level = other_level,
+        .other_level_again = other_level,
+        .hostile = actor->relations.get(actor->id, other.id, d2d::rules::kRelationHostile) != 0,
+        .pair_stamp = actor->relations.hostile_stamp(actor->id, other.id),
+        .now = now_ms,
+        .requested = requested,
+    });
+    if (result == d2d::rules::HostileToggle::kViolation) return result;
+
+    actor->relations.add(actor->id, other.id, other.party >= 0);
+    other.relations.add(other.id, actor->id, actor->party >= 0);
+    if (result == d2d::rules::HostileToggle::kCleared) {
+        actor->relations.set(actor->id, other.id, d2d::rules::kRelationHostile, false);
+        return result;
+    }
+    if (result != d2d::rules::HostileToggle::kDeclared) return result;
+
+    actor->relations.hostile_stamp(actor->id, other.id, now_ms + d2d::rules::kHostilePairCooldownMs);
+    actor->declare_hostile(now_ms);
+    const auto set_both = [&](Player& member) {
+        actor->relations.add(actor->id, member.id, member.party >= 0);
+        member.relations.add(member.id, actor->id, actor->party >= 0);
+        actor->relations.set(actor->id, member.id, d2d::rules::kRelationHostile, true);
+        member.relations.set(member.id, actor->id, d2d::rules::kRelationHostile, true);
+    };
+    if (other.party < 0) {
+        set_both(other);
+    } else {
+        const auto party_member = [&](Player& member) {
+            if (&member != actor && member.party == other.party
+                && member.character.stats.get(d2d::d2s::kLevel) >= d2d::rules::kHostileMinLevel) set_both(member);
+        };
+        for (auto& member : players) party_member(*member);
+        for (Player* member : elsewhere) party_member(*member);
+    }
+    close_portal_pair(actor->portal_pair);
+    if (actor->party >= 0 && actor->party == other.party) actor->party = -1;
+    return result;
+}
 
 // A belt put on or taken off: what the boxes it lacks held, to the
 // inventory or the floor (rules::spill_belt, FUN_005608c0).
@@ -129,6 +184,7 @@ auto World::hand_skills(std::uint32_t now_ms) -> void {
         actor->aura = right && right->aura ? int(header.right_skill) : 0;
     }
 
+// The actor's NPC, trade, merc, waypoint, chat and quest-message commands; true when it took the command.
 auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
         const auto& item_rules = game_data->rules;
         const int clvl = int(actor->character.stats.get(d2d::d2s::kLevel));
@@ -442,11 +498,10 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
         // FUN_005a5e50), not from a level change: FUN_0054c5d0 refuses while
         // GetTickCount is under that stamp + 10000 (32-bit, so it wraps), ends the
         // interaction and goes no further. A level change writes nothing.
-        // ponytail: nothing declares hostility yet (no PvP, C->S 0x5d, in a hosted world):
-        // rules::hostile_toggle decides FUN_005a5e50's branch (tested against game.exe), but no
-        // 0x5d reaches it, the relation nodes (FUN_0055b140 family) and the party branch
-        // (FUN_005a5dc0, FUN_005a5d20) aren't ported, so Player::declare_hostile has no caller
-        // outside the test; an act change arrives at once (game.exe's load not traced).
+        // ponytail: a hosted client's C->S 0x5d is not decoded into
+        // World::toggle_hostility (protocol.* and apps/ own that wiring), and S->C 0x8c / 0x5a
+        // relation notices are not emitted. The server relation and party branches are ported;
+        // an act change still arrives at once (game.exe's load not traced).
         if (const auto* travel = std::get_if<cmd::Waypoint>(&command)) {
             // FUN_0054c5d0 tests the clock before the target (FUN_00549570); it also speaks (FUN_00553380)
             // and ends the interaction (FUN_00554190): the voice and that end aren't ported.
