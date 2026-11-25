@@ -4,8 +4,8 @@
 that were `untouched` on 2026-11-24, with a setter next to the cited
 `storm_get_7792f4` of [source-frontier.md](source-frontier.md).
 `tools/gaps.py` counts no callers for them but one for `FUN_00420750`
-(`FUN_00420790`) and one for `FUN_0041c770`; rows ending in `_2` are a
-second copy of the same code. A list keeps its link offset at `+0` and its terminator
+(`FUN_00420790`) and one for `FUN_0041c770`; rows ending in `_2` or `_3` are
+further copies of the same code. A list keeps its link offset at `+0` and its terminator
 link at `+4`; a link keeps the previous link at `+0` and the next node at
 `+4`, or the terminator's address complemented (negative) after the last
 node; a list's terminator `+8` is its first node. Read from the
@@ -26,6 +26,7 @@ its lists in standard containers.
 | `FUN_0041c7b0` | `slist_destroy_2` | Another copy of `slist_destroy` (`FUN_00420790`): the same reading, run on the same cases | no counterpart |
 | `FUN_0041c840` | `slist_new_node_2` | As `slist_new_node` (`FUN_00420820`) with the tag `".?AUHANDLER@"` (0x708434) | no counterpart |
 | `FUN_0041c8a0` | `slink_delete_2` | Another copy of `slink_delete` (`FUN_00420880`): the same reading, run on the same cases | no counterpart |
+| `FUN_0041eb40` | `slist_link_or_terminator_3` | A third copy of `slist_link_or_terminator` (`FUN_00420520`): the same reading, run on the same cases | no counterpart |
 | `FUN_004203a0` | `storm_set_7792f4` | Value (`RET 4`): `DAT_007792f4` = value, returns 1 (the getter is `storm_get_7792f4`) | no counterpart |
 | `FUN_004203f0` | `slink_next_link` | `ECX` link, offset (`RET 4`): the next link: a negative next `+4` complemented (the terminator); else next + offset, and for a negative offset the link's own offset, link − its previous link's next | no counterpart |
 | `FUN_00420520` | `slist_link_or_terminator` | `ECX` list, link (`RET 4`): the link, or the terminator `+4` when it is 0 | no counterpart |
