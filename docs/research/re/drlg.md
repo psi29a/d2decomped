@@ -1990,6 +1990,13 @@ FUN_0066d3b0, FUN_00678b80, FUN_00678c10 and the allocator.
   (DrlgLogic line 0xdf), zeroes it, stores it at +0x64 and returns it;
   FUN_0066cf30 returns its +0x30 (fatal 0x2cd without it). FUN_0066d410 calls
   FUN_0066d3b0 (EAX near room) for each near room.
+- The Animate preset's tick (FUN_0066d3b0) is once a client frame: FUN_0044c790
+  calls FUN_0061aef0 (a non-null near room) -> FUN_0066d410, and FUN_0044c790 is
+  FUN_0044efa0's per-frame step. The frame's length, DAT_0070ef1c, reads 0x28 ms
+  and has no writer (4 reads, all in FUN_0044efa0), so d2d's 40 ms is read, not
+  assumed. FUN_0044efa0 calls FUN_0044c790 once a pass (one site per game-type
+  branch) and moves its frame clock DAT_007a0490 after a stall; that stall
+  handling isn't traced against d2d.
 - FUN_00670970(obj in EAX, value in EDX, a, flag): record (+0x20) = {value, a};
   a nonzero flag clears bit 1 of record +0xc, zero sets it. FUN_0067d6d0
   allocates the 0x70-byte maze record (line 0xc5) into room +0x20. FUN_0067d7a0
