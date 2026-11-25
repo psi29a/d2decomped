@@ -125,11 +125,13 @@ auto Fight::ammo_index() const -> int {
 
 // A bow's or crossbow's shot (FUN_00645f00): magicarrow with stat 157
 // (item_magicarrow), explodingarrow with 158, else arrow / bolt; null
-// for any other weapon.
+// for any other weapon. `shot_level`, for magicarrow and explodingarrow, gets that
+// stat's value: Attack's do (FUN_0056f070) makes the shot at it (FUN_0056ecb0's
+// level), not at the skill's.
 
 // The plain attack (do 1, FUN_0056f070) fires it from where the player
 // stands.
-auto Fight::weapon_missile() const -> const GameData::MissileInfo* {
+auto Fight::weapon_missile(int* shot_level) const -> const GameData::MissileInfo* {
         using namespace d2d::d2s;
         const auto& tables = game_data->rules;
         bool crossbow = false, bow = false;
@@ -146,6 +148,7 @@ auto Fight::weapon_missile() const -> const GameData::MissileInfo* {
             if (prop.stat == kItemExplosiveArrow) exploding += prop.value;
         }
         const char* name = magic > 0 ? "magicarrow" : exploding > 0 ? "explodingarrow" : crossbow ? "bolt" : "arrow";
+        if (shot_level && (magic > 0 || exploding > 0)) *shot_level = magic > 0 ? magic : exploding;
         const auto found = game_data->missiles.find(name);
         return found != game_data->missiles.end() ? &found->second : nullptr;
     }
@@ -563,7 +566,8 @@ auto Fight::calc(const d2d::rules::Skill& skill, const d2d::rules::Calc& calc_ro
 // Strafe's arrows: one a do, the swing starting over between them (strafe_shot, restart_swing).
 auto Fight::fire(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Caster& caster) -> void {
         const auto& missile_info = *skill_missile(skill);
-        const int lvl = caster.level;
+        int lvl = caster.level;
+        if (skill.srvdofunc == ServerDoFunction::kAttack && !caster.merc && !caster.pet) static_cast<void>(weapon_missile(&lvl));   // a magic or exploding arrow at its stat's level
         casting_merc = caster.merc; casting_unit = caster.unit_id;
         struct Reset { bool& flag; int& unit; ~Reset() { flag = false; unit = -1; } } reset{ casting_merc, casting_unit };
         const int calc1 = calc(skill, skill.calc[0], lvl);

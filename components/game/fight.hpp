@@ -734,7 +734,7 @@ struct Fight {
     [[nodiscard]] int ammo_index() const;
     // A bow's or crossbow's shot: magicarrow with stat 157 (item_magicarrow), explodingarrow with 158, else
     // arrow / bolt; null for any other weapon.
-    [[nodiscard]] const GameData::MissileInfo* weapon_missile() const;
+    [[nodiscard]] const GameData::MissileInfo* weapon_missile(int* shot_level = nullptr) const;
     // Whether the shot takes ammo: the plain attack's, a skill with decquant, Throw; the ammo checks too.
     [[nodiscard]] bool needs_ammo(const d2d::rules::Skill& skill) const;
     void spend_ammo(int index = -1);   // that item, or ammo_index()'s
