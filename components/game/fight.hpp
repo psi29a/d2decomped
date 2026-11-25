@@ -868,6 +868,8 @@ struct Fight {
     // (traps aren't there to hit).
     [[nodiscard]] Foe pet_foe(const Pet& pet) const;
     void pet_hurt(Pet& pet, int damage, std::uint32_t now_ms, int hit_class = 0, bool marked = false, int fraction = 0);
+    // A Crushing Blow on a pet (crushing_blow at `divisor` less `damage_resist`): off its life, no get-hit, no regen event.
+    void pet_crushed(Pet& pet, int divisor, int damage_resist, std::uint32_t now_ms);
     // The player crossed from `from` to `to` (shifted by dx, dy): the pets
     // with them come along, traps stay where they were set.
     void pets_cross(const Level* from, const Level* destination, float dx, float dy);

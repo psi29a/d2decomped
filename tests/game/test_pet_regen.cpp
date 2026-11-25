@@ -8,8 +8,10 @@
 // Without arguments: the rule on typed-in numbers (no game data, so CI runs
 // it), then a raised skeleton hurt in a game with the MPQs (D2_MPQ_DIR): it
 // regains its stat 0x4a a frame from the frame after (Fight::pet_hurt,
-// pets_turn).
+// pets_turn). A Crushing Blow (FUN_005bffc0: Fight::pet_crushed) takes its
+// life outright and files no event: no regeneration of its own, no get-hit.
 
+#include <ai.hpp>
 #include <ai/units.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
@@ -119,6 +121,17 @@ int main(int argc, char** argv) try {
         assert(actor.pets.size() == 1 && pet.monster.life_fine() == hurt + 5 * frame);
     }
     std::puts("OK: a hurt skeleton regains 5/256 of a point a frame from the next frame (Fight::pet_hurt, pets_turn)");
+    // Healed back and standing, a crush (divisor 4, no resistance) takes a quarter of its life, files no event and
+    // doesn't get-hit it.
+    pet.monster.hit_points = pet.monster.stats.hit_points;
+    pet.monster.life_frac = pet.monster.max_life_frac;
+    pet.monster.regen_from = 0;
+    set_mode(*data, pet.monster, "NU", now);
+    const int before = pet.monster.hit_points;
+    world.fight.pet_crushed(pet, 4, 0, now);
+    std::printf("crushed: %d -> %d, mode %s, regen from %u\n", before, pet.monster.hit_points, std::string(pet.monster.mode).c_str(), pet.monster.regen_from);
+    assert(pet.monster.hit_points == before - before / 4 && pet.monster.regen_from == 0 && pet.monster.mode == "NU");
+    std::puts("OK: a crushed skeleton loses the life with no event or get-hit (Fight::pet_crushed)");
     return 0;
 } catch (const std::exception& error) {
     std::printf("test_pet_regen: %s\n", error.what());
