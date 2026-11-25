@@ -155,12 +155,15 @@ auto Fight::pet_hurt(Pet& pet, int damage, std::uint32_t now_ms, int hit_class, 
     }
 
 // Crushing Blow (FUN_005bffc0) sets the life itself (FUN_00627260 on stat 6, at least 0) and files no event:
-// no get-hit roll and no regeneration event (pet_regen) of its own; at 0 the record marks the kill (flag 2).
+// no get-hit roll and no regeneration event (pet_regen) of its own; at 0 the record marks the kill (flag 2). Stat 6
+// is in 256ths, so the crush keeps the part of a point; under a point left, the record's hit kills (0x57c865).
 auto Fight::pet_crushed(Pet& pet, int divisor, int damage_resist, std::uint32_t now_ms) -> void {
         auto& monster = pet.monster;
         if (!monster.alive() || monster.mode == "DT") return;
-        monster.hit_points = int(std::max<std::int64_t>(monster.hit_points - crushing_blow(monster.hit_points, divisor, damage_resist), 0));
-        if (!monster.alive()) { monster.life_frac = 0; set_mode(*game_data, monster, "DT", now_ms); }
+        const int life = monster.life_fine();
+        const int left = int(std::max<std::int64_t>(life - crushing_blow(life, divisor, damage_resist), 0));
+        if (left < 256) { monster.hit_points = 0; monster.life_frac = 0; set_mode(*game_data, monster, "DT", now_ms); }
+        else monster.set_life_fine(left);
     }
 
 // FUN_0057ac50: on a monster (a pet is one) it first refiles the unit's event 3 for the next frame (pet_regen),
