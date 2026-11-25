@@ -110,7 +110,7 @@ int main(int argc, char** argv) try {
     assert(korlic.leap_hold_row == -1);
     // Held at row 13 (it nears the landing, under 2 subtiles off), the row's event waits for the landing: it strikes once, a foe in reach, when the unit is down.
     rows.clear();
-    for (int row = 0; row < 17; ++row) rows.push_back({ "S1", row, row == 13 ? 1 : 0 });
+    for (int row = 0; row < 17; ++row) rows.push_back({ "S1", row, row == 13 || row == 14 ? 1 : 0 });   // two strike rows: one strike (unit flag 0x40)
     Monster ancient = fresh;
     set_mode(data, ancient, "S1", start);
     ancient.skill = kLeapAttack;

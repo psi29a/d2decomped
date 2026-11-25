@@ -2277,8 +2277,9 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
             } else if (const auto* leap = seq ? game_data.skills.get(monster.skill) : nullptr; leap && leap->srvdofunc == d2d::rules::ServerDoFunction::kLeapAttack) {
                 // Leap Attack's events (do 78, FUN_005da7e0): in the air they fly
                 // (FUN_005d9f70); down, the next strikes once (FUN_005da660): the
-                // target in reach, knockback (flags | 8).
-                if (!monster.leaping) {
+                // target in reach, knockback (flags | 8). FUN_005a8670 tests flag 0x40
+                // a row at a time: two rows due in one update strike once.
+                if (!monster.leaping && !monster.seq_once) {
                     if (foe.alive && dist <= kMeleeReach + 0.3f) {
                         const auto taken = d2d::rules::monster_blow(foe.fighter, foe.level, foe.motion(), skill_strike(game_data, monster, *leap, skill_level(game_data, monster, monster.skill)), false, rng);
                         foe.take(taken, monster.id);
