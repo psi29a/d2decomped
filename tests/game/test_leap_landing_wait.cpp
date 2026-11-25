@@ -94,6 +94,7 @@ int main(int argc, char** argv) try {
     const Crowd crowd;
     d2d::rules::Rng rng{7};
     std::vector<Missile> missiles;
+    const Monster fresh = korlic;                                                    // the setup, before it runs
     int landed = -1;
     for (std::uint32_t tick = 1; tick <= 120; ++tick) {
         monster_update(data, level, korlic, foes, rng, start + tick * tick_ms, 0.04f, crowd, missiles);
@@ -107,6 +108,23 @@ int main(int argc, char** argv) try {
     assert(landed > 70 && landed < 90);                                              // down when the flight is: 80 frames
     assert(korlic.unit.x == korlic.leap_to_x);
     assert(korlic.leap_hold_row == -1);
+    // Held at row 13 (it nears the landing, under 2 subtiles off), the row's event waits for the landing: it strikes once, a foe in reach, when the unit is down.
+    rows.clear();
+    for (int row = 0; row < 17; ++row) rows.push_back({ "S1", row, row == 13 ? 1 : 0 });
+    Monster ancient = fresh;
+    set_mode(data, ancient, "S1", start);
+    ancient.skill = kLeapAttack;
+    ancient.unit.x = ancient.leap_from_x = 10.1f; ancient.unit.y = ancient.leap_from_y = 10.1f;
+    ancient.seq_done = 0; ancient.seq_once = false; ancient.leap_hold_row = -1; ancient.seq_shift_ms = 0;
+    ancient.leaping = true;
+    std::vector<Foe> reach(1);
+    reach.front().x = 20.5f; reach.front().y = 10.1f;
+    std::size_t struck_while_leaping = 0;
+    for (std::uint32_t tick = 1; tick <= 120; ++tick) {
+        monster_update(data, level, ancient, reach, rng, start + tick * tick_ms, 0.04f, crowd, missiles);
+        if (ancient.leaping) struck_while_leaping += reach.front().melee_by.size();
+    }
+    assert(struck_while_leaping == 0 && reach.front().melee_by.size() == 1);
     std::puts("OK: a leaper short of its landing waits there (FUN_005da120)");
     return 0;
 } catch (const std::exception& error) {
