@@ -86,6 +86,7 @@ struct ObjectRooms {
     static bool none(const Level& level, std::size_t room_index);
     void load(Spawning& spawning, std::size_t room_index);
     void rooms_up(const Spawning& spawning);
+    void refresh_others(const Spawning& spawning);
     void save(Spawning& spawning) const;
 
     int obj(int id, const char* column) const {
@@ -458,7 +459,7 @@ struct ObjectRooms {
     std::vector<d2d::rules::Spawn>* spawns = nullptr;
     bool presetting = false;                         // within presets(): its monsters are the room's preset units
     Spawning::LevelState* level_state = nullptr;
-    const Spawning* spawning_now = nullptr;           // every level's rooms up (missile_rooms)
+    Spawning* spawning_now = nullptr;                 // every level's rooms up (missile_rooms), the neighbours' ObjectRooms
     int leader = 0;
     d2d::rules::Population pop;
 
@@ -527,25 +528,22 @@ struct ObjectRooms {
         if (!early) early = d2d::rules::Rng{ other < level.room1_seeds.size() ? level.room1_seeds[other] : level.rooms[other].seed };
         return &*early;
     }
-    // FUN_00463740 on room `from`: (x, y) in its own bounds, else the first room
-    // of its near list (FUN_0066c370's, via d2d_act5_rooms_near, null slots skipped)
-    // whose bounds hold it; none when no room does. The near list holds
-    // neighbour levels' rooms too, and game.exe returns one: holder() has
-    // its level and room.
-    [[nodiscard]] std::optional<NearHolder> holder(std::size_t from, int x, int y) const {
-        return near_room_holder(game_data, level, from, x, y, spawning_now);
+    // FUN_00463740 on room `from` (of any level; (x, y) in this level's subtiles): (x, y) in its own bounds, else
+    // the first room of its near list (FUN_0066c370's, via d2d_act5_rooms_near, null slots skipped) whose bounds
+    // hold it; none when no room does. The near list holds neighbour levels' rooms too, and game.exe returns one.
+    // A neighbour's room counts only once its level has its ObjectRooms (its rooms populate through them).
+    [[nodiscard]] std::optional<NearHolder> near_holder(NearHolder from, int x, int y) const {
+        if (!from.level || from.room >= from.level->rooms.size()) return std::nullopt;    // a preset level's 8x8 split has no seeds here
+        const auto found = near_room_holder(game_data, *from.level, from.room, x + (level.world_x - from.level->world_x) * 5,
+                                            y + (level.world_y - from.level->world_y) * 5, spawning_now);
+        if (!found || found->room >= found->level->rooms.size() || (found->level != &level && !rooms_at(found->level))) return std::nullopt;
+        return found;
     }
-    // ponytail: the answer is an index into this level's rooms, so a spot held
-    // only by a neighbour level's room (a free-area spot past this level's edge:
-    // Level::blocked reads the neighbour's grid) counts as none; making the NPC
-    // in that room (its bounds, the room's seed (Spawning::LevelState::room_seeds
-    // of that Level, its up / early state) and a spawn in that level's spawns in
-    // its own coordinates, with its collision grid, FUN_005b2f20) isn't ported.
-    [[nodiscard]] std::optional<std::size_t> near_holder(std::size_t from, int x, int y) const {
-        if (from >= level.rooms.size()) return std::nullopt;                  // a preset level's 8x8 split has no seeds here
-        const auto found = holder(from, x, y);
-        if (!found || found->level != &level) return std::nullopt;
-        return found->room;
+    // The ObjectRooms of `other`, a level with rooms up (Spawning::LevelState::objects), else null.
+    [[nodiscard]] ObjectRooms* rooms_at(const Level* other) const {
+        if (!spawning_now) return nullptr;
+        const auto found = spawning_now->levels.find(other);
+        return found == spawning_now->levels.end() ? nullptr : found->second.objects.get();
     }
     // The room FUN_005b2f20 is handed (FUN_00545340's room_out) while a marker
     // makes its NPC; none: the room being populated.
@@ -923,8 +921,9 @@ struct ObjectRooms {
     }
     // FUN_00545340 for a marker's NPC (size 2, mask 0x100, 100 rings) from the
     // spot (x, y), the marker room `held` nearby: the spot moved and `held` the room
-    // holding it (FUN_00463740); false when none is found or no room near holds it.
-    bool marker_spot(std::size_t& held, int& x, int& y) const {
+    // holding it (FUN_00463740), of this level or a neighbour's; false when none is
+    // found or no room near holds it.
+    bool marker_spot(NearHolder& held, int& x, int& y) const {
         const auto spot = level.free_area(x, y, 2, 0x100, 100);
         const auto holder = spot ? near_holder(held, spot->first, spot->second) : std::nullopt;
         if (!holder) return false;
@@ -932,10 +931,16 @@ struct ObjectRooms {
         held = *holder;
         return true;
     }
+    std::optional<std::pair<ObjectRooms*, std::pair<int, int>>> npc_away;   // where npc_from puts the NPC: its rooms, the shift into them
     // FUN_005b2f20 for a marker's NPC (MonStats `row`) at (x, y) out to `radius`, in the
     // room `held` it is handed: that room's bounds and seed (hand_room), then its party.
-    bool marker_make(int row, std::size_t held, int x, int y, int radius) {
-        hand_room = held;
+    // A neighbour level's room (FUN_00555230 -> FUN_00554850: the unit's room and act
+    // are that room's; FUN_00574250 -> FUN_00547bc0: its look from that level's region,
+    // game +0xf0 by the room's level id) is made there: marker_make_away.
+    bool marker_make(int row, NearHolder held, int x, int y, int radius) {
+        npc_away.reset();
+        if (held.level != &level) return marker_make_away(row, held, x, y, radius);
+        hand_room = held.room;
         int spot_x, spot_y;
         const bool placed = put(row, x, y, radius, false, spot_x, spot_y);
         hand_room.reset();
@@ -943,6 +948,47 @@ struct ObjectRooms {
         auto own = made(row, spot_x, spot_y);
         party(row, own, spot_x, spot_y);
         return true;
+    }
+    // marker_make in a neighbour level's room: its ObjectRooms' put / made / party on its
+    // grid and stamps, that room's seed (room_seeds, as up), the spot shifted into its
+    // subtiles, on this game seed, its collision across its edges as it stands now (load's
+    // others); its region kept (Spawning::regions) as its save would.
+    bool marker_make_away(int row, NearHolder held, int x, int y, int radius) {
+        auto* other = rooms_at(held.level);
+        if (!other) return false;
+        const std::pair<int, int> shift{ (level.world_x - held.level->world_x) * 5, (level.world_y - held.level->world_y) * 5 };
+        // What it lends for the make, put back however it ends.
+        struct Lent {
+            ObjectRooms& other;
+            ObjectRooms& self;
+            std::size_t index;
+            int leader;
+            bool presetting;
+            ~Lent() {
+                std::swap(other.game, self.game);
+                other.index = index;
+                other.hand_room.reset();
+                other.leader = leader;
+                other.presetting = presetting;
+            }
+        };
+        std::swap(other->game, game);
+        const Lent lent{ *other, *this, std::exchange(other->index, SIZE_MAX), other->leader, other->presetting };   // index: seed_of takes room_seeds
+        other->refresh_others(*spawning_now);
+        other->leader = other->spawns ? int(other->spawns->size()) : 0;                // a placement of its own (FUN_005b2f20)
+        other->presetting = presetting;
+        other->hand_room = held.room;
+        int spot_x, spot_y;
+        const bool placed = other->put(row, x + shift.first, y + shift.second, radius, false, spot_x, spot_y);
+        if (placed) {
+            auto own = other->made(row, spot_x, spot_y);
+            other->party(row, own, spot_x, spot_y);
+            last_made = other->last_made;
+            last_spot = { spot_x - shift.first, spot_y - shift.second };
+            npc_away = { other, shift };
+            if (std::size_t(held.level->id) < spawning_now->regions.size()) spawning_now->regions[std::size_t(held.level->id)] = other->region;
+        }
+        return placed;
     }
     // MonStats `hc_idx` made at the unit's spot (else within `retry`); an
     // NPC (Flavie, the towns') stands where it was made and walks the unit's
@@ -959,15 +1005,18 @@ struct ObjectRooms {
         if (!game_data.mon_is_npc[row] || game_data.mon_npc[row].code.empty()) return;
         auto npc = game_data.mon_npc[row];
         const auto [spot_x, spot_y] = last_made ? last_spot : std::pair{ unit.x, unit.y };     // where it was made: its spot, or the free one nearest
-        npc.x = (float(spot_x) + 0.5f) / 5;
-        npc.y = (float(spot_y) + 0.5f) / 5;
+        // A marker's NPC made in a neighbour level's room (marker_make_away) is that level's, in its subtiles.
+        const auto [shift_x, shift_y] = npc_away ? npc_away->second : std::pair{ 0, 0 };
+        npc.x = (float(spot_x + shift_x) + 0.5f) / 5;
+        npc.y = (float(spot_y + shift_y) + 0.5f) / 5;
         for (std::size_t k = 0; walks && k < unit.path.size(); ++k) {                          // its DS1 path (the town AIs walk it)
-            npc.path.emplace_back((float(unit.x + unit.path[k].first) + 0.5f) / 5, (float(unit.y + unit.path[k].second) + 0.5f) / 5);
+            npc.path.emplace_back((float(unit.x + unit.path[k].first + shift_x) + 0.5f) / 5, (float(unit.y + unit.path[k].second + shift_y) + 0.5f) / 5);
             npc.actions.push_back(k < unit.actions.size() ? unit.actions[k] : 0);
         }
         // Its unit seed after its init's draws (the look, the life: made()'s), what its think rolls on (town-npcs.md).
         if (last_made) npc.seed = *last_made;
-        level.npcs.push_back(std::move(npc));
+        (npc_away ? npc_away->first->level : level).npcs.push_back(std::move(npc));
+        npc_away.reset();
     }
     // FUN_005559a0: the room's preset units, the monsters last (`monsters`: normal's, here).
     // The uber levels leave some out: Matron's Den / the Furnace of Pain the
@@ -1034,21 +1083,21 @@ struct ObjectRooms {
                 if (init == 71) {
                     const auto row = game_data.mon_bin[0x1ff];
                     if (spawns) leader = int(spawns->size());
-                    const auto free_spot = [&](std::size_t& held, int& at_x, int& at_y) { return marker_spot(held, at_x, at_y); };
-                    const auto make_at = [&](std::size_t held, int at_x, int at_y, int radius) { return marker_make(int(row), held, at_x, at_y, radius); };
+                    const auto free_spot = [&](NearHolder& held, int& at_x, int& at_y) { return marker_spot(held, at_x, at_y); };
+                    const auto make_at = [&](NearHolder held, int at_x, int at_y, int radius) { return marker_make(int(row), held, at_x, at_y, radius); };
                     last_made.reset();
-                    if (d2d::rules::larzuk_marker(larzuk_made, room_at, unit.x, unit.y, free_spot, make_at)) npc_from(row, unit, true);
+                    if (d2d::rules::larzuk_marker(larzuk_made, NearHolder{ &level, room_at }, unit.x, unit.y, free_spot, make_at)) npc_from(row, unit, true);
                 }
                 if (init == 68) {
                     const auto& marker_room = level.rooms[room_at];
                     const std::array<int, 4> rect{ marker_room.x * 5, marker_room.y * 5, marker_room.width * 5, marker_room.height * 5 };
                     const auto row = game_data.mon_bin[0x202];
                     if (spawns) leader = int(spawns->size());
-                    const auto free_spot = [&](std::size_t& held, int& at_x, int& at_y) { return marker_spot(held, at_x, at_y); };
-                    const auto near_room = [&](std::size_t from, int at_x, int at_y) { return near_holder(from, at_x, at_y); };
-                    const auto make_at = [&](std::size_t held, int at_x, int at_y, int retry) { return marker_make(int(row), held, at_x, at_y, retry); };
+                    const auto free_spot = [&](NearHolder& held, int& at_x, int& at_y) { return marker_spot(held, at_x, at_y); };
+                    const auto near_room = [&](NearHolder from, int at_x, int at_y) { return near_holder(from, at_x, at_y); };
+                    const auto make_at = [&](NearHolder held, int at_x, int at_y, int retry) { return marker_make(int(row), held, at_x, at_y, retry); };
                     last_made.reset();
-                    if (d2d::rules::marker_npc(room_at, rect, unit.x, unit.y, free_spot, near_room, make_at)) npc_from(row, unit, true);
+                    if (d2d::rules::marker_npc(NearHolder{ &level, room_at }, rect, unit.x, unit.y, free_spot, near_room, make_at)) npc_from(row, unit, true);
                 }
             }
             else if (unit.type == d2d::rules::unit_type::kWarp) game.next();                                                          // a warp tile: a unit made
@@ -1284,13 +1333,7 @@ void ObjectRooms::load(Spawning& spawning, std::size_t room_index) {
     larzuk_made = spawning.marker_records.larzuk_made;
     region = std::size_t(level.id) < spawning.regions.size() ? spawning.regions[std::size_t(level.id)] : d2d::rules::Region{};
     auto& state = spawning.levels[&level];
-    rooms_up(spawning);
-    others.clear();
-    for (auto& [other, other_state] : spawning.levels)
-        if (other != &level && other_state.objects) {
-            other_state.objects->rooms_up(spawning);
-            others.push_back(other_state.objects.get());
-        }
+    refresh_others(spawning);
     index = room_index;
     const auto& made = level.rooms[index];
     room = { made.x * 5, made.y * 5, made.width * 5, made.height * 5 };
@@ -1298,6 +1341,17 @@ void ObjectRooms::load(Spawning& spawning, std::size_t room_index) {
     spawns = &state.spawns;
     level_state = &state;
     spawning_now = &spawning;
+}
+
+// in_room and others: this level's rooms up so far, and every other level with rooms up.
+void ObjectRooms::refresh_others(const Spawning& spawning) {
+    rooms_up(spawning);
+    others.clear();
+    for (const auto& [other, other_state] : spawning.levels)
+        if (other != &level && other_state.objects) {
+            other_state.objects->rooms_up(spawning);
+            others.push_back(other_state.objects.get());
+        }
 }
 
 // in_room: the level's rooms up so far.
