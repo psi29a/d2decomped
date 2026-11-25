@@ -438,7 +438,7 @@ auto Fight::plain_missile_hits(Missile& missile, std::size_t monster_index, std:
             flight.row_hi = missile_phys(*game_data, *missile.info, merc_calc_env(), -1, missile.level, true);
         }
         auto struck = missile.by_merc ? merc_target(monster_index) : target_of(monster_index);
-        struck.life_steal_divisor = struck.mana_steal_divisor = 1;   // a hireling's leech: no divisor (merc_strike)
+        struck.life_steal_divisor = struck.mana_steal_divisor = 1;   // a hireling's leech: no divisor (merc_target; the plain path's other owners too)
         auto blow = missile.by_merc && actor->merc ? d2d::rules::player_blow(merc_fighter(), struck, actor->merc_st.level, rng, flight)
                                                    : d2d::rules::player_blow(d2d::rules::simple_fighter(missile.min, missile.max, missile.attack_rating), struck, missile.by_merc ? actor->merc_st.level : missile.level, rng);
         if (missile.info) blow.hit_class = missile.info->hit_class;   // an arrow's, not hand to hand's (as a skill's missile, Missiles.txt HitClass)
