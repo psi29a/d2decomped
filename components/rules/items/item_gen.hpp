@@ -87,6 +87,9 @@ d2d::d2s::Item roll_item(const Tables& tables, const std::string& code, int ilvl
                          Rng* unit_seed = nullptr, std::vector<bool>* found_uniques = nullptr, bool bovine = false,
                          int difficulty = 0, int special_wanted = 0, bool classic = false);
 
+// A classic item's set pick (FUN_005c2740): durabilities x2, rand(n) start, the SetItems row or -1 (the seed reset on none).
+int classic_set_pick(const Tables& tables, const std::string& code, Rng& rng, int& durability, int& max_durability);
+
 // The item as roll_item makes it, with its unit's seed.
 d2d::d2s::Item generate_item(const Tables& tables, const std::string& code, int ilvl, int quality, Rng& rng,
                              Rng* unit_seed = nullptr, std::vector<bool>* found_uniques = nullptr, bool bovine = false,

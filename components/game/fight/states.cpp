@@ -551,6 +551,18 @@ auto Fight::progressive_tohit() -> int {
         return total;
     }
 
+// FUN_0064b860's pick: a row with a Skill (+0x194 over 0) takes that skill's damage; one with MissileSkill
+// (+5 bit 7) the missile's own skill (FUN_0064a280) when that's over 0, else the row's (0x64b9b6..0x64b9c2).
+// explodingarrowexp2 (MissileSkill, Skill Exploding Arrow) off a player's Attack arrow (skill 0): Exploding
+// Arrow's; off a merc's (RogueMissile, 336): RogueMissile's, which has none.
+auto Fight::damage_skill(const Missile& missile) const -> const d2d::rules::Skill* {
+        const auto* own = game_data->skills.get(missile.skill);
+        if (!missile.info || missile.info->skill.empty()) return nullptr;
+        if (missile.info->missile_skill && missile.skill > 0) return own;
+        const auto* row_skill = skill_named(missile.info->skill);
+        return row_skill ? row_skill : own;
+    }
+
 // A row with no Skill: its own physical and element at level lvl with
 // their synergies (DmgSymPerCalc, EDmgSymPerCalc on `env`), the weapon
 // at its SrcDamage.

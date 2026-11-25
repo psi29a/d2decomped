@@ -18,6 +18,7 @@ its lists in standard containers.
 | Address | Name | Reading | d2d |
 |---|---|---|---|
 | `FUN_0041c560` | `slist_link_or_terminator_2` | Another copy of `slist_link_or_terminator` (`FUN_00420520`): the same reading, run on the same cases | no counterpart |
+| `FUN_0041c580` | `slist_link_2` | Another copy of `slist_link` (`FUN_00420540`): the same 161 bytes (compared byte for byte in the image), run on the same cases; `FUN_0041c840` is its only caller, with mode 0 | no counterpart |
 | `FUN_0041c630` | `slist_next_node_2` | Another copy of `slist_next_node` (`FUN_004205f0`): the same reading, run on the same cases | no counterpart |
 | `FUN_0041c690` | `slist_unlink_2` | Another copy of `slist_unlink` (`FUN_00420650`): the same reading, run on the same cases | no counterpart |
 | `FUN_0041c700` | `slist_raw_next_2` | Another copy of `slist_raw_next` (`FUN_004206e0`): the same reading, run on the same cases | no counterpart |

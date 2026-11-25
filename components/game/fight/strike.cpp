@@ -559,6 +559,7 @@ auto Fight::start_move(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> 
         actor->smove = {};
         actor->seq_loop = false;
         actor->whirl_next = 0;
+        actor->whirl_begun = actor->whirl_left = false;          // FUN_005d8f50: flags 1, +0x24 0
         const auto cls = std::size_t(std::max(actor->character.character_class, 0));
         if (skill.srvdofunc == ServerDoFunction::kWhirlwind) {
             UnitState walker = actor->player;
@@ -961,7 +962,8 @@ auto Fight::strike(std::uint32_t now_ms) -> void {
 // FUN_00535bc0 by the skill's weapsel (+0x168) with two weapons in hand: 1 the left hand's, 3 by the
 // sequence row (unit +0x38 >> 8: odd the left, the row Frenzy and Double Swing turn to another
 // target on, as other_target here: the even event), 4 none (kicks: the kick fighter), else the right
-// hand's (2's skill-flag 0x2000 turn to the left isn't kept). Each hand's fighter has the other
+// hand's (2's skill-flag 0x2000 turn to the left: Whirlwind's, the only weapsel 2, names its hand in
+// blow_hand, move_event). Each hand's fighter has the other
 // weapon's stats off (FUN_00623c80). One weapon or none: the player's.
 auto Fight::blow_fighter(const d2d::rules::Skill* skill) const -> d2d::rules::Fighter {
         if (!actor->two_hands) return actor->player_combat;
@@ -1559,35 +1561,50 @@ auto Fight::skill_step(std::uint32_t now_ms, float elapsed) -> void {
 // Leap Attack (FUN_005da7e0): takeoff, landing beside the monster, the
 // strike (FUN_005da660: knockback, a stun on it ends).
 
-// Whirlwind's hit gap (FUN_005d9320): the weapon FUN_00535bc0 picks for
-// weaponsel 2 (the wielded hand's, look component 5) gives its attack
-// frames (FUN_0062a710: the item's own IAS and WSM, not the player's),
-// banded by whirlwind_gap; 10 frames with no weapon.
-// ponytail: where the skill node's flag 0x2000 (weapsel 2's turn to the
-// left hand, skills.md "Which hand a skill swings") is set isn't traced:
-// the second of a two-weapon hit is taken as it; FUN_0062a4e0's usable test
-// isn't kept; FUN_005d92d0 (two weapons) as a weapon in each hand.
+// Whirlwind's pass (FUN_005d9580 -> FUN_005d9320): its first (+0x24 still 0) strikes once and comes back 4
+// frames on. Each later one, at its time, comes back the gap of the weapon FUN_00535bc0 picks for weapsel 2
+// (the right hand's, the left's when it holds a weapon and the node's flag 0x2000 is set) on: its attack
+// frames (FUN_0062a710: the item's own IAS and WSM, not the player's) banded by whirlwind_gap, 10 with no
+// weapon; from the time it was due, or from now when that's past. It strikes twice with a weapon in each hand
+// (FUN_005d92d0), else once. After each strike, and on a pass that finds no unit (it stops there), the flag
+// flips (0x5d978c): the hands alternate strike by strike across the passes, the gap with them.
+// ponytail: FUN_0062a4e0's usable test isn't kept; FUN_005d92d0 (two ItemTypes 0x2e) is taken as a weapon in each hand.
 auto Fight::move_event(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
         if (skill.srvdofunc == ServerDoFunction::kWhirlwind) {
             if (now_ms < actor->whirl_next) return;
-            const auto* weapon = d2d::rules::wielded_weapon(game_data->rules, actor->character.items);
-            const int gap = weapon ? d2d::rules::whirlwind_gap(weapon_attack_frames(*game_data, *weapon, actor->character.character_class)) : 10;
-            actor->whirl_next = now_ms + std::uint32_t(gap) * 40;
-            const int hands = int(std::ranges::count_if(actor->character.items, [&](const d2d::d2s::Item& item) {
-                return item.location == d2d::d2s::item_location::kEquipped && (item.slot == d2d::d2s::body_location::kRightArm || item.slot == d2d::d2s::body_location::kLeftArm) && game_data->rules.item_info.contains(item.code)
-                    && game_data->rules.item_info.at(item.code).kind == 2; }));
-            for (int hand = 0; hand < (hands >= 2 ? 2 : 1); ++hand) {
+            const auto in_hand = [&](int slot) -> const d2d::d2s::Item* {
+                for (const auto& item : actor->character.items)
+                    if (item.location == d2d::d2s::item_location::kEquipped && item.slot == slot && game_data->rules.item_info.contains(item.code)
+                        && game_data->rules.item_info.at(item.code).kind == 2) return &item;
+                return nullptr;
+            };
+            const auto* right = in_hand(d2d::d2s::body_location::kRightArm);
+            const auto* left = in_hand(d2d::d2s::body_location::kLeftArm);
+            const bool dual = right && left;
+            int strikes = 1;
+            if (!actor->whirl_begun) {
+                actor->whirl_begun = true;
+                actor->whirl_next = now_ms + 4 * 40;
+            } else {
+                const auto* weapon = actor->whirl_left && left ? left : right ? right : d2d::rules::wielded_weapon(game_data->rules, actor->character.items);
+                const auto gap = std::uint32_t(weapon ? d2d::rules::whirlwind_gap(weapon_attack_frames(*game_data, *weapon, actor->character.character_class)) : 10) * 40;
+                actor->whirl_next = actor->whirl_next + gap < now_ms ? now_ms + gap : actor->whirl_next + gap;
+                strikes = dual ? 2 : 1;
+            }
+            for (int strike = 0; strike < strikes; ++strike) {
                 std::vector<int> nearby;
                 for (std::size_t i = 0; i < monsters.size(); ++i)
                     if (monsters[i].targetable() && std::hypot(monsters[i].unit.x - actor->player.x, monsters[i].unit.y - actor->player.y) <= 5.f) nearby.push_back(int(i));
-                if (nearby.empty()) return;
-                const auto next = std::ranges::upper_bound(nearby, actor->attack_mon);
-                actor->attack_mon = next != nearby.end() ? *next : nearby.front();
-                // Each weapon its hit: the right hand's, then the left's (FUN_00535bc0's weapsel 2 is the
-                // right unless the skill node's flag 0x2000 turns it left; the second hit is taken as that).
-                actor->blow_hand = hands >= 2 ? hand : -1;
-                hit(now_ms, 5.f);
-                actor->blow_hand = -1;
+                const bool found = !nearby.empty();
+                if (found) {
+                    const auto next = std::ranges::upper_bound(nearby, actor->attack_mon);
+                    actor->attack_mon = next != nearby.end() ? *next : nearby.front();
+                    actor->blow_hand = dual ? (actor->whirl_left ? 1 : 0) : -1;   // weapsel 2 by the flag
+                    hit(now_ms, 5.f);
+                    actor->blow_hand = -1;
+                }
+                actor->whirl_left = !actor->whirl_left;
+                if (!found) break;
             }
             return;
         }

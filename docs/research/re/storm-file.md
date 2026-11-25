@@ -91,6 +91,74 @@ decompression, the request queue's worker, the checksum arithmetic.
 | `FUN_00420970` | ECX = window list, stack = record: unlinks it, frees it (tag `.?AUWNDREC@@`), returns the following record or 0. A null record faults (not run). |
 | `FUN_00420a70` | ESI = handler, EDI = window, stack (tag, code): a null handler gives error 0x57 and 0; an unknown window gets a record via `FUN_004208e0`; then `FUN_00426420(tag, window, code, 0, handler)` and its result is returned. |
 
+## SEVT.CPP: the handler register `FUN_00426420` (`LAB_0042644a` is inside it)
+
+Traced 2026-11-25 from the disassembly and run by
+`tools/emu/storm_event_register.py` (`gaps-runs: FUN_00426420 FUN_0042644a`):
+
+```sh
+tools/emu/.venv/bin/python tools/emu/storm_event_register.py --mutation-check
+python3 tools/ghidra/fn.py 00426420 0042644a 00426270
+```
+
+**`0x42644a` is not a function entry.** `FUN_00426420` is one function, 0x426420
+to 0x42670e (`RET 0x14`). Its first 42 bytes check the arguments; the
+`jne` at 0x426439 jumps to 0x42644a, which pushes `ebx`/`esi`/`edi` and
+carries on in the same stack frame (the decompile of "FUN_0042644a" reads the
+caller's arguments through `unaff_EBP`). It is the `LAB_0042644a` of
+`FUN_00426420`, listed as a function in `game-functions.tsv` only because Ghidra
+split the body; `game-srcfiles.tsv` gives it `SEVT.CPP`. Its one "caller" in
+`game-calls.tsv` is that jump.
+
+Signature: `(tag, window, code, flags, handler)`, `RET 0x14`; callers:
+`FUN_00420a70` (and through it `FUN_00420bf0`, `FUN_00420c10`, `FUN_00420c30`,
+`FUN_00420c50`). Callees: `FUN_0041c340` (stores the error in `DAT_007790f4`
+and calls `SetLastError`), `FUN_00426270` (node lookup, tag in ESI, window in
+EDX), `FUN_00413020` (SMemAlloc) and `FUN_00412650` (SMemFree), all with the
+file `.\SOURCE\SEVT.CPP`; the critical section `0x77930c`.
+
+1. **Guard.** It goes on only when `handler != 0` and `flags == 0`. Otherwise
+   `FUN_0041c340(0x57)` and 0, before the section is entered.
+2. **Node.** `FUN_00426270` looks (tag, window) up in the node hash: buckets
+   `DAT_00779300`, size `DAT_00779304`, count `DAT_00779308`, bucket
+   `(tag ^ window) & (size - 1)`, chain through node `+0x10`. A node is 0x14
+   bytes: `+0` tag, `+4` window, `+8` the handler counter, `+0xc` its handler
+   table, `+0x10` next. Missing: if `size >> 1 <= count` (always true at 0)
+   the hash is rebuilt first: the new size is the smallest power of two above
+   `2 * count + 2` (4 when empty; 0x143), the nodes are moved bucket by
+   bucket, each to the *head* of its new chain (so chains reverse), and the
+   old array is freed (0x154). Then the node (0x15d) and its 0x10-byte handler
+   table (0x160) are allocated, the count rises, the node goes at the head of
+   its chain.
+3. **Handler table.** `+0` buckets, `+4` size, `+8` count. If `size >> 1 <=
+   count` (true when empty) it is rebuilt: size the smallest power of two above
+   `2 * size + 2` (4 when empty); a bucket array (0x16e) and an array of tail
+   pointers (0x16f); the old records are walked bucket by bucket, chain by
+   chain, and each is appended at the *tail* of bucket `code & (newsize - 1)`
+   (record `+0xc` zeroed first), so their order is kept; the tail array is
+   freed (0x182) and the old bucket array when there is one (0x184).
+4. **The record** (0x10 bytes, 0x18d): `+0` code, `+4` the node's counter
+   after incrementing it (a sequence number), `+8` handler, `+0xc` next. It
+   goes at the *head* of bucket `(size - 1) & code`, the table's count rises,
+   `DAT_007792f8` is set to 1 (`FUN_00426f90` re-reads the table while it is set, and clears it after a
+   lookup when `DAT_007792fc` is 1), the section is left, return 1.
+
+The dispatcher takes the newest record of a code first, which is what the
+WM_CHAR oracle above shows. Oracle: 60 runs of up to 600 random calls (some
+with a non-zero `flags` or a null handler, tags and windows from a handful of
+pairs up to 40, codes from a few common to random 32-bit values) compare every
+return value, the SMemAlloc / SMemFree log (size, line, flags, which block a
+free takes back), `DAT_007790f4`, `DAT_007792f8` and both tables chain by
+chain with a model; five planted defects (ignored flags, a handler table grown
+one record late, a node rehash that keeps order, a zero sequence number,
+a record added at the tail) are all caught.
+
+d2d: no counterpart. It has no Storm event table; `rules::enter_takers` models
+only the dispatch result, already checked by `test_storm_char_dispatch`.
+Not traced: the size-overflow cases (a count of 0x7fffffff or more, which
+cannot be reached), allocation failure (SMemAlloc is hooked and never returns
+null; the function does not test for it), and a second thread in the section.
+
 ## More SFILE.CPP code, read from the decompile and the assembly
 
 Traced 2026-11-20 by reading, not run: the rest of the functions between
@@ -180,6 +248,46 @@ use (stubs.md).
 | `FUN_0041a960` | (handle; `ret 4`): `FUN_0041a300(handle, 0)`; a null handle gives error 0x57 |
 | `FUN_0041b080` | (6 words; `ret 0x18`): `FUN_0041aad0(a0, a1, a2, a3, a4, 0, a5)` |
 | `FUN_0041ba30` | (3 words; `ret 0xc`): `FUN_0041b280(a0, a1, a2, 0, 0x7fffffff, 0x7fffffff, 0)` |
+
+## PKWARE implode and explode (`0x6b01b0..0x6b1290`)
+
+The library behind `FUN_00415240`'s sector decompression above: its
+tables run up to the string "PKWARE Data Compression Library for
+Win32" (then "Copyright 1989-1995 PKWARE Inc.") at `0x74be60`, and `FUN_006b0870` reads the last table to
+that address. Both halves take a read and a write callback, a work
+record and a user value that goes back to the callbacks. Read in the
+decompiler; not run. d2d reads archives through StormLib, which has its
+own implementation, so nothing here is ported.
+
+**Explode** (`FUN_006b01b0`, from `FUN_00415240`; the 0x3134-byte work
+record): `+8` the output position, `+0xc` / `+0x10` the dictionary's
+bits and mask, `+0x14` / `+0x18` the bit buffer and its count, `+0x1c` /
+`+0x20` the input position and end, `+0x24` the user value, `+0x28` /
+`+0x2c` the read and write callbacks, `+0x30` a 0x2000-byte window,
+`+0x2234` a 0x800-byte input buffer, the decode tables from `+0x2a34`.
+
+| Function | What |
+|---|---|
+| `FUN_006b0330` | The main loop (from `0x6b0303`): the output position starts at 0x1000; each code from `FUN_006b0430` below 0x100 is a literal byte, 0x100..0x304 a repeat of code − 0xfe bytes at `FUN_006b05e0`'s distance (0 there is error 0x306); above 0x304 it writes what is past 0x1000 through the write callback and returns the code (0x305 the end, 0x306 an error). At 0x2000 it writes 0x1000 bytes and slides the window back 0x1000 (`FUN_006b0830`) |
+| `FUN_006b0430` | The next code. A first bit of 1: a length, its index from `+0x2b34` (bits `+0x30f4`), then `+0x3104` extra bits added to the base `+0x3114`, plus 0x100. A 0: a literal, 8 raw bits when the type (`+4`) is 0 (binary), else through the text tables (`+0x2c34`, and `+0x2d34`, `+0x2e34`, `+0x2eb4` for the longer codes; lengths `+0x2fb4`). Running out of input gives 0x306, except where the extra bits would make the end code |
+| `FUN_006b05e0` | A repeat's distance: the high bits by `+0x2a34` (lengths `+0x30b4`), then 2 low bits for a 2-byte repeat, else the dictionary's bits; returns the distance plus 1, 0 when the input runs out |
+| `FUN_006b0660` | Drops n bits from the bit buffer, refilling it a byte at a time from the input buffer, which the read callback fills 0x800 bytes at a time; 1 when the callback gives 0 |
+| `FUN_006b06f0` | Fills a 256-entry decode table (from `0x6b02a1`, `0x6b02fa`): for each code i, last first, every index code[i] + k × 2^length[i] below 0x100 gets i |
+| `FUN_006b0730` | The text tables from the 256 codes at `0x74b7e8` (from `0x6b0274`): codes up to 8 bits into `+0x2c34`; a longer one whose low byte is 0 into `+0x2eb4` (length − 8); the rest mark `+0x2c34` with 0xff and go into `+0x2e34` when their low 6 bits are 0 (length − 6), else `+0x2d34` (length − 4) |
+| `FUN_006b0830` | A copy, dwords then the 0..3 bytes left |
+
+**Implode** (from `FUN_0041df40`, Storm's `SCOMP.CPP`, at `0x41dfcc`).
+
+| Function | What |
+|---|---|
+| `FUN_006b0870` | The entry: (read, write, work, user value, &type, &dictionary size). Size 0x400, 0x800 or 0x1000 gives 4, 5 or 6 dictionary bits (mask 0xf, 0x1f, 0x3f); anything else returns 1. Type 0 (binary) codes every literal in 9 bits, type 1 (text) from the lengths at `0x74bb60` (plus 1) and codes at `0x74bc60`; anything else returns 2. Then the 16 length groups from `0x74bb30` / `0x74bb40` / `0x74bb50`, the distance lengths and codes (`0x74bab0`, `0x74baf0`, 0x40 each, into `+0x1c` / `+0x5c`), `FUN_006b0a10`, and returns 0 |
+| `FUN_006b0a10` | The main loop: two header bytes (the type, the dictionary bits), then reads 0x1000 bytes at a time through the read callback into the window (`+0x29d0`, after a dictionary's worth of history), indexes them (`FUN_006b1290`) and at each position takes the longest match (`FUN_006b0d90`). No match, or a 2-byte one whose distance − 1 is 0x100 or more, is a literal. A match under 8 bytes is checked against the one a byte later: it is kept when that one is no longer, or only one longer while its own distance − 1 is under 0x81; otherwise the byte goes out as a literal and the later match is taken. A match writes its length code, the distance's high bits and its low 2 or dictionary bits. At the end of the input it writes the end code and hands the output to the write callback; between blocks it slides the window by 0x1000 (`FUN_006b1160`) |
+| `FUN_006b0d90` | The longest match at a position: the pair hash `(b0 × 4 + b1 × 5)` picks a run of earlier positions (heads at `+0xdc8`, positions at `+0x49d0`), skipping those out of the window; compares each, up to 0x204 bytes, keeping the distance − 1 in `+0`; past 10 bytes it steps through the candidates with a skip table built at `+0x9bc`; returns the length, 0 for under 2 |
+| `FUN_006b10d0` | Appends n bits (8 at a time above 8) to the output buffer (`+0x1fca`, byte `+4`, bit `+8`); at 0x800 bytes `FUN_006b1210` |
+| `FUN_006b1160` | A copy, dwords then bytes |
+| `FUN_006b11a0` | A fill with one byte, dwords then bytes |
+| `FUN_006b1210` | Writes 0x800 bytes through the write callback, clears the buffer (0x802 bytes) and puts back the byte past them and the partly filled byte |
+| `FUN_006b1290` | Indexes a range by pair hash: counts each pair, turns the counts into running totals, then fills the position list from the range's end, so each hash's positions run in order |
 
 ## Remaining gaps
 

@@ -387,6 +387,7 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         for (std::size_t slot = 0; slot < missile_info.clt_hit_pars.size(); ++slot) missile_info.clt_hit_pars[slot] = number("cHitPar" + std::to_string(slot + 1));
         missile_info.sub_loop = number("SubLoop"); missile_info.sub_start = number("SubStart"); missile_info.sub_stop = number("SubStop"); missile_info.loop_anim = number("LoopAnim");
         missile_info.next_hit = number("NextHit") == 1; missile_info.next_delay = number("NextDelay"); missile_info.last_collide = number("LastCollide") == 1;
+        missile_info.missile_skill = number("MissileSkill") == 1;
         missile_info.sub = missiles_table.get(row_index, "SubMissile1"); missile_info.sub2 = missiles_table.get(row_index, "SubMissile2"); missile_info.hit_sub = missiles_table.get(row_index, "HitSubMissile1");
         missile_info.clt_sub = missiles_table.get(row_index, "CltSubMissile1"); missile_info.init_steps = number("InitSteps");
         missile_info.clt_sub2 = missiles_table.get(row_index, "CltSubMissile2");
@@ -931,6 +932,9 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             state.restrict_form = states_table.get(row, "restrict") == "1";
             state.row = int(row);
             state.aura = states_table.get(row, "aura") == "1";
+            state.plr_stay_death = states_table.get(row, "plrstaydeath") == "1";
+            state.mon_stay_death = states_table.get(row, "monstaydeath") == "1";
+            state.boss_stay_death = states_table.get(row, "bossstaydeath") == "1";
             for (int k = 0; k < 4; ++k) state.over[std::size_t(k)] = overlay(states_table.get(row, ("overlay" + std::to_string(k + 1)).c_str()));
             state.cast = overlay(states_table.get(row, "castoverlay"));
             state.gfx_type = std::atoi(std::string(states_table.get(row, "gfxtype")).c_str());

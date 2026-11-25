@@ -29,6 +29,7 @@
 #include <sequences.hpp>
 #include <skills.hpp>
 #include <sound_ids.hpp>
+#include <state_death.hpp>
 #include <uniques.hpp>
 
 #include <algorithm>
@@ -690,6 +691,24 @@ auto Fight::die(std::uint32_t now_ms) -> void {
     actor->attack_mon = -1;
     actor->smove = {};           // a Whirlwind / Charge / Leap cut short isn't resumed by the next attack mode
     actor->kicks_left = 0;
+    // FUN_0057f330 -> FUN_00639fb0 (a player, boss 0): a state States.txt doesn't mark plrstaydeath leaves the
+    // unit's state bitmap, so the skill states it came from end with the death.
+    // ponytail: only self_states; potions, curses, charges and the merc's states are not run through it.
+    std::vector<std::uint32_t> held_bits((game_data->state_names.size() + 31) / 32), parked_bits(held_bits.size()), stay_mask(held_bits.size());
+    for (const auto& [name, info] : game_data->states)
+        if (info.plr_stay_death && info.row >= 0) stay_mask[std::size_t(info.row) / 32] |= 1u << (info.row % 32);
+    const auto state_row = [&](const SelfState& state) {
+        const auto* skill = game_data->skills.get(state.skill);
+        const auto info = skill ? game_data->states.find(skill->aurastate) : game_data->states.end();
+        return info != game_data->states.end() ? info->second.row : -1;
+    };
+    for (const auto& state : actor->self_states)
+        if (const int row = state_row(state); row >= 0) held_bits[std::size_t(row) / 32] |= 1u << (row % 32);
+    d2d::rules::states_leave_on_death(held_bits, parked_bits, stay_mask);
+    std::erase_if(actor->self_states, [&](const SelfState& state) {
+        const int row = state_row(state);
+        return row >= 0 && !(held_bits[std::size_t(row) / 32] >> (row % 32) & 1u);
+    });
     d2d::log::info("the player died");
 }
 
