@@ -23,11 +23,13 @@
 #include <d2s_items.hpp>
 #include <drops.hpp>
 #include <hire.hpp>
+#include <hostile_toggle.hpp>
 #include <level_ids.hpp>
 #include <light.hpp>
 #include <monsters.hpp>
 #include <object_ids.hpp>
 #include <overlays.hpp>
+#include <player_relations.hpp>
 #include <quest_clock.hpp>
 #include <quests.hpp>
 #include <quests_act3.hpp>
@@ -287,6 +289,8 @@ struct World {
         // refuses for 10 s after (FUN_0054c5d0). Unset: never, as in single player.
         std::optional<std::uint32_t> hostile_at;
         void declare_hostile(std::uint32_t now_ms) { hostile_at = now_ms; }   // FUN_0055b720's store
+        d2d::rules::PlayerRelations relations;       // FUN_0055b140 family: one-way flags and pair stamps
+        int party = -1;                              // FUN_00540710 / FUN_00554630: 0xffff means no party
         // Talk records (by hc_idx) whose menu greeting has played since the
         // player was last out of town: FUN_004b66b0 clears the record's +0x15
         // as it greets, FUN_004b3e10 sets all again as the player leaves town.
@@ -327,6 +331,8 @@ struct World {
     [[nodiscard]] Player& lead() const { return *players.front(); }
     // A new player's slot: the next unit id, in the fight's list.
     Player& add_player();
+    // Apply the host's party-screen hostile action to `other`.
+    d2d::rules::HostileToggle toggle_hostility(Player& other, std::uint32_t requested, std::uint32_t now_ms);
     // `each` for every player in turn, acting as them; the one acting
     // before acts again after.
     template <class Each> void each_player(Each&& each) {

@@ -567,14 +567,22 @@ bytes 3..6 the other player's id; `FUN_005a6000` looks the other unit up
    voice event 0x13 for the declarer (`FUN_00553380`), S->C 0x5a (0x10, `FUN_00566d90`),
    flags resent.
 7. Else `FUN_0055b720` sets the node's stamp to now + 60000 and player data +0x160 to
-   now (the waypoint's 10 s window, waypoint.md); `FUN_005a5dc0`: the other in no
-   party sets flag 8 both ways and S->C 0x5a type 3; the other in a party walks its
-   members with `FUN_005a5d50` (both ways, type 3, level 9 or more); `FUN_00535430`
-   (the declarer's unit +0x48, class 0x3b: not traced); a declarer in the other's
-   party is notified each member (`FUN_005a5c70`, type 9) and removed
-   (`FUN_005407a0`) by `FUN_005a5d20`.
+   now (the waypoint's 10 s window, waypoint.md). `FUN_005a5dc0` takes the
+   declarer in EAX and other in EDI. If the other has no party, it sets bit 8
+   declarer→other then other→declarer and sends S→C 0x5a type 3. Otherwise,
+   when the declarer is level 9+, it walks the other's party; `FUN_005a5d50`
+   skips the declarer and members below level 9, and for each remaining member
+   sets declarer→member then member→declarer, followed by type 3.
+   `FUN_00535430` closes the declarer's old town-portal pair: the player-data
+   +0x48 unit must resolve to class 0x3b; both ends receive room event 2 and are
+   freed (collision.md "Town Portal"). Finally, if declarer and other have the
+   same non-ffff party id, `FUN_005a5d20` walks that party with
+   `FUN_005a5c70` (type 9 to every member other than declarer), then
+   `FUN_005407a0` removes the declarer and disbands a party left below two.
 
-Not traced: the party branch's exact directions, `FUN_00535430`, `FUN_0055b110`, the
-dead-unit case, the 0x8c / 0x5a packet layouts. d2d: the decision (1, 3..6, and 7's
-stamps) is `rules::hostile_toggle`; the relation nodes, party branch and the 0x5d
-command are not ported.
+`tools/emu/hostile_party.py` runs all three party functions for real and
+checks the directions, party walks, level gate and removal. d2d's
+`World::toggle_hostility` ports the relation, stamp, portal and party data
+effects; `rules::hostile_toggle` supplies branches 1 and 3..7. Not ported:
+the state-7 add gate, voice line, and the S→C 0x8c / 0x5a / 0x8d notices.
+C→S 0x5d cannot be wired without the excluded `protocol.*` / apps transport.
