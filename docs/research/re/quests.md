@@ -767,8 +767,17 @@ kill's timer (0x5954c0, state 5: log 0xd); the dead `FUN_00595160` isn't
 ported. Each goes to a player unless done without bit 13 / 14
 (`FUN_00594830`). a1q1 .. a1q4, a1q6, act 2, a3q1 .. a3q5 and a4q1 are still a change in the View's log state (none
 for a repeat or a flag-0 move that changes it, none at a game's first View).
-Not traced against d2d's records: those quests' flag-1 sites, and the act
-test above (the events and the change both skip it).
+Both local paths (the View's log change and `ev::QuestNews`) apply the act test
+above through `rules::quest_log_send_in_act`; a joined game's 0x5d is not
+tested again (the host's `FUN_00544190` sent it, and `FUN_004a2cb0` has no act
+test). A log word's act is its record's +8: the word's record is 0x723f30's
+row +8, and `FUN_00545d80` copies each record's act from the init table
+0x731510 (row +4; the id at +0x10) into the record's +8. Read from both: words
+1..6 only in Act 1, 9..14 in Act 2, 17..22 in Act 3, 25..27 in Act 4 and 35..40
+in Act 5; word 34 is record 30, an Act 1 record with no shown slot; words with
+record 37 (24 among them) have none. `test_quest_log_act_send` covers every
+record and adjacent gap. Not traced against d2d's records: the remaining
+quests' individual flag-1 sites.
 
 `FUN_004a2a80` draws it like New Stats (levelsocket, level, the label
 3928 "Quest Log" centred over it). Its row (0x7241c0, 20 bytes x0, x1,
