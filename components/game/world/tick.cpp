@@ -620,7 +620,13 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
                 // A body slot's item off or on and the weapon switch then run the hand-skill
                 // pass (FUN_00560cd0, FUN_005606b0, FUN_00560f00, FUN_00561220, FUN_00563d20,
                 // FUN_005616a0 -> FUN_0055c5c0); a mend's is in deal / replenish_frame.
-                if (worn() != worn_before || actor->character.header.weapon_set != header_before) hand_skills(now_ms);
+                if (worn() != worn_before || actor->character.header.weapon_set != header_before) {
+                    hand_skills(now_ms);
+                    // A later cast in this batch picks its missile by the weapon class (Fight::skill_missile): refresh it as update_fighters does.
+                    const auto* wielded = d2d::rules::wielded_weapon(game_data->rules, actor->character.items);
+                    const auto base = wielded ? game_data->rules.item_base.find(wielded->code) : game_data->rules.item_base.end();
+                    actor->player_combat.bow = wielded && base != game_data->rules.item_base.end() && base->second.wclass == "bow";   // FUN_00623c60 1
+                }
             }
             // In reach as the server's interact has it (FUN_005b0f50): an
             // object by rules::object_reach (a player's size 2) with no wall
