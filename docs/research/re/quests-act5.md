@@ -441,13 +441,23 @@ client), not a cinematic. The client's 0x61 handler is `FUN_0045e660`
   `ObjectRooms::marker_make` (the handed room's bounds and seed, `hand_room`);
   the room is looked up by `FUN_00463740` (own bounds, then the near list, which holds
   neighbour levels' rooms): d2d's `near_room_holder` (gamedata.cpp) answers it with the
-  room's level and index, in act subtiles (`test_near_holder_level`); `near_holder`
-  still keeps only a room of the marker's level, so a spot held only by a neighbour's
-  room counts as none (the make in that room is not ported). `FUN_005b2a00` takes that
+  room's level and index, in act subtiles (`test_near_holder_level`). `FUN_005b2a00` takes that
   room (its `param_1[1]`, `local_8`) for its seed (+0x6c, +0x70) and for `FUN_0064d9b0`,
   `FUN_005fd350` and `FUN_00555230`; only the water path (spawnCol 1) re-looks it up
-  after `FUN_005b2700` (`FUN_00463740` called with the spot's y, its result becomes the room; its register arguments are not read in the decompile). Not
-  traced: what `FUN_00555230` does in a room of another level (its spawn list and grid);
+  after `FUN_005b2700` (`FUN_00463740` called with the spot's y, its result becomes the room; its register arguments are not read in the decompile).
+  `FUN_00555230` keeps no list by level: its record comes from `FUN_00620290` on its fifth
+  argument's +0x1c, with the act of the room's level id (`FUN_0061a1b0`, `FUN_006427f0`). Its
+  type's jump (table 0x5554e8; type 1 at 0x555393) runs `FUN_00574250` with EDX the room
+  (`[ebp+0x14]`), and with flag 1 `FUN_00554850` (0x55545d) puts the unit in that room:
+  the act of the room's level again, then for a monster `d2d_unit_path_make(+0x1c, room,
+  x, y, unit)`. `FUN_00574250` takes the unit's look from `FUN_00547bc0` (0x5742dc: ECX the
+  region table at its ECX +0xf0, EDX the room), which indexes the table by the room's level
+  id (`FUN_0061a1b0`): a spot in a neighbour level's room makes the NPC that level's, with
+  its region. d2d: `near_holder` hands a neighbour's room (`NearHolder`), and
+  `marker_make_away` makes him with that level's `ObjectRooms` (its grid and stamps, the
+  room's seed from `room_seeds`, the spot shifted by the two levels' world offsets, its
+  region written back to `Spawning::regions`) into that `Level::npcs`, in its subtiles
+  (`test_marker_neighbour`, two made-up levels).
   `tools/emu/larzuk_init.py`, `test_larzuk_marker`. `Spawning::marker_records`
   keeps +0x15 for the game rather than the level. Not kept: +0x10, and the
   +0x17 list call. That call's `FUN_00666120` copies the dword at its ECX
