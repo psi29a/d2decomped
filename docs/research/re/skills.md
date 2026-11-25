@@ -791,7 +791,10 @@ frame clock 0x7a0498 plus min(delay, 12), and `FUN_004d9fc0` turns a 0
 into 8 before then. Status 8 voices nothing; the buttons draw it as not
 usable. Cases delay_meteor, delay_meteor_off, delay_fire_bolt,
 delay_meteor_no_mana. d2d: `Fight::start_delay` at each do's action
-frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
+frame, `Hero::skill_delay`; in a joined game the client asks as game.exe's
+does (`game::client_ask`, `test_client_ask`): skilldelay is the host's state
+121 on its player (States.txt sends it), and the guard (0x4c68b8, `CMP EDI,0xc`)
+runs from the local do (`client_skill_guard`); startmana's state inferno is `Hero::burning`
 (`FUN_005c8e30`: 20 frames from the start, 6 past each later start while it is on: "Inferno's channel").
 
 ### Item charges (traced 2026-10-28)

@@ -10,6 +10,7 @@
 #include "ui.hpp"
 
 #include <ai/units.hpp>
+#include <client_ask.hpp>
 #include <combat.hpp>
 #include <cues.hpp>
 #include <d2gs/c2s.hpp>
@@ -197,28 +198,32 @@ auto ClientSession::send(const Command& command) -> void {
         } else if (const auto* merc_item = std::get_if<cmd::MercItem>(&command)) {
             net_game->merc_item(std::uint16_t(merc_item->slot));
         } else if (const auto* use = std::get_if<cmd::UseSkill>(&command)) {
-            // game.exe's client asks first (FUN_004610c0, Fight::ask: mana and startmana from the
-            // host's 0x95, the weapon, skilldelay): a refusal sends nothing; AttackNoMana sends
-            // Attack in its place, silently (LAB_00461101).
-            if (use->item < 0) {
-                if (const int asked = world.fight.ask(use->skill, world_ms); asked != use->skill) {
-                    if (asked == 0) {
-                        auto attack = *use;
-                        attack.skill = 0;
-                        send(attack);
-                    }
-                    return;
-                }
-            } else if (d2d::game::skill_refused(*scene, character, use->skill)) {
-                // ponytail: a charged entry is asked only the weapon (status 2: Fight::ask reads
-                // the entry from item_charge, not set here); the skilldelay asked is the local
-                // World's (Fight::start_delay), not the client's min(delay, 12) frames (FUN_004c6680).
-                if (const auto* refused = scene->skills.get(use->skill); refused && refused->attack_no_mana && use->skill != 0) {
-                    auto attack = *use;
-                    attack.skill = 0;
-                    attack.item = -1;
-                    send(attack);
-                } else world.fight.impossible(world_ms);
+            // game.exe's client asks first (FUN_004610c0 -> FUN_004d9fc0, Fight::skill_status: mana and startmana from
+            // the host's 0x95, the weapon, the charged entry's own level and no mana for it): status 1, 2 or 4 on a skill
+            // with AttackNoMana asks again for Attack (LAB_00461101), which goes in its place, silently; 0 or 5 goes,
+            // 1 voices needmana, 2..4 impossible, the rest nothing. Skilldelay (FUN_006478f0) is the host's state 121
+            // on our player (States.txt sends it), not the local World's; and FUN_004d9fc0 turns a 0 into 8 while
+            // the client's own guard runs (net_skill_guard).
+            d2d::game::ChargedSkill asked_entry;
+            if (use->item >= 0) {
+                const auto entries = d2d::game::charged_skills(hero.character.items);
+                const auto found = std::ranges::find_if(entries, [&](const auto& had) { return had.item == use->item && had.skill == use->skill; });
+                if (found == entries.end()) return;               // no entry: FUN_004c6140 starts nothing
+                asked_entry = *found;
+            }
+            constexpr int kSkillDelayState = 121;
+            const auto [asked, status] = d2d::game::client_ask(world.fight, use->skill, asked_entry,
+                                                              std::ranges::contains(net_game->self_states, kSkillDelayState), net_skill_guard, world_ms);
+            if (status != 0 && status != 5) {
+                if (status == 1) world.fight.need_mana(world_ms);
+                else if (status >= 2 && status <= 4) world.fight.impossible(world_ms);
+                return;
+            }
+            if (asked != use->skill) {
+                auto attack = *use;
+                attack.skill = 0;
+                attack.item = -1;
+                send(attack);
                 return;
             }
             const auto* skill = scene->skills.get(use->skill);
@@ -577,6 +582,13 @@ auto ClientSession::net_items(const Command& command) -> bool {
 // walk the camp (ponytail: matched by class and position later, M6).
 auto ClientSession::net_overlay() -> void {
         if (!level || !scene) return;
+        // The World's do for our player set its skilldelay (Fight::start_delay, the action frame): the client's own
+        // guard runs from here min(delay, 12) frames (FUN_004c6680, 0x4c68b8..0x4c68da), any skill's status 0 an 8.
+        // ponytail: a cast at the ground plays no mode here (send: only the host casts it), so no local do starts the guard.
+        if (hero.skill_delay != net_seen_delay) {
+            net_seen_delay = hero.skill_delay;
+            if (hero.skill_delay > world_ms) net_skill_guard = d2d::game::client_skill_guard(hero.skill_delay, world_ms);
+        }
         if (net_missile_level != level) {
             net_missile_level = level;
             net_missiles.clear();
