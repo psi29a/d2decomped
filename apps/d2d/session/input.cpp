@@ -237,10 +237,10 @@ auto ClientSession::shift_pick(int skill) const -> int {
 // The units go in the near rooms' list order (FUN_0065ac70, rules::search_enemy_near_walk: each
 // room's units by their room stamp), so equals tie apart as game.exe's do.
 // The other players go in through add_near_players (near_players.cpp: FUN_00465c60's player arm,
-// relation bit 8), and one picked goes as a type 0 target. ponytail: local co-op keeps no relation
-// nodes, so its players are never hostile (and a hosted World reads UseSkill::unit as a monster's
-// id). The ground items' places in their room's list aren't kept (they go in view order within a
-// room: only Iron Golem's search sees them); the stamps are the ones the last Fight::restamp left; a corpse's hit test is usable_corpse (the target kind callbacks at
+// relation bit 8), and one picked goes as a type 0 target. The ground items go by the order they
+// arrived in their room's list (ground_arrival; only Iron Golem's search sees them).
+// ponytail: local co-op keeps no relation nodes, so its players are never hostile (and a hosted World
+// reads UseSkill::unit as a monster's id); the stamps are the ones the last Fight::restamp left; a corpse's hit test is usable_corpse (the target kind callbacks at
 // 0x711f34, FUN_00464310, aren't traced per skill); Iron Golem's item goes as its spot, and the
 // World takes the one there (Fight::golem_item_at), not by its id.
 auto ClientSession::near_pick(int skill, int& unit, int& unit_type, float& at_x, float& at_y) const -> bool {
@@ -269,8 +269,10 @@ auto ClientSession::near_pick(int skill, int& unit, int& unit_type, float& at_x,
                 const auto base = scene->rules.item_base.find(ground.item.code);
                 const bool metal = base != scene->rules.item_base.end() && (base->second.bitfield1 & 2) != 0;
                 units.push_back({ 4, cell_subtile(ground.x), cell_subtile(ground.y), 0, false, true, metal });
-                // An item's place in its room's list isn't kept: view order, the first the newest.
-                listed.push_back({ level ? d2d::game::room_of(*level, ground.x, ground.y) : -1, true, std::uint32_t(view.ground.size() - item) });
+                // Its place in its room's list: the order it arrived in, the last first (client::GroundArrival, as the
+                // Show Items walk); one not seen yet goes by view order, the newest first.
+                const std::uint32_t arrived = ground_arrival.of(ground.id);
+                listed.push_back({ level ? d2d::game::room_of(*level, ground.x, ground.y) : -1, true, arrived ? arrived : std::uint32_t(view.ground.size() - item) });
             }
         // FUN_0065ac70 walks the near list of the local player's room.
         std::vector<int> rooms;
