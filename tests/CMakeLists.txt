@@ -10,12 +10,21 @@ foreach(v CMAKE_CXX_FLAGS_RELEASE CMAKE_CXX_FLAGS_RELWITHDEBINFO CMAKE_CXX_FLAGS
 endforeach()
 # D2D_TESTS_DEBUG_INFO off (CI): no debug info for this directory's
 # compiles, GCC / Clang's -g or MSVC's /Z7 (CMAKE_MSVC_DEBUG_INFORMATION_FORMAT
-# sets each target's as it's made).
+# sets each target's as it's made), and no MSVC debug link: RelWithDebInfo's
+# /debug /INCREMENTAL still wrote a .pdb (the libraries' /Z7 info) and an .ilk
+# for each of the ~560 tests, which filled the Windows runner's disk.
 if (NOT D2D_TESTS_DEBUG_INFO)
     foreach(v CMAKE_CXX_FLAGS_RELWITHDEBINFO CMAKE_CXX_FLAGS_DEBUG)
         string(REGEX REPLACE "(^| )-g[0-9]*( |$)" " " ${v} "${${v}}")
     endforeach()
     set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "")
+    if (MSVC)
+        foreach(v CMAKE_EXE_LINKER_FLAGS_RELWITHDEBINFO CMAKE_EXE_LINKER_FLAGS_DEBUG)
+            string(REGEX REPLACE "(^| )[-/][Dd][Ee][Bb][Uu][Gg](:[A-Za-z]+)?( |$)" " " ${v} "${${v}}")
+            string(REGEX REPLACE "(^| )[-/]INCREMENTAL(:NO)?( |$)" " " ${v} "${${v}}")
+            string(APPEND ${v} " /DEBUG:NONE /INCREMENTAL:NO")
+        endforeach()
+    endif()
 endif()
 
 # A test with no data to run on (no MPQs, ISO or game.exe) exits 77
