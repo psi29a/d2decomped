@@ -50,7 +50,7 @@ struct NetGame {
         int flags = 0;                // our relation flags toward it (0x8c: 1 loot, 2 not heard, 4 squelched, 8 hostile)
         int life = 128;               // of 128
         int hit_class = 0;            // the last hit's (0x0c +7 -> unit +0xb0): a monster's impact sound on GH / KB / DT
-        int mode = -1;                // a monster's last unit command (0x69..0x6c: 8 dying, 0xa attack, ...), -1 none
+        int mode = -1;                // a monster's last unit command (0x69..0x6c: 8 dying, 0xa attack, ...), a player's last 0x0d one (8 dying, 9 dead; -1 again at its 0x15), -1 none
         std::uint32_t owner = 0;      // a pet's or merc's player (0xac's owner), 0 none
         std::uint32_t mode_ms = 0;    // when it came (steady ms)
         std::optional<std::pair<float, float>> attack_aim;

@@ -329,6 +329,7 @@ target_sources(d2d PRIVATE
     session/draw.cpp
     session/input.cpp
     session/lan.cpp
+    session/near_players.cpp
     session/net.cpp
     session/setup.cpp
     session/skillpad.cpp

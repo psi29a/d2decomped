@@ -18,6 +18,7 @@
 #include "items/identify_prompt.hpp"
 #include "items/item_use.hpp"
 #include "load.hpp"
+#include "near_players.hpp"
 #include "panels/belt_popup.hpp"
 #include "panels/controls.hpp"
 #include "panels/panels.hpp"
@@ -74,6 +75,8 @@
 
 namespace d2d::client {
 
+// This frame's commands from the mouse and keys; a skill's click goes through its own target
+// search (FUN_00467880: near_pick, shift_pick, open_spot), its UseSkill naming the target's type.
 auto ClientSession::input(const Mouse& mouse, bool over_ui) const -> std::vector<Command> {
         std::vector<Command> out;
         if (view.dead && (!view.ghost || view.all_dead)) {   // a click, once the death has played, respawns
@@ -99,16 +102,17 @@ auto ClientSession::input(const Mouse& mouse, bool over_ui) const -> std::vector
         const auto use_hand = [&](bool left, int unit, bool held_frame = false) {
             const int skill = left ? skillbar.left : skillbar.right;
             const bool stand = function_held(keys::kStandStill);
+            int unit_type = 1;
             float at_x = world_x, at_y = world_y;
             const std::uint32_t flags = (held_frame ? d2d::rules::kClickHeld : d2d::rules::kClickPress) | (left ? d2d::rules::kClickLeft : 0) | (stand ? d2d::rules::kClickShift : 0);
-            if (d2d::rules::skill_search_goes(flags, view.player.walking) && view.hand_status[left ? 0 : 1] == 0 && !near_pick(skill, unit, at_x, at_y)) {
+            if (d2d::rules::skill_search_goes(flags, view.player.walking) && view.hand_status[left ? 0 : 1] == 0 && !near_pick(skill, unit, unit_type, at_x, at_y)) {
                 if (unit < 0 && stand) unit = shift_pick(skill);
                 if (const auto spot = open_spot(skill, unit, world_x, world_y)) {   // off a wall, at the ground
                     std::tie(at_x, at_y) = *spot;
                     unit = -1;
                 }
             }
-            out.push_back(cmd::UseSkill{ skill, at_x, at_y, unit, left, left ? skillbar.left_item : skillbar.right_item, stand });
+            out.push_back(cmd::UseSkill{ skill, at_x, at_y, unit, left, left ? skillbar.left_item : skillbar.right_item, stand, unit_type });
         };
         // A held frame (hand_hold.hpp; FUN_00462930 lets it through). False: the left hand walks instead.
         const auto hold_hand = [&](bool left) {
@@ -232,13 +236,14 @@ auto ClientSession::shift_pick(int skill) const -> int {
 // None leaves the target and the click as they were. The spot goes to the pick's subtile centre.
 // The units go in the near rooms' list order (FUN_0065ac70, rules::search_enemy_near_walk: each
 // room's units by their room stamp), so equals tie apart as game.exe's do.
-// ponytail: other players aren't among them (two players without the hostility flag fail
-// FUN_00466870's FUN_00465c60); the ground items' places in their room's list aren't kept (they go
-// in view order within a room: only Iron Golem's search sees them); the stamps are the ones the
-// last Fight::restamp left; a corpse's hit test is usable_corpse (the target kind callbacks at
+// The other players go in through add_near_players (near_players.cpp: FUN_00465c60's player arm,
+// relation bit 8), and one picked goes as a type 0 target. ponytail: local co-op keeps no relation
+// nodes, so its players are never hostile (and a hosted World reads UseSkill::unit as a monster's
+// id). The ground items' places in their room's list aren't kept (they go in view order within a
+// room: only Iron Golem's search sees them); the stamps are the ones the last Fight::restamp left; a corpse's hit test is usable_corpse (the target kind callbacks at
 // 0x711f34, FUN_00464310, aren't traced per skill); Iron Golem's item goes as its spot, and the
 // World takes the one there (Fight::golem_item_at), not by its id.
-auto ClientSession::near_pick(int skill, int& unit, float& at_x, float& at_y) const -> bool {
+auto ClientSession::near_pick(int skill, int& unit, int& unit_type, float& at_x, float& at_y) const -> bool {
         constexpr int kIronGolemSkill = 0x5a;   // FUN_00467490's FUN_00643ce0 == 0x5a
         const auto* info = scene ? scene->skills.get(skill) : nullptr;
         if (!info || !info->search_enemy_near) return false;
@@ -248,7 +253,7 @@ auto ClientSession::near_pick(int skill, int& unit, float& at_x, float& at_y) co
         const bool iron_golem = skill == kIronGolemSkill;
         std::vector<d2d::rules::NearUnit> units;
         std::vector<d2d::rules::RoomUnit> listed;
-        units.reserve(view.monsters.size() + (iron_golem ? view.ground.size() : 0));
+        units.reserve(view.monsters.size() + view.others.size() + (iron_golem ? view.ground.size() : 0));
         listed.reserve(units.capacity());
         for (const auto& monster : view.monsters) {
             const bool alive = monster.alive();
@@ -257,6 +262,7 @@ auto ClientSession::near_pick(int skill, int& unit, float& at_x, float& at_y) co
             units.push_back({ 1, subtile(monster.unit.x), subtile(monster.unit.y), mode, false, hit, false });
             listed.push_back({ level ? d2d::game::room_of(*level, monster.unit.x, monster.unit.y) : -1, true, monster.unit.room_stamp });
         }
+        add_near_players(view, level, units, listed);
         if (iron_golem)
             for (std::size_t item = 0; item < view.ground.size(); ++item) {
                 const auto& ground = view.ground[item];
@@ -276,7 +282,15 @@ auto ClientSession::near_pick(int skill, int& unit, float& at_x, float& at_y) co
                                                             spot_x, spot_y, units, listed, rooms);
         if (pick < 0) return true;
         const auto& found = units[std::size_t(pick)];
-        unit = std::size_t(pick) < view.monsters.size() ? view.monsters[std::size_t(pick)].id : -1;
+        if (std::size_t(pick) < view.monsters.size()) {
+            unit = view.monsters[std::size_t(pick)].id;
+            unit_type = 1;
+        } else if (std::size_t(pick) < view.monsters.size() + view.others.size()) {
+            unit = int(view.others[std::size_t(pick) - view.monsters.size()].id);
+            unit_type = 0;
+        } else {
+            unit = -1;
+        }
         at_x = (float(found.x) + 0.5f) / 5;
         at_y = (float(found.y) + 0.5f) / 5;
         return true;

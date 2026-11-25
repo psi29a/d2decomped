@@ -173,7 +173,8 @@ void ClientSession::net_step_missiles() {
 // d2d's player heads for, the run toggle (0x53 / 0x54). The World still
 // walks the player here; the host walks it there on the same map.
 // Skills go by the host's unit ids (d2d's monster ids are those in a
-// joined game); a melee swing walks up here and plays for show, the host
+// joined game), a player target as type 0 and a monster as type 1 (C->S
+// 0x06 / 0x0d +1, FUN_00461700's target +0); a melee swing walks up here and plays for show, the host
 // walks up there and hits. Objects and waypoints by the host unit nearest
 // d2d's.
 // NPC talk and trade stay local (the host's gold and items don't follow);
@@ -222,7 +223,9 @@ auto ClientSession::send(const Command& command) -> void {
             }
             const auto* skill = scene->skills.get(use->skill);
             const bool melee = skill && !self_cast(*skill) && !world.fight.missile_skill(*skill) && !Fight::spot_skill(*skill) && !world.fight.summon_skill(*skill);
-            const auto target = use->unit >= 0 ? net_monsters.find(std::uint32_t(use->unit)) : net_monsters.end();
+            const auto monster_target = use->unit >= 0 && use->unit_type == 1 ? net_monsters.find(std::uint32_t(use->unit)) : net_monsters.end();
+            const auto player_target = use->unit >= 0 && use->unit_type == 0
+                ? std::ranges::find(view.others, std::uint32_t(use->unit), &View::OtherPlayer::id) : view.others.end();
             std::uint32_t item = 0xffffffff;                // a charged entry's item, as the host knows it
             if (use->item >= 0) {
                 // No host id for it: nothing sent, or the host would cast the character's own
@@ -232,23 +235,24 @@ auto ClientSession::send(const Command& command) -> void {
                 item = net_game->host_item(*local);
                 if (item == 0) return;
             }
-            if (target != net_monsters.end()) {
+            if (monster_target != net_monsters.end() || player_target != view.others.end()) {
                 // The host drops a skill that comes mid-swing (FUN_0057edd0:
                 // modes A1 / A2 / SC / TH take one only once FUN_0057ed70 says
                 // the swing can end), so repeats are harmless; the same
                 // target again once the swing here is over, as game.exe's
                 // client, which runs its own copy of the mode.
-                const bool again = use->unit == net_attack && use->skill == net_attack_skill;
-                if (!again || hero.pmode < 0) net_game->skill_on(use->skill, use->left, 1, std::uint32_t(use->unit), item);
+                const bool again = use->unit == net_attack && use->unit_type == net_attack_type && use->skill == net_attack_skill;
+                if (!again || hero.pmode < 0) net_game->skill_on(use->skill, use->left, use->unit_type, std::uint32_t(use->unit), item);
                 net_attack = use->unit;
+                net_attack_type = use->unit_type;
                 net_attack_skill = use->skill;
-                const auto& monster = target->second;
+                const UnitState& target_unit = monster_target != net_monsters.end() ? monster_target->second.unit : player_target->unit;
                 if (melee) {
-                    if (std::hypot(monster.unit.x - hero.player.x, monster.unit.y - hero.player.y) > 1.6f) net.send(cmd::Move{ monster.unit.x, monster.unit.y, use->left });
-                    else world.display_swing(use->skill, monster.unit.x, monster.unit.y, world_ms);
+                    if (std::hypot(target_unit.x - hero.player.x, target_unit.y - hero.player.y) > 1.6f) net.send(cmd::Move{ target_unit.x, target_unit.y, use->left });
+                    else world.display_swing(use->skill, target_unit.x, target_unit.y, world_ms);
                     return;
                 }
-                net.send(cmd::UseSkill{ use->skill, monster.unit.x, monster.unit.y, -1, use->left, use->item });   // the missile flies at it here, for show
+                net.send(cmd::UseSkill{ use->skill, target_unit.x, target_unit.y, -1, use->left, use->item });   // the missile flies at it here, for show
                 return;
             }
             net_attack = -1;
@@ -567,7 +571,8 @@ auto ClientSession::net_items(const Command& command) -> bool {
     }
 
 // A joined game: the host's monsters stand in for the World's (it makes
-// none: Fight::remote_monsters) and its other players are drawn; act
+// none: Fight::remote_monsters) and its other players are drawn, each hostile
+// when our S->C 0x8c relation flags toward it have bit 8 (FUN_004dc440); act
 // subtiles to the level's cells (a subtile's centre: d2d's x.5 is a cell's). The host's NPCs are left out: d2d's own
 // walk the camp (ponytail: matched by class and position later, M6).
 auto ClientSession::net_overlay() -> void {
@@ -637,6 +642,8 @@ auto ClientSession::net_overlay() -> void {
                 shown.skill_ms = unit.skill_ms;
                 other.unit.mode_ms = shown.since;
                 other.states = host_states(unit.states);
+                other.hostile = (unit.flags & 8) != 0;
+                other.dead = unit.mode == 8 || unit.mode == 9;
                 other.one_shots = unit.cast_overlays;
                 // Its walk's % from its class's run / walk and the host's chill (state 11);
                 // ponytail: its FRW isn't sent, so a faster run / walk's legs don't show.
@@ -769,12 +776,16 @@ auto ClientSession::net_overlay() -> void {
         }
         std::erase_if(net_ground, [&](const auto& entry) { return !net_game->ground.contains(entry.first); });
         // The host monster being attacked: held, the attack goes on (input); not once it's converted.
-        const int attacked = net_attack >= 0 ? view.monster(net_attack) : -1;
+        const int attacked = net_attack >= 0 && net_attack_type == 1 ? view.monster(net_attack) : -1;
         if (attacked >= 0 && view.monsters[std::size_t(attacked)].alive() && !view.monsters[std::size_t(attacked)].ally_not_interact(*scene, level ? level->id : 0)) {
             view.attack = net_attack;
             view.attack_skill = net_attack_skill;
-        } else {
+        } else if (net_attack_type == 1) {
             net_attack = -1;
+            view.attack = -1;
+        } else {
+            const auto attacked_player = std::ranges::find(view.others, std::uint32_t(net_attack), &View::OtherPlayer::id);
+            if (attacked_player == view.others.end() || attacked_player->ghost || attacked_player->dead || !attacked_player->hostile) net_attack = -1;
             view.attack = -1;
         }
     }

@@ -36,6 +36,8 @@
 
 namespace d2d::game {
 
+// A View's bytes for a client, against what `enc` sent last (each other
+// player carries its ghost and hostile bytes).
 std::vector<std::uint8_t> encode_view(const GameData& game_data, const View& view, ViewEncoder& enc) {
     wire::Out out;
     out.u8(0x70);                                              // our own id: game.exe has no packet for a whole view
@@ -101,7 +103,7 @@ std::vector<std::uint8_t> encode_view(const GameData& game_data, const View& vie
             for (const auto look_byte : other.gfx) chunk.u8(look_byte);
             chunk.u16(int(other.states.size()));
             for (const auto state : other.states) chunk.str(state);
-            chunk.u8(other.ghost).i32(other.walk_percent); wire::one_shots(chunk, other.one_shots);
+            chunk.u8(other.ghost).u8(other.hostile).i32(other.walk_percent); wire::one_shots(chunk, other.one_shots);
         }
         chunk.u8(view.ghost).u8(view.all_dead).u16(int(view.bodies.size()));
         for (const auto& body : view.bodies) {
@@ -254,6 +256,7 @@ std::vector<std::uint8_t> encode_view(const GameData& game_data, const View& vie
     return out.bytes;
 }
 
+// encode_view's inverse onto `view`: false on malformed bytes.
 bool apply_view(const GameData& game_data, std::span<const std::uint8_t> bytes, View& view) {
     if (bytes.empty() || bytes[0] != 0x70) return false;
     wire::In input{ bytes };
@@ -347,7 +350,7 @@ bool apply_view(const GameData& game_data, std::span<const std::uint8_t> bytes, 
             other.cls = byte(); other.name = input.str(); other.id = u32(); other.mode = i32(); other.running = byte() != 0;
             for (auto& look_byte : other.gfx) look_byte = std::uint8_t(byte());
             for (int states = u16(); states > 0 && input.ok; --states) other.states.push_back(wire::intern(input.str()));
-            other.ghost = byte() != 0; other.walk_percent = i32();
+            other.ghost = byte() != 0; other.hostile = byte() != 0; other.walk_percent = i32();
             other.one_shots = wire::one_shots(input);
             view.others.push_back(std::move(other));
         }
