@@ -906,6 +906,33 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
   missile (`FUN_00645f00`): magicarrow (Id 27) with stat 157, explodingarrow
   (41) with stat 158, else arrow (0) / bolt (31). It spends ammo unless
   the missile is magicarrow.
+- **The Act 1 merc's shot** (RogueMissile, Skills.txt 336, do 110,
+  `FUN_005ce1b0`; MonStats roguehire Skill1, Sk1mode A1, Sk1lvl 1): for a
+  unit not a player `FUN_00645f00` gives magicarrow at stat 157's value as
+  the level, else explodingarrow at stat 158's, else nothing, and then the
+  skill's srvmissilea, rogue1 (Id 120), at the skill's level; made through
+  `FUN_0056ecb0` (`FUN_0056ee90` with the skill row's +0x04 flag). rogue1
+  is arrow with MinDamage / MaxDamage 1 at HitShift 8: `FUN_0064af20` /
+  `FUN_0064aff0` give 256 / 256 at any level, and `FUN_0064b860` adds them
+  to the record's min / max after the weapon's part (0x64bdf7), so the
+  hit's roll (`FUN_005a89a0`) takes them with it: the missile's stat 25
+  (the record's +0x78: enhanced damage, the str / dex bonus, 0x64ae64)
+  and the demons' / undead's % scale the sum, and a crit (stat 0x8d on the
+  missile) doubles it. d2d:
+  `Fight::merc_shot`, `Swing::row_lo` / `row_hi`; tools/emu/merc_shot.py
+  runs `FUN_005ce1b0` and the row's physical (0 of 100,144 differ, seeds 1
+  and 2, 2026-11-23).
+- **A crossbow's bolts** (do 8 `FUN_005db410` 0x5db51e..0x5db53d, do 10
+  `FUN_005db6d0` 0x5db74f..0x5db76b, do 12 `FUN_005dba40`
+  0x5dbb20..0x5dbb3f): srvmissilea (+0x48), or srvmissileb (+0x4a) when it
+  is set and `FUN_00623c60` isn't 1. `FUN_00623c60` is the weapon's class:
+  `FUN_00629fe0` maps its ItemsTxt wclass (+0xc0) through the 8 pairs at
+  0x7446a0 (bow 1, 1hs 2, 1ht 3, stf 4, 2hs 5, 2ht 6, xbw 7, ht1 12), 0
+  without one. So a crossbow's Multiple Shot shoots multipleshotbolt and
+  its Strafe strafebolt; the other do 8 / 10 / 12 rows have srvmissileb
+  empty or the same row. d2d: `Fighter::bow`, `Fight::skill_missile`;
+  tools/emu/bolt_pick.py runs do 8 for each do-8 row and classes 0..13
+  (0 of 56 differ, 2026-11-23).
 - **Throw** (do 3, `FUN_0056f460`): the throwable in hand (ItemTypes
   Throwable, `FUN_0062ba80`, or stat 125) flies as its weapons.txt
   missiletype, spending one; `FUN_0056c600` then adds the skill's to-hit
@@ -2400,8 +2427,16 @@ Cited from the decompile (no oracle run); re-check with
   `rules::start_attack_rate`, added to the swing's SIAS in `Fight::set_pmode`.
   This function does not free the list itself; SetMode does, at the next
   mode change (above).
-- **FUN_004c7be0** (83 bytes) is the same body with line 0x9e5; callers
-  FUN_004c7cf0 and two sites at 0x4f26f3 / 0x4f2706. d2d: not ported.
+- **FUN_004c7be0** (83 bytes) is the same body with line 0x9e5 (the client's
+  list). Callers: cltstfunc 27 FUN_004c7cf0 (table 0x727a90 + 27 * 4; cltcalc1,
+  +0x114, at the skill and level; Skills.txt: Double Swing only) and cltstfunc 9
+  FUN_004f26d0 (the row's Param4, +0x154, or 0 for an id outside the table; the
+  sites 0x4f26f3 / 0x4f2706; Dragon Tail only, -40). The Bash family has no
+  cltstfunc, and the server's flags-4 list is not queued for the client (FUN_006270b0
+  queues only on a list with flag 0x80000000), so only Dragon Tail's rate is on both
+  units. Its client effect on sounds is nil (no stsounddelay or weaponsnd on its row).
+  Oracle: `tools/emu/client_attackrate.py`. d2d: not ported as a list; the draw
+  rate of KK (apps) is not traced here.
 - **FUN_0056ff10**(unit in EDI, skill in the stack arg; only caller
   FUN_005701b0) (354 bytes): returns at once unless the Skills record
   (stride 0x23c at tables +0xb98) has flag +4 & 0x20 and a valid
@@ -3092,7 +3127,7 @@ the Run sequence's numbers):
 |---|---|---|---|
 | Nest (167, the vile mother's) | 49 FUN_005cbd10 | 91 FUN_005cbe00 | start: the point (FUN_0056e620), a free spot there (mask 0x100) stored in the unit's skill record (+0 class from MonStats spawn, x, y, mode); do: events cleared, a unit of that class at that spot (FUN_005b2f20, 1), flags 0x4020000, MonStats overlay (+0xe6) |
 | MegademonInferno (319), DiabLight (193) | 53 FUN_005cc240 | — | the breath's end frame (+ calc +0x13c, at least 1) in the skill record, state 0xc on |
-| DiabRun (198) | 54 FUN_005cd2c0 | 103 FUN_005cd380 | start: the target's id / type in the record, path to its spot; do (Params at +0x148..+0x15c): record flag 2 (the run over) → anim length Param1 (8) << 8, frame Param2 (14); at frame Param3 (5) runs (path type 1, velocity max(calc1 << 8, 0x100) × stat 0x43 / 100 via FUN_00483360 into the path's +0x7c, the unit a MonStats Velocity's; calc1 = 20); at frame Param4 (13): length Param5 (16) << 8, back to frame Param6 (6); else, with unit +0x4e 1 (the frame's event, FUN_00623e..: event 1, row 18), one hit with the skill's damage (FUN_0056e680, hit flags +0x130 \| 0x20) on the record's unit when in reach (FUN_00622c40), +0x4e cleared. Its sequence is MonSeq seq_diablorun (Sk5mode): 22 RN rows, event 2 on 5..13, event 1 on 18. d2d: `monster_update`'s DiabRun phases (2026-10-16) |
+| DiabRun (198) | 54 FUN_005cd2c0 | 103 FUN_005cd380 | start: the target's id / type in the record, path to its spot; do (Params at +0x148..+0x15c): record flag 2 (the run over) → anim length Param1 (8) << 8, frame Param2 (14); at frame Param3 (5) runs (path type 1, velocity max(calc1 << 8, 0x100) × stat 0x43 / 100 via FUN_00483360 into the path's +0x7c, the unit a MonStats Velocity's; calc1 = 20); at frame Param4 (13): length Param5 (16) << 8, back to frame Param6 (6); else, with unit +0x4e 1 (the frame's event, FUN_00623e..: event 1, row 18), one hit with the skill's damage (FUN_0056e680, hit flags +0x130 \| 0x20) on the record's unit when in reach (FUN_00622c40), +0x4e cleared. Its sequence is MonSeq seq_diablorun (Sk5mode): 22 RN rows, event 2 on 5..13, event 1 on 18. The do also sets the skill instance's flags to 1 (FUN_00644660 at 0x5cd498), so FUN_006214a0 counts SQ as a moving mode (the mode tables 0x6e8b90 / 0x6e8cd0: SQ's word 0) and FUN_00623f50 rates it walk base × walk % from then on (`tools/emu/mode_rates.py` with the flags field). d2d: `monster_update`'s DiabRun phases (2026-10-16), `ModeRateIn::skill_flags` past the wind-up |
 | DiabLight (193) | — | 152 FUN_005cc690 | a missile (srvmissilea diablight, range from Missiles +0x9a / +0x9b × level / 8) at the target; while the record's end frame is ahead and state 0xc is on, events 0 / 1 cleared and event 0 at frame + calc +0x140; else ends (FUN_005cc3b0) |
 | DiabCold (194) | — | 100 FUN_005cce80 | the caster flag 0x40; one hit at the unit (flags +0x12e | 1, +0x130, +0x134), no block when stat 6 is 0; the overlay +0x4e |
 | FingerMageSpider (196) | — | 101 FUN_005ccfa0 | one srvmissilea (type 3) from the caster to the target (or its path's end); calc +0x138 the missile's level |

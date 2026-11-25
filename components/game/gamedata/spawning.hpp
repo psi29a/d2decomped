@@ -48,6 +48,7 @@ struct ObjectRooms;                                     // objgroups.cpp
 struct Spawning {
     struct LevelState {
         std::vector<d2d::rules::Spawn> spawns;             // every spawn so far, level-relative subtiles
+        std::vector<int> spawn_slots;                      // by `spawns` index: where it landed in the level's monster list, -1 none
         std::vector<bool> rooms_up;                        // by Level::rooms index: its room1 made (and populated)
         // Which populated rooms currently have a server room1. FUN_0052d240
         // may drop one without clearing `rooms_up`: returning rebuilds its tiles,
@@ -116,6 +117,10 @@ std::vector<std::pair<const Level*, std::size_t>> sweep_idle_rooms(const GameDat
 // Where a missile in the room holding (x, y) cells can be: that room's rect, then its near list's, act subtiles
 // {x, y, w, h}.
 std::vector<std::array<int, 4>> missile_rooms(const GameData& game_data, const Level& level, float x, float y, const Spawning* spawning = nullptr);
+// FUN_00463740: the room holding (x, y), subtiles off `level`'s origin, among
+// room `from`'s own and its near list's (neighbour levels' rooms too).
+struct NearHolder { const Level* level; std::size_t room; };
+std::optional<NearHolder> near_room_holder(const GameData& game_data, const Level& level, std::size_t from, int x, int y, const Spawning* spawning = nullptr);
 // The automap's rooms (FUN_00459020): the one holding (x, y) cells and its
 // near list (FUN_00619790), itself included, in the list's order: each
 // room's level, its index (Level::rooms, or a preset level's 8x8 room in

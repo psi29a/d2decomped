@@ -6,6 +6,7 @@
 // With no game data the rules::energy_shield_blows checks run; with it the REAL Fight::absorb runs a grid of
 // single-element blows against the same arithmetic written out here.
 
+#include <ai.hpp>
 #include <ai/units.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
@@ -294,8 +295,50 @@ int main() try {
         std::printf("Bone Armor and Energy Shield (%d %%): shield last %d life %d pool, armor last %d life %d pool\n", pct, shield_life, shield_pool, bone_life, bone_pool);
         assert(bone_life > 0 && bone_life < 30 && bone_pool == 0);
     }
-    hero.self_states = std::move(states);
+    hero.self_states = states;
     std::printf("OK: Energy Shield through the real Fight::absorb, %d cases, life and mana as game.exe's order\n", cases);
+
+    // Frozen Armor (event 2, damagedinmelee) reads the record's physical after the absorbs (FUN_0057c6c0 raises
+    // 0xb first): a 10-point blow against 5 flat reduction freezes its striker; with Energy Shield taking 95 %
+    // first, what's left reduces to nothing, so it doesn't (Fight::absorb prunes damaged_by).
+    {
+        int fa_id = -1;
+        for (int id = 0; id < 400 && fa_id < 0; ++id)
+            if (const auto* skill = data->skills.get(id); skill && skill->aurastate == "frozenarmor") fa_id = id;
+        assert(fa_id >= 0);
+        const auto fallen = data->monsters.by_id.find("fallen1");
+        assert(fallen != data->monsters.by_id.end());
+        rules::Rng spawn_rng(5);
+        fight.monsters.clear();
+        fight.add_monster(d2d::game::make_monster(*data, int(fallen->second), hero.player.x + 1.f, hero.player.y, spawn_rng, 0));
+        const int striker = fight.monsters.back().id;
+        auto freezes = [&](int es_level) {
+            auto& struck = fight.monsters.back();
+            struck.chill_until = struck.stun_until = 0;
+            rules::MonStats attacker;
+            attacker.level = 1;
+            for (auto& element_row : attacker.elements) element_row.type = -1;
+            attacker.a1_min = attacker.a1_max = 10;
+            Foe foe = fight.player_foe(now);
+            foe.fighter.dr_pct = 0; foe.fighter.dr_flat = 5; foe.fighter.mdr = 0;
+            rules::Rng rng(12345);
+            const auto taken = rules::monster_blow(foe.fighter, 1, rules::Motion::running, attacker, false, rng, false, true, true);
+            assert(taken.hit && taken.physical_fine > 0);
+            foe.take(taken, striker);
+            foe.melee_by.push_back(striker);
+            foe.damaged_by.push_back(striker);                         // as a monster's swing files it (ai.cpp)
+            hero.self_states = states;
+            hero.absorb_pool = 0; hero.absorb_skill = -1;
+            hero.self_states.push_back({ fa_id, 1, ~0u });
+            if (es_level > 0) hero.self_states.push_back({ es_id, es_level, ~0u });
+            hero.character.stats.values[d2d::d2s::kMana] = 1000 << 8;
+            (void)fight.absorb(foe, now);
+            fight.frozen_armor_events(foe, now);
+            return struck.chill_until > now || struck.stun_until > now;
+        };
+        assert(freezes(0) && !freezes(60));
+        std::puts("OK: Frozen Armor's freeze reads the blow after Energy Shield took its share");
+    }
     return 0;
 } catch (const std::exception& error) {
     std::printf("FAIL: %s\n", error.what());

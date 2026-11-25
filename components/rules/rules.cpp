@@ -1334,6 +1334,10 @@ std::string lower_case(std::string_view text) {
 
 void apply_mod(const Tables& tables, const Mod& mod, std::vector<d2d::d2s::ItemProp>& out, Rng& rng, const ModItem* target) {
     using namespace d2d::d2s;
+    if (target && target->item && target->item->version == 0) {   // FUN_0065fe10: version 0 takes its own table
+        apply_classic_mod(tables, mod, out, rng, *target);
+        return;
+    }
     const auto found = tables.properties.find(lower_case(mod.code));
     if (found == tables.properties.end()) return;
     auto skill = [&](const std::string& name) {

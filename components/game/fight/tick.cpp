@@ -428,14 +428,18 @@ auto Fight::plain_missile_hits(Missile& missile, std::size_t monster_index, std:
         // The merc's plain shot (a missile row with no Skill, so the owner's weapon damage x SrcDamage / 128, FUN_0064b860)
         // as its swing's blow (merc_strike): its gear's elements, leech, Crushing Blow (halved), Open Wounds, item_slow,
         // which a record with SrcDamage carries into the owner's event 6 (record flag 0x20, 0x5ad893).
-        // ponytail: game.exe's roguehire shoots RogueMissile (do 110, FUN_005ce1b0): rogue1, MinDamage / MaxDamage 1 (a
-        // point more than arrow), or magicarrow / explodingarrow from its stats 157 / 158 (FUN_00645f00); d2d flies arrow.
+        // Its row's own physical (rogue1's MinDamage / MaxDamage 1, Fight::merc_shot) goes in the roll with the weapon's.
+        // ponytail: explodingarrow's explosion (its hit function) isn't run on this path.
         d2d::rules::Swing flight{ .srcdam = missile.info ? missile.info->src_damage : 128 };
         flight.missile = true;
+        if (missile.by_merc && missile.info) {
+            flight.row_lo = missile_phys(*game_data, *missile.info, merc_calc_env(), -1, missile.level, false);
+            flight.row_hi = missile_phys(*game_data, *missile.info, merc_calc_env(), -1, missile.level, true);
+        }
         auto struck = missile.by_merc ? merc_target(monster_index) : target_of(monster_index);
         struck.life_steal_divisor = struck.mana_steal_divisor = 1;   // a hireling's leech: no divisor (merc_strike)
         auto blow = missile.by_merc && actor->merc ? d2d::rules::player_blow(merc_fighter(), struck, actor->merc_st.level, rng, flight)
-                                                   : d2d::rules::player_blow(d2d::rules::simple_fighter(missile.min, missile.max, missile.attack_rating), struck, missile.level, rng);
+                                                   : d2d::rules::player_blow(d2d::rules::simple_fighter(missile.min, missile.max, missile.attack_rating), struck, missile.by_merc ? actor->merc_st.level : missile.level, rng);
         if (missile.info) blow.hit_class = missile.info->hit_class;   // an arrow's, not hand to hand's (as a skill's missile, Missiles.txt HitClass)
         land(monster_index, blow, false, now_ms, merc_foe_id());
         monster_return_fire(monster_index, missile, true, now_ms);
@@ -939,6 +943,7 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
         if (foe.blocked && actor->pmode < 0) set_pmode(kModeBL, now_ms);   // a block plays out (FBR)
         for (int landed = 0; landed < foe.hits; ++landed) wear_armor(now_ms);
         foe.damage = absorb(foe, now_ms);                   // leaves foe.frac what the absorbs left of the 256ths
+        frozen_armor_events(foe, now_ms);                    // after the absorbs, as FUN_0057c6c0 raises 0xb first
         // Iron Maiden's reflect on what the absorbs and the reduction left of each blow's physical (ai.cpp's
         // note: the striker's domeleedamage comes after the struck unit's events in FUN_0057c6c0).
         for (const auto& blow : foe.blows) {
@@ -1147,7 +1152,20 @@ auto Fight::rooms_up(const Level& here, float x, float y, bool arrived) -> void 
             const auto& spawns = spawning.levels[grown].spawns;
             const auto& region = std::size_t(grown->id) < spawning.regions.size() ? spawning.regions[std::size_t(grown->id)] : d2d::rules::Region{};
             auto made = spawn_monsters(*game_data, std::span(spawns).subspan(from), region, rng, game_difficulty, game_players(), grown->id);
-            for (auto& monster : made) add_monster(std::move(monster), grown);
+            // A spawn's leader is a `spawns` index (its placement's first); in the level's monster list it's
+            // where that spawn landed, which other units made before (a quest's, a birth) and the rows
+            // spawn_monsters skips move.
+            auto& slots = spawning.levels[grown].spawn_slots;
+            slots.resize(spawns.size(), -1);
+            std::size_t next = 0;
+            for (std::size_t index = from; index < spawns.size() && next < made.size(); ++index) {
+                if (spawns[index].type < 0 || std::size_t(spawns[index].type) >= game_data->mon_npc.size()) continue;   // spawn_monsters' skip
+                auto& monster = made[next++];
+                const auto& list = grown == mon_level ? monsters : kept[grown];       // add_monster's
+                if (monster.leader == int(index)) monster.leader = int(list.size());   // its group's first: itself
+                else if (monster.leader >= 0) monster.leader = std::size_t(monster.leader) < slots.size() ? slots[std::size_t(monster.leader)] : -1;
+                slots[index] = add_monster(std::move(monster), grown);
+            }
         }
     }
 

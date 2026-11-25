@@ -65,6 +65,9 @@ struct ModItem { d2d::d2s::Item* item; const ItemBase* base; int kind; bool thro
 std::string lower_case(std::string_view text);
 
 void apply_mod(const Tables& tables, const Mod& mod, std::vector<d2d::d2s::ItemProp>& out, Rng& rng, const ModItem* target = nullptr);
+// A classic item's (version 0) mod, which apply_mod hands on: game.exe's own
+// handlers by Properties row, not the funcs above (classic_mod.cpp).
+void apply_classic_mod(const Tables& tables, const Mod& mod, std::vector<d2d::d2s::ItemProp>& out, Rng& rng, const ModItem& target);
 
 // Affix level for an item of level ilvl with base qlvl.
 int affix_level(int ilvl, int qlvl, int magic_lvl);

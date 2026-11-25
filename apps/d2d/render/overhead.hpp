@@ -90,14 +90,33 @@ struct OverheadRect { int left = 0, top = 0, right = 0, bottom = 0; };
 // top 0x7225fc = 12, 0x145 by 0x70 (npc-talk.md "Box").
 [[nodiscard]] constexpr OverheadRect speech_slot(int screen_w) { return { (screen_w - 0x145) / 2, 12, (screen_w - 0x145) / 2 + 0x145, 12 + 0x70 }; }
 
+// The order the client's unit tables are walked in (FUN_00463c90, which
+// FUN_00464950 / FUN_00464990 / FUN_004649d0 run over 0x7a5e70, 0x7a6070
+// and 0x7a6270): the 0x80 bucket heads from 0 up, each chain from its head
+// by +0xe4. FUN_00463a50 puts a unit into bucket id & 0x7f before the first
+// chain node whose id is not above its own (unsigned), so a chain runs from
+// the highest id down. True when a unit of the first id is walked before one of the second.
+[[nodiscard]] constexpr bool overhead_walk_before(std::uint32_t first_id, std::uint32_t second_id) {
+    const std::uint32_t first_bucket = first_id & 0x7f, second_bucket = second_id & 0x7f;
+    return first_bucket != second_bucket ? first_bucket < second_bucket : first_id > second_id;
+}
+
 // The units whose text goes up this frame, in FUN_004a0e70's order: the
-// players' table (d2d_unit_each_table_a_player), then the monsters' (the
-// objects' carry none here); each table's own order is `units`' (not traced).
-template <class Unit, class Speaks, class IsPlayer>
-[[nodiscard]] std::vector<const Unit*> overhead_order(std::span<const Unit> units, Speaks&& speaks, IsPlayer&& is_player) {
+// players' table (type 0), then the monsters' (1), then the objects' (2),
+// each in the walk above. `table_of` is a unit's table, `id_of` its unit id;
+// units with equal ids (a caller with none to give) keep `units`' order.
+// ponytail: the draw's Unit has no game.exe unit id (d2d's objects go by
+// their level index, the players by Hero::id), so the callers give none and
+// only the three tables' order holds.
+template <class Unit, class Speaks, class TableOf, class IdOf>
+[[nodiscard]] std::vector<const Unit*> overhead_order(std::span<const Unit> units, Speaks&& speaks, TableOf&& table_of, IdOf&& id_of) {
     std::vector<const Unit*> out;
     for (const auto& unit : units) if (speaks(unit)) out.push_back(&unit);
-    std::ranges::stable_partition(out, [&](const Unit* unit) { return is_player(*unit); });
+    std::ranges::stable_sort(out, [&](const Unit* first, const Unit* second) {
+        const int first_table = table_of(*first), second_table = table_of(*second);
+        if (first_table != second_table) return first_table < second_table;
+        return overhead_walk_before(std::uint32_t(id_of(*first)), std::uint32_t(id_of(*second)));
+    });
     return out;
 }
 
