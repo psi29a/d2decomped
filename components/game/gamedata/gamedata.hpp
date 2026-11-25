@@ -134,6 +134,7 @@ struct GameData {
         bool restrict_form = false;        // States.txt restrict (wolf, bear, delerium): a skill's restrict asks for it (FUN_0063a510, FUN_00644060)
         int row = -1;                      // its States.txt row, the state id
         bool aura = false;                 // States.txt aura (bit 1, list +0xd0, FUN_0063a210): overlay1 / 2 rotate as kind 8 (FUN_004d9920)
+        bool plr_stay_death = false, mon_stay_death = false, boss_stay_death = false;   // States.txt plrstaydeath / monstaydeath / bossstaydeath: kept at a death (data tables +0x100 / +0x104 / +0x108, FUN_00639fb0)
         std::string item_type;
         std::array<const OverlayInfo*, 4> over{};
         const OverlayInfo* cast = nullptr;
@@ -450,6 +451,7 @@ struct GameData {
                          int dmg_func = 0, dmg_par1 = 0, dmg_par2 = 0;   // pSrvDmgFunc (5: Blessed Hammer's bonus, FUN_005ad2f0), dParam1 (undead %) and dParam2 (demon %)
                          bool next_hit = false; int next_delay = 0;   // NextHit: its hit puts state 0x56 on the unit for NextDelay frames
                          bool last_collide = false;                   // LastCollide (+4 bit 0): it passes the unit it last struck by
+                         bool missile_skill = false;                  // MissileSkill (+5 bit 7): its damage is the missile's own skill's, over 0 (Fight::damage_skill)
                          // The one-unit-a-frame, skip-the-last-unit rule (FUN_005ae1f0, FUN_005a8730) for a srvdofunc 1 or 3 row (3: the standing
                          // clouds, FUN_005ae480 -> FUN_005ae1f0; tools/emu/standing_rehit.py) with LastCollide and not NextHit, Pierce rows
                          // too: FUN_005a8730 doesn't test the Pierce flag (+4 bit 2), and every Pierce row has LastCollide.

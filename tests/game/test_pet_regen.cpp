@@ -8,8 +8,12 @@
 // Without arguments: the rule on typed-in numbers (no game data, so CI runs
 // it), then a raised skeleton hurt in a game with the MPQs (D2_MPQ_DIR): it
 // regains its stat 0x4a a frame from the frame after (Fight::pet_hurt,
-// pets_turn).
+// pets_turn). A Crushing Blow (FUN_005bffc0: Fight::pet_crushed) takes its
+// life outright and files no event: no regeneration of its own, no get-hit.
+// Poisoned (FUN_0057ac50), its event runs the poison alone each frame: the base
+// regeneration is off (FUN_0063a750 in FUN_005a6920).
 
+#include <ai.hpp>
 #include <ai/units.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
@@ -35,6 +39,7 @@
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <utility>
 
 namespace fs = std::filesystem;
 using namespace d2d::game;
@@ -119,6 +124,98 @@ int main(int argc, char** argv) try {
         assert(actor.pets.size() == 1 && pet.monster.life_fine() == hurt + 5 * frame);
     }
     std::puts("OK: a hurt skeleton regains 5/256 of a point a frame from the next frame (Fight::pet_hurt, pets_turn)");
+    // Healed back and standing, a crush (divisor 4, no resistance) takes a quarter of its life in 256ths (stat 6),
+    // files no event and doesn't get-hit it.
+    pet.monster.hit_points = pet.monster.stats.hit_points;
+    pet.monster.life_frac = pet.monster.max_life_frac;
+    pet.monster.regen_from = 0;
+    set_mode(*data, pet.monster, "NU", now);
+    const int before = pet.monster.life_fine();
+    world.fight.pet_crushed(pet, 4, 0, now);
+    std::printf("crushed: %d -> %d (256ths), mode %s, regen from %u\n", before, pet.monster.life_fine(), std::string(pet.monster.mode).c_str(), pet.monster.regen_from);
+    assert(pet.monster.life_fine() == before - before / 4 && pet.monster.regen_from == 0 && pet.monster.mode == "NU");
+    std::puts("OK: a crushed skeleton loses the life with no event or get-hit (Fight::pet_crushed)");
+    // A poisoned blow on the skeleton (its foe's poison: 40/256 a frame for 25 frames): it's poisoned with its event
+    // filed for the next frame (FUN_0057ac50, Fight::pet_poisoned); from then it loses 40/256 a frame, its 5/256
+    // regeneration off. A weaker one meanwhile doesn't replace it, though it refiles the event.
+    {
+        auto& skeleton = pet.monster;
+        skeleton.regen_from = 0;
+        Foe poisoner{};
+        poisoner.poison = 40; poisoner.poison_ticks = 25;
+        world.fight.pet_poisoned(pet, poisoner, now);
+        assert(skeleton.regen_from == now + 40 && skeleton.poison_until == now + 25 * 40);
+        poisoner.poison = 20; poisoner.poison_ticks = 100;
+        world.fight.pet_poisoned(pet, poisoner, now);
+        assert(skeleton.poison_until == now + 25 * 40);
+        const int start = skeleton.life_fine();
+        now += 40;
+        for (int frame = 1; frame <= 4; ++frame, now += 40) {
+            world.tick({}, now, now - 40);
+            assert(actor.pets.size() == 1 && skeleton.life_fine() == start - 40 * frame);
+        }
+        std::printf("poisoned: %d -> %d in 4 frames\n", start, skeleton.life_fine());
+    }
+    std::puts("OK: a poisoned skeleton loses its poison a frame, its regeneration off (pet_regen)");
+    // A zombie's poisoned arrow at the skeleton (its own poison stats, every hit it lands): the pet takes the arrow's
+    // damage and its poison though the missiles fly after the pets' own hits are read (Fight::world).
+    {
+        auto& skeleton = pet.monster;
+        skeleton.hit_points = skeleton.stats.hit_points; skeleton.life_frac = skeleton.max_life_frac;
+        skeleton.poison_until = 0; skeleton.poison_rate = 0; skeleton.regen_from = 0;
+        skeleton.stats.armor_class = -1000;
+        using MonType = decltype(data->monsters.types)::value_type;
+        const auto zombie = std::ranges::find(data->monsters.types, std::string_view("zombie1"), &MonType::id);
+        assert(zombie != data->monsters.types.end());
+        auto shooter = make_monster(*data, int(zombie - data->monsters.types.begin()), skeleton.unit.x + 3.f, skeleton.unit.y, rng, 0, true, 1, open.id);
+        shooter.id = 0x7ffff1;
+        world.fight.monsters.push_back(std::move(shooter));
+        Missile shot;
+        shot.info = &data->missiles.at("arrow");
+        shot.owner = world.fight.monsters.back().id; shot.owner_align = 0;
+        shot.src.a2_min = shot.src.a2_max = 3;
+        shot.src.poison_min = shot.src.poison_max = 40; shot.src.poison_len = 25;
+        shot.src.no_hit_roll = shot.src.unblockable = true;
+        shot.x = skeleton.unit.x + 1.f; shot.y = skeleton.unit.y;
+        shot.velocity_x = -5.f;
+        shot.aim_at = std::pair{ skeleton.unit.x - 3.f, skeleton.unit.y };
+        shot.born = now; shot.dies = now + 40 * 40;
+        world.fight.missiles.push_back(std::move(shot));
+        const int full_life = skeleton.life_fine();
+        for (int frame = 0; frame < 20 && skeleton.poison_until <= now; ++frame, now += 40) {
+            world.fight.monsters.back().next_act = ~0u;
+            skeleton.next_act = ~0u;
+            world.tick({}, now, now - 40);
+        }
+        std::printf("the arrow at the skeleton: %d off (256ths), poisoned until +%d ms\n", full_life - skeleton.life_fine(),
+                    skeleton.poison_until > now ? int(skeleton.poison_until - now) : 0);
+        assert(skeleton.life_fine() < full_life && skeleton.poison_until > now);
+        // Again with the zombie's MonProp Crushing Blow sure (monprop_hit on the missile's hit): the crush lands too,
+        // more than the arrow's 3 points.
+        skeleton.hit_points = skeleton.stats.hit_points; skeleton.life_frac = skeleton.max_life_frac;
+        skeleton.poison_until = 0; skeleton.poison_rate = 0; skeleton.regen_from = 0;
+        world.fight.monsters.back().props.crush = 100;
+        Missile crusher;
+        crusher.info = &data->missiles.at("arrow");
+        crusher.owner = world.fight.monsters.back().id; crusher.owner_align = 0;
+        crusher.src.a2_min = crusher.src.a2_max = 3;
+        crusher.src.no_hit_roll = crusher.src.unblockable = true;
+        crusher.x = skeleton.unit.x + 1.f; crusher.y = skeleton.unit.y;
+        crusher.velocity_x = -5.f;
+        crusher.aim_at = std::pair{ skeleton.unit.x - 3.f, skeleton.unit.y };
+        crusher.born = now; crusher.dies = now + 40 * 40;
+        world.fight.missiles.clear();
+        world.fight.missiles.push_back(std::move(crusher));
+        const int before_crush = skeleton.life_fine();
+        for (int frame = 0; frame < 20 && skeleton.life_fine() == before_crush; ++frame, now += 40) {
+            world.fight.monsters.back().next_act = ~0u;
+            skeleton.next_act = ~0u;
+            world.tick({}, now, now - 40);
+        }
+        std::printf("the crushing arrow at the skeleton: %d off (256ths)\n", before_crush - skeleton.life_fine());
+        assert(before_crush - skeleton.life_fine() > 3 * 256);
+    }
+    std::puts("OK: a monster's arrow hurts, poisons and crushes a pet (Fight::world after missiles_update)");
     return 0;
 } catch (const std::exception& error) {
     std::printf("test_pet_regen: %s\n", error.what());

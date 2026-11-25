@@ -17,6 +17,7 @@ add_library(rules STATIC
     combat/sequences.cpp
     combat/shatter.cpp
     combat/skills.cpp
+    combat/state_death.cpp
     items/ammo.cpp
     items/classic_mod.cpp
     items/cube.cpp

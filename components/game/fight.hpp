@@ -258,6 +258,8 @@ struct Fight {
         SkillMove smove;
         float move_x = 0, move_y = 0;          // where the click sent a moving skill
         std::uint32_t whirl_next = 0;
+        // Whirlwind's skill node: +0x24 set (its first pass struck) and flag 0x2000 (weapsel 2's left hand), both clear at its start.
+        bool whirl_begun = false, whirl_left = false;
         // A charge-up's charges (FUN_005d3320: its aurastate, the skill and
         // level in stats 0x15e / 0x15f, the count, at most 3, in aurastat1),
         // until auralencalc ticks after the last one.
@@ -620,6 +622,8 @@ struct Fight {
     // A row with no Skill: its own physical and element at level lvl with their synergies (DmgSymPerCalc,
     // EDmgSymPerCalc on `env`), the weapon at its SrcDamage.
     [[nodiscard]] d2d::rules::MissileDamage row_damage(const GameData::MissileInfo& missile_info, int lvl, const d2d::rules::CalcEnv& env, int skill_id) const;
+    // The skill whose damage a missile's hit takes (FUN_0064b860), null for a row with no Skill (row_damage's).
+    [[nodiscard]] const d2d::rules::Skill* damage_skill(const Missile& missile) const;
     // A finishing hit on monster `on` releases every charge (FUN_005d5220):
     // with n charges (1..3) the skill's srvprgfunc n runs — prgstack skills
     // (Fists of Fire, Claws of Thunder, Blades of Ice) run 1..n, each with
@@ -732,7 +736,7 @@ struct Fight {
     [[nodiscard]] int ammo_index() const;
     // A bow's or crossbow's shot: magicarrow with stat 157 (item_magicarrow), explodingarrow with 158, else
     // arrow / bolt; null for any other weapon.
-    [[nodiscard]] const GameData::MissileInfo* weapon_missile() const;
+    [[nodiscard]] const GameData::MissileInfo* weapon_missile(int* shot_level = nullptr) const;
     // Whether the shot takes ammo: the plain attack's, a skill with decquant, Throw; the ammo checks too.
     [[nodiscard]] bool needs_ammo(const d2d::rules::Skill& skill) const;
     void spend_ammo(int index = -1);   // that item, or ammo_index()'s
@@ -864,6 +868,10 @@ struct Fight {
     // (traps aren't there to hit).
     [[nodiscard]] Foe pet_foe(const Pet& pet) const;
     void pet_hurt(Pet& pet, int damage, std::uint32_t now_ms, int hit_class = 0, bool marked = false, int fraction = 0);
+    // A Crushing Blow on a pet (crushing_blow at `divisor` less `damage_resist`): off its life, no get-hit, no regen event.
+    void pet_crushed(Pet& pet, int divisor, int damage_resist, std::uint32_t now_ms);
+    // The poison its foe took this frame (Foe::poison, poison_ticks) on a pet, its life event filed for the next frame.
+    void pet_poisoned(Pet& pet, const Foe& foe, std::uint32_t now_ms);
     // The player crossed from `from` to `to` (shifted by dx, dy): the pets
     // with them come along, traps stay where they were set.
     void pets_cross(const Level* from, const Level* destination, float dx, float dy);
