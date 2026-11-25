@@ -507,6 +507,10 @@ auto Fight::seed_missiles(std::size_t from) -> void {
             if (!missiles[k].seed && !missiles[k].visual_only) missiles[k].seed = d2d::rules::Rng{ spawning.game.next() };
     }
 
+auto Fight::seed_made(Missile& missile) -> void {
+        if (!missile.seed && !missile.visual_only) missile.seed = d2d::rules::Rng{ spawning.game.next() };
+    }
+
 auto Fight::strafe_reach(const d2d::rules::Skill& skill, int lvl) -> std::vector<int> {
         const int radius = calc(skill, skill.aurarange, lvl);
         std::vector<int> nearby;

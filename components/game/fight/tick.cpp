@@ -1133,6 +1133,7 @@ auto Fight::shrine_missiles(int code, float x, float y, int clvl, std::uint32_t 
             const float dir_x = float(dx) / 5, dir_y = float(dy) / 5, speed = missile_speed(missile_info, lvl), distance = std::hypot(dir_x, dir_y);
             Missile missile{ &missile_info, x, y, dir_x / distance * speed, dir_y / distance * speed, missile_heading(dir_x, dir_y), now_ms, now_ms + std::uint32_t(std::max(missile_info.range, 1)) * 40, {} };
             missile.friendly = true; missile.caster = actor->id; missile.row = damage; missile.burst = missile_info.hit_par1;
+            seed_made(missile);
             pending.push_back(std::move(missile));
         }
     }

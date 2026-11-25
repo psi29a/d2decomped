@@ -765,6 +765,8 @@ struct Fight {
     // Missiles from `from` on with no seed yet take their unit seed off the game seed, in order (a
     // visual-only one none): a monster's as its think returns, any left at the frame's missile tick.
     void seed_missiles(std::size_t from);
+    // A missile's unit seed off the game seed as it's made (FUN_0059fa30), unless it's visual only or seeded already.
+    void seed_made(Missile& missile);
     Missile& launch(const GameData::MissileInfo& missile_info, const d2d::rules::Skill& skill, int lvl, float x, float y, float dx, float dy,
                     int range, std::uint32_t now_ms);
     [[nodiscard]] int calc(const d2d::rules::Skill& skill, const d2d::rules::Calc& calc_row, int lvl);

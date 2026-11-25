@@ -555,6 +555,7 @@ auto Fight::trap_fire(Pet& pet, std::size_t target, std::uint32_t now_ms) -> voi
             x.friendly = true; x.caster = actor->id; x.level = pet.shot_level;
             x.skill = owner != game_data->skills.by_name.end() ? owner->second : skill->id;
             if (skill->srvdofunc == ServerDoFunction::kMonsterBreath) { x.velocity_x = dx / dist * speed; x.velocity_y = dy / dist * speed; x.dies = now_ms + std::uint32_t(4 + 3 * j) * 40; }
+            seed_made(x);
             missiles.push_back(std::move(x));
         }
     }

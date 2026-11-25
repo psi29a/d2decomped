@@ -613,6 +613,7 @@ auto Fight::prg(const d2d::rules::Skill& skill, ServerDoFunction func, int count
             auto put = [&](float x, float y, float velocity_x, float velocity_y, int range) {
                 Missile missile{ missile_info, x, y, velocity_x, velocity_y, missile_heading(velocity_x, velocity_y), now_ms, now_ms + std::uint32_t(std::max(range, 1)) * 40, {} };
                 missile.friendly = true; missile.caster = actor->id; missile.skill = skill.id; missile.level = lvl;
+                seed_made(missile);
                 missiles.push_back(std::move(missile));
                 return missiles.size() - 1;
             };

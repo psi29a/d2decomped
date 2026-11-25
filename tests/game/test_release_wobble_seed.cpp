@@ -4,7 +4,8 @@
 // missile's path callback (FUN_005d4680) lays its wobbling route (rules::wobble_route) on that missile's own seed
 // (unit +0x20), which launch takes off the game seed as the missile is made. Royal Strike's second charge
 // (royalstrikechainlightning). The REAL Fight::prg; the expected routes
-// replay the game seed. Needs the game data; SKIPs without it.
+// replay the game seed. A scatter release's missiles (do 39), made outside launch, take theirs as made too
+// (Fight::seed_made). Needs the game data; SKIPs without it.
 #include <ai/units.hpp>
 #include <character.hpp>
 #include <character_store.hpp>
@@ -71,6 +72,18 @@ int main() try {
         assert(missile.seed && missile.seed->low == own.low && missile.seed->high == own.high);   // the route's draws stepped its seed
     }
     std::printf("OK: %zu routes laid on their missiles' own seeds\n", fight.pending.size());
+    // A scatter release (do 39, Fists of Fire's third: its missiles made straight into the list, not by launch): each
+    // takes its seed off the game seed as it's made (FUN_0059fa30), in the order made, not at the next missile frame.
+    const auto& fists = *data->skills.get(data->skills.by_name.at("Fists of Fire"));
+    const std::size_t before = fight.missiles.size();
+    auto scattered = fight.spawning.game;
+    fight.prg(fists, d2d::rules::ServerDoFunction::kReleaseScatter, 3, 5, target_x, target_y, 1000 * kTickMs);
+    assert(fight.missiles.size() > before);
+    for (std::size_t index = before; index < fight.missiles.size(); ++index) {
+        const d2d::rules::Rng own{ scattered.next() };
+        assert(fight.missiles[index].seed && fight.missiles[index].seed->low == own.low && fight.missiles[index].seed->high == own.high);
+    }
+    std::printf("OK: %zu scattered missiles seeded as made\n", fight.missiles.size() - before);
     return 0;
 } catch (const std::exception& error) {
     std::printf("test_release_wobble_seed: %s\n", error.what());

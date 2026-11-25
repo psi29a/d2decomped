@@ -308,6 +308,7 @@ auto Fight::shadow_nova(Pet& pet, std::uint32_t now_ms) -> void {
                        missile_facing(shadow.unit.x, shadow.unit.y, float(aim_x), float(aim_y)), now_ms, now_ms + std::uint32_t(std::max(missile_info.range, 1)) * 40, {} };
             x.friendly = true; x.caster = actor->id; x.level = lvl; x.skill = nova->id; x.striker = shadow.id; x.struck = ring;
             x.aim_at = offset_target(shadow.unit.x, shadow.unit.y, aim_x, aim_y);   // FUN_0056d400
+            seed_made(x);
             pending.push_back(std::move(x));
         }
         d2d::log::info("{} goes up in a nova (level {})", shadow.npc.name, lvl);
@@ -440,6 +441,7 @@ auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
                         x.dir = missile_facing(unit.x, unit.y, dx, dy); x.aim_at = { monsters[monster_index].unit.x, monsters[monster_index].unit.y };
                         x.friendly = true; x.caster = actor->id; x.level = pet.ranged_level; x.skill = pet.ranged;
                         if (const auto* missile_skill_row = skill_named(missile_info->skill)) x.skill = missile_skill_row->id;   // 'hydra' carries the Hydra skill's damage
+                        seed_made(x);
                         pending.push_back(std::move(x));
                     } else if (monsters[monster_index].targetable() && std::hypot(monsters[monster_index].unit.x - unit.x, monsters[monster_index].unit.y - unit.y) <= kMeleeReach + 0.3f) {
                         auto target = target_of(monster_index);
@@ -1417,6 +1419,7 @@ auto Fight::pet_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd) -> void
             x.dir = missile_facing(monster.unit.x, monster.unit.y, dx, dy); x.aim_at = { foe.unit.x, foe.unit.y };
             x.friendly = true; x.caster = actor->id; x.level = pet.ranged_level; x.skill = pet.ranged;
             if (const auto* missile_skill_row = skill_named(missile_info->skill)) x.skill = missile_skill_row->id;
+            seed_made(x);
             pending.push_back(std::move(x));
             return;
         }
