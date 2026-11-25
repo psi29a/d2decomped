@@ -2062,8 +2062,8 @@ repeat skill.
   MonStats Run, row +0x34, FUN_00451f80 -> FUN_00648690, which also drops
   path +0x38 to 0xf when the velocity differs from +0x7c; a frame moves
   velocity / 4096 subtiles, so Run / 80 cells; d2d: `Monster::leap_pace`,
-  `leap_done`, `test_leap_pace`; not ported: the landing's 0x80 stamp and
-  FUN_005da120's wait for a unit not yet there), at the next it lands (FUN_005da120) and knocks back each
+  `leap_done`, `test_leap_pace`; not ported: the landing's 0x80 stamp; FUN_005da120's wait for a unit not
+  yet there: Leap Attack's only, monster-ai.md), at the next it lands (FUN_005da120) and knocks back each
   monster within calc1 subtiles (result 9, FUN_0056bad0). d2d:
   `Fight::leap`. FUN_005d9a10 (EAX the skill) in subtiles: range =
   aurarangecalc; d = FUN_006417f0(caster, point) = (short + 2 × long) / 2,
