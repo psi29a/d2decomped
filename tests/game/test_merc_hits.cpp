@@ -5,7 +5,8 @@
 // Skill: its weapon's damage at SrcDamage, FUN_0064b860) is built from its
 // gear as its swing is, so its item_slow slows the monster it strikes; and its
 // life steal heals it with no LifeStealDivisor (FUN_0057c420: a hireling's
-// leech skips the divisors, 0x57c58a..0x57c597).
+// leech skips the divisors, 0x57c58a..0x57c597), its skill missiles' (Fire
+// Arrow through Fight::strike) as well as its swing's and plain shot's.
 
 #include <ai.hpp>
 #include <ai/units.hpp>
@@ -98,6 +99,20 @@ int main() try {
     fight.land(fight.monsters.size() - 1, leeched, true, 1000, fight.merc_foe_id());
     assert(actor.character.stats.values[d2d::d2s::kLife] == 256 && actor.merc->life_fine() == 50 * 256 + 512);
     std::printf("OK: the merc's arrow slows a zombie by its gear's 40 and its life steal heals it (%d/256 -> %d/256)\n", 50 * 256, actor.merc->life_fine());
+    // Its Fire Arrow (a skill missile, Fight::strike on merc_target) under a LifeStealDivisor of 1000: still no divisor.
+    const_cast<GameData&>(*data).life_steal_divisor[0] = 1000;
+    actor.merc->set_life_fine(50 * 256);
+    const int fire_arrow = data->skills.by_name.at("Fire Arrow");
+    for (int shot = 0; shot < 50 && actor.merc->life_fine() <= 50 * 256; ++shot) {
+        Missile missile{ &data->missiles.at("firearrow"), struck.unit.x, struck.unit.y, 0, 0, 0, 1000, 2000, {} };
+        missile.by_merc = true; missile.friendly = true;
+        missile.skill = fire_arrow;
+        missile.level = 5;
+        fight.strike(missile, fight.monsters.size() - 1, 1000, 0, nullptr);
+    }
+    std::printf("the merc's Fire Arrow at divisor 1000: %d/256 -> %d/256\n", 50 * 256, actor.merc->life_fine());
+    assert(actor.merc->life_fine() > 50 * 256);
+    std::puts("OK: the merc's skill missile leeches with no LifeStealDivisor (merc_target)");
     return 0;
 } catch (const std::exception& error) {
     std::printf("test_merc_hits: %s\n", error.what());
