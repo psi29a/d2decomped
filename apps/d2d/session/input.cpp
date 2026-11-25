@@ -388,7 +388,7 @@ auto ClientSession::pad_pick(const PadPlayer& player_pad, const UnitState& unit,
                 const UnitState* state = i < view.npc_states.size() ? &view.npc_states[i] : nullptr;
                 if ((state && state->hidden) || npc.name.empty()) continue;
                 const std::string_view object_mode = state && !state->mode.empty() ? std::string_view(state->mode) : std::string_view(npc.mode);
-                if (npc.root == "objects" && !(npc.selectable >> game::mode_index(object_mode) & 1)) continue;
+                if (npc.root == "objects" ? !(npc.selectable >> game::mode_index(object_mode) & 1) : object_mode == "DD") continue;
                 things.push_back({ int(i), state ? state->x : npc.x, state ? state->y : npc.y });
             }
         for (const auto& portal : view.portals)  // Interact's ids, as the mouse's hover names them (Cain's, 8, has no name)
