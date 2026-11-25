@@ -332,6 +332,7 @@ auto Fight::merc_turn(std::uint32_t now_ms, float /* elapsed: a turn is a frame 
                     // A row with a Skill (magicarrow: Magic Arrow) carries that skill's damage at the level (FUN_0064b860, row +0x194).
                     if (const auto* row_skill = skill_named(missile_info.skill)) missile.skill = row_skill->id;
                     seed_pierce(missile, true);                             // FUN_0059f940: the maker's, for every missile of a Pierce row
+                    seed_made(missile);
                     missiles.push_back(std::move(missile));
                 } else if (target.alive() && distance <= kMeleeReach + 0.3f) {
                     // A melee skill (Bash, Stun; Jab only off its sequence) builds
