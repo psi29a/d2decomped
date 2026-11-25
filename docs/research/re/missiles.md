@@ -355,9 +355,12 @@ sub missile, the start and the flags-0x20 aim, and keeps its own rng
 and the sub missile moves, both aim (+1, +1) subtiles away (0x59fbbe..0x59fc11:
 velocity [ebp-0x10] nonzero, no target unit, target equal to the start;
 tests/game/test_missile_seed_spots.cpp). The gates do not match: game.exe's also needs an owner
-(FUN_00552fd0) and a class inside the table; `hit_spawn` itself checks only the
-sub missile and hit function number (58 / 59), and its caller checks expiry
-(`now_ms >= dies`) before calling it. No owner lookup in d2d.
+(FUN_00552fd0) and a class inside the table; `hit_spawn` checks the
+sub missile, the hit function number (58 / 59) and an owner (`missile.owner >= 0`:
+FUN_00552fd0 returns 0 for a missile whose flag +0xc8 bit 10 is clear; an owner id the
+unit hash (FUN_00552f60) no longer holds is not modelled, d2d's monsters stay in their list),
+and its caller checks expiry (`now_ms >= dies`) before calling it
+(tests/game/test_missile_hit_owner.cpp; cited from the decompile, no oracle run).
 
 ## Server hit function 59 — FUN_005acf20 (ECX game, EDX the missile)
 
@@ -394,8 +397,8 @@ odd ones at a stride of sHitPar1 entries (at least 1) at Param2 << 7 and the × 
 Each spoke's target is that ring offset added to the start subtile (flag 2), so
 the ways do not share the no-target (+1, +1) aim. Two
 notes: its comment says "flags 0x14", game.exe's is 0x17 (the velocity is as
-given in both, so the numbers agree as cited from the decompile, no oracle run), and d2d does not check that an owner
-exists as the gate does (not examined further).
+given in both, so the numbers agree as cited from the decompile, no oracle run), and the owner gate is
+the same as slot 58's (`hit_spawn` lays nothing for `owner < 0`).
 
 ## Server hit function 23 — FUN_005acfc0 (ECX game, EDX the missile, stack unit)
 

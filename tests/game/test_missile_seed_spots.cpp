@@ -71,6 +71,7 @@ int main() try {
     lightning.hit_par1 = 2;
     lightning.hit_sub_info = &bolt;
     Missile end;
+    end.owner = 7;  // FUN_00552fd0 finds one
     end.info = &lightning;
     end.x = 4.1f; end.y = 4.3f;                      // subtile (20, 21)
     end.born = 0; end.dies = 400;
@@ -86,6 +87,7 @@ int main() try {
     // (0x59fbbe) aims the moving sub missile, with no target unit, at (+1, +1).
     lightning.hit_par1 = 1;
     Missile own;
+    own.owner = 7;  // FUN_00552fd0 finds one
     own.info = &lightning;
     own.x = 6.5f / 5; own.y = 9.5f / 5;              // subtile (6, 9)
     own.born = 0; own.dies = 400;
@@ -101,6 +103,7 @@ int main() try {
     poison.hit_sub_info = &bolt;
     bolt.param1 = bolt.param2 = 1;
     Missile burst;
+    burst.owner = 7;  // FUN_00552fd0 finds one
     burst.info = &poison;
     burst.x = 4.1f; burst.y = 4.3f;              // subtile (20, 21)
     burst.born = 0; burst.dies = 400;
