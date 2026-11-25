@@ -144,9 +144,10 @@ Video Options' two sliders, both kept in the registry under "Diablo II".
 - **Who applies it.** DirectDraw: `+0x58` (`0x510300`) keeps the gamma and
   rebuilds the palette through the ramp (`FUN_00510160`, contrast from
   option 11), and its present (`FUN_00511870`) loads entries 1..255 into
-  the DirectDraw palette. Glide and Direct3D set the card's gamma, by
-  their imports and strings (`grLoadGammaTable`, `guGammaCorrectionRGB`,
-  "Failed to set gamma ramp"); their slots were not followed.
+  the DirectDraw palette. Glide and Direct3D set the card's gamma:
+  Glide's `+0x58` (`FUN_005090b0`) loads this ramp unless the contrast is
+  below 1, Direct3D's (`FUN_006b3570`) always when the card supports gamma
+  (the drivers' sections below).
   **GDI does nothing**: its `+0x58` is a bare `ret` and `+0x30` keeps no
   options. So the default fullscreen game (DirectDraw) is brighter than a
   `-w` one, which is the one d2d's live checks are taken against (`make
@@ -455,6 +456,33 @@ device `DAT_00970e78`'s vtable `+0x88` with (6, buffer, `DAT_00970f40`,
 4, 0x1c); `DAT_00970f40` steps by 4 and wraps to 0 past 0x2b. A vertex is
 0x20 bytes: x, y, 0.5, 1.0, the colour at `+0x10` (alpha in the top
 byte), s and t at `+0x18`. What each COM call is was not looked up.
+
+### `Src/d3dCore.cpp`
+
+The core's slots and helpers that the sections below lean on (the file
+table above names `d3dCore.cpp` for this range). The colour and filter
+states cache the last value, as Glide's do; the device calls are by
+vtable offset.
+
+| Function | What |
+|---|---|
+| `FUN_006b1a10` | A bare `ret`. Its address is a dword at `0x6faffc`, in data nothing references |
+| `FUN_006b1a20` | Stores EDX at `[ECX]`. No call, jump or pointer to it in game.exe (byte scan) |
+| `FUN_006b1c70` | Slot `+0x70`, set palette: each of the 256 4-byte entries becomes `0xff` then its bytes 0, 1, 2 (high to low) at `0x9702c0` and a 15-bit colour with the top bit set at `0x96fa80`, each channel's top 5 bits rounded up when the low 3 are above 3 (and the 5 bits below 31); a black entry is 0 in both |
+| `FUN_006b1d60` | Slot `+0x74`: copies the 0x48 PL2 table pointers to `0x96f280` and points `DAT_007c9150` at the copy |
+| `FUN_006b1d80` | Copies rows (ECX source, EDX destination, then bytes a row, rows, destination pitch). No call, jump or pointer to it in game.exe (byte scan) |
+| `FUN_006b1dc0` | 8-bit rows to 16-bit through `0x96fa80` (ECX source, EDX destination, then width, rows, destination pitch in pixels); from the sprite upload (`0x6b6107`) and the subtile bind (`0x6bbae5`) |
+| `FUN_006b1e30` | The same to 32-bit through `0x9702c0`. No call, jump or pointer to it in game.exe (byte scan) |
+| `FUN_006b1ea0` | Colour state `DAT_00970e54`: 1 is the device's `+0xa0(0, 1, 4)`, `+0xa0(0, 4, 4)`, `+0x58(0xf, 1)`; 2 is `(0, 1, 3)`, `(0, 4, 3)`, `+0x58(0xf, 0)`; any other value is only stored |
+| `FUN_006b2030` | Filter state `DAT_00970e5c`: 1 is `+0xa0(0, 0x10, 1)` and `(0, 0x11, 1)`, 2 the same with 2; any other value is only stored |
+| `FUN_006b3420` | The cutscene window, jumped to from slot `+0x34` (`0x6b3530`, at `0x6b355c`) after it closes (`FUN_006b3320`), and only when the device has the bit in `0x6ce284` or `0x6ce288`; otherwise the slot returns 1 without reopening. Fatal (0x7cb) when it is already open; 640×480 at 16 bits (32 with `DAT_0096f3a8` bit 0x80, 24 with 0x100), `DAT_00970e60`'s `+0x54`, then `+0x18` makes `DAT_00970e68` (the surface the Bink player draws into); on failure logs "Opening Direct3D window for cutscenes failed!" and returns 0 |
+| `FUN_006b3570` | Slot `+0x58`, set gamma: only when the device supports it (`[0x6ce278] & [0x96f3a8]`, the `+0x5c` test); the ramp `FUN_006be190` with ECX, the gamma, passed through and the contrast `DAT_0074c020` (option 11, stored by slot `+0x30` at `0x6b20c8`), 2-byte entries, 256 of them, top 0xffff; the same ramp for red, green and blue, then `DAT_00970e74`'s `+0x10(0, ramps)` |
+| `FUN_006b3610` | Slot `+0x28`, the frame as 24-bit RGB: locks `DAT_00970e6c` (`+100`, flags 0x11) and writes each 32-bit pixel as its bytes 2, 1, 0; returns 1, or 0 when the lock or unlock fails |
+| `0x6b4c42`, `0x6b4c73` | Catch blocks in the enumeration code (they resume at `0x6b43ef` / `0x6b4456`): log " ** Caught a failure in sEnumerateD3DDevices ** " (and clear the device record being filled, `DAT_0096f83c` or `DAT_0096f95c`) or " ** Couldn't clean up sEnumerateD3DDevices ** " |
+| `FUN_006b4c90` | Direct3DDetect, from `FUN_006b4e80` (slot `+0x00`, `0x6b4f0d` and `0x6b4f4c`): logs "Detecting boards which support Direct3D...", registers "Enumeration Class", opens a 640×480 "Direct3D Enumeration" window, `DirectDrawEnumerateA(FUN_006b42f0)`, destroys it ("Destroyed D3D window."); with no device found logs "Found no valid Direct3D devices to use!" and returns 0; returns 2 (after `FUN_006b2f60`) when either device record is 2 |
+| `0x6b4d4b` | `FUN_006b4c90`'s catch block (resumes at `0x6b4d5e`): logs " ** Caught a failure in Direct3DDetect ** " |
+| `FUN_006b55e0` | Slot `+0x0c`, open: unless the cutscene window is open (`DAT_00970e40`), `FUN_006b4fd0` (0 on failure), the clear `FUN_006b3800`, then `DAT_00970e68`'s `+0x2c(0, 1)` when the start record's `+0x10` is set, else `(0, 9)` |
+| `FUN_006b5630` | Slot `+0x14`: as `FUN_00509ee0` (fatal 0x7b0), closing with `FUN_006b3320` and clearing the Bink flag `DAT_007c9140`; reopens with `FUN_006b55e0` |
 
 ### `Src/d3dSprite.cpp`
 
