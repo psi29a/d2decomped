@@ -114,8 +114,8 @@ bool on_door(const Level& level, const UnitState& unit, bool moving) {
 // missile_direction). A `dir` set outside a walk is where it starts from.
 // A monster's turn still going when the walk ends goes on in its later
 // frames (turn_frame: the client's FUN_00463390 -> FUN_00648640 each frame).
-// ponytail: an NPC's or a pet's finishes at once, and a facing set outside a
-// walk is direction16's, at once (those facings aren't traced one by one).
+// An NPC, a pet and the merc are monster units too: theirs goes on the same way.
+// ponytail: a facing set outside a walk is direction16's, at once (those facings aren't traced one by one).
 bool path_frame(const Level& level, UnitState& unit, std::span<const std::pair<int, int>> points, std::size_t& point, int velocity,
                 const Crowd& crowd, bool* hit = nullptr) {
     auto centre = [](int coord) { return (float(coord) + 0.5f) / 5; };
@@ -478,6 +478,8 @@ void npc_patrol(const GameData& game_data, const Level& level, std::vector<UnitS
         const auto& npc = level.npcs[i];
         if (npc.town_ai == TownAi::none || ((npc.town_ai == TownAi::npc || npc.town_ai == TownAi::towner) && npc.path.empty())) continue;
         auto& state = npcs[i];
+        state.turns_on = true;                                      // a monster unit's turn, a step a frame (turn_frame)
+        if (!state.walking) turn_frame(state);
         if (!state.filed) file_first_think(state, now_ms);
         // A talk starting (FUN_00548b00): its path stopped, AI control +0x14
         // = 40, the think next frame.

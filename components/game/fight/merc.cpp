@@ -263,6 +263,8 @@ auto Fight::merc_gives() -> void {
 // The merc's hireable_think, fed its view of its owner, footsteps and target.
 auto Fight::merc_turn(std::uint32_t now_ms, float /* elapsed: a turn is a frame */, const Crowd& crowd, bool town) -> void {
         auto& unit = actor->merc->unit;
+        unit.turns_on = true;                                        // a monster unit's turn, a step a frame (turn_frame)
+        if (!unit.walking) turn_frame(unit);
         merc_gives();
         const auto set = [&](std::string_view mode) {
             actor->merc->mode = mode; unit.mode_ms = now_ms; unit.walking = mode == "WL" || mode == "RN";
