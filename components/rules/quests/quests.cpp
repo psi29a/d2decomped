@@ -198,7 +198,7 @@ auto DenQuest::join(const QuestBits& quest_bits) -> void {
 auto DenQuest::enter_den(QuestBits& quest_bits) -> void {
     const bool bumped = state == 1 || state == 2;
     if (bumped) state = 3;
-    if (log < 2) { log = 2; news = true; }               // flag 1 (0x5904d3)
+    if (log < 2) { log = 2; news = true; closing = false; }   // flag 1 (0x5904d3), +0xa8 cleared
     else if (!bumped) return;
     mark(quest_bits);
 }
@@ -228,11 +228,13 @@ auto DenQuest::killed(int remaining, bool all_up) -> Kill {
     if (state >= 4) return Kill::none;                   // its callback's gone once cleared
     if (all_up && remaining == 0) {
         state = 4;
+        closing = false;                                 // +0xa8 cleared
         return Kill::cleared;
     }
     if (all_up && remaining < 6) {
         log = 4;                                         // "Monsters remaining: N"
         news = true;                                     // flag 1, each death (0x59041d)
+        closing = false;
         return Kill::few;
     }
     if (log != 4 || remaining <= 5) return Kill::none;
@@ -256,15 +258,38 @@ auto DenQuest::credit(QuestBits& quest_bits, bool listed) -> bool {
 // going to 5 runs the chain (+0xf0), then log 13 (FUN_0058fbe0).
 auto DenQuest::said(QuestBits& quest_bits, int npc, int string) -> bool {
     if (npc != kAkara) return false;
-    if (string == 64) { state = 2; mark(quest_bits); return false; }
+    if (string == 64) { told = true; state = 2; mark(quest_bits); return false; }   // data +0x86
     if (string != 76 || !quest::bit(quest_bits, kQuest, 1)) return false;
-    if (quest::bit(quest_bits, kQuest, 13) && state != 5) { state = 5; log = 0xd; }
+    if (quest::bit(quest_bits, kQuest, 13)) {
+        if (state != 5) { state = 5; log = 0xd; }
+        closing = false;                                 // +0xa8 cleared
+    }
     quest::set(quest_bits, kQuest, 0);
     quest::set(quest_bits, kQuest, 1, false);
     quest::set(quest_bits, kRespecQuest, 13);
     quest::set(quest_bits, kRespecQuest, 1);
     for (int bit = 2; bit < 12; ++bit) quest::set(quest_bits, kQuest, bit, false);
     return true;
+}
+
+// The talk with `npc` closed (LAB_0058fc40, the +0xa8 hook): Akara's, after her 64 (data +0x86): log 1
+// (flag 1, 0x58fc6f); the hook's cleared then.
+auto DenQuest::talk_closed(int npc) -> void {
+    if (npc != kAkara || !closing || !told) return;
+    log = 1; news = true;
+    told = closing = false;
+}
+
+// The player went from town (level 1) to a level other than the Den (FUN_00590470): at state 2, one
+// neither done nor due puts it under way (state 3, every player's bits by the log as it stands), then
+// log 1 unless it is (flag 1, 0x590595; +0xa8 cleared).
+auto DenQuest::left_town(QuestBits& quest_bits) -> void {
+    if (state != 2 || quest::bit(quest_bits, kQuest, 0) || quest::bit(quest_bits, kQuest, 1)) return;
+    state = 3;
+    mark(quest_bits);
+    if (log == 1) return;
+    log = 1; news = true;
+    closing = false;
 }
 
 // The player joins (LAB_00591180); a done or closed quest is shut for

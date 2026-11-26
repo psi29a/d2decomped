@@ -58,7 +58,9 @@ auto World::act1_join() -> void {
         camp_cain_state();                                           // the join keeps the current level's states
     }
 
+// The player went from level `from` to this one: each record's level-change hook (+0xac).
 auto World::act1_enter(const Level& from) -> void {
+        if (from.id == d2d::rules::level_ids::kRogueEncampment && level->id != d2d::rules::DenQuest::kDen) den.left_town(quests());   // FUN_00590470
         andy.enter(quests(), from.id, level->id);
         burial.enter(quests(), from.id, level->id, actor->id);
         if (tower.enter(quests(), from.id, level->id, actor->id)) each_player([&](Player&) { tower.mark(quests()); });
@@ -127,7 +129,9 @@ auto World::act1_talk(std::vector<d2d::rules::QuestMsg>& out, int hc_idx, bool f
         std::ranges::copy(cain.talk(quests(), hc_idx, carries("bks"), actor->id), std::back_inserter(out));
     }
 
+// A talk with `hc_idx` closed: each record's +0xa8 hook.
 auto World::act1_talk_closed(int hc_idx) -> void {
+        den.talk_closed(hc_idx);
         andy.talk_closed(hc_idx);
         burial.talk_closed(quests(), hc_idx);
         tools.talk_closed(quests(), hc_idx);
