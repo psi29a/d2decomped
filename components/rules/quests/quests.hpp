@@ -62,6 +62,8 @@ struct DenQuest {
     int log = 0;        // +0xb
     bool active = true; // +9: off when the player joins with it done or closed (FUN_00546270)
     bool news = false;  // the log sent to each player (FUN_00544300 flag 1, FUN_0058fbe0) since the World last took it
+    bool told = false;  // data +0x86: Akara gave it, the log waits for the talk to close
+    bool closing = true;   // +0xa8: the talk-close hook, until it fires or the log moves on
 
     // A player's bits for the state (LAB_0058fc90).
     void mark(QuestBits& quest_bits) const {
@@ -109,6 +111,10 @@ struct DenQuest {
     static bool credit(QuestBits& quest_bits, bool listed);
     // The player heard `string` from `npc`.
     bool said(QuestBits& quest_bits, int npc, int string);
+    // The talk with `npc` closed: after Akara gave it, log 1.
+    void talk_closed(int npc);
+    // The player left town for a level other than the Den: given, it's under way (state 3), log 1.
+    void left_town(QuestBits& quest_bits);
 };
 
 // Sisters' Burial Grounds, one game's (a1q2.cpp, the record at

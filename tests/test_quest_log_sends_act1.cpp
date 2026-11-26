@@ -18,14 +18,40 @@ namespace {
 // Takes the record's news, as World::act1_update does.
 bool took(bool& news) { return std::exchange(news, false); }
 
-// The Den of Evil: into the Den (0x5904d3), each "monsters remaining" (0x59041d, 0x590455); the reward's
-// log 0xd is flag 0 (FUN_0058fdd0).
+// The Den of Evil: Akara's talk closing (0x58fc6f), out of town under another log (0x590595), into the Den
+// (0x5904d3), each "monsters remaining" (0x59041d, 0x590455); the reward's log 0xd is flag 0 (FUN_0058fdd0).
 void den() {
     QuestBits bits{};
     DenQuest den;
     den.join(bits);
     assert(!den.news);
+    den.talk_closed(DenQuest::kAkara);                      // not given yet: nothing waits
+    assert(den.log == 0 && !den.news);
     assert(!den.said(bits, DenQuest::kAkara, 64) && !den.news);
+    den.talk_closed(monster_ids::kKashya);                  // someone else's talk
+    assert(den.log == 0 && !den.news);
+    den.talk_closed(DenQuest::kAkara);
+    assert(den.log == 1 && took(den.news) && !den.told && !den.closing);
+    den.left_town(bits);                                    // log 1 already: state 3, bit 3, no send
+    assert(den.state == 3 && quest::bit(bits, DenQuest::kQuest, 3) && !den.news);
+    {   // Out of town before the talk closed: the bits by log 0 (bit 4), then log 1 is sent; the hook's gone.
+        QuestBits early_bits{};
+        DenQuest early;
+        early.said(early_bits, DenQuest::kAkara, 64);
+        early.left_town(early_bits);
+        assert(early.state == 3 && quest::bit(early_bits, DenQuest::kQuest, 4) && early.log == 1 && took(early.news));
+        early.talk_closed(DenQuest::kAkara);
+        assert(!early.news);
+    }
+    {   // Into the Den before Akara: the hook's cleared, so her talk closing later sends nothing.
+        QuestBits first_bits{};
+        DenQuest first;
+        first.enter_den(first_bits);
+        assert(first.log == 2 && took(first.news));
+        first.said(first_bits, DenQuest::kAkara, 64);
+        first.talk_closed(DenQuest::kAkara);
+        assert(first.log == 2 && !first.news);
+    }
     den.enter_den(bits);
     assert(den.log == 2 && took(den.news));
     den.enter_den(bits);                                    // log 2 already: no send

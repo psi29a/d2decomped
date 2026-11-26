@@ -188,10 +188,18 @@ States: 1 not given, 2 given, 3 in the Den, 4 cleared, 5 rewarded.
   - bit 4 → state 3, log 2
   - bit 3 → state 3, log 1
   - bit 2 → state 2, log 1
-- **Akara's A1Q1InitAkara (string 64) heard:** state 2. `LAB_0058fc90`
+- **Akara's A1Q1InitAkara (string 64) heard:** state 2, data +0x86 set. `LAB_0058fc90`
   then sets each player's flag for the state:
   - state 2 → bit 2
   - state 3 → bit 3 if the log state is 1, else bit 4
+- **A talk closes** (+0xa8, `LAB_0058fc40`): Akara's, with data +0x86: log 1 sent
+  (flag 1), data +0x86 and +0xa8 cleared (the hook fires once). +0xa8 is also
+  cleared by the Den's entry and the out-of-town step when they send, the clear,
+  the first "monsters remaining" branch and the reward with bit 13.
+- **Out of town** (`FUN_00590470`, from level 1 to any level but 8): at state
+  2, for a player neither done nor due: state 3, every player's flags marked
+  (by the log as it stands: bit 4 if the talk hasn't closed), then log 1 sent
+  unless it is 1.
 - **Entering level 8:** state 1 or 2 becomes 3. The log goes to 2 and the
   flags are marked as above.
 - **A monster dies** (`FUN_00590260`):
@@ -776,13 +784,13 @@ call-site order:
 
 | call site | record | log | flag | when | d2d |
 |---|---|---|---|---|---|
-| 0x58fc6f | a1q1 | 1 | 1 | Akara's talk closes after 64 (`LAB_0058fc40`, data +0x86) | not ported |
+| 0x58fc6f | a1q1 | 1 | 1 | Akara's talk closes after 64 (`LAB_0058fc40`, data +0x86) | `DenQuest::talk_closed` |
 | 0x58fef8 | a1q1 | 0xd | 0 | the reward (`FUN_0058fdd0`) | `DenQuest::said` |
 | 0x59024e | a1q1 | 5 | 1 | the clear's 8-tick timer, still state 4 (`LAB_00590230`) | `World::act1_quest_step` |
 | 0x59041d | a1q1 | 4 | 1 | a death, all rooms up and under 6 left (`FUN_00590260`) | `DenQuest::killed` |
 | 0x590455 | a1q1 | 4 | 1 | a death at log 4 with 6 or more left | `DenQuest::killed` |
 | 0x5904d3 | a1q1 | 2 | 1 | into the Den under log 2 (`FUN_00590470`) | `DenQuest::enter_den` |
-| 0x590595 | a1q1 | 1 | 1 | out of town at state 2, log not 1 (`FUN_00590470`) | not ported |
+| 0x590595 | a1q1 | 1 | 1 | out of town at state 2, log not 1 (`FUN_00590470`) | `DenQuest::left_town` |
 | 0x59094c | a1q2 | 1 | 1 | Kashya's talk closes after 81 (`LAB_00590920`, data +3) | `BurialQuest::talk_closed` |
 | 0x590a54 | a1q2 | 0xd | 0 | the reward (`FUN_00590980`) | `BurialQuest::said` |
 | 0x590c04 | a1q2 | 3 | 1 | the kill's timer (`LAB_00590bf0`) | `BurialQuest::tick` |
