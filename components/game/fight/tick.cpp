@@ -828,6 +828,8 @@ auto Fight::cancel_swing() -> void {
         actor->item_charge = {};
     }
 
+// Resolves one side's queued blows on the player and its allies, with the hits sent back (Iron Maiden's
+// record, FUN_005c5f50) and their get-hit gate (FUN_0057cee0).
 auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
         side[1].damage += std::exchange(actor->merc_hurt, 0);      // its swings' thorns (merc_strike), its poison (apply_regen)
         if (side[1].poison > 0 && side[1].poison_ticks > 0) {       // one at a time: a new one at least as strong replaces it (FUN_0057ac50)
