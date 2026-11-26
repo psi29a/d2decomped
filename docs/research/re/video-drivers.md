@@ -213,8 +213,22 @@ those are what the 3D modes add.
 | `+0xc4` | `FUN_004f63b0` | Clear the buffer (gdi-driver.md) | `0x512ed0` |
 | `+0xc8` | `FUN_004f6890` | Debug text ("%d FPS", `FUN_00477980`) | `0x512680` |
 | `+0xcc` | `FUN_004f68b0` | Glide only: copies two blocks (0x1000 and 0x4800 bytes) in, from `FUN_00475b20` when `DAT_007b9564` is set; Direct3D and software `ret 8`. Not followed | `0x5126f0` `ret 8` |
-| `+0xd0` | `FUN_004f65a0` | One pixel, inside a 0x50 margin; no caller | `0x5123b0` |
+| `+0xd0` | `FUN_004f65a0` | An 80×80 lens at (x, y), inside a 0x50 margin (below); no caller | `0x5123b0` |
 | `+0xd4` | `FUN_004f5d50` | Flush the 3D floor, subtile and texture caches. 3D only | `0x510130` `ret` |
+
+**The lens (`+0xd0`).** DirectDraw's entry (`0x5123b0`) and GDI's
+(`0x6c88b0`) check that 0 < x < width − 0x50 and 0 < y < height − 0x50
+(else fatal: lines 0x186 / 0x187 in DirectDraw, 0x1ab / 0x1ac in GDI), then call `FUN_00608c00(buffer +
+y × width + x, width)`. That function runs a table over an 80×80 block:
+each pixel is replaced by the one its offset names, working from the
+edges toward the middle, top half then bottom half. `FUN_006089f0`
+(fastcall pitch) builds the table. For each pixel within radius 40 (d² <
+0x640) it stores at `0x8e9fc8` the offset to the pixel it shows, pulled
+toward the centre (a square-root curve, at least half the distance),
+clamped to 0..0x4f. It also keeps each column's first and last inside
+row in `0x8e9d48` / `0x8e9e88`. Nothing calls `FUN_006089f0` (byte
+scan), and the slot's thunk has no caller either, so the lens never
+shows in 1.14d.
 
 **Frame pacing (`FUN_004f6190`, slots `+0x1c` and `+0x20`).** With a clock
 `FUN_004f6130` (a double), a last-frame time `DAT_007c9368`, a carry
