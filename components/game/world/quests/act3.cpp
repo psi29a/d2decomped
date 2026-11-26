@@ -83,9 +83,11 @@ auto World::act3_talk(std::vector<d2d::rules::QuestMsg>& out, int hc_idx) -> voi
         std::ranges::copy(golden_bird.talk(quests(), hc_idx, carries(d2d::rules::GoldenBirdQuest::kFigurine), carries(d2d::rules::GoldenBirdQuest::kBird), actor->id), std::back_inserter(out));
     }
 
+// A talk with `hc_idx` closed: each act 3 record's +0xa8 (LAB_005b8c50, LAB_005b8020, LAB_005ba0b0).
 auto World::act3_talk_closed(int hc_idx) -> void {
         blade.talk_closed(quests(), hc_idx, carries(d2d::rules::BladeQuest::kGidbinn));
         khalim.talk_closed(hc_idx);
+        golden_bird.talk_closed(hc_idx);
     }
 
 // The player heard `message_string` from `hc_idx`: each act 3 record's +0xcc (FUN_005b7740 .. FUN_005bc5a0).
