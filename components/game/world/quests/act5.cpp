@@ -654,13 +654,16 @@ auto World::act5_update(std::uint32_t now_ms) -> void {
         prison_update(now_ms);
         rite_update(now_ms);
         eve_update(now_ms);
-        // A log moved with flag 1 (FUN_00544300): sent again (S->C 0x5d) to a
-        // player it's for (act5_detail::told).
+        // A log moved with flag 1 (FUN_00544300): sent again (S->C 0x5d) to each player its record's callback
+        // passes (FUN_00586c80, FUN_005879d0, FUN_00588eb0, FUN_0058aea0, FUN_0058be20, FUN_0058d770).
         for (auto [news, quest] : { std::pair{ &siege.news, d2d::rules::SiegeQuest::kQuest }, { &rescue.news, d2d::rules::RescueQuest::kQuest },
-                                    { &prison.news, d2d::rules::PrisonQuest::kQuest }, { &betrayal.news, d2d::rules::BetrayalQuest::kQuest } })
-            if (std::exchange(*news, false) && d2d::rules::act5_detail::told(quests(), quest)) actor->events.push_back(ev::QuestNews{ quest });
-        if (std::exchange(eve.news, false) && d2d::rules::act5_detail::told(quests(), d2d::rules::EveQuest::kQuest)) actor->events.push_back(ev::QuestNews{ d2d::rules::EveQuest::kQuest });
-        if (std::exchange(rite.news, false) && d2d::rules::act5_detail::told(quests(), d2d::rules::RiteQuest::kQuest)) actor->events.push_back(ev::QuestNews{ d2d::rules::RiteQuest::kQuest });
+                                    { &prison.news, d2d::rules::PrisonQuest::kQuest }, { &betrayal.news, d2d::rules::BetrayalQuest::kQuest },
+                                    { &rite.news, d2d::rules::RiteQuest::kQuest }, { &eve.news, d2d::rules::EveQuest::kQuest } })
+            if (std::exchange(*news, false))
+                for (auto& player : players) {
+                    const auto difficulty = std::size_t(std::clamp(player->character.header.active_difficulty(), 0, 2));
+                    if (d2d::rules::quest_log_goes_to(player->character.header.quests[difficulty], quest)) player->events.push_back(ev::QuestNews{ quest });
+                }
     }
 
 }  // namespace d2d::game
