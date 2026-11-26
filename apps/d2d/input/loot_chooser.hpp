@@ -25,7 +25,10 @@ struct LootChooser {
     int row = -1;
     bool moved = false;
 
-    void clear() { *this = {}; }
+    // Preserve controller dismissal until routing consumes the closing frame.
+    bool controller_closed = false;
+    void clear();
+    [[nodiscard]] bool take_controller_close();
     void start(std::vector<LootChoice> items, bool use_touch);
     [[nodiscard]] static touch::Box list_box();
     [[nodiscard]] int touch_event(std::int64_t id, touch::Phase phase, float x, float y);
