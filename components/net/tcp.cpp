@@ -274,9 +274,9 @@ auto own_address() -> std::string {
     hints.ai_family = AF_INET;
     addrinfo* found = nullptr;
     if (::gethostname(name, sizeof name) == 0 && ::getaddrinfo(name, nullptr, &hints, &found) == 0 && found) {
-        for (const addrinfo* entry = found; entry; entry = entry->ai_next) {   // the first that isn't loopback, else the first
+        for (const addrinfo* entry = found; entry; entry = entry->ai_next) {   // the first nonzero that isn't loopback, else the first nonzero
             const auto address = ntohl(reinterpret_cast<const sockaddr_in*>(entry->ai_addr)->sin_addr.s_addr);
-            if (named == 0 || (loopback(named) && !loopback(address))) named = address;
+            if (address != 0 && (named == 0 || (loopback(named) && !loopback(address)))) named = address;
         }
         ::freeaddrinfo(found);
     }
