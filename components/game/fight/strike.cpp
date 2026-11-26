@@ -767,7 +767,11 @@ auto Fight::land(std::size_t monster_index, const d2d::rules::Blow& blow, bool b
         // The merc's own leech (FUN_0057c420: a hireling striker, 0x57c58a..0x57c597, takes the player's path without
         // the steal divisors: merc_target, for its swings, plain shots and skill missiles) heals it through FUN_0057a980:
         // not when it's dying, up to its max.
-        // ponytail: its mana half (FUN_0057aa00): d2d keeps no merc mana; state 0x5c (death_delay) isn't kept.
+        // FUN_0057a980 refuses under state 0x5c (death_delay), which only a unit killed under 0x36 (uninterruptable) gets
+        // (FUN_0057cee0's kill flag, FUN_005a6920 at 0): d2d's merc never has 0x36 (Monster::uninterruptable: a whirl,
+        // a leap or a nest), so no merc is under 0x5c here.
+        // ponytail: its mana half (FUN_0057aa00: stat 8 up to the max mana, FUN_00625d60): d2d keeps no merc mana, and
+        // what reads a merc's stat 8 isn't traced.
         if (striker == merc_foe_id() && blow.life > 0 && actor->merc && actor->merc->alive())
             actor->merc->set_life_fine(int(std::min<std::int64_t>(std::int64_t(merc_max_life()) << 8, std::int64_t(actor->merc->life_fine()) + blow.life)));
         // One poison at a time, the stronger wins (FUN_0057ac50); at 0 life

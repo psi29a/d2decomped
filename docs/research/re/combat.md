@@ -98,7 +98,12 @@ unit +0xc6 bit 0); or the unit has **state 0x5c** (`FUN_00639df0(unit,
 `FUN_00625d10` (stat 7), written by `FUN_00627260(unit, 6, new, 0)`; the
 return is `max - cur` when capped, else `points`. State 0x5c is set by
 `FUN_005a6920` (the life regen / drain tick, stat 0x4a) when it takes life
-to 0 in a unit that has state 0x36, and cleared by `FUN_005544b0` (state 0x36 off).
+to 0 in a unit that has state 0x36, by `FUN_0057cee0` when a hit's kill flag (record +4 & 2)
+lands on a unit under 0x36 (the call at its end), and cleared by `FUN_005544b0` (state 0x36 off).
+The merc's own leech heals through it (strike.cpp `land`), and d2d's merc never has
+0x36 (`Monster::uninterruptable`: a whirl, a leap, a nest), so the merc is never under
+0x5c there. `FUN_0057aa00`, the mana half, does the same on stat 8 up to `FUN_00625d60`
+(no dying or 0x5c test); d2d keeps no merc mana (not traced: what reads a merc's stat 8).
 It is not preventheal: that is state 0x34 (`FUN_0057d810`), which the
 regen `FUN_005a6920` and the teleport mod's heal `FUN_005b11f0` test
 themselves and this function does not. d2d: `ai.cpp` `heal` caps at max
