@@ -269,7 +269,7 @@ struct Act5Ai : ThinkCtx {
                 return true;
             }
             monster.chase = int(target - foes.data());
-            face(unit, direction16(target->x - unit.x, target->y - unit.y));
+            turn_to(unit, subtile(target->x), subtile(target->y));
             monster.skill = curse;
             set_mode(game_data, monster, type_info.sk_mode[0], now_ms);
             monster.skill_x = subtile(target->x); monster.skill_y = subtile(target->y);

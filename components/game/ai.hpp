@@ -90,8 +90,10 @@ bool walk_on(const Level& level, UnitState& unit, int velocity, const Crowd& cro
 bool follow_path(const Level& level, UnitState& unit, int velocity, const Crowd& crowd = {}, bool* blocked = nullptr);
 // A monster's frame off a walk: its turn on a step toward the goal, a dir set since taken at once.
 void turn_frame(UnitState& unit);
-// An action's facing: `dir` (16-way) taken at once, the walk's pending turn dropped.
+// A facing taken at once (a unit as it's made): `dir` (16-way), the pending turn dropped.
 void face(UnitState& unit, int dir);
+// An action's facing at subtile (to_x, to_y): a new goal, turned toward a step a frame (turn_frame).
+void turn_to(UnitState& unit, int to_x, int to_y);
 
 // A pet follows the player about camp: it sets off when more than 3 cells
 // behind and stops within 1.5, at `speed` cells/s on a monster's walk;
