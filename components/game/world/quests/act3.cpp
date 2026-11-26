@@ -69,7 +69,7 @@ auto World::act3_enter(const Level& from) -> void {
         lam_esen.enter(quests(), from.id, level->id);
         guardian.enter(quests(), from.id, level->id, tome_done);
         khalim.enter(level->id);
-        temple.enter(quests(), from.id, level->id, tome_done);
+        if (temple.enter(quests(), from.id, level->id, tome_done)) each_player([&](Player&) { temple.mark(quests()); });
         blade.enter(quests(), from.id, level->id, carries(d2d::rules::BladeQuest::kGidbinn));
     }
 
@@ -83,11 +83,12 @@ auto World::act3_talk(std::vector<d2d::rules::QuestMsg>& out, int hc_idx) -> voi
         std::ranges::copy(golden_bird.talk(quests(), hc_idx, carries(d2d::rules::GoldenBirdQuest::kFigurine), carries(d2d::rules::GoldenBirdQuest::kBird), actor->id), std::back_inserter(out));
     }
 
-// A talk with `hc_idx` closed: each act 3 record's +0xa8 (LAB_005b8c50, LAB_005b8020, LAB_005ba0b0).
+// A talk with `hc_idx` closed: each act 3 record's +0xa8 (LAB_005b8c50, LAB_005b8020, LAB_005ba0b0, LAB_005bb0c0).
 auto World::act3_talk_closed(int hc_idx) -> void {
         blade.talk_closed(quests(), hc_idx, carries(d2d::rules::BladeQuest::kGidbinn));
         khalim.talk_closed(hc_idx);
         golden_bird.talk_closed(hc_idx);
+        if (temple.talk_closed(hc_idx)) each_player([&](Player&) { temple.mark(quests()); });   // LAB_005badc0 over the players
     }
 
 // The player heard `message_string` from `hc_idx`: each act 3 record's +0xcc (FUN_005b7740 .. FUN_005bc5a0).
@@ -201,12 +202,23 @@ auto World::act3_kill(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
 // including one in a nearby room before the player enters that level.
 // Drained once a tick (after rooms_up) and on arrival, in creation order:
 // the same first boss as game.exe's bind at the make, which disarms it.
+// A Council superunique made under level 0x6c (FUN_005a49b0's case 0x1a,
+// 0x1b, 0x1d -> FUN_00545b50 -> FUN_005bb550) goes to the Blackened Temple.
 auto World::act3_bind_new_bosses() -> void {
         auto made = std::exchange(fight.made_bosses, {});
         if (hosted_quests) return;
+        const auto super_of = [&](int unit_id) {
+            for (const auto& monster : fight.monsters) if (monster.id == unit_id) return monster.super;
+            for (const auto& [kept_level, monsters] : fight.kept)
+                for (const auto& monster : monsters) if (monster.id == unit_id) return monster.super;
+            return -1;
+        };
+        const bool tome_done = d2d::rules::quest::bit(game_bits, d2d::rules::LamEsenQuest::kQuest, 13);   // 0x5bb5fb
         for (const auto& boss : made) {
-            if (!golden_bird.armed) break;
-            if (d2d::rules::level_act(boss.level) == 2 && boss.type != 0x197 && !game_data->mon_is_npc[std::size_t(boss.type)])
+            if (boss.level < 0x6c && std::ranges::contains(d2d::rules::BlackenedTempleQuest::kCouncil, super_of(boss.id))
+                && temple.council_made_one(boss.id, tome_done))
+                each_player([&](Player&) { temple.mark(quests()); });
+            if (golden_bird.armed && d2d::rules::level_act(boss.level) == 2 && boss.type != 0x197 && !game_data->mon_is_npc[std::size_t(boss.type)])
                 golden_bird.made(boss.id);
         }
     }
