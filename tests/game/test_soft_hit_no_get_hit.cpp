@@ -8,12 +8,14 @@
 
 #include <ai.hpp>
 #include <ai/units.hpp>
+#include <cof_anim.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
 #include <level.hpp>
 #include <level_ids.hpp>
 #include <monsters.hpp>
 #include <rules.hpp>
+#include <test_data.hpp>
 
 #include <array>
 #include <cstdint>
@@ -39,7 +41,7 @@ constexpr FlagRow kRows[] = {
 };
 }   // namespace
 
-// FUN_0057cee0's monster branch by record flags, then a zombie striking a thorns foe (FUN_005bf670's 0x4021).
+// FUN_0057cee0's monster branch by record flags, then a made-up monster striking a thorns foe (FUN_005bf670's 0x4021).
 int main() try {
     for (const auto& row : kRows)
         if (record_gets_hit(row.flags) != row.reaches) {
@@ -48,28 +50,34 @@ int main() try {
         }
     std::printf("OK: %zu game.exe FUN_0057cee0 rows (tools/emu/soft_hit.py --dump)\n", std::size(kRows));
 
-    const char* mpq_dir = std::getenv("D2_MPQ_DIR");
-    const char* home = std::getenv("HOME");
-    const fs::path data_dir = mpq_dir ? fs::path(mpq_dir) : fs::path(home ? home : "") / "Workspace/private/diablo2";
-    if (!fs::exists(data_dir / "d2data.mpq")) { std::printf("SKIP: no d2data.mpq in %s\n", data_dir.string().c_str()); return D2D_TEST_SKIPPED; }
-    const char* patch = std::getenv("D2_PATCH_INSTALLER");
-    auto data = load_game_data(data_dir, patch ? fs::path(patch) : fs::path{}, 0x1234);
-    if (!data) { std::printf("FAIL: game data\n"); return 1; }
-    if (!data->patched) { std::printf("SKIP: 1.14d's tables: set D2_PATCH_INSTALLER\n"); return D2D_TEST_SKIPPED; }
-    const auto zombie_row = data->monsters.by_id.find("zombie1");
-    if (zombie_row == data->monsters.by_id.end() || !data->monsters.types[zombie_row->second].can_get_hit) { std::printf("FAIL: zombie1 with GH\n"); return 1; }
+    d2d::test::TestData fixture;
+    auto& data = fixture.data;
+    auto& monster_row = fixture.monster(0, "soft_hit_test");
+    monster_row.can_get_hit = true;
+    monster_row.hit_class = 1;
+    monster_row.killable = true;
+    monster_row.melee_rng = 1;
+    monster_row.size = 1;
+    d2d::rules::Rng spawn{ 3 };
+    Monster made = make_monster(data, 0, 10.f, 10.f, spawn, 0, false);
+    made.stats.a1_min = made.stats.a1_max = 1;
+    made.stats.to_hit = 100000;
+    made.stats.hit_points = made.hit_points = 400;
+    made.max_life_frac = made.life_frac = 0;
+    std::string timing_key = made.npc.root + "/" + made.npc.code + "/A1/" + std::string(cof_weapon_class(made.npc, "A1"));
+    for (const auto& component : made.npc.comp) timing_key += "/" + component;
+    data.npc_timings[timing_key] = GameData::AnimTiming{ .speed = 256, .frames = 10, .action = 1 };
 
     // hurt itself: half its life without the get-hit bit, stunned or not, stays out of GH; with it, a sure GH.
     for (const bool stunned : { false, true }) {
-        d2d::rules::Rng spawn{ 3 };
-        Monster zombie = make_monster(*data, int(zombie_row->second), 10.f, 10.f, spawn, 0);
+        Monster zombie = made;
         zombie.stats.hit_points = zombie.hit_points = 400;
         zombie.max_life_frac = zombie.life_frac = 0;
-        set_mode(*data, zombie, "NU", 0);
+        set_mode(data, zombie, "NU", 0);
         if (stunned) zombie.stun_until = 10'000;
-        hurt(*data, zombie, 200, 40, 0, 0, false, 0, record_gets_hit(0x4001));
+        hurt(data, zombie, 200, 40, 0, 0, false, 0, record_gets_hit(0x4001));
         if (zombie.mode == "GH" || zombie.hit_points != 200) { std::printf("FAIL: 0x4001 stunned=%d: mode %.*s life %d\n", stunned, int(zombie.mode.size()), zombie.mode.data(), zombie.hit_points); return 1; }
-        hurt(*data, zombie, 100, 80, 0, 0, false, 0, record_gets_hit(0x0004));
+        hurt(data, zombie, 100, 80, 0, 0, false, 0, record_gets_hit(0x0004));
         if (zombie.mode != "GH") { std::printf("FAIL: flag 4 stunned=%d: no GH\n", stunned); return 1; }
     }
     std::printf("OK: 0x4001 takes life without a get-hit; flag 4 rolls it\n");
@@ -78,23 +86,44 @@ int main() try {
     d2d::rules::Rng thorns_rng{ 3 };
     Level here{};
     here.id = d2d::rules::level_ids::kBloodMoor;
-    std::vector<Monster> pack{ make_monster(*data, int(zombie_row->second), 10.f, 10.f, thorns_rng, 0) };
+    std::vector<Monster> pack{ made };
     auto& zombie = pack[0];
     zombie.stats.hit_points = zombie.hit_points = 400;
     zombie.max_life_frac = zombie.life_frac = 0;
-    set_mode(*data, zombie, "A1", 0);
+    set_mode(data, zombie, "A1", 0);
     std::array<Foe, 1> foes{};
     foes[0].x = 11.f; foes[0].y = 10.f;
     foes[0].fighter.thorns = 200;
     const Crowd crowd;
     std::vector<Missile> missiles;
     for (std::uint32_t frame = 1; frame <= 1000 && foes[0].hits == 0; ++frame)
-        monster_update(*data, here, zombie, foes, thorns_rng, frame * 40, 0.04f, crowd, missiles, pack);
+        monster_update(data, here, zombie, foes, thorns_rng, frame * 40, 0.04f, crowd, missiles, pack);
     if (foes[0].hits < 1 || zombie.hit_points != 200 || !zombie.struck_event || zombie.mode == "GH") {
         std::printf("FAIL: thorns: hits %d life %d struck %d mode %.*s\n", foes[0].hits, zombie.hit_points, int(zombie.struck_event), int(zombie.mode.size()), zombie.mode.data());
         return 1;
     }
     std::printf("OK: thorns (0x4021) hurt the striker with no get-hit\n");
+
+    const char* mpq_dir = std::getenv("D2_MPQ_DIR");
+    const char* home = std::getenv("HOME");
+    const fs::path data_dir = mpq_dir ? fs::path(mpq_dir) : fs::path(home ? home : "") / "Workspace/private/diablo2";
+    if (!fs::exists(data_dir / "d2data.mpq")) {
+        std::printf("SKIP: real zombie1 row: no d2data.mpq in %s\n", data_dir.string().c_str());
+    } else {
+        const char* patch = std::getenv("D2_PATCH_INSTALLER");
+        auto real_data = load_game_data(data_dir, patch ? fs::path(patch) : fs::path{}, 0x1234);
+        if (!real_data) { std::printf("FAIL: game data\n"); return 1; }
+        if (!real_data->patched) {
+            std::printf("SKIP: real zombie1 row needs 1.14d's tables: set D2_PATCH_INSTALLER\n");
+        } else {
+            const auto zombie_row = real_data->monsters.by_id.find("zombie1");
+            if (zombie_row == real_data->monsters.by_id.end() || !real_data->monsters.types[zombie_row->second].can_get_hit) {
+                std::printf("FAIL: real zombie1 with GH\n");
+                return 1;
+            }
+            std::printf("OK: real 1.14d zombie1 has a get-hit mode\n");
+        }
+    }
     return 0;
 } catch (const std::exception& error) {
     std::printf("FAIL: %s\n", error.what());
