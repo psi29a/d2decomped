@@ -109,6 +109,11 @@ struct ItemSheet {
     bool open = false, confirming = false, show_use = false, show_sell = false, show_buy = false, show_fill = false;
     bool identifying_target = false;
     int belt_index = -1;
+    std::int64_t trade_finger = -1;
+    ItemAction trade_action = ItemAction::None;
+    bool trade_inside = true;
+    [[nodiscard]] bool show_confirm() const { return confirm.width > 0.f; }
+    bool trade_event(std::int64_t finger, Phase phase, float x, float y, ItemAction& action);
     ItemAction chosen = ItemAction::None;
     Box use{}, sell{}, buy{}, fill{}, confirm{}, cancel{};
     [[nodiscard]] bool contains(float x, float y) const {
@@ -179,8 +184,10 @@ inline ItemSheet make_item_sheet(bool can_use, bool can_sell, bool can_buy, bool
     place(sheet.buy, can_buy);
     place(sheet.fill, can_fill);
     top += 6.f;
-    sheet.confirm = { left, top, 100.f, kHeight };
-    sheet.cancel = { left + 120.f, top, 100.f, kHeight };
+    if (can_use || can_fill) {
+        sheet.confirm = { left, top, 100.f, kHeight };
+        sheet.cancel = { left + 120.f, top, 100.f, kHeight };
+    } else sheet.cancel = { left, top, kWidth, kHeight };
     return sheet;
 }
 

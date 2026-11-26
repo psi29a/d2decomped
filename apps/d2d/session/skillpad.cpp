@@ -395,10 +395,13 @@ auto ClientSession::apply_skill_pad(PadPlayer& player_pad, const UnitState& unit
     if (actions.swap_tap && expansion) out(cmd::SwapWeapons{});
     const auto interact = [&]() {
         const PadPick pick = pad_pick(player_pad, unit, true, {}, false);
-        if (pick.kind == PadPick::kItem) out(cmd::Pickup{ pick.id });
+        if (pick.kind == PadPick::kItem) {
+            if (&player_pad != &pad || !open_loot_chooser(player_pad, unit, false)) out(cmd::Pickup{ pick.id });
+        }
         else if (pick.kind == PadPick::kThing) out(cmd::Interact{ pick.id });
     };
     if (actions.interact_press) interact();
+    if (loot_chooser.open) return;
     const auto found = skill_sheets.find(sheet_key(std::string(name)));
     const skillpad::Sheet sheet = found == skill_sheets.end() ? skillpad::Sheet{} : found->second;
     const auto fire = [&](int skill, bool press, bool button_down, bool& used) {

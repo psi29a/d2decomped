@@ -9,6 +9,7 @@
 #include "frontend/roster.hpp"
 #include "input/gamepad_map.hpp"
 #include "input/hold_confirm.hpp"
+#include "input/loot_chooser.hpp"
 #include "input/pad_hold.hpp"
 #include "input/teleport_aim.hpp"
 #include "input/touch/gestures.hpp"
@@ -26,6 +27,7 @@
 #include "panels/party.hpp"
 #include "panels/scroll.hpp"
 #include "panels/store.hpp"
+#include "panels/store_selection.hpp"
 #include "platform.hpp"
 #include "render/ground_arrival.hpp"
 #include "render/tile_blit.hpp"
@@ -345,6 +347,11 @@ struct ClientSession {
         int wants_panel = -1;                     // an assigned panel action, consumed by this seat
         bool wants_strip = false;                 // this pad's Start asked for the panel list
     };
+    LootChooser loot_chooser;
+    bool open_loot_chooser(const PadPlayer& player_pad, const UnitState& unit, bool for_touch);
+    void commit_loot(int item_id);
+    void loot_pad_event(const pad::Actions& actions);
+    void draw_loot(std::vector<std::uint8_t>& framebuffer);
     PadPlayer pad;                                // the first player's
     using Send = std::function<void(const Command&)>;
     // The pad's walk and its buttons for the hero at `unit` (`field`: no
@@ -565,7 +572,16 @@ struct ClientSession {
     std::map<std::string, skillpad::Sheet> touch_sheets;
     std::array<touch::Target, 4> touch_previews{};
     std::int64_t touch_item_finger = -1;
-    int touch_item = -1, touch_stock = -1, touch_fingers = 0;
+    int touch_item = -1, touch_sell_vendor = -1, touch_sell_tab = -1, touch_fingers = 0;
+    StoreSelection touch_stock;
+    std::int64_t touch_cancelled_item_finger = -1;
+    const d2d::d2s::Item* touch_bag_item() const;
+    bool touch_can_sell(const d2d::d2s::Item* item) const;
+    touch::Box touch_trade_drop() const;
+    void draw_touch_trade_hint(std::vector<std::uint8_t>& framebuffer) const;
+    void close_touch_item();
+    void cancel_touch_item();
+    bool touch_trade(touch::ItemAction action);
     std::uint32_t touch_item_start = 0;
     float touch_item_x = 0, touch_item_y = 0;
     int touch_panel_state = 0;

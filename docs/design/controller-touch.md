@@ -88,8 +88,11 @@ follow the game's existing logical viewport. Use landscape for this prototype.
   commit or release the other. Changing page does not release movement or
   retarget an already-held gesture. Attack pickup needs a fresh press.
 - Tap a usable carried item, sellable bag item, or merchant stock for a
-  confirm sheet (Use / Sell / Buy as they apply). Drag past 14px picks the
-  item up; lift places into the nearest inventory, stash, cube, body, or belt
+  sheet (Use / Sell / Buy as they apply). Buy/Sell commits on an in-button
+  release by its owning finger, with no additional Confirm. At a vendor,
+  drag stock into the inventory grid to buy, or a sellable bag item into
+  the vendor grid to sell. Outside a trade, drag past 14px picks the item
+  up; lift places into the nearest inventory, stash, cube, body, or belt
   cell, or drops on the world. A leftover mouse packet does not start
   click-to-walk. Identify: Use then Confirm on the scroll, tap the target item,
   then Confirm. A miss-tap does not identify. Field belt: first tap opens Use/Fill
@@ -287,8 +290,9 @@ highlights the four field slots in gold and draws bound icons on those
 rings. Bind Done (the Bind chip, relabelled Done, and the existing top-right
 Done) is hit-tested before the wheel swallows input. While binding, I/II
 still swaps skill set 1 vs 2. Inventory
-item tap opens a Use/Sell/Buy sheet with Confirm; a 14px drag picks up, and
-lift places into the nearest valid cell or drops. Move stick, skill rings, I/II, and the potion grid hide while
+item tap opens a Use/Sell/Buy sheet. Use keeps Confirm; Buy/Sell commits on
+release. Outside a trade, a 14px drag picks up, and lift places into the
+nearest valid cell or drops. Move stick, skill rings, I/II, and the potion grid hide while
 panels are open. Inv / Skl / Stats / Quest / Bind stay at their field positions and
 keep taking taps. Round chrome fills are light (about 15% of the old dim);
 the Attack icon is scaled to fill its ring; belt potion frames are centred
@@ -350,3 +354,38 @@ artwork proportions. Palette index zero remains transparent, and clipping stays
 inside the visible ring so enlarged artwork does not cover the rim. Wheel icons
 and gameplay hit boxes are unchanged. This is a rendering adjustment; physical
 readability still needs a device check.
+
+
+## Loot choice and vendor gestures
+
+A dedicated pickup action with multiple nearby eligible items opens a snapshot
+of their IDs and labels. Touch uses six scrollable rows; tap a row to pick it,
+or Close to dismiss. The primary controller uses a paged flick radial: release
+the aiming stick to neutral to select, D-pad left/right changes page, and Back
+cancels. Closing consumes held controller controls until neutral so they cannot
+cast or walk through the dismissed chooser. It waits for neutral after opening; changing page disarms an active
+flick. A single eligible item keeps direct pickup. The chosen ID must still
+exist within pickup reach and the facing cone when committed. The chooser
+blocks movement/casting and closes on focus loss, panel changes or input
+handoff. Other local controller seats keep direct pickup.
+
+Vendor sheets and drags retain the vendor, tab, gamble mode and stock item ID.
+They resolve that ID again before sending the existing buy command. This uses
+the existing stock identity support; this input change adds no command fields
+or transaction rules. Removing stock or switching context cancels the gesture
+instead of selecting the item that moved into its old list position.
+
+A vendor drag highlights its destination grid. Releasing there asks the normal
+trade operation, which retains host validation, pricing and item placement.
+Releasing elsewhere, cancelling, changing panels, losing focus or handing off
+input does not trade. Vendor gestures do not put the item on the cursor or
+emit a ground drop. Buy/Sell buttons commit only on the owning finger's release
+inside the same button; leaving it disarms the press. Use, Fill and Identify
+retain their confirmation flows.
+
+Re-check with `test_loot_chooser`, `test_loot_radial`, `test_touch_vendor`,
+`test_touch_input`, `test_gamepad`, `test_protocol`, `test_store_buy` and
+`test_store_fill`. The `touch_controls_d2d` scenario additionally exercises buying
+on release, a cancelled drag, drag buying, selling and panel cancellation;
+it needs local game data. These are optional input UX choices, not claims of
+original-game touch/controller parity. Device play testing remains required.

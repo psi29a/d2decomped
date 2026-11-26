@@ -300,9 +300,12 @@ target_sources(d2d PRIVATE
     frontend/lobby.cpp
     frontend/roster.cpp
     input/gamepad.cpp
+    input/loot_chooser.cpp
+    input/loot_radial.cpp
     input/pointer_events.cpp
     input/teleport_aim.cpp
     input/touch/gestures.cpp
+    input/touch/trade.cpp
     items/cursor.cpp
     items/items.cpp
     items/use_item.cpp
@@ -319,6 +322,7 @@ target_sources(d2d PRIVATE
     panels/party.cpp
     panels/scroll.cpp
     panels/store.cpp
+    panels/store_selection.cpp
     render/ingame.cpp
     render/tile_blit.cpp
     render/world_view.cpp
@@ -329,6 +333,7 @@ target_sources(d2d PRIVATE
     session/draw.cpp
     session/input.cpp
     session/lan.cpp
+    session/loot.cpp
     session/near_players.cpp
     session/net.cpp
     session/setup.cpp
@@ -336,6 +341,7 @@ target_sources(d2d PRIVATE
     session/staff_show.cpp
     session/touch.cpp
     session/touch_combat.cpp
+    session/touch_items.cpp
     session/update.cpp
     session/use_item.cpp
     session/view.cpp

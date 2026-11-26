@@ -434,7 +434,10 @@ auto ClientSession::pad_act(PadPlayer& player_pad, const UnitState& unit, bool d
                 out(cmd::UseSkill{ skill, hero_x + face_x * 3.f, hero_y + face_y * 3.f, -1, left, item });
             return;
         }
-        if (pick.kind == PadPick::kItem) { out(cmd::Pickup{ pick.id }); return; }
+        if (pick.kind == PadPick::kItem) {
+            if (&player_pad != &pad || !move.attack || !open_loot_chooser(player_pad, unit, false)) out(cmd::Pickup{ pick.id });
+            return;
+        }
         if (pick.kind == PadPick::kThing) { out(cmd::Interact{ pick.id }); return; }
         // Nothing in reach: the left skill swings only with a monster about (in camp A never just walks); the right one always casts (buffs, teleport).
         const bool foe_near = std::ranges::any_of(view.monsters, [&](const auto& foe) { return foe.alive() && !foe.ally_not_interact(*scene, level ? level->id : 0) && std::hypot(foe.unit.x - hero_x, foe.unit.y - hero_y) < 10.f; });

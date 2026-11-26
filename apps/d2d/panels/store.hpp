@@ -27,6 +27,8 @@ namespace d2d::client {
 NpcMenuState open_hire_menu(const Scene& scene, int npc, const std::vector<d2d::rules::MercOffer>& offers,
                             std::int64_t gold);
 
+Scene::InvLayout store_grid(int panel_x = kCharPanelX);
+
 // The store item under the cursor (index into the open tab), or -1.
 int store_item_at(const Scene& scene, const Store& store, int mouse_x, int mouse_y, int panel_x = kCharPanelX);
 

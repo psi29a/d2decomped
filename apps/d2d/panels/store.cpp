@@ -66,6 +66,13 @@ NpcMenuState open_hire_menu(const Scene& scene, int npc, const std::vector<d2d::
     return menu;
 }
 
+Scene::InvLayout store_grid(int panel_x) {
+    Scene::InvLayout layout;
+    layout.grid_x = panel_x + (96 - kCharPanelX); layout.grid_y = 123; layout.box_w = layout.box_h = 29;
+    layout.cols = layout.rows = 10;
+    return layout;
+}
+
 int store_item_at(const Scene& scene, const Store& store, int mouse_x, int mouse_y, int panel_x) {
     const auto& tab = store.tabs[std::size_t(store.tab)];
     for (std::size_t i = 0; i < tab.size(); ++i) {
@@ -128,8 +135,7 @@ void draw_store(std::vector<std::uint8_t>& framebuffer, const Scene& scene, cons
         break;
     }
     // Stock, Monster2 grid.
-    Scene::InvLayout layout;
-    layout.grid_x = panel_x + (96 - kCharPanelX); layout.grid_y = 123; layout.box_w = layout.box_h = 29;
+    const auto layout = store_grid(panel_x);
     const d2d::d2s::Item* hover = nullptr;
     std::array<int, 4> hover_box{};
     for (const auto& item : store.tabs[std::size_t(store.tab)]) {
