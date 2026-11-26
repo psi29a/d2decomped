@@ -277,11 +277,15 @@ auto World::act4_update(std::uint32_t now_ms) -> void {
                     d2d::log::info("The Fallen Angel: Izual's ghost");
                 }
         }
-        // A log moved with flag 1 (FUN_00544300): sent again (S->C 0x5d) to a
-        // player it's for (act4_detail::told).
+        // A log moved with flag 1 (FUN_00544300): sent again (S->C 0x5d) to
+        // each player its record's callback passes (FUN_005b3940, FUN_005b4e40, FUN_005b59c0).
         for (auto [news, quest] : { std::pair{ &izual.news, d2d::rules::IzualQuest::kQuest }, { &hellforge.news, d2d::rules::HellforgeQuest::kQuest },
                                     { &terror.news, d2d::rules::TerrorQuest::kQuest } })
-            if (std::exchange(*news, false) && d2d::rules::act4_detail::told(quests(), quest)) actor->events.push_back(ev::QuestNews{ quest });
+            if (std::exchange(*news, false))
+                for (auto& player : players) {
+                    const auto difficulty = std::size_t(std::clamp(player->character.header.active_difficulty(), 0, 2));
+                    if (d2d::rules::quest_log_goes_to(player->character.header.quests[difficulty], quest)) player->events.push_back(ev::QuestNews{ quest });
+                }
         // The seals' bosses at their flash's event 7 (FUN_005b5750 -> FUN_00545c30).
         const Level* sanctuary = game_data->level(d2d::rules::level_ids::kChaosSanctuary);
         for (auto due = seal_bosses.begin(); due != seal_bosses.end();)

@@ -28,6 +28,7 @@
 #include <level.hpp>
 #include <level_ids.hpp>
 #include <log.hpp>
+#include <quest_log_send.hpp>
 #include <quests.hpp>
 #include <shake.hpp>
 #include <skills.hpp>
@@ -147,6 +148,7 @@ auto ClientSession::walk(const Mouse& mouse, bool over_ui, Audio& audio, std::ui
                 hero.character.header.quests[std::size_t(std::clamp(hero.character.header.active_difficulty(), 0, 2))] = *net_game->quest_words;
                 net_game->quest_words.reset();
             }
+            // The host's FUN_00544190 has made the act test; FUN_004a2cb0 makes none.
             for (const int quest : net_game->quest_news) quest_log_notify(quest_log, quest);
             net_game->quest_news.clear();
             for (const int unique : std::exchange(net_game->unique_events, {})) unique_event(unique, frame_ms);
@@ -509,6 +511,8 @@ auto ClientSession::walk(const Mouse& mouse, bool over_ui, Audio& audio, std::ui
         if (frame_ms - world_ms >= kTickMs) world_ms = frame_ms - (frame_ms - world_ms) % kTickMs;
     }
 
+// One World event on the client: its line, sound, panel or log entry (a quest's log
+// entry only in the record's act, FUN_00544190: rules::quest_log_send_in_act).
 auto ClientSession::handle(const Event& event, Audio& audio, std::uint32_t frame_ms) -> void {
         if (const auto* message = std::get_if<ev::Message>(&event)) {   // a LAN game's line for everyone, as game.exe words them
             auto text = [&](std::uint16_t id) { return string_id(*scene, id); };
@@ -560,7 +564,10 @@ auto ClientSession::handle(const Event& event, Audio& audio, std::uint32_t frame
             d2d::rules::automap_pause(automap_reveal.step);
             return;
         }
-        if (const auto* news = std::get_if<ev::QuestNews>(&event)) { quest_log_notify(quest_log, news->quest); return; }
+        if (const auto* news = std::get_if<ev::QuestNews>(&event)) {
+            if (d2d::rules::quest_log_send_in_act(news->quest, view_act())) quest_log_notify(quest_log, news->quest);
+            return;
+        }
         if (const auto* music = std::get_if<ev::MusicCue>(&event)) { audio.quest_music(*scene, music->sound, frame_ms, music->jingle_ms, music->back_ms, music->from_block); return; }
         if (std::holds_alternative<ev::TradeResult>(event)) return;   // walk() opens its box, at the mouse
         if (const auto* unique = std::get_if<ev::UniqueEvent>(&event)) { unique_event(unique->event, frame_ms); return; }

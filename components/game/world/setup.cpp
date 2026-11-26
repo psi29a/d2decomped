@@ -128,8 +128,12 @@ auto World::anyone_alive() const -> bool {
     return std::ranges::any_of(players, [](const auto& player) { return !player->own_screen && player->pmode != kModeDT && player->pmode != kModeDD; });
 }
 
+auto World::screen_players() const -> int {
+    return int(std::ranges::count_if(players, [](const auto& player) { return !player->own_screen; }));
+}
+
 auto World::shared_screen() const -> bool {
-    return !actor->own_screen && std::ranges::count_if(players, [](const auto& player) { return !player->own_screen; }) > 1;
+    return !actor->own_screen && screen_players() > 1;
 }
 
 auto World::become_ghost(Player& player) -> void {
@@ -250,6 +254,13 @@ auto World::congrats() -> std::uint64_t& { return actor->character.header.congra
 auto World::item_ids() -> void {
         for (auto& item : actor->character.items) if (item.id < 0) item.id = loot.next_id++;
         if (actor->held && actor->held->id < 0) actor->held->id = loot.next_id++;
+    }
+
+// A store's stock items are units too (the vendor's inventory, the player's gamble list): each its id
+// as it's made, which C->S 0x32 names (FUN_00577830 -> FUN_00552f60).
+auto World::store_ids() -> void {
+        for (auto& page : actor->store.tabs)
+            for (auto& stocked : page) if (stocked.id < 0) stocked.id = loot.next_id++;
     }
 
 // What the client is told (View).

@@ -95,6 +95,7 @@ Fighter make_fighter(const Tables& tables, const d2d::d2s::Item* weapon, const d
         fighter.blunt = (info != tables.item_info.end() && type_is(tables, info->second.type, "blun")) || (!weapon_base->type2.empty() && type_is(tables, weapon_base->type2, "blun"));
     }
     fighter.undead_pct = int(stat(kUndeadDamagePercent));
+    fighter.demon_pct = int(stat(kDemonDamagePercent));
     fighter.min = int(std::max<std::int64_t>((low + low * pct / 100) >> 8, 1));
     fighter.max = int(std::max<std::int64_t>((high + high * pct / 100) >> 8, fighter.min));
     fighter.ar_base = int(dex * 5 - 35 + gains.to_hit + stat(kToHit) + stat(kToHitPerLevel) * clvl / 8);
@@ -148,6 +149,7 @@ Fighter simple_fighter(int min, int max, int attack_rating, int defense) {
     Fighter fighter;
     fighter.min = min; fighter.max = std::max(max, min); fighter.attack_rating = fighter.ar_base = attack_rating; fighter.defense = defense;
     fighter.phys_lo = min << 8; fighter.phys_hi = fighter.max << 8;
+    fighter.stat_lo = min; fighter.stat_hi = fighter.max;
     return fighter;
 }
 
@@ -719,6 +721,64 @@ int leech_fine(int physical_fine, const Target& target, int steal, int divisor) 
     return amount / 64;
 }
 
+// FUN_0057b7d0 for a player (or an alignment 2 unit, FUN_006259b0) against a monster, before FUN_0057b420: the
+// record's enhanced damage (+0xc) takes the unit's stat 121 against a demon when it is over 0 (0x57b857..0x57b86f),
+// then FUN_0057b660's against the undead: 50 with a Blunt weapon plus stat 122, when that sum is over 0. A merc or a
+// Shadow is not excluded here.
+int melee_record_pct(const Fighter& fighter, const Target& target, const Swing& swing) {
+    const int demon_bonus = target.demon ? std::max(fighter.demon_pct, 0) : 0;
+    const int undead_bonus = target.undead ? std::max((fighter.blunt ? 50 : 0) + fighter.undead_pct, 0) : 0;
+    return swing.ed_pct + demon_bonus + undead_bonus;
+}
+
+// A missile's record (FUN_0064b860) from its owner's weapon: stats 21 / 22 x 256 x SrcDamage / 128 toward zero
+// (0x64bc43..0x64bc67, only the weapon's part), + the row's own physical (FUN_0064af20 / FUN_0064aff0, 0x64bdf7).
+// Its +0x78 (0x64bdc2..0x64bddc): the unit's stat 25, the mastery % and the str / dex bonus (d2d: phys_pct), + the
+// missile's stat 25 (ed_pct) + the larger of the unit's stats 18 / 17, at least -90. Its +0x6c is the unit's stat
+// 121 and +0x70 its stat 122, + 50 with a Blunt weapon (FUN_00629bb0 type 0x39, 0x64bbf9). FUN_0064ac60 puts them
+// on the missile as stats 21 / 22 / 25 / 121 / 122. The hit (FUN_005a89a0, 0x5a89bf..0x5a89fd) rolls the lower
+// end + rand(the gap) on the missile's seed, the ends swapped when the min is the larger, none unless both are over
+// 0; then its % (0x5a8b09..0x5a8bde): stat 25, + 121 against a demon, + 122 against the undead (no floor of its own),
+// at least -90. SrcDamage 0 takes none of the unit's (0x64bcfe).
+// ponytail: the hit's MonProp stat 0xb4 % (FUN_0057a830), the row's +0x12e owner branch (0x64bd07) and the
+// halved SrcDamage of row flag 0x6ce280 (FUN_006289c0, 0x64bb09) aren't here. phys_lo / phys_hi carry stat 111
+// and make_fighter's floors (at least a point; phys_pct at least -90 before the missile's terms join).
+MissilePhysical missile_physical(const Fighter& fighter, const Target& target, const Swing& swing) {
+    MissilePhysical physical;
+    std::int64_t low = swing.row_lo, high = swing.row_hi;
+    int record_pct = swing.ed_pct, demon_pct = 0, undead_pct = 0;
+    if (swing.srcdam > 0) {
+        low += std::int64_t(fighter.phys_lo) * swing.srcdam / 128;
+        high += std::int64_t(fighter.phys_hi) * swing.srcdam / 128;
+        record_pct += fighter.phys_pct + std::max(fighter.unit_min_pct, fighter.unit_max_pct);
+        demon_pct = fighter.demon_pct;
+        undead_pct = fighter.undead_pct + (fighter.blunt ? 50 : 0);
+    }
+    physical.record_pct = std::max(record_pct, -90);
+    physical.hit_pct = std::max(physical.record_pct + (target.demon ? demon_pct : 0) + (target.undead ? undead_pct : 0), -90);
+    if (low > 0 && high > 0) {
+        physical.low = std::min(low, high);
+        physical.high = std::max(low, high);
+    }
+    return physical;
+}
+
+// FUN_005a89a0 (0x5a8be3..0x5a8bff): the roll x the hit's % / 100 toward zero, + the roll; a crit doubles it after.
+std::int64_t missile_scaled(std::int64_t roll, int pct) {
+    return roll * pct / 100 + roll;
+}
+
+// FUN_0064b860 adds the missile's own physical, a skill's (d2d_skills_skill_phys / FUN_00647d00) or the row's
+// (FUN_0064af20 / FUN_0064aff0), to the weapon's share in the record (0x64bdf7) for every missile; FUN_005a89a0
+// rolls the whole once, so the crit, the hit's % and stat 121 take that part too.
+void row_into_record(MissileDamage& damage, Swing& swing) {
+    swing.row_lo += damage.phys_lo;
+    swing.row_hi += damage.phys_hi;
+    damage.phys_lo = damage.phys_hi = 0;
+}
+
+// A player's blow: melee's record (FUN_0057b7d0 -> FUN_0057b420), a missile's from its record
+// at the hit (FUN_0064b860 -> FUN_005a89a0): the roll, the %, the crit, the blow's events.
 Blow player_blow(const Fighter& fighter, const Target& target, int clvl, Rng& rng, const Swing& swing, Rng* damage_rng) {
     Blow blow{ .hit_class = fighter.hit_class | swing.hit_class };
     const int attack_rating = std::max(int(std::int64_t(fighter.ar_base) * (100 + fighter.ar_pct + swing.ar_pct) / 100), 1);
@@ -730,6 +790,7 @@ Blow player_blow(const Fighter& fighter, const Target& target, int clvl, Rng& rn
     }
     blow.hit = true;
     std::int64_t low, high;                                  // 256ths
+    int missile_pct = 0;                                     // a missile's hit %: on the roll, not on its ends
     if (swing.smite) {
         const std::int64_t smite_pct = std::max<std::int64_t>(fighter.smite_pct + swing.ed_pct, -90);
         // FUN_0057b420 makes a minimum below 1 (in 256ths) one point (0x57b4d8) and, when the maximum is not above the minimum, the minimum plus
@@ -744,33 +805,26 @@ Blow player_blow(const Fighter& fighter, const Target& target, int clvl, Rng& rn
         const std::int64_t kick_pct = fighter.kick_pct + swing.ed_pct;
         low = swing.skill_lo + std::int64_t(swing.skill_lo) * swing.ed_pct / 100 + (std::int64_t(fighter.kick_lo) << 8) * (100 + kick_pct) / 100;
         high = swing.skill_hi + std::int64_t(swing.skill_hi) * swing.ed_pct / 100 + (std::int64_t(fighter.kick_hi) << 8) * (100 + kick_pct) / 100;
+    } else if (swing.missile) {
+        // A missile's record (FUN_0064b860) and its hit (FUN_005a89a0): missile_physical, then the hit's % on the roll.
+        const auto physical = missile_physical(fighter, target, swing);
+        low = physical.low;
+        high = physical.high;
+        missile_pct = physical.hit_pct;
     } else {
-        // Against an undead monster FUN_0057b660 adds 50 with a Blunt weapon plus stat 122 to the
-        // record's enhanced damage, only when that sum is over 0. FUN_0057b7d0 asks for it when the attacker is
-        // a player unit or has alignment 2 (FUN_006259b0), so a merc or a Shadow is not excluded here.
-        const int undead_bonus = target.undead ? std::max((fighter.blunt ? 50 : 0) + fighter.undead_pct, 0) : 0;
-        const std::int64_t physical_pct = std::max<std::int64_t>(fighter.phys_pct + swing.ed_pct + undead_bonus, -90);
+        const std::int64_t physical_pct = std::max<std::int64_t>(fighter.phys_pct + melee_record_pct(fighter, target, swing), -90);
         low = fighter.phys_lo + fighter.phys_lo * physical_pct / 100;
         high = fighter.phys_hi + fighter.phys_hi * physical_pct / 100;
-        // A missile row's own physical (FUN_0064af20 / FUN_0064aff0) joins the record's min and max (FUN_0064b860,
-        // 0x64bdf7); the hit (FUN_005a89a0) rolls the sum and scales it by the missile's stat 25, the record's +0x78
-        // (0x64ae64: stat 25, the mastery %, the str / dex bonus, the larger of stats 18 / 17), and the undead's %
-        // (0x5a8b09..0x5a8bff), and a crit doubles it (0x5a8c02..0x5a8c1e). The row's part takes physical_pct as the
-        // weapon's does.
-        // ponytail: SrcDamage scales only the weapon's part in game.exe (0x64bc43..0x64bc67); here the srcdam share
-        // below takes the row's too (the same for rogue1 and explodingarrow, SrcDamage 128). The unit's stats 17 / 18
-        // (0x64bdc2..0x64bddc) and the demons' % (stat 121) aren't in physical_pct, for either part.
-        low += std::int64_t(swing.row_lo) * (100 + physical_pct) / 100;
-        high += std::int64_t(swing.row_hi) * (100 + physical_pct) / 100;
     }
     Rng& physical_rng = damage_rng ? *damage_rng : rng;
     std::int64_t damage = high > low ? low + physical_rng(int(high - low)) : low;
+    if (swing.missile) damage = missile_scaled(damage, missile_pct);
     const int rolled = int(damage >> 8);                       // before crit: what Vengeance's elements are a share of
     // The mastery crit, critical strike and deadly strike are separate
     // rolls in that order; any one doubles (FUN_0057b7d0). Not kicks.
     const auto roll = [&](int chance) { return chance > 0 && rng(100) < chance; };
     if (!swing.kick && !swing.smite && (roll(fighter.mastery_crit) || roll(fighter.critical) || roll(fighter.deadly))) { damage *= 2; blow.deadly = true; }
-    damage = damage * swing.srcdam / 128;
+    if (!swing.missile) damage = damage * swing.srcdam / 128;   // a missile's record took its SrcDamage before the roll
     // A skill's own damage beside the weapon's SrcDam share (Blade Shield:
     // FUN_0056e170 then FUN_0057b7d0); kicks and Smite took theirs above.
     if (!swing.kick && !swing.smite && swing.skill_hi > 0)

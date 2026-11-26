@@ -288,6 +288,8 @@ auto NetGame::Unit::animation_stats() const -> d2d::net::d2gs::s2c::AnimationSta
     return total;
 }
 
+// One S->C packet from the host into the NetGame's state (game.exe's client
+// dispatch, FUN_0045f7b0; net-packets.md lists each).
 auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
     auto unit_at = [&](int type, std::uint32_t id) -> Unit& {
         auto& unit = units[key(type, id)];
@@ -344,6 +346,7 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
         if (size >= 10) {
             auto& unit = unit_at(packet[1], read_u32(packet, 2));
             place(unit, read_u16(packet, 6), read_u16(packet, 8));
+            if (unit.type == 0) unit.mode = -1;   // a player's respawn (C->S 0x41 -> 0x15 in town)
             if (unit.type == 0 && unit.id == self_id) { self_x = host_x = unit.x; self_y = host_y = unit.y; reassigned = true; spot_heard_ms = steady_ms(); }
         }
         break;
@@ -389,11 +392,12 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
         }
         break;
     }
-    case 0x51:   // assign object: +1 type (2), +2 id, +6 Objects.txt row, +8 x, +0xa y
+    case 0x51:   // assign object: +1 type (2), +2 id, +6 Objects.txt row, +8 x, +0xa y, +0xc mode
         if (size >= 12) {
             auto& unit = unit_at(packet[1], read_u32(packet, 2));
             unit.cls = read_u16(packet, 6);
             place(unit, read_u16(packet, 8), read_u16(packet, 0xa));
+            if (size >= 13) unit.object_mode = packet[0xc];
         }
         break;
     case 0x09:   // assign warp: +1 type (5), +2 id, +6 LvlWarp row, +7 x, +9 y
@@ -469,7 +473,10 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
     case 0x1e: if (size >= 4) stat_changes.push_back({ packet[1], read_u16(packet, 2), false }); break;
     case 0x1f: if (size >= 6) stat_changes.push_back({ packet[1], read_u32(packet, 2), false }); break;
     case 0x0e:   // object state: +1 type (2), +2 id, +8 u32 the new mode
-        if (size >= 12 && packet[1] == 2) object_modes.push_back({ read_u32(packet, 2), int(read_u32(packet, 8)) });
+        if (size >= 12 && packet[1] == 2) {
+            object_modes.push_back({ read_u32(packet, 2), int(read_u32(packet, 8)) });
+            if (const auto known = units.find(key(2, read_u32(packet, 2))); known != units.end()) known->second.object_mode = int(read_u32(packet, 8));
+        }
         break;
     case 0x50:   // quest special: subtype 4 the Cairn Stones' order (FUN_004b9210 -> 0x7bf098, five u16 at +3)
         if (size >= 13 && read_u16(packet, 1) == 4) {
@@ -627,7 +634,11 @@ auto NetGame::handle(const d2d::net::Bytes& packet) -> void {
         }
         break;
     case 0x0d:   // a unit stops at x, y: +6 its unit command (0x13 hit, 8 dying, 9 dead)
-        if (size >= 11) place(unit_at(packet[1], read_u32(packet, 2)), read_u16(packet, 7), read_u16(packet, 9));
+        if (size >= 11) {
+            auto& unit = unit_at(packet[1], read_u32(packet, 2));
+            place(unit, read_u16(packet, 7), read_u16(packet, 9));
+            if (unit.type == 0) unit.mode = packet[6];   // a player's death (8, then its corpse's 9): net-packets.md "Player death"
+        }
         if (size >= 11 && packet[1] == 0 && read_u32(packet, 2) == self_id && packet[6] == 8) died = true;
         break;
     case 0x8c:   // player relation: +1 the player, +5 toward whom, +9 u16 flags (1 loot, 2 not heard, 4 squelched, 8 hostile)

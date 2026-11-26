@@ -36,7 +36,9 @@ and goes, stopping at the first step that acts:
 
 1. FUN_005b10e0: state 0x15 stands 3; FUN_005b0f50; FUN_005b0ff0, the walk back to the unit AI control +0x0c / +0x10 names
    (FUN_005dd330 sets it: a unique's minions their leader, FUN_005a0c00 0x5a0cb9; a revived monster its owner, FUN_005c55c0;
-   item_reanimate's monster its player, FUN_005c07a0; Taunt's its taunter, FUN_005d8570). Without WL (FUN_0046c140(row, 2)), the unit not found or dead or dying: +0xc cleared.
+   item_reanimate's monster its player, FUN_005c07a0 0x5c08ca). Taunt (FUN_005d8570) sets none: FUN_005dd330(ECX the taunted
+   monster, EDX 0) at 0x5d8718, -1 and 1, after its state put (FUN_005c35c0, its return unread), so its monster no longer walks
+   back, the put taken or refused (d2d: `put_state` on a Taunt, `tools/emu/taunt_leader.py`, `test_taunt_leader`). Without WL (FUN_0046c140(row, 2)), the unit not found or dead or dying: +0xc cleared.
    Within 1 of a player (+0x10 0): a back-off 0x13 from it (FUN_005defe0), failing that the walk. Over 0x14 (FUN_005dc380,
    its own size off): FUN_005de190(7, 0, 0x28), a walk to a spot 0x13 about it (FUN_005df530); the step acts.
    `tools/emu/leader_follow.py`, `rules::leader_follow`; d2d: a unique's minions (`Monster::leader_lost`).
@@ -750,6 +752,8 @@ d2d: `ai.cpp` (`castable`, the action-frame dispatcher, the whirl block,
 probes): Cry Help, Bloodlust and the suicide turn, a suicide minion's blast,
 DeathMaul, Impregnate and its painworm, Madawc's Shout, Talic's whirl,
 Korlic's Leap Attack.
+**The wait at the landing** (`FUN_005da120`, the do's 0x100 event; `tools/emu/leap_land_wait.py`). It compares the unit's path x, y (`FUN_006488c0` / `FUN_00648900`: the words at +2 / +6, the integer parts of the 16.16 position, so its subtile) with the record's (+0x18, +0x1c), the landing: a unit on the landing's subtile short of its centre lands (the oracle's second world, the real getters). A monster not there yet returns 0 after `FUN_006212c0(unit, row)` (+0x38, the sequence position, to `row` keeping its low byte) and +0x48 (the length left) raised by one row: the row is 8 for MonStats BaseId (row +2, `FUN_00463860`) 0x4e (sandleaper1), 12 for 0x21c (the ancients) when `FUN_006417f0` to the landing is under 2, else 10, 0 for any other. The sequence steps a row each tick (`FUN_00623e00`: +0x38 on, +0x48 less) and the event rows are 11 / 13 (ancientleap) and 9 (leaperleap), so the event comes round the next tick and the length left holds while it waits. d2d: `leap_hold` (Leap Attack, whose landing is row 11): on the landing's subtile it lands; else the landing, `leap_until`, and the mode's end move on a tick, the row shown held at the rewound row + 1 (`Monster::leap_hold_row`), and once down the rows run on from it (`seq_shift_ms`); `tests/game/test_leap_landing_wait.cpp`. Not traced: the landing row of Leap (sandleaper1, seq_leaperleap events at rows 1, 7, 9, 11: d2d lands it at its mode's end); a rewind to row 0 (MonStats Skill1 Leap, Leap Attack: sandleaper1 and ancientbarb3 only); where the takeoff (`FUN_005d9f70`) starts the flight (d2d: the mode's start); the landing's own cut of +0x48 by a row (`FUN_005da120`, any BaseId but 0x4e) and `FUN_005da020` for 0x4e.
+
 Not in d2d: the overlays and anim rates, Bloodlust's and the turn's
 states beyond the cry slot, `FUN_0056bd10`'s and `FUN_00645ca0`'s own
 searches (the nearest foe by id, the nearest free spot), Leap Attack's

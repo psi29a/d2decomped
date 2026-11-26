@@ -498,7 +498,9 @@ auto World::tower_treasure(std::uint32_t now_ms) -> void {
 // (DD) at his own subtile (0x5e7844: FUN_005ddfc0 -> FUN_005a7c20, mode
 // table 0x6e2260 row 12: its start at 0x5a7390). The same think's idle
 // (FUN_005de080) finds him out of mode 1 and puts him back in NU
-// (FUN_005a73e0), so he stands and the walk goes on from the spot noted.
+// (FUN_005a73e0), so he stands and the walk goes on from the spot noted
+// (tools/emu/quest_cain_first_think.py runs FUN_005a7c20 and both mode
+// starts for real: DD, then NU).
 // ponytail: the thinks' idles (1, 20 frames) stand in for the AI's own
 // tick (ai.cpp); mode 0xc's start (FUN_005a6520's death steps, timers 8
 // and 9 dropped) isn't made, nor anything that reads his life.

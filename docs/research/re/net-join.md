@@ -361,6 +361,9 @@ Read from each function's disassembly, with the callers from
 | `FUN_0044dfb0` | ECX: the pair `FUN_0044dff0` takes. The milliseconds left (`base + length − GetTickCount`); 0 when the time has run out, and then both dwords are cleared | orphan (stubs.md) |
 | `FUN_0044dff0` | ECX: a pair of dwords `{+0 base, +4 length}`. Returns 1 when the length is 0 or the time has run out (`base + length` at or below `GetTickCount`, unsigned); then both dwords are cleared. Otherwise returns 0 | `FUN_00455510` |
 | `FUN_0044e040` | ECX: the same pair. Returns 0 when the length is 0 or the time has run out (then cleared); otherwise 1 | `FUN_0044e380`, `FUN_0044f360` |
+| `FUN_004512c0` | (code, buffer, size): the language DLL's error text. Fatal (line 0x81) while `DAT_007a070c` is 0; then the Storm `FormatMessage` wrapper `FUN_0041c430`; when that gives no text, copies "Stupid Lng.cpp error." into the buffer and returns 0, else 1 | none: `lng_dll_load` (`FUN_00451330`, game-frontier.md) hands it to `FUN_005177b2` in ECX (`0x4513e9`); that registration is not traced |
+| `FUN_00451920` | no args: saves the recording (`FUN_00451620`, game-frontier.md), then jumps to `DAT_007a2764` when it is set | none: `record_start` (`FUN_00451940`, `0x451940`) installs it through `FUN_005173d3`, which swaps the hook at `DAT_00881834` (read at `0x517436`, not traced) and returns the old one into `DAT_007a2764`, so the old hook still runs after it |
+| `FUN_00451e70` | ECX window: fatal (line 0x178) when null; registers the four message handler rows at `0x70f7e4` on it (`FUN_00451db0`, count 4), pushes a handler level (`FUN_00420360`), returns 1 | orphan (stubs.md) |
 | `FUN_0052da90` | ECX: a record. Null: fatal line 0x1063. When `+0x18` (a `CRITICAL_SECTION` pointer) is null: fatal line 0x1064. Else `LeaveCriticalSection(+0x18)` | `FUN_0052fa50`, `FUN_0052fd90`, `FUN_0052fee0`, `FUN_005300f0`, `FUN_00530190`, `FUN_00530270`, `FUN_00530300`, `FUN_005303d0`, `FUN_005306e0`, `FUN_005389a0`, `FUN_0053eff0`, `FUN_0053f3d0`, `FUN_005645e0` |
 | `FUN_0052e050` | ECX: a record, EDX: a value. Calls `FUN_0052ded0` (table `0x52dfb0`, the record on the stack) and then tail-jumps to `FUN_00555600` with ECX = the value, EDX = the record. Both callees are not traced, so only the call shape is written | `FUN_0059ef70`, `FUN_0059f0c0` |
 | `FUN_0052e6d0` | ECX: a record. `+0x48` is a counter that is incremented each pass; when it wraps to 0, `+0x4c` := 1. While `+0x4c` is nonzero, `FUN_0052e650(counter, +0x44)` runs; a 0 result returns the counter. Returns the counter when `+0x4c` is 0 | `FUN_005308c0`, `FUN_005308f0`, `FUN_00530930`, `FUN_00530bf0` |
@@ -378,7 +381,12 @@ or −1 is empty. The value in a slot is the key for the table object at
 `.?AUSGAMEDATA@@` (`0x70f56c`). `FUN_0052e860` looks a key up and returns the
 game with its own lock (`+0x18`) held. Most of the table's helpers are
 the same code as the `CELLIST` table's in celcmp.md, call targets aside
-(`tools/emu`, an instruction-by-instruction compare). The routines that
+(`tools/emu`, an instruction-by-instruction compare). The template's
+own copies for this table, `0x44ed20..0x451220`, come first below: the
+four vtables are `TSHashTable` `0x6d5e5c`, `TSHashTableReuse` `0x6d5e70`,
+`TSExportTableSimple` `0x6d5e84` and `TSExportTableSync` `0x6d5e98`, four
+slots each, and a record is 0x1df4 bytes. Their "same code" rows were
+checked with an instruction compare that masks call targets and addresses. The routines that
 lock `0x882d18` and read a slot by game id are unused in 1.14d, except
 `FUN_0052eff0`.
 
@@ -388,6 +396,49 @@ pointers. Not run in `tools/emu`. Rows run in address order.
 
 | Function | Operation | Callers |
 |---|---|---|
+| `FUN_0044ed20`, `FUN_0044eda0` | the same code as celcmp.md's `FUN_00602110` (an item's link, or list + 4 when null) | orphan (stubs.md) |
+| `FUN_0044edc0`, `FUN_0044f890` | the same code as celcmp.md's `FUN_006022a0` (that link, unlinked) | orphan (stubs.md) |
+| `FUN_0044ee10`, `FUN_0044ee30` | the same code as celcmp.md's `FUN_006022f0` (a list set up with an offset and an empty head) | orphan (stubs.md) |
+| `FUN_0044ee90`, `FUN_0044fb80` | the same code as celcmp.md's `FUN_006023b0` (the same, the head zeroed first) | orphan (stubs.md) |
+| `FUN_0044f8e0`, `FUN_0044f930` | the same code as celcmp.md's `FUN_00602640`: ECX list, unlinks the first item until the head's `+8` is not positive | `FUN_0044f8e0`: the table's helpers below and `FUN_0052ff20`; `FUN_0044f930`: `FUN_0044fad0`, `FUN_0044fc20`, `FUN_00450760` |
+| `FUN_0044f980` | the same code as celcmp.md's `FUN_006026e0` (a new offset empties the list and sets it up again) | orphan (stubs.md) |
+| `FUN_0044fa00` | the same code as celcmp.md's `FUN_00602800`: ECX table, stack flag; `+0x10` = 0, empties the record list, then each bucket: flag 0 deletes each record (vtable slot 0), else only unlinks it | `FUN_00450210`, `FUN_00450520`, `FUN_004510b0` |
+| `FUN_0044fa90`, `FUN_0044fad0`, `FUN_0044fbe0`, `FUN_0044fc20`, `FUN_0044fdd0` | the same code as storm-file.md's `FUN_00418c60` (empty the list, unlink its head) | `FUN_0044fbe0`: the unwind handler `0x6ca010`; the others orphans (stubs.md) |
+| `FUN_0044fbb0` | ECX object, stack flags: `FUN_0044f820`, then freed (tag `delete`) with bit 0 | orphan (stubs.md) |
+| `FUN_0044fc60` | ECX record list: while its first record (`+8`) is positive, unlinks that record's `+0xc` and `+4` links and frees it (tag `.?AUSGAMEDATA@@`) | `FUN_00450690`, `FUN_00450760`, `FUN_004510b0` |
+| `FUN_0044fcf0` | the same code as celcmp.md's `FUN_00602b70` (empty, unlink the head, free with bit 0) | orphan (stubs.md) |
+| `FUN_0044fd80` | ECX array `{+4 count, +8 records}`: `FUN_0044f820` on each 0x1df4-byte record, then frees the records (tag `.?AUSGAMEDATA@@`) | `FUN_004500a0` |
+| `FUN_0044fe10` | the same code as celcmp.md's `FUN_00602f10` (the bucket array's reallocation), tag `.?AV?$TSExplicitList@USGAMEDATA@@@@` (`0x70f584`) | `FUN_00450040`, `FUN_00450110` |
+| `FUN_0044ff60` | the same code as celcmp.md's `FUN_00603060` (each bucket list emptied and its head unlinked, the data freed) | `FUN_00450090`, `FUN_00450210`, `FUN_004504d0`, `FUN_00450500`, `FUN_00450520` |
+| `FUN_00450090` | `jmp FUN_0044ff60` | the unwind handler `0x6ca01b` |
+| `FUN_004500a0` | the same code as celcmp.md's `FUN_006037e0`: unlinks the object's `+0x10` link, frees its records (`FUN_0044fd80`), frees it (tag `delete`) with bit 0 | orphan (stubs.md) |
+| `FUN_00450210` | `TSHashTable<SGAMEDATA,HASHKEY_NONE>`'s destructor, the same code as celcmp.md's `FUN_00603460`: its vtable (`0x6d5e5c`) back, `FUN_0044fa00(1)`, the buckets freed (`FUN_0044ff60`), the record list emptied and its head unlinked | `FUN_00450550`, `FUN_00450760` |
+| `FUN_004502a0`, `FUN_004508a0` | the same code as celcmp.md's `FUN_006024e0` (the insert, item and `where` given as items) | `FUN_00450390`; `FUN_00450fa0` |
+| `FUN_00450390` | (mode, extra, flags): a record of 0x1df4 + extra bytes (tag `.?AUSGAMEDATA@@`, flags \| 8), its links `+4..+0x10` zeroed, inserted by a non-zero mode (`FUN_004502a0`); celcmp.md's `FUN_006035a0` with this record | orphan (stubs.md) |
+| `FUN_004503f0`, `FUN_00450d60` | vtable slot 0: `FUN_0044f820` on the record, then freed (tag `.?AUSGAMEDATA@@`) | `0x6d5e5c`; `0x6d5e70`, `0x6d5e84`, `0x6d5e98` |
+| `FUN_00450420`, `FUN_00451000` | slot 1: a record as `FUN_00450390` makes one, linked at the list's tail (celcmp.md's `FUN_00603610` with this record) | `0x6d5e60`; `0x6d5e74`, `0x6d5e88`, `0x6d5e9c` |
+| `FUN_004504d0`, `FUN_00450550`, `FUN_004510d0`, `FUN_004511a0` | deleting destructors, the same code as storm-file.md's `FUN_00418b20` family: `FUN_0044ff60`, `FUN_00450210`, `FUN_00450760` and `FUN_00450760` respectively, then freed (tag `delete`) with bit 0 | `FUN_004504d0` orphan (stubs.md); slot 2 of `0x6d5e5c`, `0x6d5e70`, `0x6d5e84` |
+| `FUN_00450500` | the same code as celcmp.md's `FUN_00603760`: `FUN_0044ff60`, then `+0`, `+4`, `+8` = 0 | orphan (stubs.md) |
+| `FUN_00450520` | slot 3, the same code as celcmp.md's `FUN_00603780`: `FUN_0044fa00(1)`; `+0x10` and `+0x24` = 0; the buckets freed and `+0x14`, `+0x18`, `+0x1c` = 0 | `0x6d5e68` |
+| `FUN_00450580` | ECX chunk list: for each first chunk (`+8` positive), unlinks its `+0x10` link, unlinks the `+0xc` and `+4` links of each of its `+4` records (0x1df4 bytes each, at `+8`), frees the records (tag `.?AUSGAMEDATA@@`) and the chunk (tag `.?AV?$TSHashObjectChunk@USGAMEDATA@@VHASHKEY_NONE@@@@` (`0x70f5f4`)) | `FUN_00450690`, `FUN_00450760`, `FUN_004510b0` |
+| `FUN_00450680` | `push ebp; mov ebp, esp; pop ebp; jmp FUN_00450110` | orphan (stubs.md) |
+| `FUN_00450690` | `FUN_00450580`, then `FUN_0044fc60` | orphan (stubs.md) |
+| `FUN_004506b0` | `TSHashTable<SGAMEDATA,HASHKEY_NONE>`'s constructor: vtable `0x6d5e5c`, the record list (link offset 0xc), `+0x10..+0x20` zeroed, the mask `+0x24` = 3, four buckets (`FUN_00450110(4)`), each bucket list set to link offset 4 | `FUN_00451100` |
+| `FUN_00450760` | `TSHashTableReuse<SGAMEDATA,HASHKEY_NONE,0>`'s destructor: vtable `0x6d5e70` back, the chunks freed (`FUN_00450580`), the reuse list (`FUN_0044fc60`), the lists at `+0x3c` and `+0x2c` emptied and their heads unlinked, then `FUN_00450210` | `FUN_004510d0`, `FUN_004511a0`, `FUN_004511d0`, `FUN_00451220`, the static destructor `0x6cb3f0` |
+| `FUN_00450810` | the same code as bnclient.md's `FUN_0051d2f0`: the growth step, 8 (stored at `+0xc`) from 8 up, else the highest power of two in n (1 for 0) | `FUN_00450e70`, `FUN_00450ed0` |
+| `FUN_00450850` | n rounded up to a multiple of m (as source-sbig.md's `FUN_004210e0`) | orphan (stubs.md) |
+| `FUN_00450950` | a 0x1df4-byte `SGAMEDATA` record copied from another: the links `+4..+0x10` zeroed, every field from `+0x18` to `+0x1df0` copied (a 0x1000-byte block at `+0xf0`) | `FUN_00450d90` |
+| `FUN_00450d90` | ECX record array, stack n: `FUN_0044f820` on the records from n on, then reallocates to n records (`FUN_004133d0`, tag `.?AUSGAMEDATA@@`, flag 0x10); when that fails, allocates anew, copies each kept record (`FUN_00450950`), unlinks the old one and frees the old block | `FUN_00450e70`, `FUN_00450ed0`, `FUN_00450f50` |
+| `FUN_00450e70` | the same code as source-sbig-arrays.md's `FUN_00421630` (reserve n more, rounded up to the step when the flag is set) | orphan (stubs.md) |
+| `FUN_00450ed0` | appends one record: reserves one more (rounded up to the step), zeroes the new record's links, counts it, returns it | the `jmp` at `0x450f70` |
+| `FUN_00450f50` | the same code as bnclient.md's `FUN_0051d7f0` (reserve exactly n more) | orphan (stubs.md) |
+| `FUN_00450fa0` | (mode, extra, flags): a zeroed chunk of 0x18 + extra bytes (tag `0x70f5f4`, flags \| 8), inserted by a non-zero mode (`FUN_004508a0`) | orphan (stubs.md) |
+| `FUN_004510b0` | slot 3 of the other three vtables: `FUN_0044fa00(0)`, `FUN_00450580`, `FUN_0044fc60` | `0x6d5e7c`, `0x6d5e90`, `0x6d5ea4` |
+| `FUN_00451100` | `TSHashTableReuse<SGAMEDATA,HASHKEY_NONE,0>`'s constructor: `FUN_004506b0`, vtable `0x6d5e70`, the list at `+0x28` (link offset 4), the list at `+0x3c`, `+0x34` and `+0x38` = 0x10 | `FUN_00451170`, `FUN_004511f0`, `0x6ca9c5` |
+| `FUN_00451170` | `TSExportTableSimple<SGAMEDATA,HSGAMEDATA__*,0>`'s constructor: `FUN_00451100`, `+0x48` = `~this & 0xfffffff`, vtable `0x6d5e84`, `+0x4c` = 0 | orphan (stubs.md) |
+| `FUN_004511d0` | `DeleteCriticalSection(+0x50)`, then `FUN_00450760` | orphan (stubs.md) |
+| `FUN_004511f0` | `TSExportTableSync<SGAMEDATA,HSGAMEDATA__*,HSGAMEDATALOCK__*,CCritSect,0>`'s constructor: as `FUN_00451170` with vtable `0x6d5e98`, then `InitializeCriticalSection(+0x50)` (the lock at `+0x50` that the server's game table has) | orphan (stubs.md) |
+| `FUN_00451220` | slot 2 of `0x6d5e98`: `DeleteCriticalSection(+0x50)`, `FUN_00450760`, freed (tag `delete`) with bit 0 | `0x6d5ea0` |
 | `FUN_0052cbe0` | ECX client id: 1 when `FUN_00538b70` doesn't find the id (or the id table is off), else 0 | `FUN_0053f100`, C->S 0x6e (`0x53f343`): a 1 runs `FUN_00530270(id, 0)`, which reaches `FUN_0052caf0` (the drop) for a client on its game's list |
 | `FUN_0052cc10` | ECX x: `FUN_0053b220()`, then `FUN_0052b570(x)`. The callees are not traced | orphan (stubs.md) |
 | `FUN_0052daf0`, `FUN_0052db00` | return 1. The same code as `FUN_00564ca0` (frontier-ring.md) | `FUN_0053f100`: C->S 0x6a tests `FUN_0052daf0` (`0x53f2af`) before the game list, C->S 0x6c tests `FUN_0052db00` (`0x53f31b`) before `FUN_0052db10` (the upload) |

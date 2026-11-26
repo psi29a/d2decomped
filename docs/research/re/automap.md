@@ -73,7 +73,12 @@ by its own draw, so a cell's floors and walls come in apart:
   `FUN_00476000` sets it to `{-0x50, -0x50, W + 0x50, H - 0x2f}` (W, H:
   `0x71146c`, `0x711470`); the 3D modes (`FUN_004f51d0` != 0) take 0x2d
   more off the left and 0x1e off the top, 0x1e onto the right.
-- walls and lower walls (`FUN_004df1c0`, `FUN_004dedf0`): when the
+- walls and lower walls (`FUN_004df1c0`, `FUN_004dedf0`; `FUN_004df1c0` draws the
+  view's grid slots in memory order, row by row, each its walls chain (+0x14) then its
+  units chain (+0x18); `FUN_004dd7c0` puts a wall in its own cell's slot, its record's
+  px (`FUN_0066dde0`: `FUN_00643310` of (x, y + 1), y + 0x28) one row up, and a unit in
+  the slot of the cell it stands in; d2d: `world_view.cpp`'s wall pass,
+  `rules::wall_slot`, `test_automap_scroll`): when the
   driver's wall draw (`+0xa0`, DirectDraw / GDI `FUN_005130a0`) drew a
   block: a 32 px block whose top left is in x `[-0x20, W)`, y
   `(-0x21, H + 0x20)` (`0x7c9138`, `0x7c913c`: the draw buffer's W

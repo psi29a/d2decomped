@@ -69,7 +69,12 @@ void end_state(const GameData& game_data, Monster& monster, Monster::SkillState&
 // stays (the put fails); else the one there comes off (end_state). Other
 // states keep their own nodes (keyed here by the skill's auratargetstate,
 // else its aurastate).
+// Taunt's do (71, FUN_005d8570) also clears the taunted monster's leader (FUN_005dd330(monster, null), 0x5d8714..
+// 0x5d8718: AI control +0xc -1, +0x10 1) right after its put (FUN_005c35c0, return unread), taken or refused,
+// so a taunted minion or revived pet never walks back to its leader or owner (FUN_005b0ff0). Taunt's put
+// comes only through here (strike.cpp), so d2d does that here, before the put can refuse.
 bool put_state(const GameData& game_data, Monster& monster, Monster::SkillState next, std::uint32_t now_ms) {
+    if (const auto* taunt = game_data.skills.get(next.skill); taunt && taunt->srvdofunc == d2d::rules::ServerDoFunction::kTaunt) monster.leader_lost = true;
     // A curse state (States.txt curse, FUN_0063a420) goes in the unit's one curse node (FUN_00625760, kind
     // 0x20) whoever puts it: Taunt's, Battle Cry's, Cloak's and the Overseer's Bloodlust share it with the
     // curses (FUN_0056e970 0x56ea0a..0x56ead3).
@@ -613,6 +618,7 @@ auto Fight::prg(const d2d::rules::Skill& skill, ServerDoFunction func, int count
             auto put = [&](float x, float y, float velocity_x, float velocity_y, int range) {
                 Missile missile{ missile_info, x, y, velocity_x, velocity_y, missile_heading(velocity_x, velocity_y), now_ms, now_ms + std::uint32_t(std::max(range, 1)) * 40, {} };
                 missile.friendly = true; missile.caster = actor->id; missile.skill = skill.id; missile.level = lvl;
+                seed_made(missile);
                 missiles.push_back(std::move(missile));
                 return missiles.size() - 1;
             };
@@ -647,7 +653,7 @@ auto Fight::prg(const d2d::rules::Skill& skill, ServerDoFunction func, int count
         // Their path callbacks (FUN_005d40f0 for 37, FUN_005d4680 for 143) cap
         // the range at 77 (0x4d) and give the path type 10, a route of points.
         // FUN_005d4680 lays 143's a wobbling route (rules::wobble_route) on the
-        // missile's seed: the fight's rng here (deviations.md approximation 18).
+        // missile's seed (unit +0x20: Missile::seed, which launch takes off the game seed).
         if (!missile_info) return;
         if (func == ServerDoFunction::kReleaseAtTarget) { launch(*missile_info, skill, lvl, target_x, target_y, 0, 0, missile_info->range, now_ms); return; }
         if (func == ServerDoFunction::kReleaseSpread) {
@@ -672,7 +678,7 @@ auto Fight::prg(const d2d::rules::Skill& skill, ServerDoFunction func, int count
                     // first frame follows before the route's points (missile_fly).
                     missile.aim_at = std::pair{ target_x + float(offset.first) / 5, target_y + float(offset.second) / 5 };
                     const int from_x = level->world_x * 5 + int(std::floor(target_x * 5)), from_y = level->world_y * 5 + int(std::floor(target_y * 5));
-                    missile.route = d2d::rules::wobble_route(from_x, from_y, from_x + offset.first, from_y + offset.second, range, rng);
+                    missile.route = d2d::rules::wobble_route(from_x, from_y, from_x + offset.first, from_y + offset.second, range, missile.seed ? *missile.seed : rng);
                 }
             });
             return;

@@ -58,7 +58,9 @@ auto World::act1_join() -> void {
         camp_cain_state();                                           // the join keeps the current level's states
     }
 
+// The player went from level `from` to this one: each record's level-change hook (+0xac).
 auto World::act1_enter(const Level& from) -> void {
+        if (from.id == d2d::rules::level_ids::kRogueEncampment && level->id != d2d::rules::DenQuest::kDen) den.left_town(quests());   // FUN_00590470
         andy.enter(quests(), from.id, level->id);
         burial.enter(quests(), from.id, level->id, actor->id);
         if (tower.enter(quests(), from.id, level->id, actor->id)) each_player([&](Player&) { tower.mark(quests()); });
@@ -127,7 +129,9 @@ auto World::act1_talk(std::vector<d2d::rules::QuestMsg>& out, int hc_idx, bool f
         std::ranges::copy(cain.talk(quests(), hc_idx, carries("bks"), actor->id), std::back_inserter(out));
     }
 
+// A talk with `hc_idx` closed: each record's +0xa8 hook.
 auto World::act1_talk_closed(int hc_idx) -> void {
+        den.talk_closed(hc_idx);
         andy.talk_closed(hc_idx);
         burial.talk_closed(quests(), hc_idx);
         tools.talk_closed(quests(), hc_idx);
@@ -193,22 +197,28 @@ auto World::act1_tick() -> void {
         tower_treasure(day_at);
     }
 
+// A quest step: act 1's timers (Andariel's, Blood Raven's, the Tower's, the Den's log 5 and the stones' portal).
 auto World::act1_quest_step() -> void {
         if (andy.tick())                                    // her timer's 10 (FUN_00596490): each player in level 0x25, a town portal at them
             each_in_game([&](Player& player, int) { if (level_of(player)->id == d2d::rules::level_ids::kCatacombsLevel4) player.portal_due = true; });
         burial.tick();
         tower.tick();
-        if (den_log_in > 0 && --den_log_in == 0 && den.state == 4) den.log = 5;   // LAB_00590230: "Return to Akara", only still cleared (0x590232)
+        if (den_log_in > 0 && --den_log_in == 0 && den.state == 4) { den.log = 5; den.news = true; }   // LAB_00590230: "Return to Akara" (flag 1), only still cleared (0x590232)
         if (stones_portal_in > 0 && --stones_portal_in == 0) stones_portal();      // 0x59366e -> FUN_00592d50
     }
 
-// A log moved with flag 1 (FUN_00544300): sent again (S->C 0x5d) to a player it's for. a1q5's
-// (the Forgotten Tower: FUN_00594960, FUN_00595010, Q05_TimerNotifyCompletion); the others' stay the View's change.
+// A log moved with flag 1 (FUN_00544300): sent (S->C 0x5d) to each player its record's callback passes
+// (rules::quest_log_goes_to: each player's own bits, not the lead's alone), for each of act 1's six records.
 auto World::act1_update() -> void {
-        if (!std::exchange(tower.news, false)) return;
-        for (auto& player : players) {   // each player's own bits decide (FUN_00594830), not the lead's alone
-            const auto difficulty = std::size_t(std::clamp(player->character.header.active_difficulty(), 0, 2));
-            if (d2d::rules::TowerQuest::log_goes_to(player->character.header.quests[difficulty])) player->events.push_back(ev::QuestNews{ d2d::rules::TowerQuest::kQuest });
+        const std::pair<int, bool*> records[] = { { d2d::rules::DenQuest::kQuest, &den.news }, { d2d::rules::BurialQuest::kQuest, &burial.news },
+                                                  { d2d::rules::ToolsQuest::kQuest, &tools.news }, { d2d::rules::CainQuest::kQuest, &cain.news },
+                                                  { d2d::rules::TowerQuest::kQuest, &tower.news }, { d2d::rules::AndyQuest::kQuest, &andy.news } };
+        for (const auto& [quest, news] : records) {
+            if (!std::exchange(*news, false)) continue;
+            for (auto& player : players) {
+                const auto difficulty = std::size_t(std::clamp(player->character.header.active_difficulty(), 0, 2));
+                if (d2d::rules::quest_log_goes_to(player->character.header.quests[difficulty], quest)) player->events.push_back(ev::QuestNews{ quest });
+            }
         }
     }
 

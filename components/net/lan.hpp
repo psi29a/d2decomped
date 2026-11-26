@@ -28,7 +28,9 @@ using Bytes = std::vector<std::uint8_t>;
 // 2–10: save/ack, resync, chat, 16.16 positions, stand still, rising,
 // hand status, missile expiry, and monster walk/attack rates.
 // 11: the View carries Rescue on Mount Arreat's count.
-inline constexpr std::uint32_t kProtocolVersion = 12;   // monster state includes its optional fixed-point attack pose
+// 12: monster state includes its optional fixed-point attack pose.
+// 13: the View carries the player's path target (SP1).
+inline constexpr std::uint32_t kProtocolVersion = 14;   // another player's hostile byte; UseSkill's target unit type
 inline constexpr std::uint16_t kDefaultPort = 6113;      // game.exe hosts on 4000; this is a different protocol
 inline constexpr std::size_t kMaxPayload = 8u << 20;     // a View or a save is far smaller
 inline constexpr int kMaxClients = 3;                    // the host plays too: four players

@@ -18,12 +18,14 @@
 #include <combat.hpp>
 #include <d2s_items.hpp>
 #include <hire.hpp>
+#include <hostile_toggle.hpp>
 #include <item_gen.hpp>
 #include <item_price.hpp>
 #include <level_ids.hpp>
 #include <merc.hpp>
 #include <monster_ids.hpp>
 #include <object_ids.hpp>
+#include <player_relations.hpp>
 #include <points.hpp>
 #include <quests.hpp>
 #include <quests_act3.hpp>
@@ -67,6 +69,59 @@ void right_skill_set(Fight::Hero& hero, int skill) {
 }
 
 }  // namespace
+
+// FUN_005a5e50 after C->S 0x5d action 4 has resolved both player units.
+// FUN_005a5dc0 makes the declarer hostile both ways with the target, or with
+// every level-9+ member of the target's party. FUN_005a5d20 removes the
+// declarer when both players were in that party. FUN_00535430 closes the
+// declarer's town-portal pair before the party comparison.
+auto World::toggle_hostility(Player& other, std::uint32_t requested, std::uint32_t now_ms) -> d2d::rules::HostileToggle {
+    const Level* const actor_level = level_of(*actor);
+    const int self_level = int(actor->character.stats.get(d2d::d2s::kLevel));
+    const int other_level = int(other.character.stats.get(d2d::d2s::kLevel));
+    const auto result = d2d::rules::hostile_toggle({
+        .in_room = actor_level != nullptr,
+        .room_level_id = actor_level ? actor_level->id : 0,
+        .self_level = self_level,
+        .other_level = other_level,
+        .other_level_again = other_level,
+        .hostile = actor->relations.get(actor->id, other.id, d2d::rules::kRelationHostile) != 0,
+        .pair_stamp = actor->relations.hostile_stamp(actor->id, other.id),
+        .now = now_ms,
+        .requested = requested,
+    });
+    if (result == d2d::rules::HostileToggle::kViolation) return result;
+
+    actor->relations.add(actor->id, other.id, other.party >= 0);
+    other.relations.add(other.id, actor->id, actor->party >= 0);
+    if (result == d2d::rules::HostileToggle::kCleared) {
+        actor->relations.set(actor->id, other.id, d2d::rules::kRelationHostile, false);
+        return result;
+    }
+    if (result != d2d::rules::HostileToggle::kDeclared) return result;
+
+    actor->relations.hostile_stamp(actor->id, other.id, now_ms + d2d::rules::kHostilePairCooldownMs);
+    actor->declare_hostile(now_ms);
+    const auto set_both = [&](Player& member) {
+        actor->relations.add(actor->id, member.id, member.party >= 0);
+        member.relations.add(member.id, actor->id, actor->party >= 0);
+        actor->relations.set(actor->id, member.id, d2d::rules::kRelationHostile, true);
+        member.relations.set(member.id, actor->id, d2d::rules::kRelationHostile, true);
+    };
+    if (other.party < 0) {
+        set_both(other);
+    } else {
+        const auto party_member = [&](Player& member) {
+            if (&member != actor && member.party == other.party
+                && member.character.stats.get(d2d::d2s::kLevel) >= d2d::rules::kHostileMinLevel) set_both(member);
+        };
+        for (auto& member : players) party_member(*member);
+        for (Player* member : elsewhere) party_member(*member);
+    }
+    close_portal_pair(actor->portal_pair);
+    if (actor->party >= 0 && actor->party == other.party) actor->party = -1;
+    return result;
+}
 
 // A belt put on or taken off: what the boxes it lacks held, to the
 // inventory or the floor (rules::spill_belt, FUN_005608c0).
@@ -129,6 +184,7 @@ auto World::hand_skills(std::uint32_t now_ms) -> void {
         actor->aura = right && right->aura ? int(header.right_skill) : 0;
     }
 
+// The actor's NPC, trade, merc, waypoint, chat and quest-message commands; true when it took the command.
 auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
         const auto& item_rules = game_data->rules;
         const int clvl = int(actor->character.stats.get(d2d::d2s::kLevel));
@@ -147,6 +203,7 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
                                     fight.spawning.proxy, fight.spawning.game, &loot.found_uniques);
             actor->store.npc = trade->npc;
             actor->store.header = actor->character.header;
+            store_ids();
             actor->events.push_back(ev::OpenUI{ ev::OpenUI::trade, trade->npc });
             return true;
         }
@@ -155,18 +212,27 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
             actor->events.push_back(ev::OpenUI{ ev::OpenUI::hire, hire->npc });
             return true;
         }
+        // The stock item by its unit id on any tab (FUN_00577830: FUN_00552f60, then the vendor's
+        // inventory or the player's gamble list holds it, else refused, line 0x7e0 / 0x7f7 / 0x805).
         if (const auto* buy = std::get_if<cmd::Buy>(&command)) {
-            if (actor->store.npc < 0 || buy->stock < 0) return true;
+            if (actor->store.npc < 0 || buy->item < 0) return true;
             actor->store.reduced = reduced_prices();
-            if (buy->tab >= 0 && buy->tab < 4) actor->store.tab = buy->tab;   // the client's tab: the world's stays where the store opened
-            if (std::size_t(buy->stock) >= actor->store.tabs[std::size_t(actor->store.tab)].size()) return true;
+            int stock = -1;
+            for (std::size_t page = 0; page < actor->store.tabs.size() && stock < 0; ++page)
+                if (const auto found = std::ranges::find(actor->store.tabs[page], buy->item, &d2d::d2s::Item::id); found != actor->store.tabs[page].end()) {
+                    actor->store.tab = int(page);
+                    stock = int(found - actor->store.tabs[page].begin());
+                }
+            if (stock < 0) { actor->events.push_back(ev::TradeResult{ d2d::rules::Trade::refused }); return true; }
             const auto& belt = game_data->belts[std::size_t(belt_index(*game_data, actor->character.items))];
             const auto worn_by = wearer(*game_data, actor->character.header.cls, actor->character.items, actor->character.stats);
-            const auto& stocked = actor->store.tabs[std::size_t(actor->store.tab)][std::size_t(buy->stock)];
-            const auto result = actor->store.gamble ? d2d::rules::store_gamble(item_rules, actor->store, buy->stock, actor->character.items, actor->character.stats)
-                                                    : d2d::rules::store_buy(item_rules, actor->store, buy->stock, actor->character.items, actor->character.stats, belt.boxes, buy->fill,
+            const auto& stocked = actor->store.tabs[std::size_t(actor->store.tab)][std::size_t(stock)];
+            const auto result = actor->store.gamble ? d2d::rules::store_gamble(item_rules, actor->store, stock, actor->character.items, actor->character.stats)
+                                                    : d2d::rules::store_buy(item_rules, actor->store, stock, actor->character.items, actor->character.stats, belt.boxes, buy->fill,
                                                                             &worn_by, required_level(*game_data, stocked, worn_by.cls));
             if (result != d2d::rules::Trade::done) actor->events.push_back(ev::TradeResult{ result });   // a gamble's buy is a buy (C->S 0x32, FUN_00577830)
+            item_ids();
+            store_ids();
             return true;
         }
         if (const auto* sell = std::get_if<cmd::Sell>(&command)) {
@@ -239,13 +305,15 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
             if (scroll->code == "isc") items.erase(scroll);
             return true;
         }
+        // The entry of that name (FUN_005770e0: the record at (id - NameFirst) x 0x10, its own name the
+        // same, not hired, else refused, lines 0x685 / 0x693 / 0x69a); offered, as the list shows it.
         if (const auto* hire = std::get_if<cmd::Hire>(&command)) {
-            auto offers = hire_offers(act());
-            if (hire->offer >= 0 && std::size_t(hire->offer) < offers.size() && d2d::rules::hire(offers[std::size_t(hire->offer)], actor->character.header, actor->character.stats)) {
+            const auto offers = hire_offers(act());
+            const auto offer = std::ranges::find(offers, hire->name, &d2d::rules::MercOffer::name);
+            if (offer != offers.end() && d2d::rules::hire(*offer, actor->character.header, actor->character.stats)) {
                 // The entry's taken (packet 0x50 subtype 2); none left, the list rolls anew (FUN_00577010).
-                int seen = 0;
                 for (auto& entry : hire_lists[std::size_t(act())])
-                    if (d2d::rules::for_hire(entry) && seen++ == hire->offer) { entry.hired = true; break; }
+                    if (d2d::rules::for_hire(entry) && entry.name == hire->name) { entry.hired = true; break; }
                 hire_list(act());
                 spawn_merc();
             }
@@ -430,11 +498,10 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
         // FUN_005a5e50), not from a level change: FUN_0054c5d0 refuses while
         // GetTickCount is under that stamp + 10000 (32-bit, so it wraps), ends the
         // interaction and goes no further. A level change writes nothing.
-        // ponytail: nothing declares hostility yet (no PvP, C->S 0x5d, in a hosted world):
-        // rules::hostile_toggle decides FUN_005a5e50's branch (tested against game.exe), but no
-        // 0x5d reaches it, the relation nodes (FUN_0055b140 family) and the party branch
-        // (FUN_005a5dc0, FUN_005a5d20) aren't ported, so Player::declare_hostile has no caller
-        // outside the test; an act change arrives at once (game.exe's load not traced).
+        // ponytail: a hosted client's C->S 0x5d is not decoded into
+        // World::toggle_hostility (protocol.* and apps/ own that wiring), and S->C 0x8c / 0x5a
+        // relation notices are not emitted. The server relation and party branches are ported;
+        // an act change still arrives at once (game.exe's load not traced).
         if (const auto* travel = std::get_if<cmd::Waypoint>(&command)) {
             // FUN_0054c5d0 tests the clock before the target (FUN_00549570); it also speaks (FUN_00553380)
             // and ends the interaction (FUN_00554190): the voice and that end aren't ported.
@@ -943,7 +1010,9 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
         // Stat 0x148 + 1 for each skill packet the server takes (FUN_00549d00, 0x549fc0): none for a click
         // the ask refuses (no packet), one for Attack in its place (AttackNoMana) or a skill the server then
         // refuses in town (FUN_0056f640, after the packet).
-        // ponytail: a held click's own rate (the client's) isn't d2d's: the count can still drift over a run.
+        // A held click asks once a drawn frame in both: FUN_0044efa0 runs the hold (0x44f031..0x44f046) each pass,
+        // FUN_004f6190 only sleeps a frame out to 5 ms, and FUN_00478350 exempts skill packets (0x05..0x11) from its
+        // 200 ms repeat drop; so the count follows the frame rate, game.exe's too (deviations.md #16).
         if (goes >= 0) ++actor->pierce_idx;
         if (goes != use_skill.skill) {
             // Attack in the skill's place goes at the spot; a refusal swings nothing.

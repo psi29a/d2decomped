@@ -263,6 +263,8 @@ auto Fight::merc_gives() -> void {
 // The merc's hireable_think, fed its view of its owner, footsteps and target.
 auto Fight::merc_turn(std::uint32_t now_ms, float /* elapsed: a turn is a frame */, const Crowd& crowd, bool town) -> void {
         auto& unit = actor->merc->unit;
+        unit.turns_on = true;                                        // a monster unit's turn, a step a frame (turn_frame)
+        if (!unit.walking) turn_frame(unit);
         merc_gives();
         const auto set = [&](std::string_view mode) {
             actor->merc->mode = mode; unit.mode_ms = now_ms; unit.walking = mode == "WL" || mode == "RN";
@@ -330,6 +332,7 @@ auto Fight::merc_turn(std::uint32_t now_ms, float /* elapsed: a turn is a frame 
                     // A row with a Skill (magicarrow: Magic Arrow) carries that skill's damage at the level (FUN_0064b860, row +0x194).
                     if (const auto* row_skill = skill_named(missile_info.skill)) missile.skill = row_skill->id;
                     seed_pierce(missile, true);                             // FUN_0059f940: the maker's, for every missile of a Pierce row
+                    seed_made(missile);
                     missiles.push_back(std::move(missile));
                 } else if (target.alive() && distance <= kMeleeReach + 0.3f) {
                     // A melee skill (Bash, Stun; Jab only off its sequence) builds
@@ -484,7 +487,7 @@ auto Fight::merc_turn(std::uint32_t now_ms, float /* elapsed: a turn is a frame 
                 if (const auto* started = game_data->skills.get(actor->merc_skill))   // its castoverlay (FUN_004c6140)
                     start_cast_overlay(*started, false, actor->merc->one_shots, now_ms);
                 const auto mode = attack.kind == AttackKind::swing || attack.mode < 0 || attack.mode >= 16 ? std::string_view("A1") : kMonsterModes[std::size_t(attack.mode)];
-                face(unit, direction16(target.unit.x - unit.x, target.unit.y - unit.y));
+                turn_to(unit, target.unit.x.subtile(), target.unit.y.subtile());   // a monster unit's turn (FUN_006485f0)
                 actor->merc_seq = nullptr;
                 if (attack.kind == AttackKind::skill && attack.mode == 14)   // SQ: the sequence its MonStats slot for the skill names
                     for (std::size_t slot = 0; slot < type_info->skill.size(); ++slot)

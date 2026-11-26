@@ -23,6 +23,7 @@ add_library(rules STATIC
     items/cube.cpp
     items/drops.cpp
     items/replenish.cpp
+    items/set_list.cpp
     items/shop_action.cpp
     items/stack_qol.cpp
     monsters/mon_equip.cpp
@@ -49,6 +50,7 @@ add_library(rules STATIC
     world/ambient_dip.cpp
     world/click_spot.cpp
     world/light.cpp
+    world/player_relations.cpp
     world/shake.cpp
     world/shrines.cpp
     world/weather.cpp)

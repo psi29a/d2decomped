@@ -44,10 +44,13 @@
 
 namespace d2d::game {
 
+// What a client draws this frame. Another local player is never hostile:
+// no hosted World keeps FUN_004dc440's relation nodes yet.
 auto World::view() const -> View {
         View view;
         view.level = level;
         view.player = actor->player;
+        view.path_target_x = actor->target_x; view.path_target_y = actor->target_y;
         view.running = actor->running;
         view.dead = fight.dead();
         view.poisoned = std::ranges::any_of(actor->regen, [](const Fight::Regen& regen_entry) { return regen_entry.poison; });
@@ -120,7 +123,7 @@ auto World::view() const -> View {
                     if (const auto* skill = now < state.until ? game_data->skills.get(state.skill) : nullptr) states.push_back(skill->aurastate);
                 view.others.push_back({ player->player, cls, player->character.name, std::uint32_t(player->id),
                                         player->character.appearance ? *player->character.appearance : game_data->starting_gear[std::size_t(cls)],
-                                        player->ghost ? -1 : player->pmode, running(*player), std::move(states), player->ghost, walk_percent(*player, now),
+                                        player->ghost ? -1 : player->pmode, running(*player), std::move(states), player->ghost, false, false, walk_percent(*player, now),
                                         player->one_shots });
             }
         for (const auto& player : players)

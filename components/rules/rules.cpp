@@ -8,6 +8,7 @@
 #include "item_gen.hpp"
 #include "item_price.hpp"
 #include "monster_ids.hpp"
+#include "set_list.hpp"
 #include "vendor.hpp"
 #include "wear.hpp"
 
@@ -693,6 +694,7 @@ Trade store_buy(const Tables& tables, Store& store, int index, std::vector<d2d::
         if (purse() < price) return Trade::no_gold;
         auto copy = item;
         copy.quantity = quantity;
+        if (store_perm(store, item.code)) copy.id = -1;   // a perm item stays: the copy is a new unit (the stock item moves otherwise)
         if (const int box = belt_box(tables, items, copy, boxes); box >= 0) {
             copy.location = d2d::d2s::item_location::kBelt; copy.column = box; copy.row = 0; copy.panel = 0; copy.slot = 0;
         } else if (const int slot = wearer && !(weapon(copy) && std::ranges::any_of(items, in_hand)) ? auto_equip_slot(tables, items, copy, *wearer, required_level) : -1;
@@ -960,7 +962,10 @@ void wield(std::vector<d2d::d2s::Item>& items, d2d::d2s::Item& item) {
     item.wielded = true;
 }
 
+// Each move that runs FUN_0063d1d0 puts the item's stats on too
+// (FUN_0055c2c0; set_list.cpp): a worn item takes its stamp first.
 void wield_enters(const Tables& tables, std::vector<d2d::d2s::Item>& items, d2d::d2s::Item& item) {
+    if (item.location == d2d::d2s::item_location::kEquipped) stats_on(items, item);
     if (!in_a_hand(item) || !weapon_item(tables, item)) return;
     item.wielded = false;
     if (!item_usable(item)) return;
@@ -1146,6 +1151,7 @@ bool equip_from_bag(const Tables& tables, std::vector<d2d::d2s::Item>& items, co
     put.location = d2d::d2s::item_location::kEquipped;
     put.slot = slot;
     put.panel = put.column = put.row = 0;
+    stats_on(items, put);                                // FUN_0055c2c0
     return true;
 }
 

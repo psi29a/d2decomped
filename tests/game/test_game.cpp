@@ -19,6 +19,7 @@
 #include <fight.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
+#include <hire.hpp>
 #include <inventory.hpp>
 #include <item_gen.hpp>
 #include <item_price.hpp>
@@ -41,6 +42,7 @@
 #include <sound_ids.hpp>
 #include <spawning.hpp>
 #include <uniques.hpp>
+#include <vendor.hpp>
 #include <wear.hpp>
 #include <world.hpp>
 
@@ -971,6 +973,33 @@ int main(int argc, char** argv) try {
         world.apply(d2d::game::cmd::OpenHire{ kashya }, 27 * kTickMs);
         assert(!offers.empty() && world.hire_offers(0).size() == offers.size() && world.hire_offers(0).front().seed == offers.front().seed);
         std::printf("OK: Charsi's stock and Kashya's offers outlast their windows\n");
+        // C->S 0x32 names the stock item by its unit id on any tab (FUN_00577830 -> FUN_00552f60): each stock item has
+        // one; a bought item moves with it, an id not in the store is refused. 0x36 names the entry (FUN_005770e0).
+        world.apply(d2d::game::cmd::OpenTrade{ charsi }, 27 * kTickMs);
+        auto& store = world.actor->store;
+        std::vector<int> stock_ids;
+        for (const auto& tab : store.tabs) for (const auto& item : tab) { assert(item.id >= 0); stock_ids.push_back(item.id); }
+        std::ranges::sort(stock_ids);
+        assert(std::ranges::adjacent_find(stock_ids) == stock_ids.end());
+        const auto last_tab = std::ranges::find_if(store.tabs.rbegin(), store.tabs.rend(), [](const auto& tab) { return !tab.empty(); });
+        assert(last_tab != store.tabs.rend());
+        const auto wanted = *std::ranges::find_if(*last_tab, [&](const auto& item) { return !d2d::rules::store_perm(store, item.code); });
+        store.tab = 0;
+        world.actor->character.stats.values[d2d::d2s::kGold] = 1'000'000;
+        world.apply(d2d::game::cmd::Buy{ wanted.id }, 27 * kTickMs);
+        assert(std::ranges::find(world.actor->character.items, wanted.id, &d2d::d2s::Item::id) != world.actor->character.items.end());
+        for (const auto& tab : world.actor->store.tabs) assert(std::ranges::find(tab, wanted.id, &d2d::d2s::Item::id) == tab.end());
+        world.actor->events.clear();
+        world.apply(d2d::game::cmd::Buy{ wanted.id }, 27 * kTickMs);
+        assert(std::ranges::any_of(world.actor->events, [](const auto& event) { return std::holds_alternative<d2d::game::ev::TradeResult>(event); }));
+        world.apply(d2d::game::cmd::CloseTrade{}, 27 * kTickMs);
+        world.apply(d2d::game::cmd::OpenHire{ kashya }, 27 * kTickMs);
+        const auto listed = world.hire_offers(0);
+        assert(listed.size() >= 2);
+        world.apply(d2d::game::cmd::Hire{ listed[1].name }, 27 * kTickMs);
+        const auto after = world.hire_offers(0);
+        assert(std::ranges::find(after, listed[1].name, &d2d::rules::MercOffer::name) == after.end());
+        std::printf("OK: a buy names the stock item by its unit id, a hire the entry by its name\n");
     }
     {   // Leaving town restocks the vendors that a trade stocked (FUN_00537340
         // -> FUN_00537230 -> FUN_00536d10); the stock is kept until then. A
@@ -1542,6 +1571,16 @@ int main(int argc, char** argv) try {
     for (std::uint32_t tick = 800; tick < 800 + 60 && world.cain_walk.npc >= 0; ++tick) world.tick({}, tick * kTickMs, (tick - 1) * kTickMs);
     assert(world.cain_walk.npc < 0 && world.cain_walk.stage == 3 && world.cain_walk.spot_x == spot_x + 403 && world.cain_walk.spot_y == spot_y + 403 && !world.cain_portal.level);
     std::printf("OK: a spot with no room moves on 3 and opens no portal\n");
+    // A second Cain unit, the spot noted already (FUN_005944b0 returns 0): FUN_005944f0, then stat 6 = 0 and mode 0xc
+    // (DD) at his spot (FUN_005e77a0), undone to NU by the same think's idle (FUN_005de080): he stands, lifeless, and
+    // walks on from the noted spot (tools/emu/quest_cain_first_think.py).
+    world.npc_states[cain_index].hidden = false;
+    world.npc_states[cain_index].mode = {};
+    world.cain_walk = { .npc = int(cain_index) };
+    world.tick({}, 900 * kTickMs, 899 * kTickMs);
+    assert(world.cain_walk.npc == int(cain_index) && world.cain_walk.lifeless && world.cain_walk.stage == 1);
+    assert(world.npc_states[cain_index].mode != "DD" && !world.npc_states[cain_index].hidden);
+    std::printf("OK: a second Cain with the spot noted loses his life and stands again\n");
 
     // Hover text (FUN_0048dd90), top line first, for a level 1 Amazon:
     // a plain short sword and cap.

@@ -417,10 +417,11 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
     // drawn x then y on its seed (+0x20) set to {its subtile x, 666};
     // the poison one (hit 59, FUN_005acf20 -> FUN_005a9370) sends it the 8
     // ways of 0x6e2510 / 0x6e24d0's even entries at Param1 << 7, and every
-    // sHitPar1'th odd one at Param2 << 7 (FUN_0059fa30 flags 0x14: x 75 / 100).
+    // sHitPar1'th odd one at Param2 << 7 (FUN_0059fa30 flags 0x14: x 75 / 100). Both lay nothing
+    // without an owner (FUN_00552fd0 gates each, FUN_005acdf0 / FUN_005acf20: missile.owner < 0).
     const auto hit_spawn = [&](const Missile& missile) {
         const auto* sub = missile.info ? missile.info->hit_sub_info : nullptr;
-        if (!sub || (missile.info->hit_func != 58 && missile.info->hit_func != 59)) return;
+        if (!sub || (missile.info->hit_func != 58 && missile.info->hit_func != 59) || missile.owner < 0) return;
         const int spread = std::max(missile.info->hit_par1, 1);
         if (missile.info->hit_func == 58) {
             const int at_x = int(std::floor(missile.x * 5)), at_y = int(std::floor(missile.y * 5));

@@ -2,7 +2,7 @@
 // test-links: rules
 // The facing a shift-click's search starts from (FUN_006238c0): rules::search_facing
 // against game.exe's own run of it (tools/emu/search_facing.py inc writes the cases).
-#include <search_walk.hpp>
+#include <search_facing.hpp>
 
 #include <cassert>
 #include <cstdio>

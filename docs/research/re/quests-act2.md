@@ -23,6 +23,15 @@ flag, record id, quest word}`), Act 2's rows:
 +0x10f4); `FUN_00544760(game, word, bit)` reads the game's own quest
 flags (game +0x10f4 +0xc). Record +9 is open in this game, +0xc its state.
 
+**Log sends.** Each `FUN_00544300` call in these records (its flag 1 sends
+the log to each player the record's callback passes) is listed with its
+log, flag and d2d function in quests.md (the act 2 call-site table). d2d
+raises each record's `news` at the flag-1 ones and `World::act2_update`
+sends it (`tests/test_quest_log_sends_act2.cpp`); a2q2 has none (its log
+goes out from the item pickup, `FUN_00599a30`). Not ported: Radament's
+think's `FUN_00599420` (state 3, log 2, flag 1 only the first time) and
+the Tainted Sun's join's darkness send.
+
 ## Jerhyn and the palace gate (a2q4.cpp)
 
 Lut Gholein's DS1 holds two invisible objects named "jerhyn" (objects.txt

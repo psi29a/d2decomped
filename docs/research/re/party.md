@@ -112,10 +112,15 @@ Ghidra's decompile shows — each hides at least one argument in ECX/EDX,
 confirmed by disassembling the call sites (`CallArgs.java` from
 005a5700..005a6150 against all four):
 
-- **`FUN_0055b140(self EDX, other stack)`** — add. A no-op for `self ==
-  other`, for either unit in state 7 (dead, `FUN_00639df0`) or if
-  `FUN_0055b110` (a global single-relation-list toggle, not traced) is
-  set. Otherwise allocates a node (pool-tagged `.\UNIT\PlayerList.cpp:0x6d`),
+- **`FUN_0055b110(self EDI, other ESI)`** — the internal lookup used by
+  `FUN_0055b140`: obtains self's player data, then walks +0x38 for the
+  other's id. It returns no node for self. Its register-only arguments are
+  the add function's saved operands; this is not a global toggle.
+- **`FUN_0055b140(game ECX, self EDX, other stack)`** — add. A no-op for
+  `self == other`, for either unit in state 7 (`FUN_00639df0`; what puts
+  state 7 on a player is not traced here), or when `FUN_0055b110` finds an
+  existing node. Otherwise allocates a node (pool-tagged
+  `.\UNIT\PlayerList.cpp:0x6d`),
   keyed on the other's owner id, flags 0, and the `FUN_00554630() != -1`
   bool, and prepends it to self's list. Every caller below adds the pair
   both ways (self into other's list, other into self's) with two calls,
@@ -135,6 +140,21 @@ confirmed by disassembling the call sites (`CallArgs.java` from
   the other three, *self* is the ECX operand here, not EDX — confirmed
   from the call sites at `005a5861`/`005a5ebb`/`005a617b`, not from the
   decompile.)
+- **`FUN_0055b350`** returns the node's low 16 flag bits, or zero without a
+  node. `FUN_0055b3a0` writes the node's +0xc party bool. `FUN_0055b3f0`
+  reads that bool (self is always true; no node is false).
+- **`FUN_0055b440`** sends the node's low +0xc byte through
+  `FUN_0053ddc0`; `FUN_0055b4c0` sends the low 16 relation flags through
+  `FUN_0053de20` (S→C 0x8c). Both are no-ops without a node.
+- **`FUN_0055b540`** adds both directions, broadcasts party info, stores
+  false in self's node for other and whether self has a party in the
+  reverse node, sends those two +0xc values, then sends every node and its
+  low 16 flags to self's client.
+- **`FUN_0055b6c0(self ECX, other EDX)`** returns player data +0x160 when
+  other is null; otherwise the pair node's +8 stamp, zero without a node.
+  **`FUN_0055b720(self ECX, other EDX, stamp stack)`** stores the pair
+  stamp when that node exists, then always writes `GetTickCount()` to
+  self's player data +0x160 when self has player data.
 
 The mask bits match the roster's own layout (party.md "The roster": 1
 loot, 2 not heard, 4 squelched, 8 hostile), confirmed from the four C→S
@@ -152,11 +172,14 @@ clear the hostile bit **both ways** between a new party member and each
 existing one — matching that bullet's "PARTYSCREEN_ClearHostileRelation"
 by behaviour, not by name (not confirmed as the game's own symbol).
 
-d2d: none of this is ported; d2d never hosts (see above). Not traced in
-this pass: `FUN_0055b110` (the list-disable toggle `FUN_0055b140` checks),
-`FUN_00554630` (the per-node bool), and the siblings `FUN_0055b350` /
-`0055b3a0` / `0055b3f0` / `0055b440` / `0055b4c0` / `0055b540` in the same
-file, which read or touch the same node list for other purposes.
+d2d: `rules::PlayerRelations` ports the node layout, prepend/deduplicate,
+remove, flag set/clear/test, and pair stamp used by hostility. The stock
+state-7 add gate and the +0xc party-info packet are not modelled there;
+the hosted World applies party membership separately. The S→C 0x8c / 0x8d
+emission remains with the not-yet-ported hosted-client packet layer.
+`tools/emu/player_relations.py` runs the six ported functions for real over
+synthetic units, including allocation/free and packet boundaries, and
+freezes the same operations for `tests/test_player_relations.cpp`.
 
 ## The player count — FUN_00535790
 
@@ -533,8 +556,8 @@ bytes 3..6 the other player's id; `FUN_005a6000` looks the other unit up
    room is not in a town (`FUN_0061ab00` = room +0x10 -> +0x58 -> +0x1d0 level id,
    `FUN_006426a0`: levels 1, 0x28, 0x4b, 0x67, 0x6d), or either unit's level
    (stat 0xc, `FUN_006253b0`) is under 9. Only the declarer's room is tested.
-2. `FUN_0055b140` adds a relation node each way (none for a dead unit or while
-   `FUN_0055b110` finds one: not modelled).
+2. `FUN_0055b140` adds a relation node each way (none when either unit has
+   state 7; `FUN_0055b110` is the duplicate lookup).
 3. `FUN_0055b300(declarer, other, 8)` is compared whole with `on`: equal (0 with
    0, or an `on` of 8) resends both flags (`FUN_0055b4c0` twice, S->C 0x8c) and ends.
 4. Not hostile and the other's level (`FUN_00625480`) under 9: ends, nothing.
@@ -544,14 +567,22 @@ bytes 3..6 the other player's id; `FUN_005a6000` looks the other unit up
    voice event 0x13 for the declarer (`FUN_00553380`), S->C 0x5a (0x10, `FUN_00566d90`),
    flags resent.
 7. Else `FUN_0055b720` sets the node's stamp to now + 60000 and player data +0x160 to
-   now (the waypoint's 10 s window, waypoint.md); `FUN_005a5dc0`: the other in no
-   party sets flag 8 both ways and S->C 0x5a type 3; the other in a party walks its
-   members with `FUN_005a5d50` (both ways, type 3, level 9 or more); `FUN_00535430`
-   (the declarer's unit +0x48, class 0x3b: not traced); a declarer in the other's
-   party is notified each member (`FUN_005a5c70`, type 9) and removed
-   (`FUN_005407a0`) by `FUN_005a5d20`.
+   now (the waypoint's 10 s window, waypoint.md). `FUN_005a5dc0` takes the
+   declarer in EAX and other in EDI. If the other has no party, it sets bit 8
+   declarer→other then other→declarer and sends S→C 0x5a type 3. Otherwise,
+   when the declarer is level 9+, it walks the other's party; `FUN_005a5d50`
+   skips the declarer and members below level 9, and for each remaining member
+   sets declarer→member then member→declarer, followed by type 3.
+   `FUN_00535430` closes the declarer's old town-portal pair: the player-data
+   +0x48 unit must resolve to class 0x3b; both ends receive room event 2 and are
+   freed (collision.md "Town Portal"). Finally, if declarer and other have the
+   same non-ffff party id, `FUN_005a5d20` walks that party with
+   `FUN_005a5c70` (type 9 to every member other than declarer), then
+   `FUN_005407a0` removes the declarer and disbands a party left below two.
 
-Not traced: the party branch's exact directions, `FUN_00535430`, `FUN_0055b110`, the
-dead-unit case, the 0x8c / 0x5a packet layouts. d2d: the decision (1, 3..6, and 7's
-stamps) is `rules::hostile_toggle`; the relation nodes, party branch and the 0x5d
-command are not ported.
+`tools/emu/hostile_party.py` runs all three party functions for real and
+checks the directions, party walks, level gate and removal. d2d's
+`World::toggle_hostility` ports the relation, stamp, portal and party data
+effects; `rules::hostile_toggle` supplies branches 1 and 3..7. Not ported:
+the state-7 add gate, voice line, and the S→C 0x8c / 0x5a / 0x8d notices.
+C→S 0x5d cannot be wired without the excluded `protocol.*` / apps transport.

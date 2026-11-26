@@ -82,7 +82,7 @@ auto ClientSession::update(std::vector<std::uint8_t>& framebuffer, const Mouse& 
                 Screen& screen, Audio& audio, std::uint32_t frame_ms, std::uint32_t last_ms) -> void {
         now_ms = frame_ms;
         pad_show_items = false;
-        skillbar.coop = world.players.size() > 1;           // Resurrect on the right-hand picker
+        skillbar.coop = coop_partners();                    // Resurrect on the right-hand picker
         if (skillbar.right == kResurrectSkill && !skillbar.usable(kResurrectSkill, false)) skillbar.right = 0;   // co-op over: Attack
         skillbar.drop_gone();                                       // a charged entry used up or taken off
         // A partner's screen with nothing of theirs open goes back to the first player.
@@ -1055,7 +1055,7 @@ auto ClientSession::update(std::vector<std::uint8_t>& framebuffer, const Mouse& 
                 const auto& stock = store.tabs[std::size_t(store.tab)][std::size_t(store_index)];
                 const auto base = scene->rules.item_base.find(stock.code);
                 const bool fill = mouse.rpress_this_frame && (SDL_GetModState() & SDL_KMOD_SHIFT) != 0 && base != scene->rules.item_base.end() && base->second.multibuy;
-                send(cmd::Buy{ store_index, store.tab, fill });
+                buy_stock(store_index, fill);
             }
             // Sell: an inventory item; repair: that or a worn one.
             if (mouse.press_this_frame && (store.mode == 3 || (store.mode == 2 && !pad_a_edge)))

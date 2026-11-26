@@ -781,8 +781,8 @@ Think other_think(std::string_view ai_name, const ThinkIn& input) {
 // The AI driver's first step (FUN_005b10e0 -> FUN_005b0ff0), on the unit
 // its AI control names at +0xc / +0x10. FUN_005dd330 sets them: a unique's
 // minions their leader (FUN_005a0c00, 0x5a0cb9), a revived monster its owner
-// (FUN_005c55c0, 0x5c561b), item_reanimate's (FUN_005c07a0, 0x5c08ca) and
-// Taunt's (FUN_005d8570) their player. None (+0xc -1):
+// (FUN_005c55c0, 0x5c561b) and item_reanimate's (FUN_005c07a0, 0x5c08ca) their
+// player; Taunt's (FUN_005d8570, 0x5d8718) none. None (+0xc -1):
 // nothing. The monster without a WL mode (FUN_0046c140(row, 2)), the leader
 // not found (FUN_00552f60) or dead or dying (FUN_005541b0): +0xc cleared, so
 // never again. Within 1 (FUN_005dc380) of a player (+0x10 0): a back-off of

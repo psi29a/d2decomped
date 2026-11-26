@@ -49,7 +49,8 @@ and HOST, JOIN and the 0x104 label are disabled (`FUN_004f96f0(…, 0)`).
 `FUN_0040df60`: `gethostname` → `gethostbyname`, first address; if none,
 a UDP socket "connected" to 24.105.29.30:7 and `getsockname`. The result
 goes through `inet_ntoa`, so no address at all prints "0.0.0.0" (and the
-buttons stay live).
+buttons stay live). d2d also takes the route when the name maps to
+loopback, as on Android and Debian (deviations.md improvement 22).
 
 ## The join box — FUN_00431d20
 

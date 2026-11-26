@@ -22,6 +22,16 @@ int main() try {
     assert(hover_box(100, 700, false, 100, 32, 800, 600) == (Box{ 100, 563, 208, 595 }));    // the bottom: screen - 5
     assert(hover_box(100, 0, false, 100, 64, 800, 600) == (Box{ 100, -5, 208, 59 }));        // at least height - 5
     assert(hover_box(400, 100, true, 100, 32, 800, 600) == (Box{ 346, 70, 454, 102 }));      // centred
+    // The monster bar (FUN_00454ad0 -> FUN_00454880): its span's middle less half the name, y 0x20, its bottom 0x22.
+    using d2d::rules::monster_bar_box;
+    using d2d::rules::monster_bar_span;
+    assert((monster_bar_span(800, false, false, false) == std::array<int, 2>{ 0, 800 }));
+    assert((monster_bar_span(800, true, false, false) == std::array<int, 2>{ 400, 800 }));      // a left panel: the right half
+    assert((monster_bar_span(800, false, true, false) == std::array<int, 2>{ 0, 400 }));        // the inventory: the left half
+    const auto both = monster_bar_span(800, true, true, false), store = monster_bar_span(800, false, false, true);
+    assert(both[0] >= both[1] && store[0] >= store[1]);                                            // none
+    assert((monster_bar_box({ 0, 800 }, 60, 16, 800, 600) == std::array<int, 4>{ 370, 18, 438, 34 }));
+    assert((monster_bar_box({ 400, 800 }, 61, 16, 800, 600) == std::array<int, 4>{ 570, 18, 639, 34 }));
     std::puts("test_hover_box: ok");
     return 0;
 } catch (const std::exception& error) {

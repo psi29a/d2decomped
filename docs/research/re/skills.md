@@ -791,7 +791,10 @@ frame clock 0x7a0498 plus min(delay, 12), and `FUN_004d9fc0` turns a 0
 into 8 before then. Status 8 voices nothing; the buttons draw it as not
 usable. Cases delay_meteor, delay_meteor_off, delay_fire_bolt,
 delay_meteor_no_mana. d2d: `Fight::start_delay` at each do's action
-frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
+frame, `Hero::skill_delay`; in a joined game the client asks as game.exe's
+does (`game::client_ask`, `test_client_ask`): skilldelay is the host's state
+121 on its player (States.txt sends it), and the guard (0x4c68b8, `CMP EDI,0xc`)
+runs from the local do (`client_skill_guard`); startmana's state inferno is `Hero::burning`
 (`FUN_005c8e30`: 20 frames from the start, 6 past each later start while it is on: "Inferno's channel").
 
 ### Item charges (traced 2026-10-28)
@@ -926,6 +929,31 @@ frame, `Hero::skill_delay`; startmana's state inferno is `Hero::burning`
   `Fight::merc_shot`, `Swing::row_lo` / `row_hi`; tools/emu/merc_shot.py
   runs `FUN_005ce1b0` and the row's physical (0 of 100,144 differ, seeds 1
   and 2, 2026-11-23).
+- **A missile's physical from its owner's weapon** (`FUN_0064b860`'s
+  record, `FUN_0064ac60`, `FUN_005a89a0`'s hit). The record: the weapon's
+  stats 21 / 22 (or 23 / 24, 159 / 160) × 256 × SrcDamage / 128 toward
+  zero (0x64bc43..0x64bc67), then the missile's own physical added
+  unscaled (0x64bdf7): the row's (`FUN_0064af20` / `FUN_0064aff0`), or
+  for a row with a Skill (+0x194 over 0) that skill's
+  (`d2d_skills_skill_phys` / `FUN_00647d00`), so one roll at the hit takes
+  both (d2d: `rules::row_into_record`, from `Fight::strike`). Its +0x78 (0x64bdc2..0x64bddc): the unit's stat 25, the
+  mastery % (`FUN_00645830`), the str / dex bonus, the missile's stat 25
+  and the larger of the unit's stats 18 / 17, at least -90; its +0x6c the
+  unit's stat 121, its +0x70 stat 122 plus 50 with a Blunt weapon
+  (`FUN_00629bb0` type 0x39, 0x64bbf9). SrcDamage 0 takes none of the
+  unit's (0x64bcfe). `FUN_0064ac60` puts them on the missile as stats
+  21 / 22 / 25 / 121 / 122. The hit (0x5a89bf..0x5a89fd): none unless
+  both ends are over 0, else the lower end + rand(the gap) on the
+  missile's seed (+0x20), the ends swapped when the min is the larger;
+  then its % (0x5a8b09..0x5a8bde): stat 25, + 121 against a demon, + 122
+  against the undead (no floor of its own), the MonProp stat 0xb4 list
+  (`FUN_0057a830`), at least -90; the roll + roll × % / 100 (0x5a8bff),
+  and a crit doubles it after (0x5a8c02..0x5a8c1e). d2d:
+  `rules::missile_physical` / `missile_scaled`, player_blow's missile
+  swing; tools/emu/missile_record.py runs the three for real (4000 cases,
+  0 differ, 2026-11-25), its fixture `tests/missile_record_cases.inc`.
+  Not in d2d: the MonProp %, the row's +0x12e owner branch (0x64bd07), the
+  halved SrcDamage of row flag 0x6ce280 (`FUN_006289c0`, 0x64bb09).
 - **A crossbow's bolts** (do 8 `FUN_005db410` 0x5db51e..0x5db53d, do 10
   `FUN_005db6d0` 0x5db74f..0x5db76b, do 12 `FUN_005dba40`
   0x5dbb20..0x5dbb3f): srvmissilea (+0x48), or srvmissileb (+0x4a) when it
@@ -1787,7 +1815,9 @@ repeat skill.
   FUN_005c3de0). Dim Vision and Terror swap the monster's AI (special 10 / 11)
   and land only where FUN_0056e2f0 lets (monster-ai.md "Curse thinks"). **59** (FUN_005c3b90, Attract) on the one unit. **6**
   (FUN_005db1c0, Inner Sight / Slow Missiles) round the caster. **71**
-  (FUN_005d8570, Taunt) on the monster (or the nearest within 20).
+  (FUN_005d8570, Taunt) on the monster (or the nearest within 20); after
+  the put, taken or not, FUN_005dd330(monster, 0) at 0x5d8718 clears its
+  leader (monster-ai.md, `tools/emu/taunt_leader.py`).
 - War cries: do **68** (FUN_005d83e0): a nova of srvmissilea (FUN_0056d400)
   and the state on the caster (FUN_005d8290). Hit **18** (FUN_005ab0b0):
   the state on an ally it reaches. **21** (FUN_005ab500, Battle Cry): the
@@ -2078,8 +2108,8 @@ repeat skill.
   MonStats Run, row +0x34, FUN_00451f80 -> FUN_00648690, which also drops
   path +0x38 to 0xf when the velocity differs from +0x7c; a frame moves
   velocity / 4096 subtiles, so Run / 80 cells; d2d: `Monster::leap_pace`,
-  `leap_done`, `test_leap_pace`; not ported: the landing's 0x80 stamp and
-  FUN_005da120's wait for a unit not yet there), at the next it lands (FUN_005da120) and knocks back each
+  `leap_done`, `test_leap_pace`; not ported: the landing's 0x80 stamp; FUN_005da120's wait for a unit not
+  yet there: Leap Attack's only, monster-ai.md), at the next it lands (FUN_005da120) and knocks back each
   monster within calc1 subtiles (result 9, FUN_0056bad0). d2d:
   `Fight::leap`. FUN_005d9a10 (EAX the skill) in subtiles: range =
   aurarangecalc; d = FUN_006417f0(caster, point) = (short + 2 × long) / 2,

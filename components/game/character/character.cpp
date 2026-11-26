@@ -10,6 +10,7 @@
 #include <item_price.hpp>
 #include <quests_act5.hpp>
 #include <rules.hpp>
+#include <set_list.hpp>
 #include <skills.hpp>
 #include <wear.hpp>
 
@@ -33,6 +34,17 @@ std::vector<d2d::d2s::ItemProp> socket_props(const GameData& game_data, const d2
     return d2d::rules::socket_props(game_data.rules, parent, filled);
 }
 
+// FUN_00663a20 (ECX item, EDX FUN_0062a370's mask of its set's members worn,
+// itself in it): add func (SetItems +0x87) 1 toggles list j or j - 1 (past
+// its own index, +0x2e) by mask bit j, j 0..5; 2 turns on the first
+// 0x6ee440[mask] - 1 lists (a popcount table, 0 from 0x40 up), the rest off.
+// The lists are the states at 0x6ee424 (0xa5..0xa9), toggled by
+// FUN_006279a0 (flag 0x2000 = off). FUN_00663cc0 runs it on stats on, and
+// FUN_0055dbc0 redoes every worn set piece, so a worn piece's lists follow
+// what's worn (combat.md "A set item's own lists"; tools/emu/set_item_lists.py).
+// ponytail: a piece taken off keeps its lists as last set (FUN_00663cc0
+// (.., 1, 0) skips FUN_00663a20); d2d recomputes them from the others worn,
+// which only the tooltip of an unworn piece shows. Not traced client-side.
 std::vector<d2d::d2s::ItemProp> set_bonus_props(const GameData& game_data, const std::vector<d2d::d2s::Item>& items,
                                                 const d2d::d2s::Item& item) {
     std::vector<d2d::d2s::ItemProp> out;
@@ -61,28 +73,33 @@ std::vector<d2d::d2s::ItemProp> set_bonus_props(const GameData& game_data, const
     return out;
 }
 
+// FUN_00663b40 -> FUN_00660120 builds a set's list with the piece going on
+// (set_list.cpp), and FUN_0065fe10 hands that piece (ESI) to the
+// Properties funcs as their item (FUN_0065fd70): dmg-min / dmg-max
+// (FUN_0065ecf0 / FUN_0065ee80) on all three hands for a piece that isn't a
+// weapon (Hsarus' FCode1, Death's Disguise's belt or gloves), the weapon's
+// own for one (Death's Touch: one-hand). Sets.txt uses no func that writes
+// the item (2 / 4's defence, 13, 14, 19, 20, 23), so a copy goes in.
 std::vector<d2d::d2s::ItemProp> set_props(const GameData& game_data, const std::vector<d2d::d2s::Item>& items, int only) {
     std::vector<d2d::d2s::ItemProp> out;
     const auto& rules = game_data.rules;
-    std::vector<std::vector<int>> worn(rules.set_bonuses.size());
-    for (const auto& item : items)
-        if (item.location == d2d::d2s::item_location::kEquipped && item.slot >= d2d::d2s::body_location::kFirst && item.slot <= d2d::d2s::body_location::kLast
-            && item.quality == 5 && item.set_id >= 0 && std::size_t(item.set_id) < rules.sets.size() && (item.flags & 0x4100u) == 0)   // FUN_0062a370's members: flags 0x4000 / 0x100 out
-            if (const int set = rules.sets[std::size_t(item.set_id)].set; set >= 0 && std::size_t(set) < worn.size() && !std::ranges::contains(worn[std::size_t(set)], item.set_id))
-                worn[std::size_t(set)].push_back(item.set_id);
     d2d::rules::Rng rng;
-    for (std::size_t set = 0; set < worn.size(); ++set) {
-        const int count = int(worn[set].size());
-        if (count < 2 || (only >= 0 && int(set) != only)) continue;
+    for (std::size_t set = 0; set < rules.set_bonuses.size(); ++set) {
+        if (only >= 0 && int(set) != only) continue;
+        const int count = d2d::rules::set_pieces_worn(rules, items, int(set));
+        const auto* worn_piece = count > 0 ? d2d::rules::set_list_piece(rules, items, int(set)) : nullptr;
+        if (!worn_piece) continue;
+        auto piece = *worn_piece;
+        const auto base = rules.item_base.find(piece.code);
+        const auto info = rules.item_info.find(piece.code);
+        const auto type = info != rules.item_info.end() ? rules.types.find(info->second.type) : rules.types.end();
+        const d2d::rules::ModItem target{ &piece, base != rules.item_base.end() ? &base->second : nullptr,
+                                          info != rules.item_info.end() ? info->second.kind : 0,
+                                          type != rules.types.end() && type->second.throwable, false };
         const auto& bonus = rules.set_bonuses[set];
-        const int partial = std::min(count, bonus.pieces - 1) * 2 - 2;
-        for (int index = 0; index < partial && std::size_t(index) < bonus.partial.size(); ++index)
-            if (!bonus.partial[std::size_t(index)].code.empty()) {
-                d2d::rules::apply_mod(rules, bonus.partial[std::size_t(index)], out, rng);
-            }
-        if (count >= bonus.pieces)
-            for (const auto& mod : bonus.full)
-                if (!mod.code.empty()) d2d::rules::apply_mod(rules, mod, out, rng);
+        for (const int row : d2d::rules::set_list_rows(bonus, count))
+            d2d::rules::apply_mod(rules, row < 8 ? bonus.partial[std::size_t(row)] : bonus.full[std::size_t(row - 8)], out, rng,
+                                  target.base ? &target : nullptr);
     }
     return out;
 }

@@ -329,6 +329,15 @@ the state-list owner needed to credit a later poison kill.
   dex × DexBonus / 100 + mastery damage (`madm`), at least −90. Then
   `min' = min + min × (stat 18 + p) / 100`, `max' = max + max × (stat 17 + p)
   / 100`, a roll between them, times SrcDam / 128.
+- Before that build, `FUN_0057b7d0` adds to the skill's enhanced damage
+  (record +0xc) for a player, or a unit of alignment 2 (`FUN_006259b0`),
+  striking a monster: the attacker's stat 121 against a demon
+  (`FUN_0063e940`) when it is over 0 (0x57b857..0x57b86f), then
+  `FUN_0057b660`'s against the undead: 50 with a Blunt weapon (type 0x39)
+  plus stat 122, when that sum is over 0. d2d: `rules::melee_record_pct`;
+  `tools/emu/melee_record.py` runs `FUN_0057b7d0` up to its call of
+  `FUN_0057b420` (0x57b8a4) for a player (4000 cases, 0 differ,
+  2026-11-25), its fixture `tests/melee_record_cases.inc`.
 - A monster's blow (`FUN_0057b420` on its mode damage, stats 21 / 22): the
   roll is `(min << 8) + rand((max - min) << 8)` on the attacker's seed, one
   draw, the top not rolled; min is taken at least 1 and max at least min + 1
@@ -448,6 +457,121 @@ d2d has no literal node list for this queue — its equivalents
 than scheduling and later freeing/searching nodes — so there is nothing to
 port for either function; documented for the record only.
 
+## A set's bonus list — FUN_00663b40 → FUN_00660120 (ITEMS)
+
+game.exe keeps one stat list per set worn on its owner, in one of six
+states (`0x6ee424`), found by its stat 0x47 (the Sets.txt row,
+`FUN_00625d00`). `FUN_00663cc0(owner, item, off, …)` (an item of quality 5
+in the owner's inventory) runs `FUN_00663b40` (ECX owner, EDX item, `off`):
+
+- **On** (`off` 0): the set's list is cleared (`FUN_00627340`), or made in
+  the first free state (`FUN_006251f0`, `FUN_00626e10`, `FUN_006252d0`); its
+  0x47 is set (`FUN_00627030`) and `FUN_00660120` refills it with **that
+  item** (EDX = `[EBP-0x10]` at `0x663c98`).
+- **Off** (`off` 1): the list is unlinked and freed (`FUN_006277e0`,
+  `FUN_00626cd0`); nothing rebuilds it.
+
+`FUN_00660120` (ECX owner, EDX item, the state): n = `0x6eda40[mask]`
+(`FUN_0062a370`'s worn-member mask, a bit count); the partial rows 0 ..
+min(n, pieces − 1) × 2 − 3 whose property (+0 of each 16-byte row, the
+Sets record's +0x10) is set, then with n ≥ pieces the full rows (+0x90)
+in order, **stopping at the first unused one** (`0x660206`; stock Sets.txt
+has no gap). Each row goes through `FUN_0065fe10(4, owner, …)` with the
+item in ESI (`0x66012e`), which hands it to the Properties funcs as their
+item (`FUN_0065fd70`: ECX the kind, EDX the owner, then the item and the
+mod). So dmg-min / dmg-max (`FUN_0065ecf0` / `FUN_0065ee80`, drops.md)
+land by that piece's hands: all three (0x15 / 0x17 / 0x9f, or 0x16 / 0x18
+/ 0xa0) for a piece that isn't a weapon (`FUN_00629bb0(item, 0x2d)`), the
+weapon's own for one. With no item those funcs put nothing.
+
+`FUN_0055c2c0` (stats on) calls `FUN_00663cc0(.., 0, 0)` for a set item;
+its callers (xrefs) are ItemMode.cpp's moves: a body item on (`FUN_005606b0`, the load's
+too, `FUN_00560f00`, `FUN_00561220`, `FUN_00563d20`), the weapon switch
+(`FUN_005616a0`), a stack refill (`FUN_00562a30`), the corpse
+(`FUN_00562f30`), the requirements pass (`FUN_0055dbc0`); a mend calls it
+itself (`FUN_0055f900`). The off side: `FUN_0055c730` (.., 1, 0), a break
+`FUN_0055f850` and `FUN_0057f410` (.., 1, 1). So the list holds the piece
+put on last.
+
+Sets.txt's codes use Properties funcs 1, 3, 5, 6, 7, 8, 11, 15, 16, 17,
+21, 22 and 24 only, none of the ones that write the item (2 / 4's
+defence, 13, 14, 19, 20, 23); what the piece changes is dmg-max (Hsarus'
+Defense FCode1, three armour pieces: all three hands), dmg-min (Death's
+Disguise FCode2: all three, or one-hand when Death's Touch, a war sword,
+went on last) and dmg% (Aldur's Watchtower FCode6, func 7 `FUN_0065f010`,
+which reads a weapon piece's damage bytes too), and a classic (version 0)
+piece takes the classic table (`FUN_0062a670`, drops.md).
+
+d2d: `rules::stats_on` stamps an item where its stats go on
+(`wield_enters`, `equip_from_bag`), `rules::set_list_piece` takes the worn
+member with the highest stamp (the later in the save on a tie: a load puts
+them on in its order), `rules::set_list_rows` the rows, and `set_props`
+hands the piece to `apply_mod`. Not ported: the off side, which leaves the
+pieces still worn with no partial bonus until one goes on again (not
+checked in play; `set_list.cpp`'s ponytail).
+Oracle: `tools/emu/set_list.py` runs `FUN_00663b40` and `FUN_00660120`
+over runs of pieces going on and off (the owner's lists a Python model,
+`FUN_0065fe10` logged): 0 of 19,383 lines differ from
+`tests/test_set_list.cpp` (gen 2000 1, 2026-11-25).
+Re-check: `python3 tools/ghidra/fn.py 00663cc0 00663b40 00660120 0065fe10
+0065fd70 0065ecf0`.
+
+### A set item's own lists — FUN_00663a20 (ITEMS)
+
+A set item's aprop lists (SetItems add func 1 or 2: states `0x6ee424`,
+0xa5..0xa9, made off with flags 0x2040, drops.md) are switched on and off
+by `FUN_00663a20` (ECX item, EDX mask; fastcall, plain `RET`).
+`FUN_00663cc0` calls it at `0x663d1b` when `param_4` is set or `param_3` is
+0 (stats on; a break; not a plain take-off), before `FUN_00663b40`. Its EDX
+is `FUN_0062a370(owner, item, 1)` when the item is in its owner's inventory
+(`FUN_0063e070`) in a body grid (`FUN_0063e020` 3), else 0: bit
+SetItems +0x2e of each body item of the same set (+0x2c), quality 5, flags
+0x4000 / 0x100 off, the item itself included.
+
+1. Not an item (type 4), not quality 5 (`FUN_00627e70`), no SetItems record
+   (`FUN_0062a490`) or add func (+0x87) 0: returns 0, nothing changes.
+2. Add func 1: own = `FUN_0062b3a0` (SetItems +0x2e). For j 0..5, j ≠ own:
+   list `0x6ee424[j]`, or `[j - 1]` when j > own (signed, `0x663aef`), off
+   when mask bit j is clear. So list i follows member i below its own index,
+   member i + 1 from it on. An own index of -1 would read `0x6ee420`
+   (0xd2f, no list has that state: a no-op).
+3. Add func 2: n = `0x6ee440[mask] - 1` (0 for a mask ≥ 0x40, unsigned
+   `0x663a7c`); lists 0 .. n − 1 on, lists n .. 4 off (`< 0x6ee438`). n = −1
+   (mask 0) starts at `0x6ee420` too.
+4. Any other add func: returns 1, nothing changes. FUN_00663cc0 ignores
+   the result.
+
+`0x6ee424`: 0xa5, 0xa6, 0xa7, 0xa8, 0xa9, 0xaa (the sixth only reachable by
+add func 1 with an own index past 5), then 0. `0x6ee440`: 64 dwords, the
+bit count of the index (0, 1, 1, 2, … 6).
+
+`FUN_006279a0(item, state, off)` (stdcall 3): with a state and the item's
+stat list (+0x5c, an extended one, flag 0x80000000), the sub-list of that
+state (`FUN_00625650`: the +0x3c chain, then +0x40, next at +0x2c, state at
++0x14); off and not 0x2000, or on and 0x2000: unlinked (`FUN_006269f0`),
+flag 0x2000 flipped, relinked (`FUN_00626e10(item, list, 1)`); returns 1
+when it flipped one.
+
+`FUN_0055dbc0`'s last loop takes off and puts back on (`FUN_0055c730(.., 1,
+1)`, `FUN_0055c2c0`) every body item of quality 5 with 0x100 / 0x4000 off,
+so every worn piece's lists are redone from the mask whenever it runs (its
+callers in `game-calls.tsv` are ItemMode's moves; not every move checked).
+d2d: `game::set_bonus_props` (character.cpp) computes them from what's worn:
+add func 1, list i while member i (below its own index) or i + 1 is worn;
+add func 2, list i with i + 2 members worn. Oracle: `tools/emu/set_item_lists.py`
+runs FUN_00663a20, FUN_006279a0 and FUN_00625650 for real over add func
+0..3, own index −1..6 and masks 0..0x7f plus four large ones: 0 of the 1,536
+cases d2d's data can hold (own 0..5, mask < 0x40) differ
+(`tests/game/test_set_item_lists.cpp`, 2026-11-26). The 512 others that
+differ are add func 2 with a mask ≥ 0x40 (game.exe: all off); d2d's loader
+gives at most 6 members (0..5), so its mask stays below 0x40.
+Not ported: a piece taken off keeps its lists as last set (FUN_00663cc0
+(.., 1, 0) skips FUN_00663a20), where d2d recomputes them; only an unworn
+piece's tooltip shows it. The client's copy (`FUN_004c0d20` and the other
+0x4c… callers of FUN_00663cc0) is not traced.
+Re-check: `python3 tools/ghidra/fn.py 00663a20 00663cc0 006279a0 00625650
+0062a370 0055dbc0`.
+
 ## Corrections applied (phase 0)
 
 1. Hit chance rounds as game.exe does: percent first, then × 2 × alvl /
@@ -533,7 +657,8 @@ for seeds 1 and 7. It has no reduction and no resistance on the defender
   of a set worn (a popcount of its piece mask, 0x6eda40), the partial
   PCode2a, 2b .. na, nb, at most (pieces − 1)'s; with every piece worn the
   full FCode1..8 too (pieces: the Sets record's +0xc). An add func 1 list (keyed to another piece)
-  counts pieces.
+  counts pieces. The mods go by the piece whose stats went on last: "A
+  set's bonus list" below.
 - Monster life regeneration: FUN_00573cb0 sets stat 0x4a = its rolled
   life (256ths) x MonStats DamageRegen (+0x1a0) >> 12 (past 0x7fffffff /
   DamageRegen the life shifts first); FUN_005a6920 (event 3, every frame)
@@ -908,53 +1033,71 @@ ponytail: the gold pile isn't split; requirements aren't checked when
 items go back; a saved corpse lies by the camp's start (the save's x / y
 aren't read); goldlost isn't kept.
 
-## A unit's paired records — unit +0xac (SUnitDmg.cpp)
+## A unit's hit records — unit +0xac (SUnitDmg.cpp)
 
-A unit's +0xac is the head of its own singly-linked list of allocated
-records, each one naming a **pair** of units: +4 / +8 a u32 type and id
-(the list owner's own, i.e. the unit this list hangs off), +0xc / +0x10 a
-second unit's type and id, +0x14.. a payload not traced here, +0x84 the
-next node. `FUN_0040b430` / `FUN_0040b480` (file, line, size or pointer,
-a register the decompile drops) are the allocator's alloc / free, as in
-`path.md`'s `STRUCT_FreePath` and `items.md`'s inventory free; `0057c980`
-and `0057c9f0` free through them, so this is a pool-backed list, not a
-flag.
+A melee skill's start builds its blow's damage record against the unit it
+swings at, and its do (the action frame) resolves that record. Between the
+two the record waits in the attacker's own list: unit +0xac is the head of
+a singly-linked list of 0x88-byte nodes from a pool (`FUN_0040b430`
+/ `FUN_0040b480`, the allocator's alloc / free with the pool in ECX, the
+size or the node in EDX, file and line on the stack, `RET 0xc`; as in
+`path.md`'s `STRUCT_FreePath`); each of the three that change it takes in ECX a
+context whose +0x1c is that pool (what it is was not traced). A node: +0
+that context, +4 / +8 the attacker's
+type and id as it was added, +0xc / +0x10 the struck unit's, +0x14 the
+0x70-byte damage record (a copy), +0x84 the next. The record's +0 holds the
+hit flags (2: built, so `FUN_0057dbf0` skips `FUN_0057b7d0`) and its +4 the
+result flags: bit 0 the blow landed (the to-hit roll passed and nothing
+stopped it: `FUN_0057ec10` clears it when `FUN_0057dfb0` returns any bit,
+setting 0x10 / 0x100 / 0x80 / 0x8000 for its bits 1 / 2 / 4 / 0x10), bit 1
+it kills (`FUN_0057dbf0`: the record's damage over the unit's life).
 
-- **`FUN_0057d690`** (`__fastcall`, ECX unit A, EDX unit B; no stack args):
-  read-only. Null A or B: 0. Else walks A's own +0xac list; a node
-  matches when its +4/+8 equal A's own type/id (`FUN_0044be50` /
-  `FUN_00451f50`, both already d2d-verified null-safe accessors) **and**
-  its +0xc/+0x10 equal B's. Returns the matching node +0x14 (the
-  payload), or 0 when A, B or no match. Callers: `FUN_0056f1f0`
-  (skills.md's srvdofunc [2], already ported, `components/game/fight.hpp`)
-  uses it to test "does A already have a record for (A, B)" before
-  granting the skill's target state at Skills.txt +0x82; `FUN_0056f115`
-  (not otherwise traced here) the same, before a freeze-length clamp. So
-  the pair is (self, the other unit a skill's state concerns), and the
-  payload holds at least a tick count the skills.md citation already
-  describes as "the calc at +0x60 ticks".
-- **`FUN_0057c9f0`** (`__fastcall`, ECX a pool-context pointer whose +0x1c
-  is passed to the free call, EDX unit A, one stack arg unit B): frees
-  (SUnitDmg.cpp:0x79f) every node in A's own +0xac list whose +4/+8 /
-  +0xc/+0x10 match (A, B) exactly (raw unit +0 / +0xc, not through the
-  accessors above), unlinking it from the list first. Null A, null B, or
-  an empty list: no-op. Callers run from `005caf30`..`005d8e00`
-  (monster/skill handling the batch didn't open) and `0057d4f0`: the
-  mirror of `FUN_0057d690`'s lookup, dropping the (A, B) record once it's
-  no longer wanted.
-- **`FUN_0057c980`** (`__fastcall`, ECX the same pool-context, EDX unit A;
-  no stack args, no null check on A — a null A faults reading `A[0x2b]`):
-  frees (SUnitDmg.cpp:0x769) every node in A's own +0xac list whose +4/+8
-  equal **A's own** type/id, regardless of what +0xc/+0x10 say — i.e.
-  every record this list's owner still tags as being about itself. Two
-  callers, both teardown: `FUN_005349d0` (a unit's death/removal chain,
-  passing the room/game's own pool at the caller's own +0x1c) and
-  `FUN_00553570` (freeze/resume, oracle `tools/emu/freeze_resume.py:188`,
-  which calls it right before `FUN_00624690` clears the freeze state).
-  Not traced: why a live node's self pair would ever stop matching its
-  own owner — this reads as a guard against stale self-tagged records
-  surviving a unit's teardown (and the pool slot's later reuse for a
-  different unit), not an everyday no-op.
+- **`FUN_0057ca80`** (ECX the context, EBX the attacker, EAX the struck unit,
+  the record on the stack, `RET 4`): only for a struck unit of type 0 or 1
+  (a player or a monster; the test for an object of class 7 / 0xb before it
+  can't change that), allocates a node (SUnitDmg.cpp:0x7cb), fills it as
+  above and makes it the list's new head. A null struck unit faults reading
+  its type (0x57ca9f); a null attacker, once the struck unit passes, reading
+  its type (0x57cac5). One caller: `FUN_0057dbf0`, the build's end (34
+  callers: the melee starts, `FUN_005d7ea0` the Bash family's, `FUN_005d5880`
+  Dragon Talon's, `FUN_005d7090` Dragon Tail's, and dos that build a record
+  of their own, `FUN_005d3490`, `FUN_005d7850` ...), the record added
+  whether the blow landed or not.
+- **`FUN_0057d690`** (ECX the attacker, EDX the struck unit; no stack
+  args): read-only. Null either: 0. Else the first node from the head (the
+  newest) whose +4 / +8 equal the attacker's type and id now (`FUN_0044be50`
+  / `FUN_00451f50`) and +0xc / +0x10 the struck unit's; returns its +0x14,
+  the record, or 0. Callers: the Bash family's start itself (`FUN_005d7ea0`
+  adds calc2 x 256 to the record's +8 after the build) and the dos that
+  read the record before resolving it: `FUN_0056f1f0` (srvdofunc 2: its
+  srvoverlay, Skills.txt +0x4e, on the struck unit through `FUN_00621e40`
+  when the record's +4 bit 0 is set; its auratargetstate, +0x82, the same
+  way, which no 1.14d do-2 row has; with neither column it doesn't look and
+  no record means no blow), `FUN_0056f115`, `FUN_005ce8e0` (Sacrifice),
+  `FUN_005d0350` (Conversion), `FUN_005d3490`, `FUN_005d5a30`, `FUN_005d7850`
+  and others.
+- **`FUN_0057d4f0`** resolves it: the same lookup (through the accessors),
+  a copy of the record, the reach test (`FUN_00622c40`, range 3 for a
+  monster attacker, else 1), then the hit's effects and `FUN_0057cee0`
+  (the damage), and last `FUN_0057c9f0` on the pair; out of reach it only
+  drops the pair. No record: nothing. A landed blow by a player or monster
+  in mode 0 (its death) returns before the drop, leaving the record.
+- **`FUN_0057c9f0`** (ECX the context, EDX the attacker, the struck unit on the
+  stack, `RET 4`): frees (SUnitDmg.cpp:0x79f) every node whose +4 / +8 /
+  +0xc / +0x10 equal the two units' raw +0 / +0xc, unlinking each first.
+  Null either or an empty list: nothing. Callers: `FUN_0057d4f0`, and
+  `005caf30`, `005cbfc7`, `005cdf10`, `005d8e00`, which drop a record they
+  won't resolve.
+- **`FUN_0057c980`** (ECX the context, EDX the attacker; no null check, a null
+  one faults reading +0xac): frees (SUnitDmg.cpp:0x769) every node whose
+  +4 / +8 equal the attacker's raw type and id, whatever it struck. Two
+  callers, both teardown: `FUN_005349d0` (a unit's removal) and
+  `FUN_00553570` (freeze, `tools/emu/freeze_resume.py`). A node names
+  another type or id only after the unit's own changed since it was added.
+
+So the newest record of a pair wins, a swing cut short leaves its record
+in the list until the pair's next resolve or the attacker's removal frees
+it, and a record against an object (a barrel's) is built but never kept.
 - **`FUN_0057e240`** (`__fastcall`, ECX / EDX plus two stack args, `RET
   0x8`): forwards the same four arguments, unchanged and in the same
   order, first to the already-ported `FUN_0056e170` (physical/leech
@@ -978,13 +1121,18 @@ disassembly, `0056e1c1`). Run with FUN_00647bc0 / FUN_00647d00 hooked (logged,
 scripted results) and the real seed draw, 36 cases:
 `tools/emu/skills_combat_helpers.py`. Their formulas and d2d are not compared.
 
-d2d: no function of its own for the +0xac list; nothing in `ai.cpp` or
-`fight.hpp` was found keeping a per-(caster, target) record list, so this
-is cited, not matched. Not a behavioural difference by itself — the
-callers above are already ported and credited to the functions that use
-this list's result.
-Re-check: `python3 tools/ghidra/fn.py 0057d690 0057c9f0 0057c980 0057e240
-0044be50 00451f50 0056f1f0 005d3140`.
+d2d: `rules::HitRecords` (hit_records.hpp; `tools/emu/hit_records.py`,
+`test_hit_records`), one per player (`Hero::hit_records`). A do-2 skill's
+swing builds its blow as it starts (`Fight::start_swing`, `build_blow`: a
+miss with no roll out of reach or at no foe) and its action frame lands
+that one (`Fight::hit`): none, no blow; a landed one plays the srvoverlay
+on the monster (`test_hit_records_swing`). Every other skill still builds
+and lands its blow at once on the action frame. A player's list goes with
+its `Hero`; nothing calls `drop_self` yet (d2d has no player freeze).
+ponytail: the monsters', merc's and pets' blows keep no record.
+Re-check: `python3 tools/ghidra/fn.py 0057ca80 0057d690 0057c9f0 0057c980
+0057dbf0 0057ec10 0057d4f0 0056f1f0 005d7ea0 0057e240 0044be50 00451f50
+005d3140`.
 
 ## A unit's +0xdc field — FUN_00553980 (SUnit.cpp)
 

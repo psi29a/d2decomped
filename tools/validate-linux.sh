@@ -10,13 +10,17 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 tag="d2d-linux-ci:$(sha1sum tools/validate-linux.Dockerfile | cut -c1-12)"
 docker image inspect "$tag" >/dev/null 2>&1 || docker build -t "$tag" -f tools/validate-linux.Dockerfile tools/
-# JOBS: parallel compiles (default 8); D2D_DOCKER_MEMORY: a container memory
+# JOBS: parallel compiles and clang-tidy runs (default: the machine's threads
+# less 2 when it has more than 4, capped at 8, else all of them); D2D_DOCKER_MEMORY: a container memory
 # limit such as 10g. A C++ job at -O3 takes up to ~2 GB, so on a small machine
-# an unlimited -j 8 can run the host out of memory; with a limit, the OOM
+# an unlimited -j can run the host out of memory; with a limit, the OOM
 # killer stops the container instead. D2D_BUILD_VOLUME: the build's docker
 # volume (default d2d-build-linux); give each worktree its own, since all of
 # them mount at /src and ninja would take another tree's newer objects.
-jobs=${JOBS:-8}
+threads=$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)
+default_jobs=$(( threads > 4 ? threads - 2 : threads ))
+(( default_jobs > 8 )) && default_jobs=8
+jobs=${JOBS:-$default_jobs}
 volume=${D2D_BUILD_VOLUME:-d2d-build-linux}
 limits=()
 [[ -n "${D2D_DOCKER_MEMORY:-}" ]] && limits+=(--memory="$D2D_DOCKER_MEMORY")
@@ -86,7 +90,7 @@ else
 fi
 echo "clang-tidy: $(grep -c . build-linux/tidy_files.txt || true) files"
 if [ -s build-linux/tidy_files.txt ]; then
-    xargs -P 4 -n 1 clang-tidy -p build-linux --quiet --extra-arg=-Wno-unknown-warning-option < build-linux/tidy_files.txt
+    xargs -P "$JOBS" -n 1 clang-tidy -p build-linux --quiet --extra-arg=-Wno-unknown-warning-option < build-linux/tidy_files.txt
 fi
 ctest --test-dir build-linux --output-on-failure -C Release
 '

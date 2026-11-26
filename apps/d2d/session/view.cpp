@@ -17,6 +17,7 @@
 #include <combat.hpp>
 #include <cues.hpp>
 #include <d2s_items.hpp>
+#include <hover_box.hpp>
 #include <level_ids.hpp>
 #include <light.hpp>
 #include <log.hpp>
@@ -52,15 +53,17 @@
 
 namespace d2d::client {
 
-void draw_monster_bar(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const Monster& monster) {
+void draw_monster_bar(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const Monster& monster, std::array<int, 2> span) {
     const auto& name = monster.npc.name;
-    if (name.empty() || !monster.alive()) return;
+    if (name.empty() || !monster.alive() || span[0] >= span[1]) return;
     const auto& pal = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
     // The hover box with a life bar (FUN_00503000): the text's width + 8 by its height; the life share (FUN_004525f0:
     // life << 7 / max life, 0x80 for none, held to 2..0x80) of it in the palette's nearest to (0x50, 0, 0)
     // (FUN_004fb180) at half (draw mode 1), the rest black at a quarter (mode 2).
-    const int width = scene.font.measure(name) + 8, height = scene.font.line_height();
-    const int left = int(kScreenWidth) / 2 - width / 2, top = 10;
+    const auto box = d2d::rules::monster_bar_box(span, scene.font.measure(name), scene.font.line_height(), int(kScreenWidth), int(kScreenHeight));
+    const int width = box[2] - box[0], height = box[3] - box[1];
+    const int left = box[0], top = box[1];
+    const int middle = (span[0] + span[1]) >> 1;
     const int filled = d2d::rules::bar_life_share(monster.hit_points, monster.stats.hit_points) * width >> 7;
     std::array<std::uint8_t, 3> red{ 0x50, 0, 0 };
     int best = 1 << 30;
@@ -97,7 +100,7 @@ void draw_monster_bar(std::vector<std::uint8_t>& framebuffer, const Scene& scene
     else label.clear();
     int line_top = top + height + 2;
     if (!label.empty()) {
-        scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, int(kScreenWidth) / 2 - scene.font.measure(label) / 2, line_top, label);
+        scene.font.draw(framebuffer, kScreenWidth, kScreenHeight, pal, middle - scene.font.measure(label) / 2, line_top, label);
         line_top += scene.font.line_height();
     }
     // Then a line per immunity (FUN_004526c0, rules::immunity_lines), each in
@@ -110,7 +113,7 @@ void draw_monster_bar(std::vector<std::uint8_t>& framebuffer, const Scene& scene
     for (const auto& immunity : d2d::rules::immunity_lines(type_info.id, resists)) {
         const auto text = string_id(scene, immunity.string);
         const auto& rgb = kFontRgb[std::size_t(immunity.colour)];
-        scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, int(kScreenWidth) / 2 - scene.font.measure(text) / 2, line_top, text, rgb[0], rgb[1], rgb[2]);
+        scene.font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, pal, middle - scene.font.measure(text) / 2, line_top, text, rgb[0], rgb[1], rgb[2]);
         line_top += scene.font.line_height();
     }
 }
@@ -153,11 +156,16 @@ std::pair<std::string_view, std::uint32_t> portal_mode(const Scene& scene, const
 
 }  // namespace
 
-void rank_ground_labels(const GameData& game_data, const Level& level, float x, float y, std::span<Unit> units) {
+void rank_ground_labels(const GameData& game_data, const Level& level, float x, float y, std::span<Unit> units, std::span<const std::uint32_t> arrival) {
     std::vector<Unit*> ground;
     for (auto& unit : units)
         if (unit.npc <= -1000 && unit.npc > -2000) ground.push_back(&unit);
-    std::ranges::sort(ground, {}, [](const Unit* unit) { return unit->npc; });   // the newest (last in View::ground) first
+    const auto arrived = [&](const Unit* unit) {
+        const auto index = std::size_t(-1000 - unit->npc);
+        return index < arrival.size() ? arrival[index] : 0u;
+    };
+    // The last arrived first; equal (none yet), the newest (last in View::ground) first.
+    std::ranges::sort(ground, [&](const Unit* left, const Unit* right) { return arrived(left) != arrived(right) ? arrived(left) > arrived(right) : left->npc < right->npc; });
     int rank = 0;
     for (const auto& room : d2d::game::automap_rooms(game_data, level, x, y)) {
         if (room.level != &level) continue;                                      // View::ground is this level's
@@ -314,7 +322,7 @@ void draw_raise_aura(std::vector<std::uint8_t>& framebuffer, int centre_x, int c
 }
 
 void view_overlays(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const View& view, int hovered,
-                   float camera_x, float camera_y, float hero_x, float hero_y, const Lighting* light) {
+                   float camera_x, float camera_y, float hero_x, float hero_y, const Lighting* light, std::array<int, 2> bar_span) {
     int chosen = hovered;
     if (chosen < 0) chosen = view.monster(view.attack);
     if (chosen < 0 && light && view.level) {
@@ -329,7 +337,7 @@ void view_overlays(std::vector<std::uint8_t>& framebuffer, const Scene& scene, c
         }
         chosen = view.monster(bar_monster(-1, -1, drawn, hero_x, hero_y));
     }
-    if (chosen >= 0 && std::size_t(chosen) < view.monsters.size()) draw_monster_bar(framebuffer, scene, view.monsters[std::size_t(chosen)]);
+    if (chosen >= 0 && std::size_t(chosen) < view.monsters.size()) draw_monster_bar(framebuffer, scene, view.monsters[std::size_t(chosen)], bar_span);
     // The death screen (FUN_00453100): youdiedhardcore then youdiedinst,
     // centred, from H/2 - 94 down 48 px each; then in Font30, red, centred,
     // 48 px apart: string 0x13e8 "Your deeds of valor..." (hardcore) or

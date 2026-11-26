@@ -60,7 +60,7 @@ NpcMenuState open_hire_menu(const Scene& scene, int npc, const std::vector<d2d::
         list.rows.push_back({ { name + space + string_id(scene, 0xf9c) + space + stat(0xd28, offer.level) + space + space + stat(0xd26, offer.life) + space + space +
                                     stat(0xd27, offer.def) + space + space + stat(0xd29, offer.cost),
                                 space + space + (desc ? d2d::rules::hire_description(string_id(scene, desc)) : std::string()) },
-                              int(i) });
+                              offer.name });   // C->S 0x36's name (FUN_004b5c60 -> FUN_0054bbd0)
     }
     if (list.rows.empty()) list.rows.push_back({ { string_id(scene, 0xd25), std::string() }, -1 });
     return menu;

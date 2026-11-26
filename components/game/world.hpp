@@ -23,11 +23,13 @@
 #include <d2s_items.hpp>
 #include <drops.hpp>
 #include <hire.hpp>
+#include <hostile_toggle.hpp>
 #include <level_ids.hpp>
 #include <light.hpp>
 #include <monsters.hpp>
 #include <object_ids.hpp>
 #include <overlays.hpp>
+#include <player_relations.hpp>
 #include <quest_clock.hpp>
 #include <quests.hpp>
 #include <quests_act3.hpp>
@@ -130,6 +132,7 @@ using Event = std::variant<ev::LevelChanged, ev::Reassigned, ev::Lightning, ev::
 struct View {
     const Level* level = nullptr;
     UnitState player;
+    float path_target_x = 0, path_target_y = 0;  // player's path +0x10 / +0x12 (SP1), for FUN_006238c0's facing
     bool running = false, dead = false;
     bool poisoned = false;                 // a monster's poison on the player (the life globe's green, state 2)
     bool chilled = false;                  // a monster's cold on the player (state 11, its blue)
@@ -190,7 +193,7 @@ struct View {
     // A joined game's other players (a game.exe host's 0x59 / 0x0f): not
     // replicated, the client sets them after each View (apps/d2d netgame).
     struct OtherPlayer { UnitState unit; int cls = 0; std::string name; std::uint32_t id = 0; GameData::Appearance gfx{}; int mode = -1; bool running = false;
-                        std::vector<std::string_view> states; bool ghost = false; int walk_percent = 100; d2d::rules::OneShots one_shots; };   // id: the host's unit; mode: an act, -1 walk / stand; states: the host's on it (States.txt names); ghost: local co-op's dead; walk_percent: as View's (a joined game's: its class's run or walk and chill, no FRW); flash: as View's
+                        std::vector<std::string_view> states; bool ghost = false, hostile = false, dead = false; int walk_percent = 100; d2d::rules::OneShots one_shots; };   // id: the host's unit; mode: an act, -1 walk / stand; states: the host's on it (States.txt names); ghost: local co-op's dead; hostile: relation flag 8 from this client; dead: a joined game's, dying or dead on the host (0x0d command 8 / 9; not replicated); walk_percent: as View's (a joined game's: its class's run or walk and chill, no FRW); flash: as View's
     std::vector<OtherPlayer> others;
     // Local co-op's death (docs/design/local-coop.md): the screen's player a
     // ghost; everyone dead (the death screen, Esc back to town); the bodies
@@ -286,6 +289,8 @@ struct World {
         // refuses for 10 s after (FUN_0054c5d0). Unset: never, as in single player.
         std::optional<std::uint32_t> hostile_at;
         void declare_hostile(std::uint32_t now_ms) { hostile_at = now_ms; }   // FUN_0055b720's store
+        d2d::rules::PlayerRelations relations;       // FUN_0055b140 family: one-way flags and pair stamps
+        int party = -1;                              // FUN_00540710 / FUN_00554630: 0xffff means no party
         // Talk records (by hc_idx) whose menu greeting has played since the
         // player was last out of town: FUN_004b66b0 clears the record's +0x15
         // as it greets, FUN_004b3e10 sets all again as the player leaves town.
@@ -326,6 +331,8 @@ struct World {
     [[nodiscard]] Player& lead() const { return *players.front(); }
     // A new player's slot: the next unit id, in the fight's list.
     Player& add_player();
+    // Apply the host's party-screen hostile action to `other`.
+    d2d::rules::HostileToggle toggle_hostility(Player& other, std::uint32_t requested, std::uint32_t now_ms);
     // `each` for every player in turn, acting as them; the one acting
     // before acts again after.
     template <class Each> void each_player(Each&& each) {
@@ -354,6 +361,7 @@ struct World {
     static constexpr float kRaiseSeconds = 10;           // one channeller's; each more adds as much speed
     static constexpr float kRaiseReach = 2;              // cells from the body
     [[nodiscard]] bool anyone_alive() const;           // of those on the host's screen
+    [[nodiscard]] int screen_players() const;          // the players on the host's screen: all but the LAN joiners (own_screen)
     [[nodiscard]] bool shared_screen() const;          // the actor shares the host's screen with another player (local co-op's death: a ghost, no respawn till all are dead)
     void become_ghost(Player& player);
     void revive(Player& player, std::uint32_t now_ms);   // up where they are, full life
@@ -694,6 +702,7 @@ struct World {
     void act5_update(std::uint32_t now_ms);
     // Every item of the character has a unit id (new ones get theirs).
     void item_ids();
+    void store_ids();                    // the open store's stock items without an id take the next ones
 
     // A new game: the player at (start_x, start_y) cells, or the town's start when they're negative.
     World(const GameData* loaded_data, int start_x, int start_y);

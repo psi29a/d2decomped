@@ -132,7 +132,11 @@ is, and the server walks it there, resyncs it (`FUN_0054cb10` /
 The look comes afterwards, from the items the player wears (0x9d).
 Another player's arrive as 0x9d action 6 with them as owner (type 0,
 their id), one per worn item (50 for one Amazon on joining, 2026-10-05);
-d2d draws the look from them as from its own (`GameData::look_of`).
+d2d draws the look from them as from its own (`GameData::look_of`). Each
+carries its props, so its faster run / walk (stat 96, the active set only) joins
+its states' (0xa8 / 0xaa stat lists) in its walk % (`FUN_00623f50` on the client
+unit; d2d: `client::worn_frw`, `test_worn_frw`). Where the client links the item's
+stat list to its owner isn't traced.
 
 **0xac assign monster** (variable; builder `0x53e2e0`, handler
 `0x45f190`). NPCs, the merc and summons are monsters too.
@@ -639,7 +643,9 @@ ids).
     `FUN_004649d0` → `FUN_00463c90`) are searched for class 0x13e (318,
     the eunuch harem blocker `ss`) in mode 2 (`LAB_004b3360` sets
     `DAT_007c0dda`); none found, sound 0xf8f (3983 guard_halt) on the
-    guard.
+    guard. d2d keeps each host object's mode (0x51 +0xc, then 0x0e:
+    `NetGame::Unit::object_mode`) and asks `NetGame::object_in_mode`
+    (`test_harem_blocker_mode`).
 - **0x58 open UI** (7; `0x45e490`): +1 u32 unit id, +5 u8 UI (0 open;
   1 / 4 / 5 / 6 / 7 close variants) **(?)** which is which.
 - **0x77 button action** (2; `FUN_004b8cf0`): +1 u8 action on the trade
@@ -1155,7 +1161,7 @@ works it out locally; d2d's View gets it from its own World today.
 | `fires` | objects / missiles **(?)** | not traced |
 | `portals` | 0x51 (TownPortal objects), 0x60, 0x82 | d2d's View has the player's only; objects have unit ids there |
 | `corpses` | 0x8e, a player unit in a dead mode | |
-| `npc_states` | 0xac (NPCs are monsters) and their moves; objects 0x51 / 0x0e | **by `Level::npcs` index in d2d, by unit id in game.exe**; a host's NPCs have ids d2d must map to (class, position) |
+| `npc_states` | 0xac (NPCs are monsters) and their moves; objects 0x51 / 0x0e | **by `Level::npcs` index in d2d, by unit id in game.exe**; in a joined game each level NPC is drawn as the host's of its class nearest its spot, each host unit once (`client::pair_host_npcs`, `test_host_npcs`) |
 | `boost`, `aura`, `buffs`, `curse` | 0xa8 / 0xaa / 0xa9 (states with stat lists) | the View lists skills, game.exe states: map States.txt ↔ skills; a joined d2d keeps the states the host sets on its own player (0xa8 / 0xa9, `NetGame::self_states`) and draws them |
 | `gold_lost` | stat 175 (0x1d..0x1f) **(?)** | |
 | `day` | not sent **(?)** | game time on the client |

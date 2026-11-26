@@ -76,6 +76,16 @@ unit event 0x23), +0x18 the stand's mode.
   chains into `nSequenceQuestId = QUEST_BladeOfTheOldReligion` (a3q3
   below).
 
+- **The log send** (`FUN_005b7340`): as a3q3's, record 0xf, word 0x11. Its log
+  is +0xe8's, but +0xb gates two sends: out of the docks at state 2, not done,
+  log 1 unless it is (`LAB_005b7620`, 0x5b76af), and the stand's flag-0 log 1
+  (0x5b7b71). Flag 1 also: Alkor's 549 (0x5b77c6), the pickup and the drop
+  (0x5b79ab, 0x5b7a4f); his 564 logs 0xd with flag 0 (0x5b78c7). The last
+  carrier leaving (+0xc4, `LAB_005b7b80`: with one taken and state up to 3,
+  data +5 and log 8) and a joiner bringing the first back after it (+0xd8,
+  `LAB_005b7bc0`: log 2) aren't ported. The join (`FUN_005b7c10`): the tome
+  log 2, bit 3 or 2 log 1. d2d: `LamEsenQuest::log` / `news`.
+
 d2d: `rules::LamEsenQuest`; the pickup / drop are polled from what's
 carried. `tests/quests_d2d.py` plays it.
 
@@ -106,11 +116,14 @@ the altar's mode.
   → 0x7401b8), **log** (`FUN_005b8cc0`) and **join** (`FUN_005b9700`) as
   `rules::BladeQuest`.
 
-- **Completion notify** (`Q20_PlayerNotifyCompleted`, `FUN_005b8bf0`):
-  the broadcast callback passed to `QUEST_SetStateAndBroadcast`; sends
-  quest-update packet 0x11 to a player only when the quest is
-  Completed or FinishedInPreviousGame *and* a fresh JustCompleted or
-  CannotCompleteQuestInGame flag is pending.
+- **The log send** (`FUN_005b8bf0`): the per-player callback
+  `FUN_00544300` runs with flag 1; `FUN_00544190(record 0x11)` (the 0x5d)
+  unless word 0x13 bit 0 or 15 is set without 13 or 14
+  (`tools/emu/quest_log_sends.py`). Its sites: Hratli's talk's close
+  (`LAB_005b8c50`, put in +0xa8 at init: with data +1, log 2, 0x5b8c84) and the
+  Gidbinn's pickup with +9 (`FUN_005b9520`: log 4, 0x5b9581, then state 4 and
+  log 3, 0x5b95e9); Ormus's 587 logs 0xd with flag 0 (0x5b934b). The quests.md
+  act 3 table; d2d: `BladeQuest::news`.
 - **Locking a player out this game** (`Q20_PlayerCheckBladeQuestCannotComplete`,
   `FUN_005b9130`): per-player iterate callback; if the quest is below
   Step0x06/0x07/0x08 and the player no longer holds the Gidbinn
@@ -171,15 +184,24 @@ figurine due (both 1 at init), +4 its carrier, +0x10 items carried.
   3 (0x5ba721), log 3; `j34 ` log 1, state 1 (0x5ba76c), and bit 6 with
   unit event 0x48 the first time (0x5ba794). No +9 test.
 
-- **Completion notify** (`Q21_PlayerNotifyCompleted`, `FUN_005b9e70`):
-  same shape as a3q3's (above); packet 0x12, gated on Completed or
-  FinishedInPreviousGame with a pending JustCompleted or
-  CannotCompleteQuestInGame.
+- **The log send** (`FUN_005b9e70`): as a3q3's, record 0x12, word 0x14. Its
+  sites are the record log's above, each flag 1; the +0xc4 / +0xd8 resends
+  (`LAB_005ba9a0`: the last carrier leaves, log 6; `FUN_005ba9e0`: a joiner
+  brings one back, log 1 / 3) aren't ported. d2d: `GoldenBirdQuest::news`.
 - **The sequence filter** (`Q21_SequenceFilter`, `FUN_005ba7b0`): the
   chain pattern (`quests.md`); at state 5 or still before intro it
   chains through *both* `nSequenceQuestId` (`QUESTINT_SpokeToHratli`) and, in
   the same call, `QUESTINT_BladeOfTheOldReligion` — the only
   SequenceFilter instance seen chaining two quests instead of one.
+
+- **The record's log** (+0xb, `FUN_005ba170`'s last case: the record open and
+  the player carrying neither item, done or bit 1) moves at its `FUN_00544300`
+  sites: the carrier's death 1 when none (0x5bac45), the bird's pickup 3, the
+  figurine's 1 (0x5ba73d, 0x5ba75d), and the talk's close (`LAB_005ba0b0`, put
+  in +0xa8 by Cain's 527 at state 1, Alkor's 534 and Meshif's 529, never
+  cleared): Alkor's with data +8 5 (0x5ba0e9), Cain's with data +9 2 then +0xa 4
+  (0x5ba114, 0x5ba134; Cain's 531 sets +0xa but not the hook), Meshif's with
+  +0xb 3 (0x5ba15c). `tests/game/test_golden_bird_log.cpp`.
 
 d2d: `rules::GoldenBirdQuest`; the carrier is the first boss the World sees
 on an act 3 level; its items' event 4 is `World::item_event` (pickup, corpse
@@ -202,7 +224,11 @@ and log (`FUN_005bd850`: no done case) by the parts carried.
   Dungeon 3 (91).
 - **Log-send filter** (`FUN_005b7f90`): reads the player's quest flags for
   the game's difficulty and sends quest 0x10 only when word 0x12 bits 0 and
-  15 are both clear. `tools/emu/quest_khalim_log.py` checks all four bit
+  15 are both clear (13 and 14 not read: `rules::quest_log_goes_to`,
+  `tools/emu/quest_log_sends.py`). Its only `FUN_00544300` site is Cain's
+  talk's close after 543 (`LAB_005b8020`, put in +0xa8 by 543 at 0x5b80d4,
+  cleared when it fires: data +1, log 1, flag 1, 0x5b804b); the pickups send
+  straight (`FUN_005b81c0`, below), so d2d keeps the View's change for a3q2. `tools/emu/quest_khalim_log.py` checks all four bit
   combinations in all three difficulties with lookup, bit tests and sender
   hooked; it does not check those helpers or d2d parity.
 - **The sewers' stairs** (366, InitFn 41 `FUN_005b8660`: the record's +8
@@ -234,9 +260,10 @@ and log (`FUN_005bd850`: no done case) by the parts carried.
 
 ## The Blackened Temple (a3q5.cpp)
 
-State: 1 entering the Causeway (82), 3 Ormus told (594; 2 with the game's
-bit 13), 5 leaving the docks (4), 6 / 7 the Council dead (the orb whole /
-broken), 7 done. Data: +0xc the orb broken, +0xd / +0xe the flail / a Cube
+State: 1 entering the Causeway (82), 3 Ormus told (594; 2 with Lam Esen's
+game bit 13: `FUN_00544760(game, 0x11, 0xd)` at 0x5bb26f, not word 0x15's),
+5 leaving the docks (4, the same bit at 0x5bb1ce), 6 / 7 the Council dead
+(the orb whole / broken), 7 done. d2d: `tests/game/test_act3_tome_done.cpp`. Data: +0xc the orb broken, +0xd / +0xe the flail / a Cube
 dropped, +0x34 Council left, +0x38 the orb's hits, +0x3c / +0x40 players
 needing a flail / a Cube (`FUN_005bb7b0`).
 
@@ -260,22 +287,29 @@ needing a flail / a Cube (`FUN_005bb7b0`).
   Will's done; bit 0, bit 4 off; state 7.
 - Talk `FUN_005bafd0` (blocks 0x7408b8, state → 0x740ed8), "!"
   `FUN_005bad60`, join `FUN_005bb480`; no log function (+0xe8 0).
-- **Completion notify** (`Q22_PlayerNotifyCompleted`, `FUN_005baf70`):
-  same shape again; packet 0x13, same Completed-or-FinishedInPreviousGame
-  plus pending-JustCompleted-or-CannotComplete gate.
+- **The log send** (`FUN_005baf70`): as a3q3's, record 0x13, word 0x15; flag 1
+  at Ormus's talk's close, a Council member made and the last one's death
+  (below). d2d: `BlackenedTempleQuest::news`.
 - **The sequence filter** (`Q22_SequenceFilter`, `FUN_005bb410`): the
   chain pattern (`quests.md`); at state 7 (fully done) chains to
   `nSequenceQuestId = QUEST_TheGoldenBird`.
-- **Tracking a Council kill** (`Q22_TrackCouncilKill`, `FUN_005bb550`):
-  called per Council death; sets `bCouncilTrackingActive`, dedups the
-  killer's GUID into a 6-slot list and bumps `nCouncilKillCount` /
-  `nCouncilKillsRemaining`. On the first qualifying kill it broadcasts
-  live state 1 or 3 via `QUEST_SetStateAndBroadcast` (using
-  `Q22_PlayerNotifyCompleted` above), then sets `nStateFlag` to 4 or 5
-  by whether Lam Esen's Tome (`quests-act3.md` "Lam Esen's Tome") has
-  just completed, and resyncs every player's log. This is the detail
-  behind the existing "**The Council**" paragraph's "the last [kill]:
-  state 6 / 7" above — the two functions share the same kill path.
+- **A Council member made** (`FUN_005bb550`, reached from `FUN_005a49b0`'s
+  case 0x1a / 0x1b / 0x1d through `FUN_00545b50` when the level is under
+  0x6c; act 5's jump to 0x58cfd0): not when the member dies. With the
+  record open: data +5 1; a unit id not yet in the list (data +0x10, at most
+  6, the count +0x30 copied to +0x34): log 1 at state 0 / 1, else 3, unless
+  it is (flag 1, 0x5bb5ec); state 4, or 5 without Lam Esen's game bit 13
+  (0x5bb5fb); everyone marked (`LAB_005badc0`: not done, bit 2 at state 2 /
+  3, bit 3 with data +5). d2d: `World::act3_bind_new_bosses` ->
+  `BlackenedTempleQuest::council_made_one`.
+- **The record's log** (+0xb, the usual `quest_log`) moves at its
+  `FUN_00544300` sites: Ormus's talk's close (`LAB_005bb0c0`, put in +0xa8
+  entering the Causeway at state 0, cleared when it fires: with data +4,
+  Ormus's 594, log 2, flag 1, 0x5bb0ee, then everyone marked), out of the
+  docks told (log 2 under 3, flag 0, 0x5bb1c0, then everyone marked), the
+  member made (above), the last death (log 4 at state 6, 0xd at 7, flag 1,
+  0x5bbdb3) and Cain's 626 with bit 13 (log 0xd, flag 0, 0x5bb35c).
+  `tests/game/test_temple_log.cpp`.
 - **The status filter** (`Q22_StatusFilter`, `FUN_005bbe20`): hides the
   log entry (byte 0) until `QUEST_AbleGoToAct3` is Completed; once
   visible, Completed → 0xb (0xd if JustCompleted), Step0x04 → 0x4 or
@@ -288,8 +322,9 @@ needing a flail / a Cube (`FUN_005bb7b0`).
 ## The Guardian (a3q6.cpp)
 
 State: 1 opened (a3q5's chain, `LAB_005bcc60`, or a level past 97), 3 Ormus
-told (628; 2), then 5 (4 with the game's bit 13) leaving the docks, in the
-Durance 1 or 3; 7 the report taken. Talk `FUN_005bc270` (blocks 0x740ef8,
+told (628; 2), then 5 (4) leaving the docks, in the Durance 1 or 3; 7 the
+report taken. The 2 and 4 go by Lam Esen's game bit 13 (word 0x11: 0x5bc45e,
+0x5bc4fb, 0x5bc554, 0x5bc603), not word 0x16's. Talk `FUN_005bc270` (blocks 0x740ef8,
 state → 0x741518; bit 0xb → block 5: every docks NPC greets with the report,
 657..663, `FUN_005bc5a0` clears bit 0xb); "!" `FUN_005bbfe0` (Ormus while
 given out, everyone with bit 0xb); join `LAB_005bcc80` (bit 0, 0xb or word
@@ -332,23 +367,32 @@ mode, +0x1c soulstones owed.
   (`FUN_00641530`), mode 0 → 1 (it rises, 28 frames) and the next 1 → 2,
   its footprint lifted (`FUN_00623830`: no HasCollision2). Mode 2 stops it.
 
-- **Completion notify** (`Q23_PlayerNotifyCompleted`, `FUN_005bc210`):
-  same shape as a3q3/a3q4/a3q5's; packet 0x14, same
-  Completed-or-FinishedInPreviousGame plus pending-notify gate.
+- **The log send** (`FUN_005bc210`): as a3q3's, record 0x14, word 0x16.
+  d2d: `GuardianQuest::news`, sent to each player it passes.
 - **Party credit** (`Q23_PartyMember_SetCompleted`, `FUN_005bc750`):
   run via `ExecuteFunctionForEveryPartyMember` on Mephisto's death; for
   each party member not already Completed who is physically in Act
   III, calls `Q23_SetGuardianQuestComplete` and bumps this quest's
   `nPlayerCount` — Mephisto-kill credit for nearby party members who
   weren't in his room.
-- **Driving the state-flag machine** (`Q23_NotifyGuardianStateToPlayers`,
-  `FUN_005bcf60`, namespace `A3Q7` though its data is `pA3Q6`): while
-  active and `nStateFlag < 6`, either saves the current
-  `nStateFlagPrev` and advances to 6 (7 in multiplayer), or restores
-  the saved value — both paths through `QUEST_SetStateAndBroadcast`
-  with `Q23_PlayerNotifyCompleted` as the per-player callback. No
-  direct `GetQuestState`/`SetQuestState` calls (uses the broadcast
-  helper instead).
+- **The log to 6 / 7 and back** (`FUN_005bcf60`, EDX a byte): with record
+  0x14 open (+9) under state 6, a 0 saves the log (+0xb) in data +0x28 and
+  logs 6 (7 when game +0x6a isn't 3); else the saved log comes back. It's
+  `FUN_00544300` with flag 1 when the state is past 0. Nothing calls it: no
+  `call`, and no copy of its address in game.exe. Not ported.
+- **The record's log** (+0xb, the usual `quest_log`) moves at its
+  `FUN_00544300` sites, each flag-1 one sent through `FUN_005bc210`:
+  Ormus's talk's close (`LAB_005bc370`, put in +0xa8 when it opens at state 0
+  by the chain or a level past 97, cleared when it fires: with data +3,
+  Ormus's 628, log 2, 0x5bc39e); out of the docks told, log 2 under 3 (flag
+  0, 0x5bc450); into the Durance 1 at log 0 or 2, log 3 (0x5bc4e2); into its
+  level 3, log 4 unless it is (0x5bc53b); the report with bit 13, log 0xd
+  (flag 0, 0x5bc6b1); Mephisto's timer (below). The docks, the Durance 1
+  (with the state moved or the log sent) and its level 3 mark everyone
+  (`LAB_005bc020`, not done nor bit 0xb: state 2 bit 2, 3 bit 3, 4 bits 4 /
+  5 / 6 and 5 bits 7 / 8 / 9 by the log 2 / 3 / 4). d2d:
+  `GuardianQuest::enter` / `talk_closed` / `mark`,
+  `tests/game/test_guardian_log.cpp`.
 - **The Dark Wanderer's map AI** (`Q24_SetupDarkWandererMapAi`,
   `FUN_005bd040`, same `A3Q7`/`pA3Q6` pairing): the Act 3→4 transition
   actor's equivalent of a3q1's `Q17_SetupHratliMapAi` above — stores
@@ -358,4 +402,4 @@ mode, +0x1c soulstones owed.
 
 d2d: `World::mephisto_died`, `World::mephisto_bridge`; the hellgate's
 OperateFn only says Act 4 isn't built. `tests/quests_d2d.py` (map seed 3).
-Not traced: the record's other callbacks (the talk, the level entries).
+Not traced: the join's marks and log (`LAB_005bcc80` beyond what d2d's join does).

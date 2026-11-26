@@ -365,6 +365,7 @@ auto Fight::boss_missile(const Monster& monster, const char* name, float dx, flo
         const float speed = missile_speed(missile_info, lvl), distance = std::max(std::hypot(dx, dy), 0.01f);
         Missile x{ &missile_info, monster.unit.x, monster.unit.y, dx / distance * speed, dy / distance * speed, missile_heading(dx, dy), now_ms, now_ms + std::uint32_t(std::max(missile_info.range, 1)) * 40, stats };
         x.struck = ring; x.level = lvl; x.owner = monster.id; x.owner_align = monster.align;
+        seed_made(x);
         pending.push_back(std::move(x));
     }
 
@@ -534,8 +535,7 @@ auto Fight::merc_strike(std::size_t target, const d2d::rules::Swing& swing, std:
         const int thorns = monsters[target].props.thorns;
         // No steal divisor: FUN_0057c420 divides a player's leech by DifficultyLevels' LifeStealDivisor / ManaStealDivisor
         // (0x57c49e..0x57c4ce), a hireling's not (it joins that path at 0x57c4d1); land() heals the merc.
-        auto struck = merc_target(target);
-        struck.life_steal_divisor = struck.mana_steal_divisor = 1;
+        const auto struck = merc_target(target);                   // its divisors 1
         const auto blow = d2d::rules::player_blow(fighter, struck, actor->merc_st.level, rng, swing);
         merc_blow = true;
         const bool landed = land(target, blow, false, now_ms, merc_foe_id());

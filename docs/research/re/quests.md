@@ -188,10 +188,18 @@ States: 1 not given, 2 given, 3 in the Den, 4 cleared, 5 rewarded.
   - bit 4 → state 3, log 2
   - bit 3 → state 3, log 1
   - bit 2 → state 2, log 1
-- **Akara's A1Q1InitAkara (string 64) heard:** state 2. `LAB_0058fc90`
+- **Akara's A1Q1InitAkara (string 64) heard:** state 2, data +0x86 set. `LAB_0058fc90`
   then sets each player's flag for the state:
   - state 2 → bit 2
   - state 3 → bit 3 if the log state is 1, else bit 4
+- **A talk closes** (+0xa8, `LAB_0058fc40`): Akara's, with data +0x86: log 1 sent
+  (flag 1), data +0x86 and +0xa8 cleared (the hook fires once). +0xa8 is also
+  cleared by the Den's entry and the out-of-town step when they send, the clear,
+  the first "monsters remaining" branch and the reward with bit 13.
+- **Out of town** (`FUN_00590470`, from level 1 to any level but 8): at state
+  2, for a player neither done nor due: state 3, every player's flags marked
+  (by the log as it stands: bit 4 if the talk hasn't closed), then log 1 sent
+  unless it is 1.
 - **Entering level 8:** state 1 or 2 becomes 3. The log goes to 2 and the
   flags are marked as above.
 - **A monster dies** (`FUN_00590260`):
@@ -757,18 +765,236 @@ flag 1, 18 pass 0 (`FUN_00587b00`, `FUN_0058fdd0`, `FUN_00590980`,
 callback is tested after the call (`CMP AL, 1` at 0x5442af); that branch isn't read.
 
 d2d sends a quest's log as an event (`ev::QuestNews`) where its record's
-flag-1 sites are ported (`news`: a1q5, a3q6, a4q2 .. a4q4, act 5's six); the client
+flag-1 sites are ported (`news`: act 1's six, act 2's five but a2q2, act 3's five but a3q2, a4q2 .. a4q4,
+act 5's six except a5q4's unmodeled first-think site); the client
 doesn't also read a change in their View's log for a send
 (`rules::quest_log_sent_by_event`, `tests/test_quest_log_sends.cpp`). a1q5's
 sites, read in game.exe, all pass flag 1: the Moldy Tome's message heard
 (`FUN_00594960`: log 1, and log 2 when it was 3), a level change
 (`FUN_00595010`: into level 0x14 log 3 or 4, into 0x19 log 2) and the
 kill's timer (0x5954c0, state 5: log 0xd); the dead `FUN_00595160` isn't
-ported. Each goes to a player unless done without bit 13 / 14
-(`FUN_00594830`). a1q1 .. a1q4, a1q6, act 2, a3q1 .. a3q5 and a4q1 are still a change in the View's log state (none
+ported. Each goes to a player unless done (bit 0; bit 15 isn't read) without bit 13 / 14
+(`FUN_00594830`; `tools/emu/quest_log_sends.py`). a2q2, a3q2 and a4q1 are still a change in the View's log state (none
 for a repeat or a flag-0 move that changes it, none at a game's first View).
-Not traced against d2d's records: those quests' flag-1 sites, and the act
-test above (the events and the change both skip it).
+
+Act 1's other records' `FUN_00544300` calls, read at each call site in game.exe (the flag is
+the first push, the log EDX; `tests/test_quest_log_sends_act1.cpp`). Each record's callback
+(a1q1 `FUN_0058fbe0`, a1q2 `FUN_00590830`, a1q3 `FUN_005912e0`, a1q4 `FUN_005920d0`, a1q6
+`FUN_00595b20`) sends to a player unless done or closed (bit 0 or 15) without bit 13 / 14. In
+call-site order:
+
+| call site | record | log | flag | when | d2d |
+|---|---|---|---|---|---|
+| 0x58fc6f | a1q1 | 1 | 1 | Akara's talk closes after 64 (`LAB_0058fc40`, data +0x86) | `DenQuest::talk_closed` |
+| 0x58fef8 | a1q1 | 0xd | 0 | the reward (`FUN_0058fdd0`) | `DenQuest::said` |
+| 0x59024e | a1q1 | 5 | 1 | the clear's 8-tick timer, still state 4 (`LAB_00590230`) | `World::act1_quest_step` |
+| 0x59041d | a1q1 | 4 | 1 | a death, all rooms up and under 6 left (`FUN_00590260`) | `DenQuest::killed` |
+| 0x590455 | a1q1 | 4 | 1 | a death at log 4 with 6 or more left | `DenQuest::killed` |
+| 0x5904d3 | a1q1 | 2 | 1 | into the Den under log 2 (`FUN_00590470`) | `DenQuest::enter_den` |
+| 0x590595 | a1q1 | 1 | 1 | out of town at state 2, log not 1 (`FUN_00590470`) | `DenQuest::left_town` |
+| 0x59094c | a1q2 | 1 | 1 | Kashya's talk closes after 81 (`LAB_00590920`, data +3) | `BurialQuest::talk_closed` |
+| 0x590a54 | a1q2 | 0xd | 0 | the reward (`FUN_00590980`) | `BurialQuest::said` |
+| 0x590c04 | a1q2 | 3 | 1 | the kill's timer (`LAB_00590bf0`) | `BurialQuest::tick` |
+| 0x590ff4 | a1q2 | 2 | 1 | into the Burial Grounds at log 0 or 1 (`FUN_00590fa0`) | `BurialQuest::enter` |
+| 0x5913ff | a1q3 | 1 | 1 | Charsi's talk closes after 146 (0x5913c0, data +2) | `ToolsQuest::talk_closed` |
+| 0x591421 | a1q3 | 0xd | 1 | Charsi's talk closes after the return (data +3) | `ToolsQuest::talk_closed` |
+| 0x591891 | a1q3 | 1 | 1 | out of town at state 2, log not 1 (`LAB_00591810`) | `ToolsQuest::enter` |
+| 0x59191b | a1q3 | 1 | 1 | the last carrier loses the malus (`FUN_005918d0`, event 6: nothing calls its wrapper) | none |
+| 0x5919b4 | a1q3 | 2 | 1 | the malus picked up (`FUN_00591960`) | `ToolsQuest::picked_up` |
+| 0x591a59 | a1q3 | 3 | 1 | the last carrier leaves, the stand used (0x591a20, event 9) | not ported (d2d's log goes by what each player holds) |
+| 0x591c21 | a1q3 | 1 | 0 | the stand drops the malus (`FUN_00591ac0`) | `ToolsQuest::operate` |
+| 0x5921e9 | a1q4 | 1 | 1 | Akara's talk closes after 97 (`FUN_005921b0`, data +0x53) | `CainQuest::talk_closed` |
+| 0x59221f | a1q4 | 3 | 1 | Akara's talk closes after the decipher (data +0x64) | `CainQuest::talk_closed` |
+| 0x592371 | a1q4 | 3 | 0 | the decipher heard (`FUN_00592250`) | `CainQuest::said` |
+| 0x592c11 | a1q4 | 1 | 1 | the scroll gone, the tree used (`FUN_00592bd0`) | not ported (the rewind) |
+| 0x592c5a | a1q4 | 1 | 1 | the scroll gone, the tree not used | not ported (the rewind) |
+| 0x593446 | a1q4 | 6 | 1 | the Gibbet's mode ends (`FUN_00593290`) | `CainQuest::rescued` |
+| 0x593a65 | a1q4 | 4 | 1 | the fifth stone, under log 4 (`FUN_00593710`) | `CainQuest::stone` |
+| 0x593c3d | a1q4 | 2 | 1 | the tree drops the scroll (`FUN_00593af0`) | `CainQuest::tree` |
+| 0x595baf | a1q6 | 1 | 1 | Cain's talk closes after 166 (0x595b80, data +0x195) | `AndyQuest::talk_closed` |
+| 0x595d63 | a1q6 | 0xd | 0 | the reward (`FUN_00595c60`) | `AndyQuest::said` |
+| 0x596071 | a1q6 | 2 | 1 | into Catacombs 4 under log 2 (`FUN_00596010`) | `AndyQuest::enter` |
+| 0x596092 | a1q6 | 1 | 0 | into Catacombs 1..3 at log 0 | `AndyQuest::enter` |
+| 0x59656a | a1q6 | 3 | 1 | the kill's timer at 12, log not 3 or 0xd (0x596500) | `AndyQuest::tick` |
+| 0x596e59 | a1q4 | 4 | 0 | into Tristram, state past 5 (`FUN_00596de0`) | `CainQuest::enter` |
+| 0x596ff6 | a1q4 | 5 | 1 | into Lut Gholein before the rescue (`FUN_00596de0`) | `CainQuest::rogues` |
+| 0x5973c4 | a1q4 | 5 | 1 | the same from `FUN_00597310` | `CainQuest::rogues` |
+
+Act 2's `FUN_00544300` calls, read the same way (a linear sweep of 0x5985b0 .. 0x59f940 for
+`call 0x544300` finds these 24; `tests/test_quest_log_sends_act2.cpp`). Each record's callback (a2q1
+`FUN_005988b0`, a2q3 `FUN_00599f50`, a2q4 `FUN_0059ad50`, a2q5 `FUN_0059bcb0`, a2q6 `FUN_0059c650`) sends
+to a player unless done or closed (bit 0 or 15) without bit 13 / 14, as act 1's do; it hands
+`FUN_00544190` the record id (the word less one). a2q2 (record 9, quest 10) has no `FUN_00544300` call:
+its log is its own (+0xe8 `FUN_0059e630`), sent straight to the one player by `FUN_00544190(9)` from the
+item pickup (`FUN_00599a30`, `FUN_00599570`), which d2d still reads from the View's change. In call-site
+order:
+
+| call site | record | log | flag | when | d2d |
+|---|---|---|---|---|---|
+| 0x5989bc | a2q1 | 1 | 1 | Atma's talk closes after 304 (`LAB_00598990`, data +8) | `RadamentQuest::talk_closed` |
+| 0x598b42 | a2q1 | 0xd | 1 | Atma's 334 with bits 1 and 13, state not 5 (`FUN_00598a70`) | `RadamentQuest::said` |
+| 0x598f8e | a2q1 | 3 | 1 | the kill's 12-tick timer, state 4 (`LAB_00598f70`) | `RadamentQuest::tick` |
+| 0x5994c1 | a2q1 | 2 | 1 the first time (data +9), then 0 | Radament thinks in Sewers 3 under state 3 or log 2 (`FUN_00599420`, from `FUN_005f2b10`) | not ported (d2d's Radament think calls no quest hook) |
+| 0x59a364 | a2q3 | 1 | 1 | the sun goes out (`FUN_0059a350`): its timer (`LAB_0059ed80`), the altar's room, the join, into town with it pending | `TaintedSunQuest::tick`, `TaintedSunQuest::altar_seen`; the join's (`FUN_0059a5d0` -> `FUN_0059a570`) not ported (whether the joining player is on the list then isn't traced); the pending one (data +3, the act not loaded, `FUN_0059ee00`) d2d doesn't hold |
+| 0x59a455 | a2q3 | 2 | 1 | the altar's room comes up at log 0 (`FUN_0059a3f0`) | `TaintedSunQuest::altar_seen` |
+| 0x59a71e | a2q3 | 3 | 1 | the altar's 10-tick timer, state 4 (`LAB_0059a700`) | `TaintedSunQuest::tick` |
+| 0x59ae8e | a2q4 | 2 | 1 | Drognan's talk closes after 373 (`LAB_0059ae60`, data +4) | `ArcaneQuest::talk_closed` |
+| 0x59b07f | a2q4 | 5 | 0 | the journal's 396, open, under log 5 (`FUN_0059af50`) | `ArcaneQuest::said` |
+| 0x59b199 | a2q4 | 3 | 1 | Jerhyn's 377 (`FUN_0059af50`) | `ArcaneQuest::said` |
+| 0x59b6b0 | a2q4 | 1 | 1 | the staff made, open, log 0 (`FUN_0059b660`) | `ArcaneQuest::staff_made` |
+| 0x59be04 | a2q5 | 0xd | 1 | the thanks (419..429) with bits 1 and 13 (`FUN_0059bd70`) | `SummonerQuest::said` |
+| 0x59c006 | a2q5 | 4 | 1 | the death's timer's second run (`LAB_0059bfd0`) | `SummonerQuest::tick` |
+| 0x59c389 | a2q5 | 2 | 1 | his first think, under log 2 (`FUN_0059c330`) | `SummonerQuest::engaged` |
+| 0x59c798 | a2q6 | 4 | 1 | Tyrael's talk closes after 302 (`LAB_0059c760`, data +9) | `SevenTombsQuest::talk_closed` |
+| 0x59c7c4 | a2q6 | 1 | 1 | Jerhyn's talk closes after 430 (data +8) | `SevenTombsQuest::talk_closed` |
+| 0x59c7e2 | a2q6 | 6 | 1 | Jerhyn's talk closes after 442 (data +0xa) | `SevenTombsQuest::talk_closed` |
+| 0x59cdfc | a2q6 | 0xd | 1 | Meshif's 450 with bits 4 and 13 (`FUN_0059cb20`) | `SevenTombsQuest::said` |
+| 0x59cf07 | a2q6 | 3 | 1 | Duriel's 8-tick timer, log not 3..5 (`LAB_0059cee0`) | `SevenTombsQuest::tick` |
+| 0x59d299 | a2q6 | 1 | 1 | into the Canyon at log 0, Duriel alive (`FUN_0059d1c0`) | `SevenTombsQuest::enter` |
+| 0x59d2e1 | a2q6 | 2 | 0 | into the true tomb or the Lair at log 0 or 1 | `SevenTombsQuest::enter` |
+| 0x59ec56 | a2q3 | 0xd | 0 | the thanks (362..372) with bit 13, open, state not 5 (`LAB_0059ebe0`) | `TaintedSunQuest::said` |
+| 0x59ecd4 | a2q3 | 2 | 0 | Drognan's 348 at log 1 | `TaintedSunQuest::said` |
+| 0x59f110 | a2q4 | 4 | 1 | into the Sanctuary under log 4 (`FUN_0059f0c0`) | `ArcaneQuest::enter` |
+
+Unlike act 1's, act 2's rewards (a2q1's, a2q5's and a2q6's log 0xd) are flag 1; a2q3's is flag 0.
+
+Act 3's `FUN_00544300` calls, read the same way (a linear sweep of 0x5b6ed0 .. 0x5bde70, a3q0's first
+function to a3q2's last, finds these 34; `tests/game/test_quest_log_sends_act3.cpp`,
+`tests/game/test_guardian_log.cpp`). Each record's callback (a3q1 `FUN_005b7340`, a3q3 `FUN_005b8bf0`, a3q4
+`FUN_005b9e70`, a3q5 `FUN_005baf70`, a3q6 `FUN_005bc210`) sends to a player unless done or closed (bit 0 or 15)
+without bit 13 / 14, and hands `FUN_00544190` the record id (the word less two); a3q2's `FUN_005b7f90` sends
+unless bit 0 or 15, 13 and 14 not read. a3q2 stays on the View's change: its item pickup (`FUN_005b8210`, +0xb0)
+sends its own 0x5d to the one player (`FUN_005b81c0`: 0x5d, 0x10, the record's +0x14, the log the code picks).
+a3q1's, a3q3's and a3q4's logs are their +0xe8's (`FUN_005b7d70`, `FUN_005b8cc0`, `FUN_005ba170`; a3q4's last
+case reads +0xb); a3q5's and a3q6's the usual `quest_log` on +0xb. In call-site order:
+
+| call site | record | log | flag | when | d2d |
+|---|---|---|---|---|---|
+| 0x5b76af | a3q1 | 1 | 1 | out of the docks at state 2, not done, log not 1 (`LAB_005b7620`) | `LamEsenQuest::enter` |
+| 0x5b77c6 | a3q1 | 1 | 1 | Alkor's 549 (`FUN_005b7740`) | `LamEsenQuest::said` |
+| 0x5b78c7 | a3q1 | 0xd | 0 | Alkor's 564 | `LamEsenQuest::said` |
+| 0x5b79ab | a3q1 | 2 | 1 | the tome into an inventory, open (`FUN_005b7970`, event 4) | `LamEsenQuest::picked_up` |
+| 0x5b7a4f | a3q1 | 1 | 1 | the tome dropped, open (`LAB_005b7a00`, event 5) | `LamEsenQuest::dropped` |
+| 0x5b7b71 | a3q1 | 1 | 0 | the stand drops the tome, log not 1 (`FUN_005b7a60`) | `LamEsenQuest::take` |
+| 0x5b7bb1 | a3q1 | 8 | 1 | the last carrier leaves, one taken, state up to 3 (`LAB_005b7b80`, +0xc4; data +5) | not ported (d2d's log goes by what each player holds) |
+| 0x5b7c05 | a3q1 | 2 | 1 | a joiner brings the first tome back with data +5 (`LAB_005b7bc0`, +0xd8) | not ported (data +5 comes only from 0x5b7bb1) |
+| 0x5b804b | a3q2 | 1 | 1 | Cain's talk closes after 543 (`LAB_005b8020`, data +1) | not ported (a3q2 stays on the View's change) |
+| 0x5b8c84 | a3q3 | 2 | 1 | Hratli's talk closes after 571 (`LAB_005b8c50`, data +1) | `BladeQuest::talk_closed` |
+| 0x5b934b | a3q3 | 0xd | 0 | Ormus's 587 (`FUN_005b9240`) | `BladeQuest::said` |
+| 0x5b9581 | a3q3 | 4 | 1 | the Gidbinn into an inventory, open (`FUN_005b9520`) | `BladeQuest::picked_up` |
+| 0x5b95e9 | a3q3 | 3 | 1 | the same, after state 4 | `BladeQuest::picked_up` |
+| 0x5ba0e9 | a3q4 | 5 | 1 | Alkor's talk closes with data +8 (`LAB_005ba0b0`) | `GoldenBirdQuest::talk_closed` |
+| 0x5ba114 | a3q4 | 2 | 1 | Cain's with data +9 | `GoldenBirdQuest::talk_closed` |
+| 0x5ba134 | a3q4 | 4 | 1 | Cain's with data +0xa | `GoldenBirdQuest::talk_closed` |
+| 0x5ba15c | a3q4 | 3 | 1 | Meshif's with data +0xb | `GoldenBirdQuest::talk_closed` |
+| 0x5ba73d | a3q4 | 3 | 1 | the bird picked up, neither bit 0 nor 1 (`FUN_005ba6a0`) | `GoldenBirdQuest::picked_up` |
+| 0x5ba75d | a3q4 | 1 | 1 | the figurine picked up | `GoldenBirdQuest::picked_up`; a save's corpse's at the join not sent (whether the joiner is on the list then isn't traced) |
+| 0x5ba9d1 | a3q4 | 6 | 1 | the last carrier leaves, state under 4 (`LAB_005ba9a0`, +0xc4; data +0x15) | not ported (as a3q1's) |
+| 0x5baa5a | a3q4 | 1 / 3 | 1 | a joiner brings the first back with data +0x15 (`FUN_005ba9e0`, +0xd8) | not ported (as a3q1's) |
+| 0x5bac45 | a3q4 | 1 | 1 | its carrier's death at log 0 (`FUN_005bab60`) | `GoldenBirdQuest::killed` |
+| 0x5bb0ee | a3q5 | 2 | 1 | Ormus's talk closes after 594 (`LAB_005bb0c0`, data +4) | `BlackenedTempleQuest::talk_closed` |
+| 0x5bb1c0 | a3q5 | 2 | 0 | out of the docks told, log under 3 (`LAB_005bb120`) | `BlackenedTempleQuest::enter` |
+| 0x5bb35c | a3q5 | 0xd | 0 | Cain's 626 with bits 4 and 13, state not 7 (`FUN_005bb210`) | `BlackenedTempleQuest::said` |
+| 0x5bb5ec | a3q5 | 1 / 3 | 1 | a Council member made, log not that (`FUN_005bb550`) | `BlackenedTempleQuest::council_made_one` |
+| 0x5bbdb3 | a3q5 | 4 / 0xd | 1 | the last Council member's death (`FUN_005bbc00`) | `BlackenedTempleQuest::council_died` |
+| 0x5bc39e | a3q6 | 2 | 1 | Ormus's talk closes after 628 (`LAB_005bc370`, data +3) | `GuardianQuest::talk_closed` |
+| 0x5bc450 | a3q6 | 2 | 0 | out of the docks told, log under 3 (`FUN_005bc3c0`) | `GuardianQuest::enter` |
+| 0x5bc4e2 | a3q6 | 3 | 1 | into the Durance 1 at log 0 or 2 | `GuardianQuest::enter` |
+| 0x5bc53b | a3q6 | 4 | 1 | into the Durance 3, log not 4 | `GuardianQuest::enter` |
+| 0x5bc6b1 | a3q6 | 0xd | 0 | the report with bits 0xb and 13 (`FUN_005bc5a0`) | `GuardianQuest::said` |
+| 0x5bc73d | a3q6 | 4 | 1 | Mephisto's 12-tick timer, log not 4 (0x5bc720) | `GuardianQuest::quest_step` |
+| 0x5bcfc2 | a3q6 | 6 / 7, or the saved one | state past 0 | `FUN_005bcf60` | not ported (nothing calls it) |
+
+d2d takes a record's `news` at the end of the World's tick (`World::act1_update`, `World::act2_update`,
+`World::act3_update`), so the
+callback reads each player's bits then, not at the call (the Gibbet's credit passes,
+`FUN_00593130` / `LAB_005931c0`, come before `FUN_00593290`'s send in game.exe as in d2d;
+a bit set between a call and the tick's end elsewhere is not traced).
+
+Act 4's `FUN_00544300` calls, read the same way (a linear sweep of 0x5b3780 .. 0x5b6e00;
+`tests/game/test_quest_log_sends_act4.cpp`). Each callback (`FUN_005b3940`, `FUN_005b4e40`,
+`FUN_005b59c0`) sends unless done or closed (bit 0 or 15) without bit 13 / 14, and hands
+`FUN_00544190` record 0x16, 0x17 or 0x18. In call-site order:
+
+| call site | record | log | flag | when | d2d |
+|---|---|---|---|---|---|
+| 0x5b3ad0 | a4q1 | 0xd | 0 | Tyrael's 676 reward (`FUN_005b39a0`) | `IzualQuest::said` |
+| 0x5b3ba4 | a4q1 | 4 | 1 | Izual's ghost says 675 | `IzualQuest::said` |
+| 0x5b3e90 | a4q1 | 3 | 1 | the death's 3-tick timer, state 4, log not 4 / 13 (`FUN_005b3e60`) | `IzualQuest::ghost_timer` |
+| 0x5b41bf | a4q1 | 1 | 0 | into the fortress at state 2, log 0 (`LAB_005b4140`) | `IzualQuest::enter` |
+| 0x5b41fc | a4q1 | 1 | 1 | Tyrael's talk closes after 670 (`LAB_005b41d0`, data +0x11) | `IzualQuest::talk_closed` |
+| 0x5b43bd | a4q1 | 2 | 1 | Izual's first think under log 2 (`FUN_005b4390`) | `IzualQuest::greet` |
+| 0x5b4f16 | a4q2 | 1 | 0 | into the fortress at state 2, log 0 (`LAB_005b4ea0`) | `TerrorQuest::enter` |
+| 0x5b4f6b | a4q2 | 1 | 1 | into the Chaos Sanctuary under log 1 | `TerrorQuest::enter` |
+| 0x5b4fc0 | a4q2 | 1 | 1 | Tyrael's talk closes after 681 (`FUN_005b4f90`, data +0) | `TerrorQuest::talk_closed` |
+| 0x5b5438 | a4q2 | 0xd | 1 | Diablo dies while the record is open (`FUN_005b52e0`) | `TerrorQuest::diablo_died`, `World::act4_kill` |
+| 0x5b5a6f | a4q3 | 2 | 1 | the forge's InitFn, open, log not 2 / 3 / 13 (`FUN_005b5a20`) | `HellforgeQuest::forge_seen` |
+| 0x5b5dbe | a4q3 | 0xd | 1 | the third hammer blow | `HellforgeQuest::operate` |
+| 0x5b5e64 | a4q3 | 3 | 1 | the soulstone is set in the forge (`FUN_005b5c10`) | `HellforgeQuest::operate` |
+| 0x5b6228 | a4q3 | 0xd | 0 | Cain's 680 reward (`FUN_005b6100`) | `HellforgeQuest::said` |
+| 0x5b6473 | a4q3 | 4 with the stone given, else 1 | 1 | Cain's talk closes after 678 / 679 (`FUN_005b6440`, data +2) | `HellforgeQuest::talk_closed` |
+
+Act 5's `FUN_00544300` calls, from the linear sweep of 0x586b50 .. 0x58e990
+(`tests/game/test_quest_log_sends_act5.cpp`). Its six callbacks send unless done or closed (bit 0 or
+15) without bit 13 / 14, and hand `FUN_00544190` records 0x1f..0x24. In call-site order:
+
+| call site | record | log | flag | when | d2d |
+|---|---|---|---|---|---|
+| 0x586dad | a5q1 | 1 | 1 | Larzuk's talk closes after 20077 (`LAB_00586d80`, data +8) | `SiegeQuest::talk_closed` |
+| 0x586dcd | a5q1 | 4 | 1 | Larzuk's talk closes after 20090 (data +0x16) | `SiegeQuest::talk_closed` |
+| 0x586fb8 | a5q1 | 0xd | 1 | Larzuk's 20090 with bits 1 and 13 (`FUN_00586e70`) | `SiegeQuest::said` |
+| 0x5873d0 | a5q1 | 3 | 1 | Shenk dies, log under 3 (`FUN_00587330`) | `SiegeQuest::killed` |
+| 0x5874bc | a5q1 | 1 | 1 | out of Harrogath at state 2 and log 0 (`FUN_005873e0`) | `SiegeQuest::enter` |
+| 0x587941 | a5q1 | 2 | 1 | Shenk's first think, open, log under 2 (`FUN_00587900`) | `SiegeQuest::shenk_seen` |
+| 0x587a68 | a5q2 | 1 | 1 | Qual-Kehk's talk closes after 20096 (`LAB_00587a30`, data +0x84) | `RescueQuest::talk_closed` |
+| 0x587c1e | a5q2 | 0xd | 0 | Qual-Kehk's 20110 reward (`FUN_00587b00`) | `RescueQuest::said` |
+| 0x588145 | a5q2 | 0xc | 1 | the fifth caged prisoner dies (`FUN_00588040`) | `RescueQuest::prisoner_died` |
+| 0x588264 | a5q2 | 1 | 1 | into the Highlands / Plateau at log 0 (`FUN_00588200`) | `RescueQuest::enter` |
+| 0x58832f | a5q2 | 1 | 1 | out of Harrogath at state 2 and log 0 | `RescueQuest::enter` |
+| 0x588707 | a5q2 | 1 | 1 | a cage's InitFn, log 0 and under five dead (`FUN_005886a0`) | `RescueQuest::cage` |
+| 0x588b5b | a5q2 | 3 | 1 | every cage is resolved with at least 12 freed (`FUN_005888d0`) | `RescueQuest::portal_opened` |
+| 0x588c2e | a5q2 | 2 | 1 | a cage portal opens before every cage is resolved | `RescueQuest::portal_opened` |
+| 0x588e08 | a5q2 | 5 | 1 | a caged prisoner's think sees a nearby player (`FUN_00588dd0`) | `RescueQuest::cried` |
+| 0x588fb7 | a5q3 | 1 | 1 | Malah's talk closes after 20116 (`LAB_00588f80`, data +0xac) | `PrisonQuest::talk_closed` |
+| 0x588fe6 | a5q3 | 4 | 1 | Malah's talk closes after giving the potion (data +0x101) | `PrisonQuest::talk_closed` |
+| 0x58976a | a5q3 | 6 | 1 | Malah gives the resistance scroll before Anya's reward (`FUN_00589580`) | `PrisonQuest::said` |
+| 0x589a3c | a5q3 | 3 | 1 | frozen Anya's 20131, log under 3 | `PrisonQuest::said` |
+| 0x589df3 | a5q3 | 1 | 1 | into the Crystalline Passage / Frozen River at log 0 (`FUN_00589d80`) | `PrisonQuest::enter` |
+| 0x589ea5 | a5q3 | 1 | 1 | out of Harrogath at state 2 and log 0 | `PrisonQuest::enter` |
+| 0x58aa3d | a5q3 | 2 | 1 | frozen Anya's InitFn under log 2 (`FUN_0058aa10`) | `PrisonQuest::fana_seen` |
+| 0x58aa9a | a5q3 | 2 | 1 | the same from `FUN_0058aa50` | `PrisonQuest::fana_seen` |
+| 0x58ac23 | a5q3 | 3 | 1 | frozen Anya used without the potion, at log 1 (`FUN_0058abc0`) | `PrisonQuest::thaw` |
+| 0x58acf9 | a5q3 | 5 | 1 | the potion is poured | `PrisonQuest::thaw` |
+| 0x58b082 | a5q4 | 1 | 1 | Anya's talk closes after 20137 (`FUN_0058b050`, data +0x86) | `BetrayalQuest::talk_closed` |
+| 0x58b230 | a5q4 | current | 1 | Anya's 20148 reward (`FUN_0058b1c0`) | `BetrayalQuest::said` |
+| 0x58b78d | a5q4 | 4 | 1 | Nihlathak's death timer (`FUN_0058b770`) | `BetrayalQuest::log_timer` |
+| 0x58ba3a | a5q4 | 2 | 1 | a join with bit 3 (`FUN_0058b990`) | `BetrayalQuest::join` |
+| 0x58ba86 | a5q4 | 1 | 1 | a join with bit 2 | `BetrayalQuest::join` |
+| 0x58bb09 | a5q4 | 2 | 1 | into Nihlathak's Temple with log 1 (`LAB_0058bab0`) | `BetrayalQuest::enter` |
+| 0x58bc6d | a5q4 | 3 | 1 | Nihlathak's first think under log 3 (`FUN_0058bc40`) | not ported (AI site) |
+| 0x58bea9 | a5q5 | 1 | 1 | Qual-Kehk's talk closes after 20153 (`LAB_0058be80`, data +1) | `RiteQuest::talk_closed` |
+| 0x58c2f2 | a5q5 | 1 | 1 | Qual-Kehk's 20153, log not 1 (`FUN_0058c290`) | `RiteQuest::said` |
+| 0x58c33d | a5q5 | 3 | 1 | the Ancients' 20002, log not 3 | `RiteQuest::said` |
+| 0x58cb86 | a5q5 | 0xd | 1 | the last Ancient dies (`FUN_0058c9a0`) | `RiteQuest::ancient_died` |
+| 0x58cc2e | a5q5 | 1 | 1 | out of Harrogath at state 2, log not 1 (`FUN_0058cba0`) | `RiteQuest::enter` |
+| 0x58cc6f | a5q5 | 2 | 1 | into the Summit after state 2, log under 2 | `RiteQuest::enter` |
+| 0x58d3ca | a5q5 | 3 | 1 | the Summit altar is used, log not 3 (`FUN_0058d310`) | `RiteQuest::altar` |
+| 0x58df72 | a5q6 | 4 | 1 | Baal dies (`FUN_0058df20`) | `EveQuest::killed` |
+| 0x58e24b | a5q6 | 1 | 1 | out of Harrogath at state 2, log not 1 (`FUN_0058e190`) | `EveQuest::enter` |
+| 0x58e289 | a5q6 | 2 | 1 | into a level past 130, open, log under 2 | `EveQuest::enter` |
+| 0x58e3ce | a5q6 | 1 | 1 | a5q5's chain opens the record (`LAB_0058e390`) | `EveQuest::opened` |
+| 0x58e637 | a5q6 | 3 | 1 | Baal walks into the Chamber portal, log under 3 (`FUN_0058e600`) | `EveQuest::baal_gone_in` |
+
+Both local paths (the View's log change and `ev::QuestNews`) apply the act test
+above through `rules::quest_log_send_in_act`; a joined game's 0x5d is not
+tested again (the host's `FUN_00544190` sent it, and `FUN_004a2cb0` has no act
+test). A log word's act is its record's +8: the word's record is 0x723f30's
+row +8, and `FUN_00545d80` copies each record's act from the init table
+0x731510 (row +4; the id at +0x10) into the record's +8. Read from both: words
+1..6 only in Act 1, 9..14 in Act 2, 17..22 in Act 3, 25..27 in Act 4 and 35..40
+in Act 5; word 34 is record 30, an Act 1 record with no shown slot; words with
+record 37 (24 among them) have none. `test_quest_log_act_send` covers every
+record and adjacent gap. The unported flag-1 sites named in the per-act tables remain gaps.
 
 `FUN_004a2a80` draws it like New Stats (levelsocket, level, the label
 3928 "Quest Log" centred over it). Its row (0x7241c0, 20 bytes x0, x1,

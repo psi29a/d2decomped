@@ -507,6 +507,10 @@ auto Fight::seed_missiles(std::size_t from) -> void {
             if (!missiles[k].seed && !missiles[k].visual_only) missiles[k].seed = d2d::rules::Rng{ spawning.game.next() };
     }
 
+auto Fight::seed_made(Missile& missile) -> void {
+        if (!missile.seed && !missile.visual_only) missile.seed = d2d::rules::Rng{ spawning.game.next() };
+    }
+
 auto Fight::strafe_reach(const d2d::rules::Skill& skill, int lvl) -> std::vector<int> {
         const int radius = calc(skill, skill.aurarange, lvl);
         std::vector<int> nearby;
@@ -1210,6 +1214,8 @@ auto Fight::strike(const Missile& missile, std::size_t monster_index, std::uint3
             swing.ed_pct = missile.ed_pct;
             swing.ar_pct = missile.ar_pct;
             swing.missile = true;
+            // ponytail: a burst's one roll (`roll`) keeps the skill's physical apart, shared; the weapon's share rolls per unit.
+            if (!roll) d2d::rules::row_into_record(damage, swing);   // one roll with the weapon's (FUN_0064b860, 0x64bdf7)
             blow = d2d::rules::player_blow(fighter, target, clvl, rng, swing);
         } else if (missile.info->to_hit) {
             blow.hit = int(rng(100)) < d2d::rules::hit_chance(fighter.attack_rating, target.armor_class, clvl, target.level);
@@ -1632,6 +1638,7 @@ auto Fight::target_of(std::size_t monster_index) -> d2d::rules::Target {
 // HireableBossDamagePercent (FUN_0057c060).
 auto Fight::merc_target(std::size_t monster_index) -> d2d::rules::Target {
         auto target = target_of(monster_index);
+        target.life_steal_divisor = target.mana_steal_divisor = 1;   // a hireling's leech, every record of its: no divisor (FUN_0057c420)
         if (const int type = monsters[monster_index].type; type >= 0 && game_data->monsters.types[std::size_t(type)].boss_column)
             target.pair_pct = game_data->hireling_boss_pct[std::size_t(std::clamp(game_difficulty, 0, 2))];
         return target;

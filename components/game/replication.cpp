@@ -36,6 +36,8 @@
 
 namespace d2d::game {
 
+// A View's bytes for a client, against what `enc` sent last (each other
+// player carries its ghost and hostile bytes).
 std::vector<std::uint8_t> encode_view(const GameData& game_data, const View& view, ViewEncoder& enc) {
     wire::Out out;
     out.u8(0x70);                                              // our own id: game.exe has no packet for a whole view
@@ -47,6 +49,7 @@ std::vector<std::uint8_t> encode_view(const GameData& game_data, const View& vie
     {
         wire::Out chunk;
         wire::unit(chunk, view.player);
+        chunk.f32(view.path_target_x).f32(view.path_target_y);
         chunk.u8(view.running).u8(view.dead).u8(view.poisoned).u8(view.chilled).u8(view.stamina_blue).u8(view.stamina_shrine).i32(view.life_preview).i32(view.mana_preview).i32(view.curse).u8(view.stunned).i32(view.pmode).f32(view.prate).i32(view.walk_percent).u32(view.seq_frame_ms).u8(view.seq_loop).u8(view.uninterruptable);
         wire::one_shots(chunk, view.one_shots);   // its one-shot overlays (its casts': FUN_004c6140)
         chunk.u32(view.pmode_until).u8(view.knocked).i32(view.fhr);   // its get-hit's drawn frame (session/draw.cpp, FUN_00463390)
@@ -100,7 +103,7 @@ std::vector<std::uint8_t> encode_view(const GameData& game_data, const View& vie
             for (const auto look_byte : other.gfx) chunk.u8(look_byte);
             chunk.u16(int(other.states.size()));
             for (const auto state : other.states) chunk.str(state);
-            chunk.u8(other.ghost).i32(other.walk_percent); wire::one_shots(chunk, other.one_shots);
+            chunk.u8(other.ghost).u8(other.hostile).i32(other.walk_percent); wire::one_shots(chunk, other.one_shots);
         }
         chunk.u8(view.ghost).u8(view.all_dead).u16(int(view.bodies.size()));
         for (const auto& body : view.bodies) {
@@ -253,6 +256,7 @@ std::vector<std::uint8_t> encode_view(const GameData& game_data, const View& vie
     return out.bytes;
 }
 
+// encode_view's inverse onto `view`: false on malformed bytes.
 bool apply_view(const GameData& game_data, std::span<const std::uint8_t> bytes, View& view) {
     if (bytes.empty() || bytes[0] != 0x70) return false;
     wire::In input{ bytes };
@@ -273,6 +277,7 @@ bool apply_view(const GameData& game_data, std::span<const std::uint8_t> bytes, 
     };
     body([&] {
         view.player = wire::unit(input);
+        view.path_target_x = f32(); view.path_target_y = f32();
         view.running = byte(); view.dead = byte(); view.poisoned = byte(); view.chilled = byte(); view.stamina_blue = byte(); view.stamina_shrine = byte(); view.life_preview = i32(); view.mana_preview = i32(); view.curse = i32(); view.stunned = byte(); view.pmode = i32(); view.prate = f32(); view.walk_percent = i32(); view.seq_frame_ms = u32(); view.seq_loop = byte(); view.uninterruptable = byte();
         view.one_shots = wire::one_shots(input);
         view.pmode_until = u32(); view.knocked = byte() != 0; view.fhr = i32();
@@ -345,7 +350,7 @@ bool apply_view(const GameData& game_data, std::span<const std::uint8_t> bytes, 
             other.cls = byte(); other.name = input.str(); other.id = u32(); other.mode = i32(); other.running = byte() != 0;
             for (auto& look_byte : other.gfx) look_byte = std::uint8_t(byte());
             for (int states = u16(); states > 0 && input.ok; --states) other.states.push_back(wire::intern(input.str()));
-            other.ghost = byte() != 0; other.walk_percent = i32();
+            other.ghost = byte() != 0; other.hostile = byte() != 0; other.walk_percent = i32();
             other.one_shots = wire::one_shots(input);
             view.others.push_back(std::move(other));
         }

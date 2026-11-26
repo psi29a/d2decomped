@@ -84,6 +84,24 @@ Called only by the ones above:
 | `FUN_0060a520` | ECX = pixels, EAX = bytes, EBX = callback: calls it with each 3-byte pixel | `FUN_0060a570` |
 | `FUN_0060a650` | ESI = block: with no data, clears it. Format 0x1000 re-encodes through `FUN_0060d5b0` / `FUN_0060d430` (0x434, 0x435 above 0xffff bytes); 0x2000 through `FUN_0060db20`; else fatal (0x43b). Data of zeros is freed (0x429) and cleared | `FUN_0060a750` |
 
+## Tile getters beside the DT1 set (`0x604aa0..0x604dd0`)
+
+Five more getters of a 0x60-byte tile record, next to the cited ones
+(`FUN_00604b60`, `FUN_00604b90`, `FUN_00604c50`, automap.md). Each
+asserts on a null tile. None has a call, jump or pointer to it in
+game.exe (byte scan), and neither do the other three rows here. Read
+from the decompile.
+
+| Address | What it does |
+|---|---|
+| `FUN_00604aa0` | (slots, item): when item is set, looks up `FUN_00600760(item + 8)` and clears the first of the 32 dword slots that holds it |
+| `FUN_00604bf0` | the tile's `+0xc` (line 0x7c) |
+| `FUN_00604c80` | the tile's `+0` (line 0x7f) |
+| `FUN_00604d10` | the tile's `+0x10` (line 0x82) |
+| `FUN_00604d40` | the tile's 16-bit `+4` (line 0x83) |
+| `FUN_00604d80` | the tile's `+0x58` (line 0x84) |
+| `FUN_00604db0`, `FUN_00604dd0` | (a, b) as doubles: compare them one way or the other and return either way, so they do nothing |
+
 ## d2d representation
 
 `components/dt1/dt1.hpp` decodes all blocks into one nonnegative,

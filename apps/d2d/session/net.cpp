@@ -7,9 +7,12 @@
 #include "platform.hpp"
 #include "render/ingame.hpp"
 #include "scene.hpp"
+#include "session/host_npcs.hpp"
+#include "session/worn_frw.hpp"
 #include "ui.hpp"
 
 #include <ai/units.hpp>
+#include <client_ask.hpp>
 #include <combat.hpp>
 #include <cues.hpp>
 #include <d2gs/c2s.hpp>
@@ -173,7 +176,8 @@ void ClientSession::net_step_missiles() {
 // d2d's player heads for, the run toggle (0x53 / 0x54). The World still
 // walks the player here; the host walks it there on the same map.
 // Skills go by the host's unit ids (d2d's monster ids are those in a
-// joined game); a melee swing walks up here and plays for show, the host
+// joined game), a player target as type 0 and a monster as type 1 (C->S
+// 0x06 / 0x0d +1, FUN_00461700's target +0); a melee swing walks up here and plays for show, the host
 // walks up there and hits. Objects and waypoints by the host unit nearest
 // d2d's.
 // NPC talk and trade stay local (the host's gold and items don't follow);
@@ -196,33 +200,39 @@ auto ClientSession::send(const Command& command) -> void {
         } else if (const auto* merc_item = std::get_if<cmd::MercItem>(&command)) {
             net_game->merc_item(std::uint16_t(merc_item->slot));
         } else if (const auto* use = std::get_if<cmd::UseSkill>(&command)) {
-            // game.exe's client asks first (FUN_004610c0, Fight::ask: mana and startmana from the
-            // host's 0x95, the weapon, skilldelay): a refusal sends nothing; AttackNoMana sends
-            // Attack in its place, silently (LAB_00461101).
-            if (use->item < 0) {
-                if (const int asked = world.fight.ask(use->skill, world_ms); asked != use->skill) {
-                    if (asked == 0) {
-                        auto attack = *use;
-                        attack.skill = 0;
-                        send(attack);
-                    }
-                    return;
-                }
-            } else if (d2d::game::skill_refused(*scene, character, use->skill)) {
-                // ponytail: a charged entry is asked only the weapon (status 2: Fight::ask reads
-                // the entry from item_charge, not set here); the skilldelay asked is the local
-                // World's (Fight::start_delay), not the client's min(delay, 12) frames (FUN_004c6680).
-                if (const auto* refused = scene->skills.get(use->skill); refused && refused->attack_no_mana && use->skill != 0) {
-                    auto attack = *use;
-                    attack.skill = 0;
-                    attack.item = -1;
-                    send(attack);
-                } else world.fight.impossible(world_ms);
+            // game.exe's client asks first (FUN_004610c0 -> FUN_004d9fc0, Fight::skill_status: mana and startmana from
+            // the host's 0x95, the weapon, the charged entry's own level and no mana for it): status 1, 2 or 4 on a skill
+            // with AttackNoMana asks again for Attack (LAB_00461101), which goes in its place, silently; 0 or 5 goes,
+            // 1 voices needmana, 2..4 impossible, the rest nothing. Skilldelay (FUN_006478f0) is the host's state 121
+            // on our player (States.txt sends it), not the local World's; and FUN_004d9fc0 turns a 0 into 8 while
+            // the client's own guard runs (net_skill_guard).
+            d2d::game::ChargedSkill asked_entry;
+            if (use->item >= 0) {
+                const auto entries = d2d::game::charged_skills(hero.character.items);
+                const auto found = std::ranges::find_if(entries, [&](const auto& had) { return had.item == use->item && had.skill == use->skill; });
+                if (found == entries.end()) return;               // no entry: FUN_004c6140 starts nothing
+                asked_entry = *found;
+            }
+            constexpr int kSkillDelayState = 121;
+            const auto [asked, status] = d2d::game::client_ask(world.fight, use->skill, asked_entry,
+                                                              std::ranges::contains(net_game->self_states, kSkillDelayState), net_skill_guard, world_ms);
+            if (status != 0 && status != 5) {
+                if (status == 1) world.fight.need_mana(world_ms);
+                else if (status >= 2 && status <= 4) world.fight.impossible(world_ms);
+                return;
+            }
+            if (asked != use->skill) {
+                auto attack = *use;
+                attack.skill = 0;
+                attack.item = -1;
+                send(attack);
                 return;
             }
             const auto* skill = scene->skills.get(use->skill);
             const bool melee = skill && !self_cast(*skill) && !world.fight.missile_skill(*skill) && !Fight::spot_skill(*skill) && !world.fight.summon_skill(*skill);
-            const auto target = use->unit >= 0 ? net_monsters.find(std::uint32_t(use->unit)) : net_monsters.end();
+            const auto monster_target = use->unit >= 0 && use->unit_type == 1 ? net_monsters.find(std::uint32_t(use->unit)) : net_monsters.end();
+            const auto player_target = use->unit >= 0 && use->unit_type == 0
+                ? std::ranges::find(view.others, std::uint32_t(use->unit), &View::OtherPlayer::id) : view.others.end();
             std::uint32_t item = 0xffffffff;                // a charged entry's item, as the host knows it
             if (use->item >= 0) {
                 // No host id for it: nothing sent, or the host would cast the character's own
@@ -232,23 +242,24 @@ auto ClientSession::send(const Command& command) -> void {
                 item = net_game->host_item(*local);
                 if (item == 0) return;
             }
-            if (target != net_monsters.end()) {
+            if (monster_target != net_monsters.end() || player_target != view.others.end()) {
                 // The host drops a skill that comes mid-swing (FUN_0057edd0:
                 // modes A1 / A2 / SC / TH take one only once FUN_0057ed70 says
                 // the swing can end), so repeats are harmless; the same
                 // target again once the swing here is over, as game.exe's
                 // client, which runs its own copy of the mode.
-                const bool again = use->unit == net_attack && use->skill == net_attack_skill;
-                if (!again || hero.pmode < 0) net_game->skill_on(use->skill, use->left, 1, std::uint32_t(use->unit), item);
+                const bool again = use->unit == net_attack && use->unit_type == net_attack_type && use->skill == net_attack_skill;
+                if (!again || hero.pmode < 0) net_game->skill_on(use->skill, use->left, use->unit_type, std::uint32_t(use->unit), item);
                 net_attack = use->unit;
+                net_attack_type = use->unit_type;
                 net_attack_skill = use->skill;
-                const auto& monster = target->second;
+                const UnitState& target_unit = monster_target != net_monsters.end() ? monster_target->second.unit : player_target->unit;
                 if (melee) {
-                    if (std::hypot(monster.unit.x - hero.player.x, monster.unit.y - hero.player.y) > 1.6f) net.send(cmd::Move{ monster.unit.x, monster.unit.y, use->left });
-                    else world.display_swing(use->skill, monster.unit.x, monster.unit.y, world_ms);
+                    if (std::hypot(target_unit.x - hero.player.x, target_unit.y - hero.player.y) > 1.6f) net.send(cmd::Move{ target_unit.x, target_unit.y, use->left });
+                    else world.display_swing(use->skill, target_unit.x, target_unit.y, world_ms);
                     return;
                 }
-                net.send(cmd::UseSkill{ use->skill, monster.unit.x, monster.unit.y, -1, use->left, use->item });   // the missile flies at it here, for show
+                net.send(cmd::UseSkill{ use->skill, target_unit.x, target_unit.y, -1, use->left, use->item });   // the missile flies at it here, for show
                 return;
             }
             net_attack = -1;
@@ -310,9 +321,9 @@ auto ClientSession::send(const Command& command) -> void {
             net_game->log.note("a trade with no host NPC: not made (d2d's own store would make it here only)");
             return;
         } else if (const auto* buy = std::get_if<cmd::Buy>(&command); buy && net_game->trade_npc) {
-            const auto& tab = hero.store.tabs[std::size_t(std::clamp(buy->tab >= 0 ? buy->tab : store.tab, 0, 3))];
-            if (buy->stock >= 0 && std::size_t(buy->stock) < tab.size()) {
-                const auto& item = tab[std::size_t(buy->stock)];
+            const auto& tab = hero.store.tabs[std::size_t(std::clamp(store.tab, 0, 3))];
+            if (const auto found = std::ranges::find(tab, buy->item, &d2d::d2s::Item::id); found != tab.end()) {
+                const auto& item = *found;
                 const int cost = d2d::rules::item_price(scene->rules, item, hero.store.npc_id, false, hero.store.header, store.reduced);
                 net_game->buying = true;
                 net_game->send_items({ d2d::net::d2gs::c2s::buy(net_game->trade_npc, std::uint32_t(item.id), buy->fill ? 0x80000000u : 0u, std::uint32_t(cost)) });
@@ -460,6 +471,13 @@ auto ClientSession::send(const Command& command) -> void {
 // The host's NPC for d2d's NPC `index`: a unit of the same MonStats Id
 // (Akara for Akara), the nearest if several (rogues); nullptr while the
 // host hasn't sent it (out of range).
+// The stock item under the cursor goes by its unit id (C->S 0x32 +5, FUN_004b2650): the World's, or the host's in a
+// joined game (its 0x9c stock items, net_items).
+auto ClientSession::buy_stock(int index, bool fill) -> void {
+        const auto& tab = store.tabs[std::size_t(std::clamp(store.tab, 0, 3))];
+        if (index >= 0 && std::size_t(index) < tab.size()) send(cmd::Buy{ tab[std::size_t(index)].id, fill });
+    }
+
 auto ClientSession::net_npc(int index) const -> const NetGame::Unit* {
         if (!net_game || !level || index < 0 || std::size_t(index) >= level->npcs.size()) return nullptr;
         const auto& npc = level->npcs[std::size_t(index)];
@@ -567,11 +585,20 @@ auto ClientSession::net_items(const Command& command) -> bool {
     }
 
 // A joined game: the host's monsters stand in for the World's (it makes
-// none: Fight::remote_monsters) and its other players are drawn; act
-// subtiles to the level's cells (a subtile's centre: d2d's x.5 is a cell's). The host's NPCs are left out: d2d's own
-// walk the camp (ponytail: matched by class and position later, M6).
+// none: Fight::remote_monsters) and its other players are drawn, each hostile
+// when our S->C 0x8c relation flags toward it have bit 8 (FUN_004dc440); act
+// subtiles to the level's cells (a subtile's centre: d2d's x.5 is a cell's). The host's NPCs (MonStats npc rows)
+// aren't monsters here: each of d2d's level NPCs is drawn where the host's of its class nearest its spot is, as it
+// walks there (each host unit taken once, in the level's NPC order).
 auto ClientSession::net_overlay() -> void {
         if (!level || !scene) return;
+        // The World's do for our player set its skilldelay (Fight::start_delay, the action frame): the client's own
+        // guard runs from here min(delay, 12) frames (FUN_004c6680, 0x4c68b8..0x4c68da), any skill's status 0 an 8.
+        // ponytail: a cast at the ground plays no mode here (send: only the host casts it), so no local do starts the guard.
+        if (hero.skill_delay != net_seen_delay) {
+            net_seen_delay = hero.skill_delay;
+            if (hero.skill_delay > world_ms) net_skill_guard = d2d::game::client_skill_guard(hero.skill_delay, world_ms);
+        }
         if (net_missile_level != level) {
             net_missile_level = level;
             net_missiles.clear();
@@ -580,6 +607,31 @@ auto ClientSession::net_overlay() -> void {
         auto cell_y = [&](float subtile_y) { return (subtile_y + 0.5f) / 5.f - float(level->world_y); };
         view.monsters.clear();
         view.others.clear();
+        {
+            std::vector<d2d::client::NpcSpot> spots;
+            for (std::size_t index = 0; index < level->npcs.size(); ++index) {
+                const auto& npc = level->npcs[index];
+                spots.push_back({ npc.id, (npc.x + float(level->world_x)) * 5.f, (npc.y + float(level->world_y)) * 5.f,
+                                  npc.root == "objects" || index >= view.npc_states.size() || view.npc_states[index].hidden });
+            }
+            std::vector<const NetGame::Unit*> units;
+            std::vector<d2d::client::HostNpc> hosts;
+            for (const auto& [unit_key, unit] : net_game->units)
+                if (unit.type == 1 && unit.cls >= 0 && std::size_t(unit.cls) < scene->monsters.types.size()) {
+                    units.push_back(&unit);
+                    hosts.push_back({ scene->monsters.types[std::size_t(unit.cls)].id, unit.x, unit.y });
+                }
+            const auto paired = d2d::client::pair_host_npcs(spots, hosts);
+            for (std::size_t index = 0; index < paired.size(); ++index) {
+                if (paired[index] < 0) continue;
+                const auto& host = *units[std::size_t(paired[index])];
+                auto& state = view.npc_states[index];
+                state.x = cell_x(host.x);
+                state.y = cell_y(host.y);
+                state.walking = host.moving;
+                if (host.moving) state.dir = direction16(host.goal_x - host.x, host.goal_y - host.y);
+            }
+        }
         auto host_states = [&](const std::vector<int>& rows) {
             std::vector<std::string_view> names;
             for (const int row : rows) if (std::size_t(row) < scene->state_names.size()) names.emplace_back(scene->state_names[std::size_t(row)]);
@@ -637,10 +689,15 @@ auto ClientSession::net_overlay() -> void {
                 shown.skill_ms = unit.skill_ms;
                 other.unit.mode_ms = shown.since;
                 other.states = host_states(unit.states);
+                other.hostile = (unit.flags & 8) != 0;
+                other.dead = unit.mode == 8 || unit.mode == 9;
                 other.one_shots = unit.cast_overlays;
-                // Its walk's % from its class's run / walk and the host's chill (state 11);
-                // ponytail: its FRW isn't sent, so a faster run / walk's legs don't show.
-                other.walk_percent = World::walk_percent(*world.game_data, unit.cls, other.running, 0, std::ranges::find(other.states, std::string_view("cold")) != other.states.end());
+                // Its walk's % (FUN_00623f50 on its client unit's stats): its class's run / walk, the host's chill (state 11),
+                // FRW (stat 96) and velocitypercent (stat 67). Its worn items carry their props in their 0x9d stream, the
+                // active set's (slots 0xb / 0xc, the switch, aren't), and the states' stat lists (0xa8 / 0xaa) theirs.
+                const auto state_stats = unit.animation_stats();
+                other.walk_percent = World::walk_percent(*world.game_data, unit.cls, other.running, d2d::client::worn_frw(unit.worn, state_stats.frw),
+                                                         std::ranges::find(other.states, std::string_view("cold")) != other.states.end(), state_stats.velocity);
                 view.others.push_back(std::move(other));
                 continue;
             }
@@ -769,12 +826,16 @@ auto ClientSession::net_overlay() -> void {
         }
         std::erase_if(net_ground, [&](const auto& entry) { return !net_game->ground.contains(entry.first); });
         // The host monster being attacked: held, the attack goes on (input); not once it's converted.
-        const int attacked = net_attack >= 0 ? view.monster(net_attack) : -1;
+        const int attacked = net_attack >= 0 && net_attack_type == 1 ? view.monster(net_attack) : -1;
         if (attacked >= 0 && view.monsters[std::size_t(attacked)].alive() && !view.monsters[std::size_t(attacked)].ally_not_interact(*scene, level ? level->id : 0)) {
             view.attack = net_attack;
             view.attack_skill = net_attack_skill;
-        } else {
+        } else if (net_attack_type == 1) {
             net_attack = -1;
+            view.attack = -1;
+        } else {
+            const auto attacked_player = std::ranges::find(view.others, std::uint32_t(net_attack), &View::OtherPlayer::id);
+            if (attacked_player == view.others.end() || attacked_player->ghost || attacked_player->dead || !attacked_player->hostile) net_attack = -1;
             view.attack = -1;
         }
     }
@@ -801,8 +862,8 @@ auto ClientSession::take_npc_quest(int npc, std::vector<d2d::rules::QuestMsg> li
 // then says "Halt" (ArcaneQuest::guard_halts, net-packets.md 0x8a).
 // The "!" stays until an NPC's talk opens (0x28: FUN_004b6dd0 -> FUN_004b2390 removes overlay 0x48
 // from every NPC); FUN_00470c30 never ends a kind-3 loop.
-// ponytail: the guard's harem blocker check (object 318 in mode 2, LAB_004b3360) is taken as
-// shut: the client keeps no host object's mode but a door's.
+// The guard's harem blocker check (LAB_004b3360): any host object of class 318 in mode 2, its mode
+// from its 0x51 (+0xc) and every 0x0e since.
 auto ClientSession::net_quests(std::uint32_t frame_ms) -> void {
         for (auto& host_quest : net_game->npc_quests) {
             const auto* host_npc = npc_menu.npc >= 0 ? net_npc(npc_menu.npc) : nullptr;
@@ -853,11 +914,12 @@ auto ClientSession::net_quests(std::uint32_t frame_ms) -> void {
                             (host->second.x + 0.5f) / 5.f - float(level->world_x), (host->second.y + 0.5f) / 5.f - float(level->world_y));
         }
         const bool talk_open = npc_menu.npc >= 0 || speech.npc >= 0 || store.npc >= 0;   // FUN_004b1620: a talk with anyone
+        const bool harem_open = NetGame::object_in_mode(net_game->units, d2d::rules::ArcaneQuest::kHaremBlocker, 2);
         const auto& quest_bits = hero.character.header.quests[std::size_t(std::clamp(hero.character.header.active_difficulty(), 0, 2))];
         for (std::size_t i = 0; level && i < view.npc_states.size() && i < level->npcs.size(); ++i) {
             const auto* host_npc = level->npcs[i].root != "objects" ? net_npc(int(i)) : nullptr;
             if (host_npc && level->npcs[i].hc_idx == d2d::rules::ArcaneQuest::kGuard && std::ranges::contains(net_game->npc_alerts, host_npc->id)
-                && d2d::rules::ArcaneQuest::guard_halts(talk_open, quest_bits, false))
+                && d2d::rules::ArcaneQuest::guard_halts(talk_open, quest_bits, harem_open))
                 cues.cue_on(d2d::game::unit_key(d2d::game::kSoundOnMonster, -1 - int(i)), d2d::rules::ArcaneQuest::kGuardHalt, frame_ms, view.npc_states[i].x, view.npc_states[i].y);
             view.npc_states[i].alert = host_npc && net_alerts.start(host_npc->id);
         }

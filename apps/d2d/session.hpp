@@ -27,6 +27,7 @@
 #include "panels/scroll.hpp"
 #include "panels/store.hpp"
 #include "platform.hpp"
+#include "render/ground_arrival.hpp"
 #include "render/tile_blit.hpp"
 #include "render/unit_slide.hpp"
 #include "render/world_view.hpp"
@@ -70,10 +71,9 @@
 
 namespace d2d::client {
 
-// The hovered monster's name on its life bar, top centre (FUN_00503000's
-// hover box: the name + 8 wide, its life share dark red, the rest dimmed).
-// ponytail: where game.exe puts it on screen isn't traced.
-void draw_monster_bar(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const Monster& monster);
+// The hovered monster's name on its life bar (FUN_00503000's hover box: the name + 8 wide, its life share dark red,
+// the rest dimmed), its bottom 0x22, in the middle of `span` (rules::monster_bar_box), its label lines under it.
+void draw_monster_bar(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const Monster& monster, std::array<int, 2> span);
 
 // The client's drawing of what the World told it (View): the ground
 // items, fires, the merc, pets, missiles and monsters near (cx, cy) as
@@ -186,11 +186,12 @@ void view_units(const Scene& scene, const View& view, float camera_x, float came
 // cells in order (game::automap_rooms, FUN_00619790), each room's items
 // newest first (FUN_0064c2c0 adds a unit at its room's head). Sets each
 // one's Unit::label_rank; one in no near room keeps -1.
-void rank_ground_labels(const GameData& game_data, const Level& level, float x, float y, std::span<Unit> units);
-// Over the world: the hovered (else attacked) monster's life bar, the
-// death message.
+// Within a room, by `arrival` (by View::ground index; client::GroundArrival), the last arrived first.
+void rank_ground_labels(const GameData& game_data, const Level& level, float x, float y, std::span<Unit> units, std::span<const std::uint32_t> arrival);
+// Over the world: the hovered (else attacked) monster's life bar in `bar_span` (rules::monster_bar_span; empty:
+// none), the death message.
 void view_overlays(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const View& view, int hovered,
-                   float camera_x, float camera_y, float hero_x, float hero_y, const Lighting* light);
+                   float camera_x, float camera_y, float hero_x, float hero_y, const Lighting* light, std::array<int, 2> bar_span);
 // An SQ skill's frame now: the mode and when it started, as Fight::seq_view.
 std::pair<int, std::uint32_t> view_seq(const Scene& scene, int cls, const View& view, std::uint32_t now_ms);
 
@@ -240,7 +241,13 @@ struct ClientSession {
     const d2d::game::Level* net_missile_level = nullptr;
     struct ShownMode { int mode = -1; std::uint32_t skill_ms = 0, since = 0; };   // since: world ms
     std::unordered_map<std::uint32_t, ShownMode> net_other_modes;   // another player's mode, by unit id   // the host's monsters as d2d draws them, by unit id
-    int net_attack = -1, net_attack_skill = 0;               // the host monster being attacked, with what
+    int net_attack = -1, net_attack_type = 1, net_attack_skill = 0;   // the host unit being attacked (type 0 player, 1 monster), with what
+    client::GroundArrival ground_arrival;                    // the ground items' order in the client's room lists
+    const d2d::game::Level* ground_arrival_level = nullptr;  // the level it's for
+    // The client's own skill delay for its player (0x7a04fc, FUN_004c6680 at 0x4c68b8): set at its do to the clock plus
+    // min(delay, 12) frames; FUN_004d9fc0 turns a status 0 into 8 before then. World ms; net_seen_delay is the
+    // World's Hero::skill_delay last seen, so a do that set it is caught once.
+    std::uint32_t net_skill_guard = 0, net_seen_delay = 0;
     int net_warp_sent = -1;                                  // the warp whose 0x13 went to the host
     int net_pick = -1;                                       // the host item being walked to, to pick up
     std::uint32_t net_cursor = 0;                            // the host's id for the item in our hand
@@ -419,9 +426,11 @@ struct ClientSession {
     // Typed text for a roster's name (Steam's keyboard on a Deck); whether one wants it.
     void coop_text(std::string_view text, bool backspace);
     [[nodiscard]] bool coop_typing() const;
+    // Two players or more at this screen (local co-op). A LAN joiner (own_screen) plays on its own machine.
+    [[nodiscard]] bool coop_partners() const { return world.screen_players() > 1; }
     // Local co-op with two players in or more: no HUD (orbs, belt, skills,
     // mini-panel), each player's portrait down the left edge instead (draw_coop_portraits).
-    [[nodiscard]] bool coop_hud_hidden() const { return !net_game && world.players.size() > 1; }
+    [[nodiscard]] bool coop_hud_hidden() const { return !net_game && coop_partners(); }
     // A panel on the screen's left (FUN_00455f20's UIs; Party 0x16 and Hireling 0x24 too).
     [[nodiscard]] bool left_panel_open() const {
         return char_open || stash_open || cube_open || store.npc >= 0 || waypoint.open || quest_log.open || party.open || hireling.open || use_item.open();
@@ -731,6 +740,7 @@ struct ClientSession {
     // keeps the client's tab and buttons.
     void publish();
     void send(const Command& command);    // to the World, and to a joined host
+    void buy_stock(int index, bool fill = false);   // the open tab's stock item `index`, by its unit id (C->S 0x32)
     bool net_items(const Command& command);   // a joined game: our item moves and uses to the host; false: not sent (no host id)
     const NetGame::Unit* net_npc(int index) const;   // the host's NPC for d2d's NPC index
 
@@ -774,8 +784,9 @@ struct ClientSession {
     [[nodiscard]] int hovered_monster() const;
     [[nodiscard]] int shift_pick(int skill) const;   // a shift-click's SearchEnemyXY monster (FUN_00467660), or -1
     // A SearchEnemyNear skill's unit nearest the click (FUN_00467490): false for another skill, else
-    // `unit` (a monster id, -1 the ground) and the spot (cells) as the search leaves them.
-    [[nodiscard]] bool near_pick(int skill, int& unit, float& at_x, float& at_y) const;
+    // `unit` (a player or monster id, -1 the ground), its native `unit_type`, and the spot
+    // (cells) as the search leaves them.
+    [[nodiscard]] bool near_pick(int skill, int& unit, int& unit_type, float& at_x, float& at_y) const;
     // A SearchOpenXY skill's free spot off a wall (FUN_004677b0), in cells, or none.
     [[nodiscard]] std::optional<std::pair<float, float>> open_spot(int skill, int unit, float click_x, float click_y) const;
     [[nodiscard]] int hovered_ground() const;

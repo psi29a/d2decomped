@@ -18,6 +18,7 @@
 #include "items/identify_prompt.hpp"
 #include "items/item_use.hpp"
 #include "load.hpp"
+#include "near_players.hpp"
 #include "panels/belt_popup.hpp"
 #include "panels/controls.hpp"
 #include "panels/panels.hpp"
@@ -47,6 +48,7 @@
 #include <object_sounds.hpp>
 #include <rules.hpp>
 #include <search_enemy.hpp>
+#include <search_facing.hpp>
 #include <search_walk.hpp>
 #include <skills.hpp>
 #include <wear.hpp>
@@ -73,6 +75,8 @@
 
 namespace d2d::client {
 
+// This frame's commands from the mouse and keys; a skill's click goes through its own target
+// search (FUN_00467880: near_pick, shift_pick, open_spot), its UseSkill naming the target's type.
 auto ClientSession::input(const Mouse& mouse, bool over_ui) const -> std::vector<Command> {
         std::vector<Command> out;
         if (view.dead && (!view.ghost || view.all_dead)) {   // a click, once the death has played, respawns
@@ -98,16 +102,17 @@ auto ClientSession::input(const Mouse& mouse, bool over_ui) const -> std::vector
         const auto use_hand = [&](bool left, int unit, bool held_frame = false) {
             const int skill = left ? skillbar.left : skillbar.right;
             const bool stand = function_held(keys::kStandStill);
+            int unit_type = 1;
             float at_x = world_x, at_y = world_y;
             const std::uint32_t flags = (held_frame ? d2d::rules::kClickHeld : d2d::rules::kClickPress) | (left ? d2d::rules::kClickLeft : 0) | (stand ? d2d::rules::kClickShift : 0);
-            if (d2d::rules::skill_search_goes(flags, view.player.walking) && view.hand_status[left ? 0 : 1] == 0 && !near_pick(skill, unit, at_x, at_y)) {
+            if (d2d::rules::skill_search_goes(flags, view.player.walking) && view.hand_status[left ? 0 : 1] == 0 && !near_pick(skill, unit, unit_type, at_x, at_y)) {
                 if (unit < 0 && stand) unit = shift_pick(skill);
                 if (const auto spot = open_spot(skill, unit, world_x, world_y)) {   // off a wall, at the ground
                     std::tie(at_x, at_y) = *spot;
                     unit = -1;
                 }
             }
-            out.push_back(cmd::UseSkill{ skill, at_x, at_y, unit, left, left ? skillbar.left_item : skillbar.right_item, stand });
+            out.push_back(cmd::UseSkill{ skill, at_x, at_y, unit, left, left ? skillbar.left_item : skillbar.right_item, stand, unit_type });
         };
         // A held frame (hand_hold.hpp; FUN_00462930 lets it through). False: the left hand walks instead.
         const auto hold_hand = [&](bool left) {
@@ -174,10 +179,8 @@ auto ClientSession::input(const Mouse& mouse, bool over_ui) const -> std::vector
 // Only at skill status 0 (FUN_004d9fc0, View::hand_status: use_hand).
 // The facing is FUN_006238c0's (rules::search_facing), the units go in the near rooms' list order
 // (FUN_00641cb0, rules::search_enemy_xy_walk: each room's units by their room stamp).
-// ponytail: a standing player's facing is its path's +0x65 here, but game.exe takes the way to
-// the path's target (+0x10, SP1) whenever it isn't on it, which the View doesn't carry (a walking
-// player's is its goal_x, SP3); pets aren't among the units (view.monsters); the stamps are the
-// ones the last Fight::restamp left; and the press flag 2 that also asks for the search isn't made.
+// ponytail: pets aren't among the units (view.monsters); the stamps are the ones the last
+// Fight::restamp left; and the press flag 2 that also asks for the search isn't made.
 auto ClientSession::shift_pick(int skill) const -> int {
         const auto* info = scene ? scene->skills.get(skill) : nullptr;
         if (!info || !info->search_enemy_xy) return -1;
@@ -210,15 +213,17 @@ auto ClientSession::shift_pick(int skill) const -> int {
                 || std::ranges::any_of(view.others, [&](const auto& other) { return !other.ghost && stamped(other.unit, spot_x, spot_y); })
                 || std::ranges::any_of(view.monsters, [&](const auto& monster) { return monster.alive() && stamped(monster.unit, spot_x, spot_y); });
         };
-        // The facing in 64 (path +0x65, FUN_00648810); one drawn apart from it is the 16 way's. A walking
-        // player takes the way to its path's target instead (FUN_006238c0), its goal here.
+        // FUN_006238c0: at the path target (+0x10 / +0x12, SP1) use its +0x65;
+        // elsewhere use the 64-way direction from the player to that target. The
+        // drawn direction repairs +0x65 when the 16-way and 64-way copies differ.
         const auto& self = view.player;
         int facing = self.facing.goal;
         if (d2d::game::missile_direction(self.facing.now, 16) != self.dir) {
             const auto sector = std::ranges::find(d2d::game::kDir16FromSector, self.dir) - std::begin(d2d::game::kDir16FromSector);
             facing = int(sector * 4) & 0x3f;
         }
-        if (self.walking) facing = d2d::rules::search_facing(subtile(self.x), subtile(self.y), cell_subtile(self.goal_x), cell_subtile(self.goal_y), facing);
+        facing = d2d::rules::search_facing(subtile(self.x), subtile(self.y),
+                                           cell_subtile(view.path_target_x), cell_subtile(view.path_target_y), facing);
         const int pick = d2d::rules::search_enemy_xy_walk(facing, subtile(self.x), subtile(self.y), info->targetable_only, units, listed, rooms, unit_bits);
         return pick < 0 ? -1 : view.monsters[std::size_t(pick)].id;
     }
@@ -231,13 +236,14 @@ auto ClientSession::shift_pick(int skill) const -> int {
 // None leaves the target and the click as they were. The spot goes to the pick's subtile centre.
 // The units go in the near rooms' list order (FUN_0065ac70, rules::search_enemy_near_walk: each
 // room's units by their room stamp), so equals tie apart as game.exe's do.
-// ponytail: other players aren't among them (two players without the hostility flag fail
-// FUN_00466870's FUN_00465c60); the ground items' places in their room's list aren't kept (they go
-// in view order within a room: only Iron Golem's search sees them); the stamps are the ones the
-// last Fight::restamp left; a corpse's hit test is usable_corpse (the target kind callbacks at
+// The other players go in through add_near_players (near_players.cpp: FUN_00465c60's player arm,
+// relation bit 8), and one picked goes as a type 0 target. The ground items go by the order they
+// arrived in their room's list (ground_arrival; only Iron Golem's search sees them).
+// ponytail: local co-op keeps no relation nodes, so its players are never hostile (and a hosted World
+// reads UseSkill::unit as a monster's id); the stamps are the ones the last Fight::restamp left; a corpse's hit test is usable_corpse (the target kind callbacks at
 // 0x711f34, FUN_00464310, aren't traced per skill); Iron Golem's item goes as its spot, and the
 // World takes the one there (Fight::golem_item_at), not by its id.
-auto ClientSession::near_pick(int skill, int& unit, float& at_x, float& at_y) const -> bool {
+auto ClientSession::near_pick(int skill, int& unit, int& unit_type, float& at_x, float& at_y) const -> bool {
         constexpr int kIronGolemSkill = 0x5a;   // FUN_00467490's FUN_00643ce0 == 0x5a
         const auto* info = scene ? scene->skills.get(skill) : nullptr;
         if (!info || !info->search_enemy_near) return false;
@@ -247,7 +253,7 @@ auto ClientSession::near_pick(int skill, int& unit, float& at_x, float& at_y) co
         const bool iron_golem = skill == kIronGolemSkill;
         std::vector<d2d::rules::NearUnit> units;
         std::vector<d2d::rules::RoomUnit> listed;
-        units.reserve(view.monsters.size() + (iron_golem ? view.ground.size() : 0));
+        units.reserve(view.monsters.size() + view.others.size() + (iron_golem ? view.ground.size() : 0));
         listed.reserve(units.capacity());
         for (const auto& monster : view.monsters) {
             const bool alive = monster.alive();
@@ -256,14 +262,17 @@ auto ClientSession::near_pick(int skill, int& unit, float& at_x, float& at_y) co
             units.push_back({ 1, subtile(monster.unit.x), subtile(monster.unit.y), mode, false, hit, false });
             listed.push_back({ level ? d2d::game::room_of(*level, monster.unit.x, monster.unit.y) : -1, true, monster.unit.room_stamp });
         }
+        add_near_players(view, level, units, listed);
         if (iron_golem)
             for (std::size_t item = 0; item < view.ground.size(); ++item) {
                 const auto& ground = view.ground[item];
                 const auto base = scene->rules.item_base.find(ground.item.code);
                 const bool metal = base != scene->rules.item_base.end() && (base->second.bitfield1 & 2) != 0;
                 units.push_back({ 4, cell_subtile(ground.x), cell_subtile(ground.y), 0, false, true, metal });
-                // An item's place in its room's list isn't kept: view order, the first the newest.
-                listed.push_back({ level ? d2d::game::room_of(*level, ground.x, ground.y) : -1, true, std::uint32_t(view.ground.size() - item) });
+                // Its place in its room's list: the order it arrived in, the last first (client::GroundArrival, as the
+                // Show Items walk); one not seen yet goes by view order, the newest first.
+                const std::uint32_t arrived = ground_arrival.of(ground.id);
+                listed.push_back({ level ? d2d::game::room_of(*level, ground.x, ground.y) : -1, true, arrived ? arrived : std::uint32_t(view.ground.size() - item) });
             }
         // FUN_0065ac70 walks the near list of the local player's room.
         std::vector<int> rooms;
@@ -275,7 +284,15 @@ auto ClientSession::near_pick(int skill, int& unit, float& at_x, float& at_y) co
                                                             spot_x, spot_y, units, listed, rooms);
         if (pick < 0) return true;
         const auto& found = units[std::size_t(pick)];
-        unit = std::size_t(pick) < view.monsters.size() ? view.monsters[std::size_t(pick)].id : -1;
+        if (std::size_t(pick) < view.monsters.size()) {
+            unit = view.monsters[std::size_t(pick)].id;
+            unit_type = 1;
+        } else if (std::size_t(pick) < view.monsters.size() + view.others.size()) {
+            unit = int(view.others[std::size_t(pick) - view.monsters.size()].id);
+            unit_type = 0;
+        } else {
+            unit = -1;
+        }
         at_x = (float(found.x) + 0.5f) / 5;
         at_y = (float(found.y) + 0.5f) / 5;
         return true;
@@ -373,7 +390,7 @@ auto ClientSession::pad_pick(const PadPlayer& player_pad, const UnitState& unit,
                 const UnitState* state = i < view.npc_states.size() ? &view.npc_states[i] : nullptr;
                 if ((state && state->hidden) || npc.name.empty()) continue;
                 const std::string_view object_mode = state && !state->mode.empty() ? std::string_view(state->mode) : std::string_view(npc.mode);
-                if (npc.root == "objects" && !(npc.selectable >> game::mode_index(object_mode) & 1)) continue;
+                if (npc.root == "objects" ? !(npc.selectable >> game::mode_index(object_mode) & 1) : object_mode == "DD") continue;
                 things.push_back({ int(i), state ? state->x : npc.x, state ? state->y : npc.y });
             }
         for (const auto& portal : view.portals)  // Interact's ids, as the mouse's hover names them (Cain's, 8, has no name)
@@ -860,7 +877,7 @@ auto ClientSession::bag_at(int mouse_x, int mouse_y) const -> const d2d::d2s::It
 // A store's X buys the stock under the cursor. Selling is Hold A, so X does not sell.
 auto ClientSession::pad_trade(int mouse_x, int mouse_y) -> void {
         if (store.npc < 0 || !scene) return;
-        if (const int stock = store_item_at(*scene, store, mouse_x, mouse_y, touch_store_panel_x()); stock >= 0) send(cmd::Buy{ stock, store.tab });
+        if (const int stock = store_item_at(*scene, store, mouse_x, mouse_y, touch_store_panel_x()); stock >= 0) buy_stock(stock);
     }
 
 /**

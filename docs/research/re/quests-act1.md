@@ -1081,7 +1081,7 @@ the room's seed isn't taken.
 |---|---|---|
 | join with bit 0 | `FUN_00597030` (0x597061: `EDX = 4`, own record) | done in an earlier game |
 | join with bit 15 | same | also sets d63 = 1 |
-| Tristram Cain reaches the portal | `FUN_005944f0`, via his AI `FUN_005e77a0` / `FUN_005e7880` (the 0x20f variant uses 0x58a940 / 0x58a980) | sets d91 = 1. If d70, it spawns at once through 0x5940e0; if d51, it then makes object 0xbd (189 "cain portal") at camp Cain with `FUN_00555230(2, 0xbd, …)`, his arrival portal |
+| Tristram Cain reaches the portal | `FUN_005944f0`, via his AI `FUN_005e77a0` / `FUN_005e7880` (the 0x20f variant uses 0x58a940 / 0x58a980) | sets d91 = 1. If d70, it spawns at once through 0x5940e0; if d51, it then makes object 0xbd (189 "cain portal") at camp Cain with `FUN_00555230(2, 0xbd, …)`, his arrival portal. From the AI's first think with the spot noted already (`FUN_005944b0` returns 0) it also sets his stat 6 to 0 (`FUN_00627260`) and mode 0xc, DD, at his spot (`FUN_005ddfc0`): that Cain lies dead (`World::cain_step`, `test_game`) |
 | the cage can't place Tristram Cain | `FUN_00593290` (the Gibbet / object 0x1a mode-end hook, from `FUN_005449e0`) | normally spawns MonStats 0x92 at cage + 3 with 0x3000000. If that fails twice: log "Cain not created, look in town, dammit" (line 0x6b6), a town portal (object 59 to level 1) at cage + 6 if a player qualifies and !d66, d52 = 1 if !d51, d62 = 1 |
 | Cain moved to town | `FUN_00596ca0(a, b)` (callers below) | details below |
 

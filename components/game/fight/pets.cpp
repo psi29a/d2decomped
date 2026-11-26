@@ -308,6 +308,7 @@ auto Fight::shadow_nova(Pet& pet, std::uint32_t now_ms) -> void {
                        missile_facing(shadow.unit.x, shadow.unit.y, float(aim_x), float(aim_y)), now_ms, now_ms + std::uint32_t(std::max(missile_info.range, 1)) * 40, {} };
             x.friendly = true; x.caster = actor->id; x.level = lvl; x.skill = nova->id; x.striker = shadow.id; x.struck = ring;
             x.aim_at = offset_target(shadow.unit.x, shadow.unit.y, aim_x, aim_y);   // FUN_0056d400
+            seed_made(x);
             pending.push_back(std::move(x));
         }
         d2d::log::info("{} goes up in a nova (level {})", shadow.npc.name, lvl);
@@ -399,6 +400,8 @@ auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
             if (curse_spent) pet.curse = {};
             if (std::erase_if(pet.buffs, [&](const SelfState& buff) { return now_ms >= buff.until; }) > 0 || curse_spent) pet_buffs(pet);
             if (!monster.alive() || pet.where != level) continue;
+            unit.turns_on = true;                                        // a monster unit's turn, a step a frame (turn_frame)
+            if (!unit.walking) turn_frame(unit);
             pet_skill_damage(pet);                                          // its swings at the owner's level now
             for (const auto& buff : pet.buffs)                              // a Shadow's Blade Shield, as the player's
                 if (const auto* skill = game_data->skills.get(buff.skill); skill && skill->srvdofunc == ServerDoFunction::kBladeShield && now_ms >= pet.blade_next) {
@@ -438,6 +441,7 @@ auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
                         x.dir = missile_facing(unit.x, unit.y, dx, dy); x.aim_at = { monsters[monster_index].unit.x, monsters[monster_index].unit.y };
                         x.friendly = true; x.caster = actor->id; x.level = pet.ranged_level; x.skill = pet.ranged;
                         if (const auto* missile_skill_row = skill_named(missile_info->skill)) x.skill = missile_skill_row->id;   // 'hydra' carries the Hydra skill's damage
+                        seed_made(x);
                         pending.push_back(std::move(x));
                     } else if (monsters[monster_index].targetable() && std::hypot(monsters[monster_index].unit.x - unit.x, monsters[monster_index].unit.y - unit.y) <= kMeleeReach + 0.3f) {
                         auto target = target_of(monster_index);
@@ -540,7 +544,7 @@ auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
                     if (monsters[i].targetable() && std::hypot(monsters[i].unit.x - unit.x, monsters[i].unit.y - unit.y) <= 6.f) pet.target = int(i);
                 if (pet.target >= 0 && now_ms >= monster.next_act) {
                     const auto& target = monsters[std::size_t(pet.target)];
-                    face(unit, direction16(target.unit.x - unit.x, target.unit.y - unit.y));
+                    turn_to(unit, target.unit.x.subtile(), target.unit.y.subtile());   // a monster unit's turn (FUN_006485f0)
                     set_mode(*game_data, monster, game_data->npc_timing(monster.npc, "A1").directions ? "A1" : "NU", now_ms);
                     monster.struck = false;
                     monster.next_act = now_ms + std::uint32_t(std::max(game_data->monsters.types[std::size_t(monster.type)].diff[std::size_t(monster.difficulty)].aidel, 15)) * 40;
@@ -551,7 +555,7 @@ auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
                 const auto& target = monsters[std::size_t(pet.target)];
                 const float dx = target.unit.x - unit.x, dy = target.unit.y - unit.y;
                 if (std::hypot(dx, dy) <= (pet.ranged >= 0 ? 6.f : kMeleeReach)) {
-                    face(unit, direction16(dx, dy));
+                    turn_to(unit, target.unit.x.subtile(), target.unit.y.subtile());
                     unit.path.clear(); unit.walking = false;
                     set_mode(*game_data, monster, "A1", now_ms);
                     monster.struck = false;
@@ -731,7 +735,7 @@ auto Fight::necropet_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const C
             pet.to_owner = false;
         } else if (act.kind == Kind::swing && found >= 0) {
             pet.target = found;
-            face(unit, direction16(monsters[std::size_t(found)].unit.x - unit.x, monsters[std::size_t(found)].unit.y - unit.y));
+            turn_to(unit, monsters[std::size_t(found)].unit.x.subtile(), monsters[std::size_t(found)].unit.y.subtile());
             unit.path.clear(); unit.walking = false;
             set_mode(*game_data, monster, "A1", now_ms);
             monster.struck = false;
@@ -1188,7 +1192,7 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
             pet.target = target;
             pet.cast = act.kind == Kind::swing ? -1 : act.skill;
             pet.cast_x = centre(act.x); pet.cast_y = centre(act.y);
-            if (target >= 0) face(unit, direction16(monsters[std::size_t(target)].unit.x - unit.x, monsters[std::size_t(target)].unit.y - unit.y));
+            if (target >= 0) turn_to(unit, monsters[std::size_t(target)].unit.x.subtile(), monsters[std::size_t(target)].unit.y.subtile());
             unit.path.clear(); unit.walking = false;
             const std::string_view mode = act.kind == Kind::skill && act.mode < 16 && game_data->npc_timing(monster.npc, kMonsterModes[std::size_t(act.mode)]).directions
                                               ? kMonsterModes[std::size_t(act.mode)] : "A1";
@@ -1415,6 +1419,7 @@ auto Fight::pet_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd) -> void
             x.dir = missile_facing(monster.unit.x, monster.unit.y, dx, dy); x.aim_at = { foe.unit.x, foe.unit.y };
             x.friendly = true; x.caster = actor->id; x.level = pet.ranged_level; x.skill = pet.ranged;
             if (const auto* missile_skill_row = skill_named(missile_info->skill)) x.skill = missile_skill_row->id;
+            seed_made(x);
             pending.push_back(std::move(x));
             return;
         }

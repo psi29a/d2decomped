@@ -13,12 +13,14 @@
 
 namespace d2d::game {
 
+// A command's bytes: its opcode, then its fields in order (UseSkill ends with
+// its stand byte and its target's unit type, 0 a player, 1 a monster).
 std::vector<std::uint8_t> encode(const Command& command) {
     wire::Out out;
     std::visit([&](const auto& message) {
         using T = std::decay_t<decltype(message)>;
         if constexpr (std::is_same_v<T, cmd::Move>) out.u8(opcode::kMove).f32(message.x).f32(message.y).u8(message.fresh);
-        else if constexpr (std::is_same_v<T, cmd::UseSkill>) out.u8(message.left ? opcode::kLeftSkill : opcode::kRightSkill).i32(message.skill).f32(message.x).f32(message.y).i32(message.unit).i32(message.item).u8(message.stand ? 1 : 0);
+        else if constexpr (std::is_same_v<T, cmd::UseSkill>) out.u8(message.left ? opcode::kLeftSkill : opcode::kRightSkill).i32(message.skill).f32(message.x).f32(message.y).i32(message.unit).i32(message.item).u8(message.stand ? 1 : 0).u8(message.unit_type);
         else if constexpr (std::is_same_v<T, cmd::Interact>) out.u8(opcode::kInteract).i32(message.npc);
         else if constexpr (std::is_same_v<T, cmd::Pickup>) out.u8(opcode::kPickup).i32(message.item);
         else if constexpr (std::is_same_v<T, cmd::Resurrect>) out.u8(opcode::kResurrect);
@@ -47,12 +49,12 @@ std::vector<std::uint8_t> encode(const Command& command) {
         else if constexpr (std::is_same_v<T, cmd::OpenHire>) out.u8(opcode::kNpcDeal).u8(npc_deal::kHire).i32(message.npc);
         else if constexpr (std::is_same_v<T, cmd::Respec>) out.u8(opcode::kNpcDeal).u8(npc_deal::kRespec).i32(message.npc);
         else if constexpr (std::is_same_v<T, cmd::ResurrectMerc>) out.u8(opcode::kNpcDeal).u8(npc_deal::kResurrectMerc).i32(message.npc);
-        else if constexpr (std::is_same_v<T, cmd::Buy>) out.u8(opcode::kBuy).i32(message.stock).i32(message.tab).u8(message.fill);
+        else if constexpr (std::is_same_v<T, cmd::Buy>) out.u8(opcode::kBuy).i32(message.item).u8(message.fill);
         else if constexpr (std::is_same_v<T, cmd::Sell>) out.u8(opcode::kSell).i32(message.item);
         else if constexpr (std::is_same_v<T, cmd::Repair>) out.u8(opcode::kRepair).i32(message.item);
         else if constexpr (std::is_same_v<T, cmd::Identify>) out.u8(opcode::kIdentify);
         else if constexpr (std::is_same_v<T, cmd::IdentifyWith>) out.u8(opcode::kIdentifyWith).i32(message.scroll).i32(message.item);
-        else if constexpr (std::is_same_v<T, cmd::Hire>) out.u8(opcode::kHire).i32(message.offer);
+        else if constexpr (std::is_same_v<T, cmd::Hire>) out.u8(opcode::kHire).i32(message.name);
         else if constexpr (std::is_same_v<T, cmd::CloseTrade>) out.u8(opcode::kCloseTrade);
         else if constexpr (std::is_same_v<T, cmd::Run>) out.u8(message.running ? opcode::kRunOn : opcode::kRunOff);
         else if constexpr (std::is_same_v<T, cmd::Chat>) out.u8(opcode::kChat).i32(message.npc);
@@ -66,6 +68,7 @@ std::vector<std::uint8_t> encode(const Command& command) {
     return out.bytes;
 }
 
+// encode's inverse: the command, or none for an unknown opcode or short bytes.
 std::optional<Command> decode(std::span<const std::uint8_t> bytes) {
     if (bytes.empty()) return std::nullopt;
     wire::In input{ bytes };
@@ -75,7 +78,7 @@ std::optional<Command> decode(std::span<const std::uint8_t> bytes) {
     std::optional<Command> command;
     switch (bytes[0]) {
         case opcode::kMove: { const float x = f32(), y = f32(); command = cmd::Move{ x, y, byte() != 0 }; break; }
-        case opcode::kLeftSkill: case opcode::kRightSkill: { const int skill = i32(); const float x = f32(), y = f32(); const int unit = i32(); const int item = i32(); command = cmd::UseSkill{ skill, x, y, unit, bytes[0] == opcode::kLeftSkill, item, byte() != 0 }; break; }
+        case opcode::kLeftSkill: case opcode::kRightSkill: { const int skill = i32(); const float x = f32(), y = f32(); const int unit = i32(); const int item = i32(); const bool stand = byte() != 0; command = cmd::UseSkill{ skill, x, y, unit, bytes[0] == opcode::kLeftSkill, item, stand, byte() }; break; }
         case opcode::kInteract: command = cmd::Interact{ i32() }; break;
         case opcode::kPickup: command = cmd::Pickup{ i32() }; break;
         case opcode::kResurrect: command = cmd::Resurrect{}; break;
@@ -117,7 +120,7 @@ std::optional<Command> decode(std::span<const std::uint8_t> bytes) {
             else command = cmd::OpenTrade{ npc, kind == npc_deal::kGamble };
             break;
         }
-        case opcode::kBuy: { const int stock = i32(), tab = i32(); command = cmd::Buy{ stock, tab, byte() != 0 }; break; }
+        case opcode::kBuy: { const int item = i32(); command = cmd::Buy{ item, byte() != 0 }; break; }
         case opcode::kSell: command = cmd::Sell{ i32() }; break;
         case opcode::kRepair: command = cmd::Repair{ i32() }; break;
         case opcode::kIdentify: command = cmd::Identify{}; break;

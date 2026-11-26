@@ -1010,6 +1010,13 @@ each drawn frame while it stands. `NetGame::send` still drops a packet the same 
 within 200 ms, as FUN_00478350 does. d2d's frame time over 40 ms stands in for 0x7a0498, a count of
 the ticks FUN_0044c790 ran; the two part only when ticks are skipped or caught up.
 
+A held skill isn't paced at all: `FUN_0044efa0` runs the held-button code (`FUN_0044c000`,
+0x44c2c0) on every pass of the loop, before its 40 ms tick test; `FUN_004f6190` (the present)
+sleeps only to round a frame out to 5 ms; `FUN_00461700` sends unless the mouse word `0x7a6aac`
+is past `[0x711470] - 0x31`; and `FUN_00478350` lets opcodes 5..0x11 (the skill packets) through
+its 200 ms repeat drop. So the client asks once a drawn frame, and the server's skill-packet count
+(stat 0x148, `FUN_00549d00`) follows the frame rate, as d2d's does (deviations.md #16).
+
 ## The stamp family (`FUN_0064d060` .. `FUN_0064eba0`, 1.14d)
 
 Cited (read in Ghidra, not run in the oracle). A unit's own bits go on the

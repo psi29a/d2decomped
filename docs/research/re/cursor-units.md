@@ -97,12 +97,12 @@ removal packet; the client's side not read). The client heads its room list
 with each arriving item (`FUN_004c1910` modes 3 and 5: `FUN_00620ae0`,
 `FUN_00620a70`, `d2d_unit_link_in`), so a drop made while the room is in
 play lists first, and the items a room brings with it when it comes into play
-list after, oldest first (the reverse of their server order). d2d keeps
-`View::ground`'s one order (`rank_ground_labels` takes the last first): right
-for items dropped in play, reversed for a floor that comes back with its
-room; the level come back to and a room re-entering play on a walk both
-need the arrival order kept, which `world/tick.cpp`'s push and
-`world/view.cpp`'s copy would carry, so it is not ported. The spot is the item's client position less the
+list after, oldest first (the reverse of their server order). d2d's client
+keeps that arrival order (`client::GroundArrival`, `test_ground_arrival`): each
+frame a new item in a room already in play arrives alone, the items of a room
+just come into the near list arrive newest first, and a room gone from it drops
+its items; `rank_ground_labels` walks a room's items by it, the last arrived
+first. The spot is the item's client position less the
 view's, 16 up: x = `FUN_00620650` − `FUN_0045afc0`, y = `FUN_006206b0` −
 0x10 − `FUN_0045afd0` (an item's static path +4 / +8). The rect: left =
 x − (w + 8) / 2 (`sar`), right = left + w + 8, top = y − h + 4, bottom =
@@ -422,13 +422,20 @@ it with the path's target words (`FUN_00648a00` / `FUN_00648a10`: path +0x10 /
 +0x12, SP1, path.md). Both equal: the answer is the path's +0x65
 (`FUN_00648810`, the facing it turns to). Else the way from the unit's subtile
 to that target, `FUN_00621dc0` -> `FUN_0064fdc0` (rules::direction64, 64 ways),
-whatever +0x65 holds (nothing in it asks whether the unit walks; whether the
-target stays set after a walk ends is not traced). `tools/emu/search_facing.py` runs it natively on
+whatever +0x65 holds (nothing in it asks whether the unit walks). The function
+does not write the unit, path or globals; its only non-fatal effects are the calls
+to the position and target getters and, off target, the direction calculation.
+The only caller is `FUN_00467660`, which uses the returned byte for the
+SearchEnemyXY spot order. Whether the target stays set after a walk ends is not
+traced. `tools/emu/search_facing.py` runs it natively on
 4000 cases (the target on the unit, one off, a few and far away; the model
 matches, and each of its three mutants is caught). d2d: `rules::search_facing`
-(`search_walk.hpp`, fixture `search_facing_cases.inc`, 1500 of them,
-`test_search_facing`), used by `ClientSession::shift_pick` for a walking
-player with its `goal_x` / `goal_y` (SP3, path +0x18) as the target.
+(`search_facing.hpp`, fixture `search_facing_cases.inc`, 1500 of them,
+`test_search_facing`). `World::view` sends `Hero::target_x` / `target_y`, d2d's
+SP1, through `View::path_target_x` / `path_target_y`; `ClientSession::shift_pick`
+uses it for standing and walking players alike through `rules::search_facing`.
+`test_search_facing_view` checks that a standing player's off-position SP1
+changes the search facing, while a player on SP1 keeps path +0x65.
 
 **The walk order (`FUN_00641cb0`).** Its `FUN_00619790` near list is the room's
 own array (room +0 the rooms, +0x24 their count: `d2d_act5_rooms_near`), and
@@ -500,8 +507,51 @@ case's answers); `tests/test_search_enemy_near.cpp` gives d2d's
 `rules::search_enemy_near` the same cases (fixture
 `search_enemy_near_cases.inc`, 2000; `gen 20000 3`: 20000 cases, 9571
 picks, no difference). d2d: `ClientSession::near_pick` (apps/d2d/session/input.cpp) on
-each cast of such a skill from the mouse, with the client's monsters (and
-for Iron Golem its ground items) in view order.
+each cast of such a skill from the mouse, with the client's monsters, other
+players and (for Iron Golem) ground items in room-list order.
+
+**Another player as a candidate.** Outside town `FUN_00465c60` (ECX the local
+player, EDX the other) takes the player-versus-player arm when both units are
+type 0 and differ: a live other player (`FUN_00464820` 0: not mode 0 / 0x11,
+no +0xc4 bit 0x10000) answers `FUN_004dc440(local id, other id, 8)`. That
+function reads the local player's roster record (`FUN_0047a310`: ECX into
+EDX, `FUN_004792e0`, its +0x34) and returns the node for the other id's
+flags & 8: the hostile bit, the same flags S->C 0x8c carries (`{0x8c, player,
+toward whom, flags}`, net-packets.md). A dead other player passes instead when
+`FUN_0047a4f0` says its corpse is ours or loot bit 1 is set. `FUN_00466870`
+also passes a unit `FUN_00465c60` refuses when `FUN_00464ec0` or
+`FUN_00464f70` does (a hand's skill with Skills row byte +7 bit 2 or 4: our
+own pet, a party member); with the hit-test argument zero it then returns 1
+after the unit flags (+0xc4 & 0x200000 refuses; +0xc4 & 2 or `FUN_00464310`,
+and +0xc8 & 0x80, pass), before any pixel or box test.
+
+`tools/emu/hostile_player_search.py` runs `FUN_00465c60`, `FUN_004dc440` and
+`FUN_0047a310` natively on two synthetic live type-0 units, the roster lookup
+hooked to give a record only for the local id. Across all low four relation
+bits both answer true exactly when bit 8 is set; the always-not-hostile and
+bit-1 mutants are caught, and the record looked up by the other id differs
+(the lookup goes by the local id).
+
+d2d: `ClientSession::near_pick` takes the other players from
+`add_near_players` (apps/d2d/session/near_players.cpp): each `View::others`
+player is type 0, `hit` its `hostile` (bit 8 of a joined game's S->C 0x8c flags
+toward it, `ClientSession::net_overlay`; the View codec carries it), and dead
+(mode 0, dropped unless the skill takes corpses) when a local co-op ghost or,
+joined, after the host's 0x0d command 8 / 9 on it until its 0x15. Local co-op has no
+relation nodes, so its players are never hostile, and a hosted World reads
+`UseSkill::unit` only as a monster. The dead-player arm and the
+`FUN_00464ec0` / `FUN_00464f70` passes for a player aren't ported.
+`test_hostile_player_search` runs `add_near_players`: two non-hostile players
+fail, a hostile one is picked and a dead hostile one isn't, the flag survives
+the View codec, and the cast keeps type 0 through the command codec and the
+C->S packet.
+
+The native send is `FUN_00461700` -> `FUN_00481030` -> `FUN_00480b40` ->
+`FUN_004786a0`: `FUN_00461700` takes the target's +0 as its type and +0xc as
+its id, and `FUN_004786a0` writes the type at packet +1 (after 0x06 or 0x0d)
+and the id at +5, so a player target goes as type 0, a monster as 1.
+`ClientSession::send` resolves `UseSkill::unit_type` 0 against `View::others`
+and passes it to `NetGame::skill_on`.
 
 **The finder's walk order (`FUN_0065ac70`).** `tools/emu/search_walk_near.py` runs
 `FUN_00467490` natively on the 5 x 5 room level of `search_walk.py` with the
@@ -517,9 +567,10 @@ differ against a model of it; the view-order and tie-order mutants are caught.
 the click's target. Not covered: the near list's order on a real level, and the
 items' places in their room's list.
 
-Not traced: the click flag 2, `FUN_004c51e0`, `FUN_00466de0`, other players as
-units of the finder (`FUN_00466870` -> `FUN_00465c60` for a player target),
-and pets as units of either search (`FUN_00465c60` with a pet, the pet list).
+Not traced: the click flag 2, `FUN_004c51e0`, `FUN_00466de0`, the complete
+pixel/box arms of `FUN_00466870` for a player (the search passes hit-test
+argument zero), and pets as units of either search (`FUN_00465c60` with a pet,
+the pet list).
 
 ## The label helpers of `FUN_00454f30`
 

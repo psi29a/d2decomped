@@ -347,9 +347,13 @@ end (Tyrael's portal, cinematic 5) waits for Act 5.
 
 `FUN_00544350` sets only the state (+0xc). The log moves through
 `FUN_00544300(record ECX, log DL, callback, arg, flag)`: +0xb = DL, and
-with flag 1 the callback over the players (`FUN_005b3940` / `FUN_005b4e40`
-/ `FUN_005b59c0`: S→C 0x5d to each unless done (bit 0 or 15) without 13 /
-14). Besides the joins (2 / 1 / 1, written directly):
+with flag 1 the callback walks the players. `FUN_005b3940`, `FUN_005b4e40`
+and `FUN_005b59c0` select difficulty from game +0x6d, get player data with
+`FUN_006221a0`, and test their respective words 0x19, 0x1a and 0x1b with
+`FUN_0065c310`: done or closed (bit 0 or 15) suppresses the send unless bit
+13 or 14 is set. A pass calls `FUN_00544190` with record 0x16, 0x17 or 0x18.
+`tools/emu/quest_log_sends.py` runs all 16 combinations per callback.
+Besides the joins (2 / 1 / 1, written directly):
 
 | quest | where | log | sent |
 |---|---|---|---|

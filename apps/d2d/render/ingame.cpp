@@ -199,7 +199,8 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
             static const std::string none;
             // An object's name shows in the modes it's Selectable in: its start mode, or the one it's in now (an open door).
             const std::string_view object_mode = state && !state->mode.empty() ? std::string_view(state->mode) : std::string_view(npc.mode);
-            const bool unselectable = npc.root == "objects" && !(npc.selectable >> game::mode_index(object_mode) & 1);
+            // A monster lying dead (DD: the second Tristram Cain, World::cain_step) isn't picked (FUN_005541b0's dead test).
+            const bool unselectable = npc.root == "objects" ? !(npc.selectable >> game::mode_index(object_mode) & 1) : object_mode == "DD";
             units.push_back({ x, y, &anim, state ? state->dir : 0, unselectable ? &none : &npc.name, state ? state->mode_ms : 0, int(i) });
             if (state && state->alert) {
                 units.back().overlay = &scene.npc_alert;
@@ -344,13 +345,8 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
         // under the mouse, or naming the item the cursor is on, goes solid
         // (mode 5) in the palette's nearest to (0, 64, 128) (FUN_004fb180)
         // with white text, and a click picks that item up.
-        // ponytail: the walk's order within a room is View::ground's, newest first.
-        // The client's list is the order its items arrived in, last first: an item
-        // dropped in play heads it, but a room coming into play (a level come back
-        // to, FUN_00537b50 -> FUN_0053a8e0) sends its items newest first, so the
-        // client lists those oldest first (cursor-units.md "The walk"). d2d keeps
-        // one order, and a loot floor's pushes (world/tick.cpp) and the View's copy
-        // (world/view.cpp) would carry the arrival order.
+        // Within a room the walk goes in the client's list order, the items as they arrived, last first
+        // (client::GroundArrival, rank_ground_labels).
         if (show_items) {
             const auto& pal = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
             std::array<std::uint8_t, 3> hover_blue{};

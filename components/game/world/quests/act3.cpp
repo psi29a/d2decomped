@@ -35,6 +35,7 @@ auto World::act3_log(d2d::rules::QuestLogStates& log, const d2d::rules::QuestBit
         log[d2d::rules::LamEsenQuest::kQuest] = std::uint8_t(lam_esen.log_state(bits, carries("bbb"), !fight.remote_monsters, d2d::rules::level_act(level->id) == 2));
     }
 
+// The player joins: each act 3 record's +0xd4 (FUN_005b7c10, LAB_005b8470, FUN_005b9700, FUN_005ba870, LAB_005bb480, LAB_005bcc80).
 auto World::act3_join() -> void {
         fight.spawning.orb_smashed = d2d::rules::quest::bit(quests(), 0x12, 0);   // a3q5's join (FUN_005bb480): Khalim's Will done
         // a3q7's join (LAB_005bd2c0): seen him (word 0x20 bit 0): the game's bit 13 (FUN_00544720) and no Dark Wanderer.
@@ -60,13 +61,18 @@ auto World::act3_join() -> void {
             for (const auto& item : corpse.items)
                 if (item.code == d2d::rules::GoldenBirdQuest::kFigurine || item.code == d2d::rules::GoldenBirdQuest::kBird) item_event(item.code, now, true);
         golden_bird.join(quests(), carries(d2d::rules::GoldenBirdQuest::kBird), carries(d2d::rules::GoldenBirdQuest::kFigurine));
+        // The corpse's pickups send (FUN_005ba6a0, flag 1); whether the joiner is on the game's list then isn't traced.
+        golden_bird.news = false;
     }
 
+// A level change: a3q5's and a3q6's states past the docks go by Lam Esen's game bit 13 (FUN_00544760(game,
+// 0x11, 0xd) at 0x5bb1ce and 0x5bc45e), not their own.
 auto World::act3_enter(const Level& from) -> void {
+        const bool tome_done = d2d::rules::quest::bit(game_bits, d2d::rules::LamEsenQuest::kQuest, 13);
         lam_esen.enter(quests(), from.id, level->id);
-        guardian.enter(quests(), from.id, level->id, d2d::rules::quest::bit(game_bits, d2d::rules::GuardianQuest::kQuest, 13));
+        if (guardian.enter(quests(), from.id, level->id, tome_done)) each_player([&](Player&) { guardian.mark(quests()); });
         khalim.enter(level->id);
-        temple.enter(quests(), from.id, level->id, d2d::rules::quest::bit(game_bits, d2d::rules::BlackenedTempleQuest::kQuest, 13));
+        if (temple.enter(quests(), from.id, level->id, tome_done)) each_player([&](Player&) { temple.mark(quests()); });
         blade.enter(quests(), from.id, level->id, carries(d2d::rules::BladeQuest::kGidbinn));
     }
 
@@ -80,11 +86,17 @@ auto World::act3_talk(std::vector<d2d::rules::QuestMsg>& out, int hc_idx) -> voi
         std::ranges::copy(golden_bird.talk(quests(), hc_idx, carries(d2d::rules::GoldenBirdQuest::kFigurine), carries(d2d::rules::GoldenBirdQuest::kBird), actor->id), std::back_inserter(out));
     }
 
+// A talk with `hc_idx` closed: each act 3 record's +0xa8 (LAB_005b8c50, LAB_005b8020, LAB_005ba0b0, LAB_005bb0c0,
+// LAB_005bc370).
 auto World::act3_talk_closed(int hc_idx) -> void {
         blade.talk_closed(quests(), hc_idx, carries(d2d::rules::BladeQuest::kGidbinn));
         khalim.talk_closed(hc_idx);
+        golden_bird.talk_closed(hc_idx);
+        if (temple.talk_closed(hc_idx)) each_player([&](Player&) { temple.mark(quests()); });   // LAB_005badc0 over the players
+        guardian.talk_closed(hc_idx);
     }
 
+// The player heard `message_string` from `hc_idx`: each act 3 record's +0xcc (FUN_005b7740 .. FUN_005bc5a0).
 auto World::act3_said(int hc_idx, int message_string) -> void {
         d2d::rules::HratliGreeting::said(quests(), game_bits, hc_idx, message_string);
         // Lam Esen's Tome handed to Alkor (FUN_005b7740): the tome goes (FUN_00544160), 5 stat points.
@@ -112,8 +124,10 @@ auto World::act3_said(int hc_idx, int message_string) -> void {
         // Khalim's Will (FUN_005b8060): Cain's bits; the Blackened Temple
         // (FUN_005bb210): Cain's done, Khalim's parts gone once his Will's done.
         khalim.said(quests(), hc_idx, message_string);
-        guardian.said(quests(), hc_idx, message_string, d2d::rules::quest::bit(game_bits, d2d::rules::GuardianQuest::kQuest, 13));
-        if (temple.said(quests(), game_bits, hc_idx, message_string, d2d::rules::quest::bit(game_bits, d2d::rules::BlackenedTempleQuest::kQuest, 13), actor->id)) {
+        // Ormus's told states go by Lam Esen's game bit 13 (word 0x11: 0x5bc603, 0x5bb26f).
+        const bool tome_done = d2d::rules::quest::bit(game_bits, d2d::rules::LamEsenQuest::kQuest, 13);
+        guardian.said(quests(), hc_idx, message_string, tome_done);
+        if (temple.said(quests(), game_bits, hc_idx, message_string, tome_done, actor->id)) {
             using K = d2d::rules::KhalimQuest;
             for (const char* part : { K::kEyeCode, K::kHeartCode, K::kBrainCode, K::kFlailCode, K::kWillCode }) while (carries(part)) take_carried(part);
             d2d::log::info("The Blackened Temple: done, Khalim's parts taken");
@@ -193,12 +207,23 @@ auto World::act3_kill(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
 // including one in a nearby room before the player enters that level.
 // Drained once a tick (after rooms_up) and on arrival, in creation order:
 // the same first boss as game.exe's bind at the make, which disarms it.
+// A Council superunique made under level 0x6c (FUN_005a49b0's case 0x1a,
+// 0x1b, 0x1d -> FUN_00545b50 -> FUN_005bb550) goes to the Blackened Temple.
 auto World::act3_bind_new_bosses() -> void {
         auto made = std::exchange(fight.made_bosses, {});
         if (hosted_quests) return;
+        const auto super_of = [&](int unit_id) {
+            for (const auto& monster : fight.monsters) if (monster.id == unit_id) return monster.super;
+            for (const auto& [kept_level, monsters] : fight.kept)
+                for (const auto& monster : monsters) if (monster.id == unit_id) return monster.super;
+            return -1;
+        };
+        const bool tome_done = d2d::rules::quest::bit(game_bits, d2d::rules::LamEsenQuest::kQuest, 13);   // 0x5bb5fb
         for (const auto& boss : made) {
-            if (!golden_bird.armed) break;
-            if (d2d::rules::level_act(boss.level) == 2 && boss.type != 0x197 && !game_data->mon_is_npc[std::size_t(boss.type)])
+            if (boss.level < 0x6c && std::ranges::contains(d2d::rules::BlackenedTempleQuest::kCouncil, super_of(boss.id))
+                && temple.council_made_one(boss.id, tome_done))
+                each_player([&](Player&) { temple.mark(quests()); });
+            if (golden_bird.armed && d2d::rules::level_act(boss.level) == 2 && boss.type != 0x197 && !game_data->mon_is_npc[std::size_t(boss.type)])
                 golden_bird.made(boss.id);
         }
     }
@@ -212,9 +237,11 @@ auto World::act3_quest_step() -> void {
         guardian.quest_step();
     }
 
+// The act's per-tick work: the Guardian's chain, the bridge, a3q3's guardians and its pickup; then a log moved
+// with flag 1 (FUN_00544300) is sent (S->C 0x5d) to each player its record's callback passes (rules::quest_log_goes_to:
+// FUN_005b7340, FUN_005b8bf0, FUN_005b9e70, FUN_005baf70, FUN_005bc210), for act 3's records but a3q2's.
 auto World::act3_update(std::uint32_t now_ms) -> void {
         if (d2d::rules::quest::bit(quests(), d2d::rules::BlackenedTempleQuest::kQuest, 0)) guardian.chain();   // a3q5's +0xf0
-        if (std::exchange(guardian.news, false) && d2d::rules::GuardianQuest::told(quests())) actor->events.push_back(ev::QuestNews{ d2d::rules::GuardianQuest::kQuest });
         mephisto_bridge(now_ms);
         // a3q3's timer (FUN_005b9a30): with a player in a room near the altar's
         // (FUN_00619da0 at its spot, its near list FUN_00619790), a unique
@@ -249,6 +276,16 @@ auto World::act3_update(std::uint32_t now_ms) -> void {
         if (const bool gidbinn = carries(d2d::rules::BladeQuest::kGidbinn); !hosted_quests) {
             if (gidbinn && !actor->had_gidbinn && blade.picked_up(quests())) d2d::log::info("The Blade of the Old Religion: the Gidbinn (FUN_00553380)");
             actor->had_gidbinn = gidbinn;
+        }
+        const std::pair<int, bool*> records[] = { { d2d::rules::LamEsenQuest::kQuest, &lam_esen.news }, { d2d::rules::BladeQuest::kQuest, &blade.news },
+                                                  { d2d::rules::GoldenBirdQuest::kQuest, &golden_bird.news }, { d2d::rules::BlackenedTempleQuest::kQuest, &temple.news },
+                                                  { d2d::rules::GuardianQuest::kQuest, &guardian.news } };
+        for (const auto& [quest, news] : records) {
+            if (!std::exchange(*news, false)) continue;
+            for (auto& player : players) {
+                const auto difficulty = std::size_t(std::clamp(player->character.header.active_difficulty(), 0, 2));
+                if (d2d::rules::quest_log_goes_to(player->character.header.quests[difficulty], quest)) player->events.push_back(ev::QuestNews{ quest });
+            }
         }
     }
 

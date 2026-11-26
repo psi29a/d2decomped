@@ -151,3 +151,63 @@ them); the rest have none. The cel file ones assert with `.\SRC\CelCmp.cpp`.
 | `FUN_00603850` | `jmp FUN_00603300` |
 | `FUN_00603860` | (key, source, source pitch, rows, width, a6, a7, a8; `ret 0x20`): rows and width must be set (line 0x229) and width at most the pitch (0x22a). Under `0x8e8d10` it finds the key's record in `0x8e8cc0`, links a new 0x24-byte `TCELENTRY` into its entries (count `+0x24` + 1), stores the fields (`+0x08` a8, `+0x0c` width, `+0x10` rows, `+0x14` rows × width, `+0x18` a6, `+0x1c` a7), and allocates a buffer of row bytes × rows (line 0x239; the row bytes are width, × 3 for a record with bit 2) into `+0x20`. Then `FUN_005179b3` with ECX = the buffer, EDX = the source, and (row bytes, rows, pitch, row bytes) (`0x603985`..`0x603994`); what that does is not traced |
 | `FUN_006039c0` | (key; `ret 4`): under `0x8e8d10` finds the key's record in `0x8e8cc0`, frees each entry's `+0x20` buffer (line 0x24c, `0x603a10`..`0x603a1f`), frees the entries, unlinks the record and deletes it (slot 0) |
+
+## Past `0x603a70`: the Reuse, Export and Sync layers
+
+The untouched template code from `0x603e70` to `0x604900`, by the same
+rules (reached or not, byte scan repeated). The global table at
+`0x8e8cc0` is built by the static initializer `0x6cafc0`. It calls
+`FUN_00603e70`, then does the rest of `FUN_00604810` inline:
+`+0x48` = `~0x8e8cc0 & 0xfffffff`, `+0x4c` = 0, the vtable `0x6e5e24`,
+`InitializeCriticalSection(0x8e8d10)`, and the destructor `0x6cb4c0`
+registered (`FUN_00683824`). So the object at `0x8e8cc0` ends up a
+`TSExportTableSync<CELLIST,HCELLIST__*,HLOCKEDCELLIST__*,CCritSect,0>`.
+The `TSHashTable` vtable `0x6e5de8` above is its innermost layer. Three
+more vtables follow it, four slots each:
+
+| Vtable | Class (RTTI) | Slots |
+|---|---|---|
+| `0x6e5dfc` | `TSHashTableReuse<CELLIST,HASHKEY_NONE,0>` | `FUN_00604150`, `FUN_006044f0`, `FUN_00604700`, `FUN_006046e0` |
+| `0x6e5e10` | `TSExportTableSimple<CELLIST,HCELLIST__*,0>` | `FUN_00604150`, `FUN_006044f0`, `FUN_00604870`, `FUN_006046e0` |
+| `0x6e5e24` | `TSExportTableSync<…,CCritSect,0>` | `FUN_00604150`, `FUN_006044f0`, `FUN_00604900`, `FUN_006046e0` |
+
+Reached:
+
+| Address | What it does |
+|---|---|
+| `FUN_00603e70` | `TSHashTableReuse`'s constructor: `FUN_00603bd0`, vtable `0x6e5dfc`, the list at `+0x28` (link offset 4), the list at `+0x3c`, `+0x34` and `+0x38` = 0x10. Called by the static initializer (`0x6cafc5`) and by `FUN_00604730`, `FUN_00604810` |
+| `FUN_00604150` | slot 0 (record): empties its entries (`FUN_006025e0`), unlinks its `+0x30` head, unlinks its links (`FUN_00602430`), frees it (tag `.?AUCELLIST@@`) |
+| `FUN_006044f0` | slot 1 (list, extra, flags): a `CELLIST` of 0x38 + extra bytes (flags \| 8), its links zeroed and its entry list set up, linked at the list's tail (as `FUN_00603610`) |
+| `FUN_00604700`, `FUN_00604870` | slot 2 of `0x6e5dfc` and `0x6e5e10`: `FUN_00604640`, then freed (tag `delete`) with bit 0 |
+| `FUN_00604900` | slot 2 of `0x6e5e24`: `DeleteCriticalSection(+0x50)`, `FUN_00604640`, freed with bit 0 |
+
+Not reached (callees of dead functions name them):
+
+| Address | What it does |
+|---|---|
+| `FUN_00603ee0` | the growth step: 8 (stored at `+0xc`) from 8 up, else the highest power of two in n (1 for 0); the same code as bnclient.md's `FUN_0051d2f0`. Callers `FUN_00604350`, `FUN_006043b0` |
+| `FUN_00603f20` | n rounded up to a multiple of m (as source-sbig.md's `FUN_004210e0`) |
+| `FUN_00603f50` | the same code as `FUN_00601e80` (a list set up with an offset and an empty head) |
+| `FUN_00603f90` | the same code as `FUN_006023b0` (the same, the head zeroed first) |
+| `FUN_006040b0` | a `CELLIST` copied from another: links zeroed, `+0x18..+0x28` copied, `+0x2c` copied and the `+0x30` list set up empty |
+| `FUN_006041b0` | ECX record array, stack n: empties and unlinks the records from n on (`FUN_006025e0`, the `+0x30` head, `FUN_00602430`), reallocates to n × 0x38 (`FUN_004133d0`, tag `.?AUCELLIST@@`, flag 0x10); when that fails, allocates anew and copies each kept record field by field (as `FUN_006040b0`), emptying the old one, then frees the old block. Callers `FUN_00604350`, `FUN_006043b0`, `FUN_00604440` |
+| `FUN_00604350` | reserve n more, rounded up to the step when the flag is set (as source-sbig-arrays.md's `FUN_00421630`) |
+| `FUN_006043b0` | appends one record (reserve, links zeroed, entry list set up empty, count + 1), returns it. Its only reference is the `jmp` at `0x604460`, which nothing reaches |
+| `FUN_00604440` | reserve exactly n more (as bnclient.md's `FUN_0051d7f0`) |
+| `FUN_00604490` | (mode, extra, flags): a zeroed chunk of 0x18 + extra bytes (tag `.?AV?$TSHashObjectChunk@UCELLIST@@VHASHKEY_NONE@@@@`, `0x741fb4`), inserted by a non-zero mode (`FUN_00603fc0`) |
+| `FUN_006045b0` | (bucket): 0 when the table's `+0x24` mask is above 0x3fe; else steps `+0x10` down by 3 (to 0 under 4), then walks the bucket's list adding 1 per record; past 0xd it zeroes `+0x10`, grows the table (`FUN_00603c80`) and returns 1. Caller `FUN_00604760` |
+| `FUN_00604730` | `TSExportTableSimple`'s constructor: `FUN_00603e70`, `+0x48` = `~this & 0xfffffff`, vtable `0x6e5e10`, `+0x4c` = 0 |
+| `FUN_00604760` | (key, a1, a2, a3): the bucket `key & +0x24`, re-picked when `FUN_006045b0` grew the table; slot 1 makes a record there; its link is taken out of any list and put in the list at `+8`, and the key is stored in its first dword (the same steps as net-join.md's `FUN_00530820`). Callers `FUN_00604840`, `FUN_006048c0` (themselves unreached: `FUN_006048c0`'s one call is from `FUN_00604940`, which nothing reaches) |
+| `FUN_00604810` | `TSExportTableSync`'s constructor: as `FUN_00604730` with vtable `0x6e5e24`, then `InitializeCriticalSection(+0x50)` (the static initializer has this inline) |
+| `FUN_006048a0` | `DeleteCriticalSection(+0x50)`, `FUN_00604640` |
+
+## The row encoder `FUN_00606a10`
+
+(pitch, rows, flags, &out, &size; EAX the pixels): encodes 8-bit rows
+into DC6 row tokens, the reverse of the row writers (src-frontier.md):
+a run of up to 0x7f zero bytes as `0x80 | n` (`FUN_0060d280`), up to
+0x7f non-zero bytes as n and then the bytes (`FUN_0060d3a0`), and 0x80
+at each row's end. It starts at the last row and goes up unless flags
+bit 0 is set. The output is allocated (`FUN_0040b380`); its start and
+length go to out and size. Callers: `FUN_00606b50` and `FUN_00608ee0`,
+kind 0's entries in the tables above ("The cel file").
