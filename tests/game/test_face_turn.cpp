@@ -12,6 +12,8 @@
 #include <gamedata.hpp>
 #include <level.hpp>
 #include <npc.hpp>
+#include <rules.hpp>
+#include <skills.hpp>
 
 #include <cassert>
 #include <cstdint>
