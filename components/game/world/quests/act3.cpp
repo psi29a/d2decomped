@@ -67,7 +67,7 @@ auto World::act3_join() -> void {
 auto World::act3_enter(const Level& from) -> void {
         const bool tome_done = d2d::rules::quest::bit(game_bits, d2d::rules::LamEsenQuest::kQuest, 13);
         lam_esen.enter(quests(), from.id, level->id);
-        guardian.enter(quests(), from.id, level->id, tome_done);
+        if (guardian.enter(quests(), from.id, level->id, tome_done)) each_player([&](Player&) { guardian.mark(quests()); });
         khalim.enter(level->id);
         if (temple.enter(quests(), from.id, level->id, tome_done)) each_player([&](Player&) { temple.mark(quests()); });
         blade.enter(quests(), from.id, level->id, carries(d2d::rules::BladeQuest::kGidbinn));
@@ -83,12 +83,14 @@ auto World::act3_talk(std::vector<d2d::rules::QuestMsg>& out, int hc_idx) -> voi
         std::ranges::copy(golden_bird.talk(quests(), hc_idx, carries(d2d::rules::GoldenBirdQuest::kFigurine), carries(d2d::rules::GoldenBirdQuest::kBird), actor->id), std::back_inserter(out));
     }
 
-// A talk with `hc_idx` closed: each act 3 record's +0xa8 (LAB_005b8c50, LAB_005b8020, LAB_005ba0b0, LAB_005bb0c0).
+// A talk with `hc_idx` closed: each act 3 record's +0xa8 (LAB_005b8c50, LAB_005b8020, LAB_005ba0b0, LAB_005bb0c0,
+// LAB_005bc370).
 auto World::act3_talk_closed(int hc_idx) -> void {
         blade.talk_closed(quests(), hc_idx, carries(d2d::rules::BladeQuest::kGidbinn));
         khalim.talk_closed(hc_idx);
         golden_bird.talk_closed(hc_idx);
         if (temple.talk_closed(hc_idx)) each_player([&](Player&) { temple.mark(quests()); });   // LAB_005badc0 over the players
+        guardian.talk_closed(hc_idx);
     }
 
 // The player heard `message_string` from `hc_idx`: each act 3 record's +0xcc (FUN_005b7740 .. FUN_005bc5a0).
@@ -232,9 +234,15 @@ auto World::act3_quest_step() -> void {
         guardian.quest_step();
     }
 
+// The act's per-tick work: the Guardian's chain and its log sends (FUN_00544300 flag 1 -> FUN_005bc210 for each
+// player), the bridge, a3q3's guardians and its pickup.
 auto World::act3_update(std::uint32_t now_ms) -> void {
         if (d2d::rules::quest::bit(quests(), d2d::rules::BlackenedTempleQuest::kQuest, 0)) guardian.chain();   // a3q5's +0xf0
-        if (std::exchange(guardian.news, false) && d2d::rules::GuardianQuest::told(quests())) actor->events.push_back(ev::QuestNews{ d2d::rules::GuardianQuest::kQuest });
+        if (std::exchange(guardian.news, false))   // FUN_00544300 flag 1 -> FUN_005bc210 for each player
+            for (auto& player : players) {
+                const auto difficulty = std::size_t(std::clamp(player->character.header.active_difficulty(), 0, 2));
+                if (d2d::rules::GuardianQuest::told(player->character.header.quests[difficulty])) player->events.push_back(ev::QuestNews{ d2d::rules::GuardianQuest::kQuest });
+            }
         mephisto_bridge(now_ms);
         // a3q3's timer (FUN_005b9a30): with a player in a room near the altar's
         // (FUN_00619da0 at its spot, its near list FUN_00619790), a unique

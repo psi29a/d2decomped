@@ -359,14 +359,24 @@ mode, +0x1c soulstones owed.
   III, calls `Q23_SetGuardianQuestComplete` and bumps this quest's
   `nPlayerCount` — Mephisto-kill credit for nearby party members who
   weren't in his room.
-- **Driving the state-flag machine** (`Q23_NotifyGuardianStateToPlayers`,
-  `FUN_005bcf60`, namespace `A3Q7` though its data is `pA3Q6`): while
-  active and `nStateFlag < 6`, either saves the current
-  `nStateFlagPrev` and advances to 6 (7 in multiplayer), or restores
-  the saved value — both paths through `QUEST_SetStateAndBroadcast`
-  with `Q23_PlayerNotifyCompleted` as the per-player callback. No
-  direct `GetQuestState`/`SetQuestState` calls (uses the broadcast
-  helper instead).
+- **The log to 6 / 7 and back** (`FUN_005bcf60`, EDX a byte): with record
+  0x14 open (+9) under state 6, a 0 saves the log (+0xb) in data +0x28 and
+  logs 6 (7 when game +0x6a isn't 3); else the saved log comes back. It's
+  `FUN_00544300` with flag 1 when the state is past 0. Nothing calls it: no
+  `call`, and no copy of its address in game.exe. Not ported.
+- **The record's log** (+0xb, the usual `quest_log`) moves at its
+  `FUN_00544300` sites, each flag-1 one sent through `FUN_005bc210`:
+  Ormus's talk's close (`LAB_005bc370`, put in +0xa8 when it opens at state 0
+  by the chain or a level past 97, cleared when it fires: with data +3,
+  Ormus's 628, log 2, 0x5bc39e); out of the docks told, log 2 under 3 (flag
+  0, 0x5bc450); into the Durance 1 at log 0 or 2, log 3 (0x5bc4e2); into its
+  level 3, log 4 unless it is (0x5bc53b); the report with bit 13, log 0xd
+  (flag 0, 0x5bc6b1); Mephisto's timer (below). The docks, the Durance 1
+  (with the state moved or the log sent) and its level 3 mark everyone
+  (`LAB_005bc020`, not done nor bit 0xb: state 2 bit 2, 3 bit 3, 4 bits 4 /
+  5 / 6 and 5 bits 7 / 8 / 9 by the log 2 / 3 / 4). d2d:
+  `GuardianQuest::enter` / `talk_closed` / `mark`,
+  `tests/game/test_guardian_log.cpp`.
 - **The Dark Wanderer's map AI** (`Q24_SetupDarkWandererMapAi`,
   `FUN_005bd040`, same `A3Q7`/`pA3Q6` pairing): the Act 3→4 transition
   actor's equivalent of a3q1's `Q17_SetupHratliMapAi` above — stores
@@ -376,4 +386,4 @@ mode, +0x1c soulstones owed.
 
 d2d: `World::mephisto_died`, `World::mephisto_bridge`; the hellgate's
 OperateFn only says Act 4 isn't built. `tests/quests_d2d.py` (map seed 3).
-Not traced: the record's other callbacks (the talk, the level entries).
+Not traced: the join's marks and log (`LAB_005bcc80` beyond what d2d's join does).
