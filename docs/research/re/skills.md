@@ -314,6 +314,17 @@ every other row 0):
   set-bit blow at another target (`FUN_0056bd10`).
 - 4: no weapon (the kicks).
 The pick must be a usable weapon (0x2d, `FUN_0062a4e0`), else the default.
+The components are `FUN_0063c050`'s (body cells 0..10 in order): an item
+whose class key (`FUN_00629fe0`) is 1hs, 1ht or ht1 is component 5 when it
+is the wielded weapon (`FUN_0063bef0`) and 6 when it isn't, whichever hand
+holds it; any other by its Items `+0x115` (weapons 5, bows 6, shields 7).
+So weapsel 2 starts on the wielded weapon. A broken one-hander that isn't
+the wielded weapon (FUN_0063d1d0 doesn't make an unusable one wielded) is
+component 6, and under the flag the pick refuses it for the default.
+d2d: `rules::worn_items`, `worn_by_component`, `two_melee`,
+`weapsel2_pick` (hand_pick.hpp), Whirlwind's `Fight::move_event`;
+`tools/emu/whirl_hands.py` runs both functions on the loaded tables
+(tests/game/test_whirl_hands.cpp).
 `+0x38` is the sequence position (structs.tsv, units.md `FUN_00621260`), so 3
 alternates by row. The weapon's stats on the unit follow the hand:
 `FUN_00623c80` (called by the rate set-up `FUN_00623f50` as a mode starts, and by
@@ -576,7 +587,11 @@ flag 0x2000, set by what isn't traced.
   hit timer allows (FUN_005d9320: players every 4 / 6 / 8 / 10 / 12 / 14 /
   16 frames as FUN_0062a710's attack frames are < 12 / 15 / 18 / 20 / 23 /
   ≤ 25 / more; 10 without a weapon; monsters every other event), one hit,
-  **two with two weapons** (FUN_005d92d0), each on FUN_0056bd10's next
+  **two with two melee weapons** (FUN_005d92d0: the items worn as
+  components 5 and 6, FUN_0063c050, both ItemTypes row 0x2e mele, usable
+  or not; a bow, crossbow, orb or throwing potion isn't one; two broken
+  one-handers are neither wielded, so component 5 is empty: one hit),
+  each on FUN_0056bd10's next
   target within **5** (round by id): toht, ResultFlags, ED calc1, the
   element. It ends at the point.
 - **Leap Attack**, start 41 (FUN_005da540): the leap's path to the target

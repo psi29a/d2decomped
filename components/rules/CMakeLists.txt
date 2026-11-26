@@ -22,6 +22,7 @@ add_library(rules STATIC
     items/classic_mod.cpp
     items/cube.cpp
     items/drops.cpp
+    items/hand_pick.cpp
     items/replenish.cpp
     items/set_list.cpp
     items/shop_action.cpp
