@@ -251,9 +251,9 @@ weaponsnd.
     loop). d2d: `Fight::set_pmode` at the start, `Hero::inferno_list` the
     client's list's end, placed at the caster;
     `tests/game/test_inferno_list.cpp`. Not ported: the overlay, the sequence
-    frame and frame count; and d2d counts the server's `Hero::burning` as
-    the state on too, which game.exe's client never sees. Read in game.exe,
-    not run: no oracle.
+    frame and frame count. The server's `Hero::burning` doesn't count:
+    `tools/emu/state_nosend.py` runs `FUN_005711d0` over every state (on and
+    off), and inferno is never sent. The cltstfunc itself is read, not run.
   - cltstfunc 46 (`FUN_004f0160`, Baal Taunt): quests-act5.md.
   - cltdofunc 78 (`FUN_004f0cd0`, 'mon death sentry'): after its cltmissile
     (+0xea, corpseexplosion) is made at the skill's target spot

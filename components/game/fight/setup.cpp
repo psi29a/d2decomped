@@ -653,9 +653,8 @@ auto Fight::set_pmode(int mode, std::uint32_t now_ms) -> void {
             // With the state off, first its prgoverlay (+0x10c, a row in the table: FUN_00470390 kind 2 at
             // 0x4e30c2, the row's playing one restarted: Arctic Blast's arctic_blast_cast), then the sound.
             // The server never sends state 0xc (States.txt inferno is nosend: FUN_005711d0 skips +0x10 bit 0 at
-            // 0x5712f0), so the client's unit has no server list or bit for it: only its own.
-            // ponytail: d2d also counts the server's Hero::burning as the state on, so a start after the client's
-            // list ran out but with the server's on is silent here and sounds in game.exe.
+            // 0x5712f0), so the client's unit has no server list or bit for it: only its own (Hero::inferno_list;
+            // the server's Hero::burning doesn't count). tools/emu/state_nosend.py.
             // With the list there it puts the sequence at frame 8 (FUN_006212c0) with 0x500 to run (+0x48,
             // 0x4e3154): not ported, start_sequence sets the frames after this.
             if (skill->clt_st_func == 15) inferno_client_start(*skill, now_ms);
@@ -663,9 +662,10 @@ auto Fight::set_pmode(int mode, std::uint32_t now_ms) -> void {
     }
 
 // Cltstfunc 15's list and its sound (above); a held Inferno's next cast runs it too (Fight::breath_again):
-// the start's branch for a list already on (7 frames, no sound) is that one's.
+// the start's branch for a list already on (7 frames, no sound) is that one's. Only the client's own list
+// counts: state 0xc is nosend (FUN_005711d0), so the server's never reaches the client.
 auto Fight::inferno_client_start(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
-        const bool state_on = now_ms < actor->burning || now_ms < actor->inferno_list;
+        const bool state_on = now_ms < actor->inferno_list;
         if (const int row = game_data->overlay_row(skill.prg_overlay); !state_on && row > 0 && std::size_t(row) < game_data->overlay_rows.size()
             && game_data->overlay_rows[std::size_t(row)])
             d2d::rules::add_one_shot(actor->one_shots, row, now_ms);

@@ -63,11 +63,12 @@ int main() try {
     const auto second = cast(10);     // the list is on: nothing, its timeout set to 7 (to frame 17)
     const auto third = cast(16);      // still on: 7 more frames (to frame 23)
     const auto fourth = cast(24);     // it ran out at frame 23: the sound again
-    // The server's state (Hero::burning) on counts as the state on too: the start is silent.
+    // The server's state (Hero::burning) never reaches the client (inferno is nosend, FUN_005711d0 0x5712f0):
+    // with only it on, the client's list is off and the start sounds.
     actor.inferno_list = 0;
     actor.burning = start + 100 * kTickMs;
     const auto fifth = cast(50);
-    assert(first == 1 && second == 1 && third == 1 && fourth == 2 && fifth == 2);
+    assert(first == 1 && second == 1 && third == 1 && fourth == 2 && fifth == 3);
     // Its prgoverlay (arctic_blast_cast) goes on with the sound, not while the state is on (0x4e30c2).
     const int overlay = data->overlay_row(data->skills.get(skill_id)->prg_overlay);
     assert(overlay > 0);
