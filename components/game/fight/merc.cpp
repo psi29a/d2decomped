@@ -364,11 +364,22 @@ auto Fight::merc_turn(std::uint32_t now_ms, float /* elapsed: a turn is a frame 
             // MonStats Velocity in WL and RN (FUN_00621360, +0x32) x the walk %, at least 25 (FUN_00623f50): its
             // velocitypercent, which starts at 75 as any monster unit's (FUN_00555230's type-1 case, 0x5553a0 ->
             // FUN_00574250 -> FUN_00573cb0's SetStat(0x43, 0x4b) at 0x573f16), + its think's pace, + its gear's
-            // faster run/walk (stat 96, FUN_00621740's 150 v / (150 + v)).
+            // faster run/walk (stat 96, FUN_00621740's 150 v / (150 + v)), + the velocitypercent its states put on
+            // stat 0x43: a friendly aura's it stands in (Vigor, do 65's aurastats through FUN_005cedc0) and a
+            // monster's curse on it (Decrepify), as on the player (update_fighters).
+            int states_pct = 0;
+            for (const auto& aura : friendly_auras(unit.x, unit.y))
+                for (std::size_t k = 0; k < aura.skill->aurastat.size(); ++k)
+                    if (aura.skill->aurastat[k] == d2d::d2s::kVelocityPercent)
+                        states_pct += d2d::rules::eval_calc(game_data->skills, aura.skill->aura_calc[k], aura.env, aura.skill->id, aura.level);
+            if (actor->curses[1].skill >= 0) {
+                const d2d::rules::CalcEnv curse_env{ [](int) { return 0; }, [](int) { return 0; }, [](int) { return 0; }, actor->merc_st.level, nullptr };
+                for (const auto& [id, value] : curse_stats(actor->curses[1], curse_env)) if (id == d2d::d2s::kVelocityPercent) states_pct += value;
+            }
             const int velocity = type_info ? type_info->velocity : 6;
             const UnitState* foe = actor->merc_chase && actor->merc_target >= 0 ? &monsters[std::size_t(actor->merc_target)].unit : nullptr;
             const int frw = d2d::rules::effective_speed(int(merc_gear().sum[d2d::d2s::kFasterMoveVelocity]), 150);
-            if (walk_on(*level, unit, path_velocity(velocity, std::max(kMonsterVelocityPct + actor->merc->move_pct + frw, 25)), crowd, foe)) return;
+            if (walk_on(*level, unit, path_velocity(velocity, std::max(kMonsterVelocityPct + actor->merc->move_pct + frw + states_pct, 25)), crowd, foe)) return;
             set("NU");
             actor->merc_chase = false;
             actor->merc->next_act = now_ms;                                      // a walk's end thinks at once (FUN_005a8030)

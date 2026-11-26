@@ -10,6 +10,7 @@
 // Made-up rows (test_data.hpp): the rule, not the game's numbers.
 
 #include <ai/units.hpp>
+#include <d2s_items.hpp>
 #include <ds1.hpp>
 #include <fight.hpp>
 #include <gamedata.hpp>
@@ -107,7 +108,31 @@ int main() try {
     assert(same(world.view().merc->states, { "holywindcold" }));
     actor.merc->hit_points = 0;
     assert(world.view().merc->states.empty());
-    std::puts("OK: the merc shows its own aura and the player's Might; the player its own and the totem's target state; over the wire too");
+
+    // Vigor's velocitypercent (stat 0x43) on the merc in its range: a frame's walk goes further
+    // (merc_turn: 75 + its pace + FRW + its states' %).
+    constexpr int kVigor = 115;
+    aura(kVigor, "Vigor", d2d::rules::ServerDoFunction::kFriendlyAura, "stamina", "stamina");
+    auto& vigor = test.skill(kVigor, "Vigor");
+    vigor.aurastat[0] = d2d::d2s::kVelocityPercent;
+    vigor.aura_calc[0].code = { { d2d::rules::Calc::Const, 50 } };
+    test.monster(1, "act2hire").velocity = 6;
+    const auto walked = [&](int player_aura) {
+        actor.aura = player_aura;
+        actor.merc_aura = 0; actor.merc_ids[0] = 0;
+        auto& walker = *actor.merc;
+        walker.type = 1;
+        walker.hit_points = 100;
+        walker.unit.x = 9; walker.unit.y = 8;
+        walker.mode = "WL"; walker.unit.walking = true; walker.mode_until = 0; walker.next_act = 1000000;
+        walker.unit.path = { { 15.f, 8.f } };
+        actor.merc_chase = false; actor.merc_target = -1;
+        fight.merc_turn(1000, 0.04f, Crowd{}, false);
+        return float(walker.unit.x) - 9;
+    };
+    const float bare = walked(0), quick = walked(kVigor);
+    assert(bare > 0 && quick > bare);
+    std::puts("OK: the merc shows its own aura and the player's Might; the player its own and the totem's target state; over the wire too; Vigor speeds its walk");
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_aura_states: %s\n", error.what());
