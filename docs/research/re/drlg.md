@@ -1489,8 +1489,17 @@ status, links +0x1c / +0xe8; FUN_0061b210 moves it).
   client, 7 on the server), the first without a room1 (`+0x30`) from a
   cursor (`+0x460`) on the circular status-2 list, which FUN_0061b210 fills
   at its tail: the rooms first reached at depth 2, depth first, whichever
-  level they're of (d2d: `player_moved`'s ring, `test_client_ring`; all at
-  once, not one each 5 frames). The server never does: its room1s
+  level they're of. Each room1 made (FUN_0061b190) adds 1 to act `+0x98`,
+  and FUN_0061b2d0's (depth 1) also puts `+0x45c` back to 5. FUN_0061b920
+  with `+0x98` at 2 or more only clears it; else it counts `+0x45c` down
+  and at 0 walks the list from the cursor (the head when the cursor's room
+  `+0x44` isn't status 2), making the first room without a room1, the walk
+  ending once `+0x98` is 1 (so with one made already, only the cursor's
+  room is tried); the cursor stays on the room after the last one looked
+  at and `+0x98` goes to 0 (`0x61b9c0..0x61b9fa`). After an arrival's
+  room1s the first status-2 room comes up on the 6th client frame, then
+  one each 5 (d2d: `player_moved` fills `Spawning::client_ring`,
+  `step_client_ring` each frame, `test_client_ring`). The server never does: its room1s
   come only from depth 1 (and a warp's landing room, FUN_0052d0f0).
 - **Freeing** (FUN_0052d240, every 12th server frame from FUN_0052d870):
   for each act's room1 (list +0x10, next +0x7c), FUN_0061a790 resets the

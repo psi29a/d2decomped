@@ -101,12 +101,22 @@ struct Spawning {
     d2d::rules::MarkerRecords marker_records;
     const Level* room_level = nullptr;                     // the player's room
     int room = -1;
+    // The client's status-2 list (the act's +0x294, FUN_0061b210 adds at
+    // its tail) and FUN_0061b920's state: the cursor (+0x460), the frames
+    // to the next bring-up (+0x45c) and the room1s made since (+0x98).
+    std::vector<std::pair<const Level*, std::size_t>> client_ring;
+    std::optional<std::pair<const Level*, std::size_t>> client_ring_cursor;
+    std::uint8_t client_ring_countdown = 5;
+    std::uint8_t client_made = 0;
 };
 Spawning start_spawning(const GameData& game_data, int difficulty);
 // The player at (x, y), cells, in `level`: rooms coming into play round the player's room populate, newest
 // first.
 std::vector<std::pair<const Level*, std::size_t>> player_moved(const GameData& game_data, Spawning& spawning, const Level& level,
                                                                  float x, float y, bool arrived);
+// A client frame's FUN_0061b920: one room of the status-2 list without a
+// room1 comes up each 5 frames (player_moved fills the list).
+void step_client_ring(const GameData& game_data, Spawning& spawning);
 struct RoomPosition { const Level* level; float cell_x, cell_y; };
 bool age_live_room(Spawning::LevelState& state, std::size_t room, bool held);
 // FUN_0052d240: every twelfth server frame, age live room1s not held by a

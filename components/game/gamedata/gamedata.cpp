@@ -612,6 +612,10 @@ std::vector<std::pair<const Level*, std::size_t>> player_moved(const GameData& g
         if (std::ranges::contains(order, index)) return;
         order.push_back(index);
         auto& client = state.client_order;
+        if (!std::ranges::contains(client, index)) {      // FUN_0061b2d0 makes the client's room1: +0x98 counts it, +0x45c back to 5
+            ++spawning.client_made;
+            spawning.client_ring_countdown = 5;
+        }
         auto from = std::ranges::find(batch_from, which, &std::pair<const Level*, std::size_t>::first);
         if (from == batch_from.end()) from = batch_from.insert(batch_from.end(), { which, client.size() });
         client.push_back(index);
@@ -645,10 +649,10 @@ std::vector<std::pair<const Level*, std::size_t>> player_moved(const GameData& g
     for (const auto& near_room : fresh) bring_up(near_room.level, std::size_t(near_room.room));
     // The client draws further out (drlg.md "Entering a room"): FUN_0061b390 walks the near list three deep, and
     // every room first reached at depth 2 (a near room's near list, whichever level it's of) goes on the act's
-    // status-2 list at its tail (FUN_0061bb10 -> FUN_0061b210); the depth-1 rooms leave it for status 1. The client's
-    // frame (FUN_0044c790 -> FUN_0061b920) brings up the first one there without a room1, one each 5 frames, walking
-    // the list from its head: so they're made in that depth-first order (live Lut Gholein: the 5x5 block).
-    // ponytail: they come up at once here, not one each 5 client frames.
+    // status-2 list at its tail (FUN_0061bb10 -> FUN_0061b210); the depth-1 rooms leave it for status 1, and a room
+    // past depth 2 for status 3. The client's frame brings them up (step_client_ring), the list from its head in
+    // that depth-first order (live Lut Gholein: the 5x5 block).
+    // ponytail: one list for the game (game.exe keeps one per act), filled by whichever player moved last.
     {
         const auto first = near_list(game_data, level, room);
         const auto known = [](const std::vector<NearRoom>& rooms, const NearRoom& candidate) {
@@ -658,11 +662,11 @@ std::vector<std::pair<const Level*, std::size_t>> player_moved(const GameData& g
         for (const auto& near_room : first)
             for (const auto& further : near_list(game_data, *near_room.level, near_room.room))
                 if (!known(first, further) && !known(ring, further)) ring.push_back(further);
+        auto& list = spawning.client_ring;
+        std::erase_if(list, [&](const auto& entry) { return !known(ring, NearRoom{ entry.first, int(entry.second), {} }); });
         for (const auto& further : ring) {
-            auto& state = spawning.levels[further.level];
-            if (std::ranges::contains(state.client_order, std::size_t(further.room))) continue;
-            state.client_order.push_back(std::size_t(further.room));
-            if (!std::ranges::contains(moved, further.level)) moved.push_back(further.level);
+            const std::pair entry{ further.level, std::size_t(further.room) };
+            if (!std::ranges::contains(list, entry)) list.push_back(entry);
         }
     }
     lay();
@@ -672,6 +676,37 @@ std::vector<std::pair<const Level*, std::size_t>> player_moved(const GameData& g
         note(it->level, from);
     }
     return grown;
+}
+
+// FUN_0061b920, once a client frame (FUN_0044c790): with two or more room1s
+// made since the last frame (+0x98) it only clears the count. Else, each 5th
+// frame (+0x45c, 5 on the client), it walks the status-2 list from the
+// cursor (+0x460; the head when that room left status 2) and makes the
+// first room without a room1 (FUN_0061b190, which counts +0x98); the walk
+// stops once +0x98 is 1, so with one made already only the cursor's room is
+// tried. The cursor stays on the room after the last one looked at.
+void step_client_ring(const GameData& game_data, Spawning& spawning) {
+    if (spawning.client_made >= 2) { spawning.client_made = 0; return; }
+    if (--spawning.client_ring_countdown != 0) return;
+    spawning.client_ring_countdown = 5;
+    auto& list = spawning.client_ring;
+    if (list.empty()) return;
+    std::size_t start = 0;
+    if (spawning.client_ring_cursor)
+        if (const auto found = std::ranges::find(list, *spawning.client_ring_cursor); found != list.end()) start = std::size_t(found - list.begin());
+    std::size_t walk = start;
+    do {
+        const auto [level, room] = list[walk];
+        auto& state = spawning.levels[level];
+        if (!std::ranges::contains(state.client_order, room)) {
+            state.client_order.push_back(room);
+            ++spawning.client_made;
+            relevel(const_cast<Level&>(*level), state.order, &game_data, &spawning);   // GameData owns its levels mutable
+        }
+        walk = (walk + 1) % list.size();
+    } while (walk != start && spawning.client_made < 1);
+    spawning.client_ring_cursor = list[walk];
+    spawning.client_made = 0;
 }
 
 std::vector<std::pair<const Level*, std::size_t>> sweep_idle_rooms(const GameData& game_data, Spawning& spawning,
