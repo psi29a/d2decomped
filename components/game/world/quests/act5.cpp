@@ -244,7 +244,7 @@ auto World::act5_kill(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
                 if (clvl + 1 < next.size()) exp = std::min(exp, next[clvl + 1] - next[clvl]);   // FUN_00611800 rows clvl+1 and clvl
                 else exp = 0;
                 const auto save_class = std::size_t(std::max(actor->character.character_class, 0));
-                if (exp > 0 && d2d::rules::gain_exp(stats, exp, next, game_data->class_gains[save_class]))
+                if (exp > 0 && d2d::rules::gain_exp(stats, exp, next, game_data->class_gains[save_class], game_data->max_level))
                     actor->character.panel = panel_stats(*game_data, actor->character.header, actor->character.items, stats);
                 d2d::log::info("Rite of Passage: +{} exp", exp);
             });

@@ -519,7 +519,7 @@ auto Fight::gain_exp(std::int64_t share, const Monster& monster, std::uint32_t n
         const auto save_class = std::size_t(std::max(actor->character.character_class, 0));
         const auto exp = d2d::rules::kill_award(int(std::min<std::int64_t>(share, 0x7fffffff)), int(actor->character.stats.get(d2d::d2s::kLevel)), monster.stats.level,
                                                 int(actor->psum[d2d::d2s::kAddExperience]), game_data->exp_ratio, game_data->exp_ratio_shift, game_data->max_level);   // item_addexperience: the experience shrine
-        const int levels_gained = d2d::rules::gain_exp(actor->character.stats, exp, game_data->exp_next, game_data->class_gains[save_class]);
+        const int levels_gained = d2d::rules::gain_exp(actor->character.stats, exp, game_data->exp_next, game_data->class_gains[save_class], game_data->max_level);
         d2d::log::info("{} killed {} (+{} exp){}", actor->character.name, monster.npc.name, exp, levels_gained ? std::format(", level {}", actor->character.stats.get(d2d::d2s::kLevel)) : "");
         if (levels_gained) {
             actor->character.panel = panel_stats(*game_data, actor->character.header, actor->character.items, actor->character.stats);

@@ -543,11 +543,16 @@ std::int64_t kill_award(int exp, int clvl, int mlvl, int add_pct, std::span<cons
 // A kill's experience shared by the party members who share it, by their character levels.
 std::vector<std::int64_t> party_shares(int exp, std::span<const int> levels);
 
-// Adds experience; every level reached (exp_next[level] = experience for
-// level + 1) gives StatPerLevel stat points, a skill point and the class's
-// life/stamina/mana per level (quarter points, 8.8 fixed stats), and fills
-// all three. Returns the levels gained.
-int gain_exp(d2d::d2s::Stats& stats, std::int64_t exp, const std::vector<std::int64_t>& exp_next, const ClassGains& gains);
+// The experience after an award: a 32-bit add, at most `cap` (Experience.txt's row MaxLvl - 1) compared unsigned.
+std::uint32_t exp_after_award(std::uint32_t exp, std::int32_t award, std::uint32_t cap);
+
+// Adds experience (exp_after_award, capped at exp_next[max_level - 1]); every
+// level reached (exp_next[level] = experience for level + 1) gives
+// StatPerLevel stat points, a skill point and the class's life/stamina/mana
+// per level (quarter points, 8.8 fixed stats), and fills all three. Returns
+// the levels gained.
+int gain_exp(d2d::d2s::Stats& stats, std::int64_t exp, const std::vector<std::int64_t>& exp_next, const ClassGains& gains,
+             int max_level = 99);
 
 // Stamina a running frame costs outside town.
 int stamina_drain(int run_drain, int armor_speed, int slower_pct);
