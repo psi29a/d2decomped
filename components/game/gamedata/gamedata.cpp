@@ -930,8 +930,10 @@ void add_object(const GameData& game_data, const d2d::txt::Table& objects, const
 // frame's own pick (not frame 0's) among them.
 // The tick is one client frame, read: FUN_0044c790 (FUN_0061aef0 -> FUN_0066d410) runs once a client frame, and the
 // frame's length DAT_0070ef1c is 0x28 ms (set once, never written: FUN_0044efa0 reads it).
-// ponytail: a cell's picks are drawn cell by cell, where game.exe draws a room's whole array a group at a time, so a
-// frame over a neighbouring cell's rock isn't ordered as it is.
+// game.exe's floor pass (FUN_004de730) runs room by room over the near list of the player's room (FUN_004646a0),
+// each room's floor array (FUN_00619660) in index order for group 1, then again for group 2 (FUN_004de410 per tile).
+// ponytail: world_view (apps/d2d/render) draws a cell's picks cell by cell, so a frame over a neighbouring cell's
+// rock isn't ordered as game.exe's room array orders it; the fix is that draw's, not this lookup's.
 const d2d::dt1::Tile* animated_tile(std::span<const Level::Pick> picks, std::size_t index, std::uint32_t elapsed_ms) {
     const auto& pick = picks[index];
     if (pick.frames == 0) return pick.tile;

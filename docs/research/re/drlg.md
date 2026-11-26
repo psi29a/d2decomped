@@ -856,8 +856,12 @@ walks each near room's array in index order, group (flags >> 14 & 7) 1 then
 2, so the shown frame draws in its own place, after the room's other tiles of
 its group, not in frame 0's. d2d: `animated_tile` (gamedata.cpp) draws the
 shown frame at its own pick (`lay_tiles` lists a room's tiles in array order).
-Not traced: the tick (one a game frame is assumed), and cross-cell order (d2d
-draws a cell's picks cell by cell, game.exe a room's array).
+The tick is one client frame: FUN_0044c790 → FUN_0061aef0 → FUN_0066d410,
+the frame DAT_0070ef1c (0x28 ms). The floor pass (FUN_004de730) walks the
+near rooms of the player's room (FUN_004646a0) one by one, each room's whole floor array
+(FUN_00619660) in index order, group 1 then group 2; d2d's draw
+(`world_view`) goes cell by cell instead, so cross-cell order differs (its
+ponytail). Re-check: `python3 tools/ghidra/fn.py 004de730`.
 
 **FillBlanks** is the preset's own flag (LvlPrest FillBlanks, preset
 +0x1c): 34 rows have 0, Act 4's lava among them; their empty floors stay
