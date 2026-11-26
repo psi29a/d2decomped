@@ -97,10 +97,12 @@ preset with LvlPrest def 1's DT1 list, the DRLG room seeds from
 `generate_preset`, the rooms up so far first). They depend on the order the
 rooms came up in (a shared edge's re-pick rolls on the later room's seed). Checked:
 `uv run python camp_room1.py 1-4 --mutation-check` (game.exe's rooms up in list,
-reverse and shuffled order against `drlg-dump ... 1 <dir> camp`). Not done: the
-seeds are taken once, with the rooms up at the first roll (`keep_camp_seeds`'
-ponytail), and the client's critters (apps/d2d/session/ambient.cpp) still use the
-DRLG room's seed.
+reverse and shuffled order against `drlg-dump ... 1 <dir> camp`). A room's seed
+depends only on the rooms laid before it, so `keep_camp_seeds` lays the camp
+again whenever more rooms are up and gives only the rooms new to `order` their
+seed; a room already up keeps its stream (`test_camp_seeds_later`). Not done:
+the client's critters (apps/d2d/session/ambient.cpp) still use the DRLG room's
+seed.
 
 The camp's tiles: each cell's tile is the rarity pick (FUN_0066d820) on its
 room's DRLG seed, the picks of `level_room_tiles` on the camp's preset (LvlPrest def 1,

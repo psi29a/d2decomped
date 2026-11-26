@@ -462,17 +462,27 @@ std::optional<d2d::drlg::Outdoor::RoomSeed> level_room(const Level& level, std::
     return d2d::drlg::Outdoor::RoomSeed{ .x = rect.x - level.world_x, .y = rect.y - level.world_y, .width = rect.width, .height = rect.height };
 }
 
-// The camp's room seeds, kept for the first roll on them: each room's room1 seed (FUN_006422a0: its tile seed
+// The camp's room seeds, kept for the rolls on them: each room's room1 seed (FUN_006422a0: its tile seed
 // stepped once more after its tile picks), laid as preset_rooms picks the camp's tiles with the rooms up so far
-// (Spawning order) first, as relevel lays a generated level.
-// ponytail: the seeds are taken once, with the rooms up at the first roll; a room coming up after that keeps the
-// seed it was laid with then (relevel runs on generated levels only, not the camp).
+// (Spawning order) first, as relevel lays a generated level. game.exe lays a room's tiles, and takes its room1
+// seed, as it comes up (FUN_0061b190), so the picks of a room coming up later, and its seed, depend on the rooms
+// up by then: each call after the first lays the camp again with `order` as it stands and gives the rooms new to
+// it theirs; a room already up keeps its stream (its room1 is made).
 bool keep_camp_seeds(const GameData& game_data, const Level& level, Spawning::LevelState& state) {
-    if (!level.rooms.empty() || !state.room_seeds.empty()) return true;
+    if (!level.rooms.empty() || (!state.room_seeds.empty() && state.seeds_up >= state.order.size())) return true;
     const auto camp = camp_room1_seeds(game_data, state.order);
     if (!camp) return false;
-    state.room_seeds.assign(room_rects(level).size(), {});
-    for (std::size_t index = 0; index < camp->size() && index < state.room_seeds.size(); ++index) state.room_seeds[index] = d2d::rules::Rng{ (*camp)[index] };
+    if (state.room_seeds.empty()) {
+        state.room_seeds.assign(room_rects(level).size(), {});
+        for (std::size_t index = 0; index < camp->size() && index < state.room_seeds.size(); ++index) state.room_seeds[index] = d2d::rules::Rng{ (*camp)[index] };
+    } else {
+        const auto was_up = std::span(state.order).first(std::min(state.seeds_up, state.order.size()));
+        for (std::size_t step = was_up.size(); step < state.order.size(); ++step) {
+            const auto index = state.order[step];
+            if (index < camp->size() && index < state.room_seeds.size() && !std::ranges::contains(was_up, index)) state.room_seeds[index] = d2d::rules::Rng{ (*camp)[index] };
+        }
+    }
+    state.seeds_up = state.order.size();
     return true;
 }
 
