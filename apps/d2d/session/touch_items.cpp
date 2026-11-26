@@ -44,11 +44,8 @@ touch::BagDrop ClientSession::touch_bag_drop(float x, float y) const {
     return touch::bag_drop(inventory, touch_trade_drop(), x, y);
 }
 void ClientSession::draw_touch_trade_hint(std::vector<std::uint8_t>& framebuffer) const {
-    auto box = touch_trade_drop();
-    box.x = touch::to_viewport_x(box.x);
+    const auto [box, dropping, inside] = touch::trade_drop_preview(touch_trade_drop(), touch_pointer.x, touch_pointer.y);
     const int screen_width = fb_width(framebuffer);
-    const bool dropping = box.width > 0.f && box.height > 0.f;
-    const bool inside = dropping && box.contains(touch_pointer.x, touch_pointer.y);
     if (dropping) {
         const int left = std::max(0, int(box.x)), top = std::max(0, int(box.y));
         const int right = std::min(screen_width, int(box.x + box.width));
