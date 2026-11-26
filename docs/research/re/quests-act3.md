@@ -181,6 +181,15 @@ figurine due (both 1 at init), +4 its carrier, +0x10 items carried.
   the same call, `QUESTINT_BladeOfTheOldReligion` — the only
   SequenceFilter instance seen chaining two quests instead of one.
 
+- **The record's log** (+0xb, `FUN_005ba170`'s last case: the record open and
+  the player carrying neither item, done or bit 1) moves at its `FUN_00544300`
+  sites: the carrier's death 1 when none (0x5bac45), the bird's pickup 3, the
+  figurine's 1 (0x5ba73d, 0x5ba75d), and the talk's close (`LAB_005ba0b0`, put
+  in +0xa8 by Cain's 527 at state 1, Alkor's 534 and Meshif's 529, never
+  cleared): Alkor's with data +8 5 (0x5ba0e9), Cain's with data +9 2 then +0xa 4
+  (0x5ba114, 0x5ba134; Cain's 531 sets +0xa but not the hook), Meshif's with
+  +0xb 3 (0x5ba15c). `tests/game/test_golden_bird_log.cpp`.
+
 d2d: `rules::GoldenBirdQuest`; the carrier is the first boss the World sees
 on an act 3 level; its items' event 4 is `World::item_event` (pickup, corpse
 taken, death, a save's corpse; not a gift). `tests/quests_d2d.py` plays it.

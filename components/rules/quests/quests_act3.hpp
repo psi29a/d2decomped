@@ -8,6 +8,7 @@
 #include <quests.hpp>
 
 #include <array>
+#include <utility>
 #include <vector>
 
 namespace d2d::rules {
@@ -172,7 +173,9 @@ struct LamEsenQuest {
 // drunk with bit 5, +20 max life (0x55e44e: stat 7 0x1400) and bit 5 clears.
 // Its count of the figurine and bird carried (data+0x10) only triggers a
 // log resend when a joiner brings the first in (its +0xd8, LAB_005ba9e0:
-// log 1, 3 with the bird); d2d's log is each player's own.
+// log 1, 3 with the bird); d2d's log is each player's own. The record's log
+// (+0xb, FUN_005ba170's last case) moves at its FUN_00544300 sites: the
+// carrier's death, the pickups and the talk's close (LAB_005ba0b0).
 struct GoldenBirdQuest {
     static constexpr int kQuest = 0x14, kCain = monster_ids::kCainAct3, kAsheara = monster_ids::kAsheara, kMeshif = monster_ids::kMeshifAct3,
                          kAlkor = monster_ids::kAlkor;
@@ -186,6 +189,11 @@ struct GoldenBirdQuest {
     bool due = true;               // data+0xc: the figurine's still to drop
     int bound = -1;                // data+4: its carrier's unit id
     bool flourished = false;       // bit 6's flourish on the figurine's first pickup
+    bool closing = false;          // +0xa8: LAB_005ba0b0 armed (Cain's 527 at state 1, Alkor's 534, Meshif's 529); never cleared
+    bool alkor_took = false;       // data+8: Alkor took the bird, log 5 on his talk's close
+    bool cain_told = false;        // data+9: Cain's 527, log 2 on his talk's close
+    bool cain_bird = false;        // data+0xa: Cain's 531, log 4 on his talk's close
+    bool meshif_swapped = false;   // data+0xb: Meshif's bird made, log 3 on his talk's close
     quest::Players rewarded;         // +0x1c: given the potion this game
 
     // The player joins (FUN_005ba870).
@@ -200,21 +208,22 @@ struct GoldenBirdQuest {
         bound = unit_id;
         armed = false;
     }
-    // Its carrier died (FUN_005bab60): the figurine drops unless the killer's done.
+    // Its carrier died (FUN_005bab60): the figurine drops unless the killer's done; log 1 if none (0x5bac45).
     bool killed(const QuestBits& quest_bits, int unit_id) {
         if (!open || !due || unit_id != bound) return false;
         bound = -1;
         if (quest::bit(quest_bits, kQuest, 0)) return false;
         due = false;
         if (state == 0) state = 1;
+        if (log == 0) log = 1;
         return true;
     }
-    // A quest item picked up (FUN_005ba6a0): the bird, state 3; the figurine,
-    // state 1 and bit 6 (act3_find_jade, unit event 0x48, the first time).
+    // A quest item picked up (FUN_005ba6a0): the bird, state 3 and log 3 (0x5ba73d); the figurine,
+    // log 1 (0x5ba75d), state 1 and bit 6 (act3_find_jade, unit event 0x48, the first time).
     // Returns whether to play the flourish.
     bool picked_up(QuestBits& quest_bits, bool bird) {
         if (quest::bit(quest_bits, kQuest, 0) || quest::bit(quest_bits, kQuest, 1)) return false;
-        state = bird ? 3 : 1;
+        state = log = bird ? 3 : 1;
         if (bird || quest::bit(quest_bits, kQuest, 6)) return false;
         quest::set(quest_bits, kQuest, 6);
         return true;
@@ -253,18 +262,20 @@ struct GoldenBirdQuest {
         if (npc == kCain) return (has_figurine && !quest::bit(quest_bits, kQuest, 2)) || (has_bird && !quest::bit(quest_bits, kQuest, 4));
         return false;
     }
-    // The player heard `string` from `npc` (FUN_005ba320): what changes hands.
+    // The player heard `string` from `npc` (FUN_005ba320): what changes hands, and what the talk's close logs
+    // (data+8 .. +0xb, the hook +0xa8 armed at 0x5ba3aa, 0x5ba4d5, 0x5ba631 and 0x5ba688; not by Cain's 531).
     struct Heard { bool takes_figurine = false, gives_bird = false, takes_bird = false, gives_potion = false; };
     Heard said(QuestBits& quest_bits, QuestBits& game_bits, int npc, int string, bool has_figurine, bool has_bird, int player) {
         Heard out;
         if (quest::bit(quest_bits, kQuest, 0)) return out;
-        if (npc == kCain && string == kCainFigurine) { quest::set(quest_bits, kQuest, 2); if (state == 1) state = 2; }
-        if (npc == kCain && string == kCainBird) quest::set(quest_bits, kQuest, 4);
-        if (npc == kMeshif && string == kMeshifSwap && has_figurine) { out.takes_figurine = out.gives_bird = true; state = 3; }
+        if (npc == kCain && string == kCainFigurine) { quest::set(quest_bits, kQuest, 2); if (state == 1) { state = 2; cain_told = closing = true; } }
+        if (npc == kCain && string == kCainBird) { quest::set(quest_bits, kQuest, 4); cain_bird = true; }
+        if (npc == kMeshif && string == kMeshifSwap && has_figurine) { out.takes_figurine = out.gives_bird = true; state = 3; meshif_swapped = closing = true; }
         if (npc == kAlkor && string == kAlkorTakes && has_bird && !quest::bit(quest_bits, kQuest, 1)) {
             out.takes_bird = true;
             if (open && state != 4) state = 4;
             quest::set(quest_bits, kQuest, 1);
+            alkor_took = closing = true;
         }
         if (npc == kAlkor && string == kAlkorPotion && quest::bit(quest_bits, kQuest, 1)) {
             quest::set(quest_bits, kQuest, 1, false);
@@ -277,6 +288,18 @@ struct GoldenBirdQuest {
             quest::set(game_bits, kQuest, 13);
         }
         return out;
+    }
+    // The talk with `npc` closed (LAB_005ba0b0, once armed): Alkor's log 5 (0x5ba0e9); Cain's 2 (0x5ba114),
+    // then 4 (0x5ba134); Meshif's 3 (0x5ba15c).
+    void talk_closed(int npc) {
+        if (!closing) return;
+        if (npc == kAlkor) { if (std::exchange(alkor_took, false)) log = 5; return; }
+        if (npc == kCain) {
+            if (std::exchange(cain_told, false)) log = 2;
+            if (std::exchange(cain_bird, false)) log = 4;
+            return;
+        }
+        if (npc == kMeshif && std::exchange(meshif_swapped, false)) log = 3;
     }
     // The Potion of Life drunk (0x55e44e): bit 5 clears, +20 max life.
     static bool drink(QuestBits& quest_bits) {
