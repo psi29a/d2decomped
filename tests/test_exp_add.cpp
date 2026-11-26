@@ -75,11 +75,13 @@ void hand_checks() {
 int main(int argc, char** argv) try {
     if (argc > 1) {
         std::ifstream file(argv[1]);
+        if (!file) throw std::runtime_error(std::string("cannot open ") + argv[1]);
         std::string text;
         while (std::getline(file, text)) {
             if (!text.empty() && text.back() == '\r') text.pop_back();
             if (!text.empty()) std::printf("%s\n", line_of(text).c_str());
         }
+        if (file.bad()) throw std::runtime_error(std::string("cannot read ") + argv[1]);
         return 0;
     }
     hand_checks();
