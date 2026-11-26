@@ -355,6 +355,7 @@ struct World {
     static constexpr float kRaiseSeconds = 10;           // one channeller's; each more adds as much speed
     static constexpr float kRaiseReach = 2;              // cells from the body
     [[nodiscard]] bool anyone_alive() const;           // of those on the host's screen
+    [[nodiscard]] int screen_players() const;          // the players on the host's screen: all but the LAN joiners (own_screen)
     [[nodiscard]] bool shared_screen() const;          // the actor shares the host's screen with another player (local co-op's death: a ghost, no respawn till all are dead)
     void become_ghost(Player& player);
     void revive(Player& player, std::uint32_t now_ms);   // up where they are, full life

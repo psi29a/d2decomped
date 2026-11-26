@@ -87,8 +87,9 @@ PC or Mac with pads works the same way.
   while the first player has nothing open: the UI shows their character and
   their pad drives the cursor, while the first player's pad plays the field.
   The screen is the first player's again once the partner's is all shut.
-- With two players in or more there's no HUD (orbs, belt, skill buttons,
-  mini-panel; the pad's skill picker still shows). Every player is in the
+- With two players in or more at the screen there's no HUD (orbs, belt, skill buttons,
+  mini-panel; the pad's skill picker still shows). A `--host` game's LAN joiner
+  plays on its own machine and doesn't count (`World::screen_players`). Every player is in the
   party: their portraits run down the frame's left edge, one under the
   other, in widescreen's spare width when there is some (clear of the
   800x600 UI), each with a life and a mana bar, the class icon and the

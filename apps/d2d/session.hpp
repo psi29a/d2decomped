@@ -426,9 +426,11 @@ struct ClientSession {
     // Typed text for a roster's name (Steam's keyboard on a Deck); whether one wants it.
     void coop_text(std::string_view text, bool backspace);
     [[nodiscard]] bool coop_typing() const;
+    // Two players or more at this screen (local co-op). A LAN joiner (own_screen) plays on its own machine.
+    [[nodiscard]] bool coop_partners() const { return world.screen_players() > 1; }
     // Local co-op with two players in or more: no HUD (orbs, belt, skills,
     // mini-panel), each player's portrait down the left edge instead (draw_coop_portraits).
-    [[nodiscard]] bool coop_hud_hidden() const { return !net_game && world.players.size() > 1; }
+    [[nodiscard]] bool coop_hud_hidden() const { return !net_game && coop_partners(); }
     // A panel on the screen's left (FUN_00455f20's UIs; Party 0x16 and Hireling 0x24 too).
     [[nodiscard]] bool left_panel_open() const {
         return char_open || stash_open || cube_open || store.npc >= 0 || waypoint.open || quest_log.open || party.open || hireling.open || use_item.open();
