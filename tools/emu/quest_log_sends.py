@@ -7,7 +7,7 @@ Run: export D2_MPQ_DIR=/path/to/the/local/game/data
 
 FUN_00544300 with flag 1 runs its record's per-player callback (act 1's six,
 act 2's five: a2q2 has none; act 3's six: a3q2's FUN_005b7f90 reads no bit 13 or
-14) over the
+14; act 4's three) over the
 game's players (FUN_005537d0); the callback reads the player's quest bits and
 calls FUN_00544190 (the 0x5d send) or not. This runs each callback on a
 synthetic game and player over every combination of the bits it reads (0, 13,
@@ -26,7 +26,8 @@ import emu
 GAME_SHA256 = "631066c1649c4ea9ffe48bf97e24c00bca1f7a6759c21150f1a79982589adaaf"
 QUEST_LOG_SEND = 0x544190
 # quest word -> (its record's per-player send callback, the fn FUN_00544300 is passed; the record id the callback
-# hands FUN_00544190: act 1's are their words, act 2's one less, act 3's two less, 0x731510's table)
+# hands FUN_00544190: act 1's are their words, act 2's one less, act 3's two less, act 4's three less,
+# 0x731510's table)
 CALLBACKS = {
     1: (0x58FBE0, 1),    # a1q1 Den of Evil
     2: (0x590830, 2),    # a1q2 Sisters' Burial Grounds
@@ -45,6 +46,9 @@ CALLBACKS = {
     20: (0x5B9E70, 18),  # a3q4 The Golden Bird
     21: (0x5BAF70, 19),  # a3q5 The Blackened Temple
     22: (0x5BC210, 20),  # a3q6 The Guardian
+    25: (0x5B3940, 22),  # a4q1 The Fallen Angel
+    26: (0x5B4E40, 23),  # a4q2 Terror's End
+    27: (0x5B59C0, 24),  # a4q3 The Hellforge
 }
 KHALIM = 18
 BITS = (0, 13, 14, 15)
@@ -106,6 +110,8 @@ def model(quest, set_bits, mutation=None):
         return not shut
     if mutation == "act3_no_14" and quest >= 17:
         return not shut or bit(13)
+    if mutation == "act4_no_13" and quest >= 25:
+        return not shut or bit(14)
     return not shut or bit(13) or bit(14)
 
 
@@ -173,7 +179,7 @@ def main():
         return
     print(f"ok: {len(results)} quest-log send callback cases")
     if args.mutation_check:
-        for mutation in ("tower_bit15", "no_14", "no_bit15", "act2_no_13", "khalim_13", "act3_no_14"):
+        for mutation in ("tower_bit15", "no_14", "no_bit15", "act2_no_13", "khalim_13", "act3_no_14", "act4_no_13"):
             _, caught = run(game, mutation)
             if not caught:
                 raise SystemExit(f"mutation {mutation}: NOT caught")

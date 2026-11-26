@@ -1070,7 +1070,7 @@ inline constexpr std::array<std::array<std::uint16_t, 29>, 27> kQuestLogRecords 
     return (quest >= 0x1 && quest <= 0x6) || quest == 0x9 || (quest >= 0xb && quest <= 0xe) || quest == 0x11 || (quest >= 0x13 && quest <= 0x16)
         || (quest >= 0x19 && quest <= 0x1b) || (quest >= 0x23 && quest <= 0x28);
 }
-// Whether an act 1 .. 3 record's log send (FUN_00544300 flag 1) reaches a player, by their bits: the record's per-player callback.
+// Whether an act 1 .. 4 record's log send (FUN_00544300 flag 1) reaches a player, by their bits: the record's per-player callback.
 [[nodiscard]] bool quest_log_goes_to(const QuestBits& quest_bits, int quest);
 // `state` is what the picker keeps as the quest's last shown state
 // (0x7bf380, -1 left as it was); `marks` when a change of it is news (+0x263:

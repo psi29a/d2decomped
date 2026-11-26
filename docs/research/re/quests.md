@@ -909,6 +909,30 @@ d2d takes a record's `news` at the end of the World's tick (`World::act1_update`
 callback reads each player's bits then, not at the call (the Gibbet's credit passes,
 `FUN_00593130` / `LAB_005931c0`, come before `FUN_00593290`'s send in game.exe as in d2d;
 a bit set between a call and the tick's end elsewhere is not traced).
+
+Act 4's `FUN_00544300` calls, read the same way (a linear sweep of 0x5b3780 .. 0x5b6e00;
+`tests/game/test_quest_log_sends_act4.cpp`). Each callback (`FUN_005b3940`, `FUN_005b4e40`,
+`FUN_005b59c0`) sends unless done or closed (bit 0 or 15) without bit 13 / 14, and hands
+`FUN_00544190` record 0x16, 0x17 or 0x18. In call-site order:
+
+| call site | record | log | flag | when | d2d |
+|---|---|---|---|---|---|
+| 0x5b3ad0 | a4q1 | 0xd | 0 | Tyrael's 676 reward (`FUN_005b39a0`) | `IzualQuest::said` |
+| 0x5b3ba4 | a4q1 | 4 | 1 | Izual's ghost says 675 | `IzualQuest::said` |
+| 0x5b3e90 | a4q1 | 3 | 1 | the death's 3-tick timer, state 4, log not 4 / 13 (`FUN_005b3e60`) | `IzualQuest::ghost_timer` |
+| 0x5b41bf | a4q1 | 1 | 0 | into the fortress at state 2, log 0 (`LAB_005b4140`) | `IzualQuest::enter` |
+| 0x5b41fc | a4q1 | 1 | 1 | Tyrael's talk closes after 670 (`LAB_005b41d0`, data +0x11) | `IzualQuest::talk_closed` |
+| 0x5b43bd | a4q1 | 2 | 1 | Izual's first think under log 2 (`FUN_005b4390`) | `IzualQuest::greet` |
+| 0x5b4f16 | a4q2 | 1 | 0 | into the fortress at state 2, log 0 (`LAB_005b4ea0`) | `TerrorQuest::enter` |
+| 0x5b4f6b | a4q2 | 1 | 1 | into the Chaos Sanctuary under log 1 | `TerrorQuest::enter` |
+| 0x5b4fc0 | a4q2 | 1 | 1 | Tyrael's talk closes after 681 (`FUN_005b4f90`, data +0) | `TerrorQuest::talk_closed` |
+| 0x5b5438 | a4q2 | 0xd | 1 | Diablo dies while the record is open (`FUN_005b52e0`) | `TerrorQuest::diablo_died`, `World::act4_kill` |
+| 0x5b5a6f | a4q3 | 2 | 1 | the forge's InitFn, open, log not 2 / 3 / 13 (`FUN_005b5a20`) | `HellforgeQuest::forge_seen` |
+| 0x5b5dbe | a4q3 | 0xd | 1 | the third hammer blow | `HellforgeQuest::operate` |
+| 0x5b5e64 | a4q3 | 3 | 1 | the soulstone is set in the forge (`FUN_005b5c10`) | `HellforgeQuest::operate` |
+| 0x5b6228 | a4q3 | 0xd | 0 | Cain's 680 reward (`FUN_005b6100`) | `HellforgeQuest::said` |
+| 0x5b6473 | a4q3 | 4 with the stone given, else 1 | 1 | Cain's talk closes after 678 / 679 (`FUN_005b6440`, data +2) | `HellforgeQuest::talk_closed` |
+
 Both local paths (the View's log change and `ev::QuestNews`) apply the act test
 above through `rules::quest_log_send_in_act`; a joined game's 0x5d is not
 tested again (the host's `FUN_00544190` sent it, and `FUN_004a2cb0` has no act

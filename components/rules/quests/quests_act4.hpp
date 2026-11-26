@@ -19,8 +19,7 @@ namespace act4_detail {
 inline constexpr int kTyrael = 367, kCain = 246, kIzualGhost = 406, kFortress = 103, kChaosSanctuary = 108;
 // FUN_0065c3e0: bits 2..11 cleared.
 inline void clear_steps(QuestBits& quest_bits, int quest) { for (int bit = 2; bit <= 11; ++bit) quest::set(quest_bits, quest, bit, false); }
-// FUN_005b3940 / FUN_005b4e40 / FUN_005b59c0: the log goes to a player
-// unless done (bit 0 or 15) without 13 / 14.
+// FUN_005b3940 / FUN_005b4e40 / FUN_005b59c0: whether the log goes to this player's bits.
 bool told(const QuestBits& quest_bits, int quest);
 struct Entry { int npc, string; bool greet; };
 std::vector<QuestMsg> block_for(const std::vector<Entry>& block, int npc);
