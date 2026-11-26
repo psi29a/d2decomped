@@ -86,6 +86,9 @@ bool edge_shared(const Placed& first, const Placed& second) {
     return (dx == 0 && dy < 0) || (dy == 0 && dx < 0);
 }
 
+// The level's Vis / Warp as FUN_0066c040 gives them once the act is made (the
+// chain links and act 3's and 5's edge shares added); `neighbours_pass`:
+// FUN_00677680's read, before the Frigid Highlands' link to the Foothills.
 std::pair<std::array<int, 8>, std::array<int, 8>> level_vis(const d2d::txt::Table& levels, const std::vector<Placed>& layout, int id, bool neighbours_pass) {
     auto placed = [&](int level_id) -> const Placed* {
         for (const auto& placement : layout) if (placement.level == level_id) return &placement;
@@ -130,6 +133,9 @@ std::pair<std::array<int, 8>, std::array<int, 8>> level_vis(const d2d::txt::Tabl
     return { vis, warp };
 }
 
+// The generator's input for a placed outdoor level: its rect, the act's town,
+// its LvlTypes / sub-theme columns and its walk-across neighbours as
+// FUN_00677680 makes them (level_vis' neighbours pass).
 OutdoorLevel outdoor_level(const d2d::txt::Table& levels, const std::vector<Placed>& layout, int id) {
     OutdoorLevel level;
     auto placed = [&](int level_id) -> const Placed* {

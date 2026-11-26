@@ -42,6 +42,7 @@ int check_presets(const Level& level, std::uint32_t walks) {
 
 }  // namespace
 
+// The Blood Moor's and the Cold Plains' preset rooms against FUN_00667970's walk slots.
 int main() try {
     const char* mpq_dir = std::getenv("D2_MPQ_DIR");
     const char* home = std::getenv("HOME");

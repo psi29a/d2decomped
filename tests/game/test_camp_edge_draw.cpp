@@ -24,6 +24,7 @@
 namespace fs = std::filesystem;
 using namespace d2d::game;
 
+// The camp up, then the Blood Moor: its cells over the camp's draw the camp's picks.
 int main() try {
     const char* mpq_dir = std::getenv("D2_MPQ_DIR");
     const char* home = std::getenv("HOME");

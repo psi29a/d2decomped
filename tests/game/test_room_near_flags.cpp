@@ -41,6 +41,7 @@ std::unique_ptr<Level> level_of(int id, int world_x, std::initializer_list<std::
 
 }  // namespace
 
+// A walk across takes only the close rooms holding the slot bit (FUN_0066c370 -> FUN_0066be80).
 int main() try {
     d2d::test::TestData test_data;
     auto& data = test_data.data;

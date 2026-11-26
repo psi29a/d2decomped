@@ -50,6 +50,7 @@ Level level_of(int id, int world_x, std::uint16_t walk) {
 
 }  // namespace
 
+// Larzuk's marker by a neighbour level's edge, both levels GameData's (FUN_00587840, FUN_005b2f20).
 int main() try {
     d2d::test::TestData test_data;
     auto& data = test_data.data;

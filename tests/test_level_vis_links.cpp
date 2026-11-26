@@ -32,6 +32,7 @@ bool walks_to(const std::pair<std::array<int, 8>, std::array<int, 8>>& vis, int 
 
 }  // namespace
 
+// The Frigid Highlands' list with and without FUN_00677680's pass.
 int main() try {
     using namespace d2d::rules::level_ids;
     const std::string text = "Id\n109\n110\n111\n112\n";
