@@ -86,7 +86,7 @@ bool edge_shared(const Placed& first, const Placed& second) {
     return (dx == 0 && dy < 0) || (dy == 0 && dx < 0);
 }
 
-std::pair<std::array<int, 8>, std::array<int, 8>> level_vis(const d2d::txt::Table& levels, const std::vector<Placed>& layout, int id) {
+std::pair<std::array<int, 8>, std::array<int, 8>> level_vis(const d2d::txt::Table& levels, const std::vector<Placed>& layout, int id, bool neighbours_pass) {
     auto placed = [&](int level_id) -> const Placed* {
         for (const auto& placement : layout) if (placement.level == level_id) return &placement;
         return nullptr;
@@ -121,10 +121,11 @@ std::pair<std::array<int, 8>, std::array<int, 8>> level_vis(const d2d::txt::Tabl
     };
     share_edges(level_ids::kKurastDocks, level_ids::kTravincal);
     // FUN_00677680 makes 111's and 112's neighbours right after the first
-    // pass, so the Bloody Foothills is never the Frigid Highlands' (its way
-    // through is FUN_0067dcf0's own opening).
+    // pass, so the Bloody Foothills is never the Frigid Highlands' neighbour
+    // (its way through is FUN_0067dcf0's own opening); once the act is made
+    // 111's list names 110 in slot 1 (FUN_0066c040, run on game.exe).
     share_edges(level_ids::kFrigidHighlands, level_ids::kArreatPlateau);
-    if (id != level_ids::kFrigidHighlands) share_edges(level_ids::kBloodyFoothills, level_ids::kFrigidHighlands);
+    if (!neighbours_pass || id != level_ids::kFrigidHighlands) share_edges(level_ids::kBloodyFoothills, level_ids::kFrigidHighlands);
     share_edges(level_ids::kHarrogath, level_ids::kBloodyFoothills);
     return { vis, warp };
 }
@@ -144,7 +145,7 @@ OutdoorLevel outdoor_level(const d2d::txt::Table& levels, const std::vector<Plac
     level.sub_waypoint = to_int(levels.get(*row, "SubWaypoint"), -1);
     level.sub_shrine = to_int(levels.get(*row, "SubShrine"), -1);
     level.level_type = to_int(levels.get(*row, "LevelType"), 2);
-    const auto [vis, warp] = level_vis(levels, layout, id);
+    const auto [vis, warp] = level_vis(levels, layout, id, true);
     for (int i = 0; i < 8; ++i)
         if (vis[std::size_t(i)] && warp[std::size_t(i)] == -1)
             if (const auto* placement = placed(vis[std::size_t(i)])) {

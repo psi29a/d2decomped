@@ -314,6 +314,9 @@ FUN_006772c0 adds no Vis links in act 5 (act index 4 skips them). The links
 come from FUN_006775c0's edge shares, in this order: (111, 112), then
 FUN_00677680 makes 111's and 112's neighbour nodes, then (110, 111),
 (109, 110). So 111's Vis is [112, 110], but 110 is never one of its nodes.
+d2d: `level_vis` gives the made act's list, `neighbours_pass` the one
+FUN_00677680 reads (`test_level_vis_links`; 111's list read through
+FUN_0066c040 on game.exe, map seed 0x1234).
 `drlg-dump <data> 1-2000 109 layout`: 2000/2000.
 
 ## Act 5's levels
