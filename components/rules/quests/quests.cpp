@@ -177,6 +177,15 @@ const FindLine* find_line(int level) {
 
 
 
+// An act 1 record's per-player send callback (FUN_00544300's fn): FUN_0058fbe0, FUN_00590830, FUN_005912e0,
+// FUN_005920d0 and FUN_00595b20 send unless done or closed (bit 0 or 15) without bit 13 or 14; a1q5's
+// FUN_00594830 reads no bit 15 (TowerQuest::log_goes_to). tools/emu/quest_log_sends.py.
+bool quest_log_goes_to(const QuestBits& quest_bits, int quest) {
+    if (quest == TowerQuest::kQuest) return TowerQuest::log_goes_to(quest_bits);
+    const bool shut = quest::bit(quest_bits, quest, 0) || quest::bit(quest_bits, quest, 15);
+    return !shut || quest::bit(quest_bits, quest, 13) || quest::bit(quest_bits, quest, 14);
+}
+
 // The player joins: the state from their flags (LAB_00590690).
 auto DenQuest::join(const QuestBits& quest_bits) -> void {
     if (quest::bit(quest_bits, kQuest, 0) || quest::bit(quest_bits, kQuest, 15)) { active = false; return; }
@@ -189,7 +198,7 @@ auto DenQuest::join(const QuestBits& quest_bits) -> void {
 auto DenQuest::enter_den(QuestBits& quest_bits) -> void {
     const bool bumped = state == 1 || state == 2;
     if (bumped) state = 3;
-    if (log < 2) log = 2;
+    if (log < 2) { log = 2; news = true; }               // flag 1 (0x5904d3)
     else if (!bumped) return;
     mark(quest_bits);
 }
@@ -214,6 +223,7 @@ auto DenQuest::alert(const QuestBits& quest_bits, int npc) const -> bool {
     return (state == 1 && !quest::bit(quest_bits, kQuest, 1)) || quest::bit(quest_bits, kQuest, 1);
 }
 
+// A Den monster died (FUN_00590260): its log 4 sends are flag 1.
 auto DenQuest::killed(int remaining, bool all_up) -> Kill {
     if (state >= 4) return Kill::none;                   // its callback's gone once cleared
     if (all_up && remaining == 0) {
@@ -222,9 +232,12 @@ auto DenQuest::killed(int remaining, bool all_up) -> Kill {
     }
     if (all_up && remaining < 6) {
         log = 4;                                         // "Monsters remaining: N"
+        news = true;                                     // flag 1, each death (0x59041d)
         return Kill::few;
     }
-    return log == 4 && remaining > 5 ? Kill::few : Kill::none;
+    if (log != 4 || remaining <= 5) return Kill::none;
+    news = true;                                         // sent again (0x590455)
+    return Kill::few;
 }
 
 // The clear's credit for one player neither done nor due: a participant
@@ -304,7 +317,7 @@ auto BurialQuest::said(QuestBits& quest_bits, int npc, int string, int player) -
 // The talk with `npc` closed (LAB_00590920).
 auto BurialQuest::talk_closed(QuestBits& quest_bits, int npc) -> void {
     if (npc != kKashya || !pending) return;
-    log = 1; pending = false;
+    log = 1; pending = false; news = true;               // flag 1 (0x59094c)
     mark(quest_bits);
 }
 
@@ -313,7 +326,7 @@ auto BurialQuest::enter(QuestBits& quest_bits, int from, int dest, int player) -
     if (dest == kBurial && open) {
         const bool bumped = state < 3;
         if (bumped) state = 3;
-        if (log <= 1) { log = 2; mark(quest_bits); return; }
+        if (log <= 1) { log = 2; news = true; mark(quest_bits); return; }   // flag 1 (0x590ff4)
         if (bumped) { mark(quest_bits); return; }
     }
     if (from != 1) return;
@@ -352,7 +365,7 @@ auto AndyQuest::tick() -> int {
     after_kill_steps = 0;
     ++after_kill;
     if (after_kill == 12) {
-        if (log != 3 && log != 0xd) log = 3;
+        if (log != 3 && log != 0xd) { log = 3; news = true; }   // flag 1 (0x59656a)
         after_kill = 0;
     }
     return after_kill == 10;
@@ -399,7 +412,7 @@ auto AndyQuest::said(QuestBits& quest_bits, int npc, int string, int player) -> 
 
 // The talk with `npc` closed (0x595b80).
 auto AndyQuest::talk_closed(int npc) -> void {
-    if (npc == kCain && cain_pending) { log = 1; cain_pending = false; }
+    if (npc == kCain && cain_pending) { log = 1; cain_pending = false; news = true; }   // flag 1 (0x595baf)
 }
 
 // The player went from level `from` to `dest` (FUN_00596010). Into
@@ -412,7 +425,7 @@ auto AndyQuest::enter(QuestBits& quest_bits, int from, int dest) -> void {
         return;
     }
     if (state <= 2) state = 3;
-    if (dest == level_ids::kCatacombsLevel4) { if (log < 2) log = 2; }
+    if (dest == level_ids::kCatacombsLevel4) { if (log < 2) { log = 2; news = true; } }
     else if (log == 0) log = 1;
     mark(quest_bits);
 }
@@ -1124,8 +1137,8 @@ auto CainQuest::said(QuestBits& quest_bits, int npc, int string, bool bks, int p
 // The talk with `npc` closed (FUN_005921b0).
 auto CainQuest::talk_closed(QuestBits& quest_bits, int npc) -> void {
     if (npc != kAkara) return;
-    if (akara_log) { log = 1; akara_log = false; mark(quest_bits); }
-    if (decipher_log) { log = 3; mark(quest_bits); decipher_log = false; }
+    if (akara_log) { log = 1; akara_log = false; news = true; mark(quest_bits); }      // flag 1 (0x5921e9)
+    if (decipher_log) { log = 3; mark(quest_bits); decipher_log = false; news = true; }   // flag 1 (0x59221f)
 }
 
 // The player went from level `from` to `dest` (FUN_00596de0). True:
@@ -1146,7 +1159,7 @@ auto CainQuest::enter(QuestBits& quest_bits, int from, int dest, int player) -> 
 // (bks) drops at the tree.
 auto CainQuest::tree(const QuestBits& quest_bits, bool has_scroll) -> bool {
     if (!active || state >= 6 || tree_used || quest::bit(quest_bits, kQuest, 0) || quest::bit(quest_bits, kQuest, 1) || has_scroll) return false;
-    state = 4; log = 2;
+    state = 4; log = 2; news = true;                     // flag 1 (0x593c3d)
     tree_used = true;
     return true;
 }
@@ -1164,6 +1177,7 @@ auto CainQuest::stone_order(std::uint32_t& low, std::uint32_t& high) -> void {
     ordered = true;
 }
 
+// A Cairn Stone touched (OperateFn 9, FUN_00593710): the fifth sends log 4 (flag 1).
 auto CainQuest::stone(QuestBits& quest_bits, int stone, bool bkd, bool fresh) -> Stone {
     if (quest::bit(quest_bits, kQuest, 0) || quest::bit(quest_bits, kQuest, 1)) return Stone::none;
     if (!bkd) { ++throttle; return Stone::none; }
@@ -1174,7 +1188,7 @@ auto CainQuest::stone(QuestBits& quest_bits, int stone, bool bkd, bool fresh) ->
     if (!fresh) return Stone::none;
     if (touched < 5) return Stone::lit;
     stones_done = true;
-    if (log < 4) { log = 4; quest::set(quest_bits, kQuest, 4); }
+    if (log < 4) { log = 4; news = true; quest::set(quest_bits, kQuest, 4); }   // flag 1 (0x593a65)
     return Stone::portal;
 }
 
@@ -1202,7 +1216,7 @@ auto CainQuest::gibbet(QuestBits& quest_bits, bool fresh) -> bool {
 // due by it (x + 6, y + 6) and he goes straight to the camp (+0x52).
 auto CainQuest::rescued(bool spawned) -> void {
     if (!spawned && !camp_cain) camp_due = true;
-    log = 6;
+    log = 6; news = true;                                // flag 1 (0x593446)
 }
 
 // Cain's portal in Tristram (object 189: InitFn 61 FUN_00594290 mode 1,
@@ -1377,14 +1391,15 @@ auto ToolsQuest::party_credit(QuestBits& quest_bits, int clvl) -> void {
 // The talk with `npc` closed (0x5913c0).
 auto ToolsQuest::talk_closed(QuestBits& quest_bits, int npc) -> void {
     if (npc != kCharsi) return;
-    if (given) { mark(quest_bits); log = 1; given = false; }
-    else if (returned) { log = 0xd; returned = false; }
+    if (given) { mark(quest_bits); log = 1; given = false; news = true; }   // flag 1 (0x5913ff)
+    else if (returned) { log = 0xd; returned = false; news = true; }        // flag 1 (0x591421)
 }
 
 // The player left level `from` (LAB_00591810): out of town after
 // Charsi gave it.
 auto ToolsQuest::enter(QuestBits& quest_bits, int from) -> void {
     if (!active || from != 1 || state != 2 || quest::bit(quest_bits, kQuest, 0) || quest::bit(quest_bits, kQuest, 1)) return;
+    if (log != 1) news = true;                            // flag 1 (0x591891), only for a change
     log = 1;
     state = 3;
     mark(quest_bits);
@@ -1403,7 +1418,7 @@ auto ToolsQuest::operate(QuestBits& quest_bits, int clvl) -> Stand {
 // The malus went into the inventory (FUN_00591960). True: the first
 // time — bit 6, and the player's line (FUN_00553380).
 auto ToolsQuest::picked_up(QuestBits& quest_bits) -> bool {
-    log = 2;
+    log = 2; news = true;                                // flag 1 (0x5919b4)
     if (quest::bit(quest_bits, kQuest, 6)) return false;
     quest::set(quest_bits, kQuest, 6);
     return true;

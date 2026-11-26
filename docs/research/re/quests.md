@@ -757,7 +757,7 @@ flag 1, 18 pass 0 (`FUN_00587b00`, `FUN_0058fdd0`, `FUN_00590980`,
 callback is tested after the call (`CMP AL, 1` at 0x5442af); that branch isn't read.
 
 d2d sends a quest's log as an event (`ev::QuestNews`) where its record's
-flag-1 sites are ported (`news`: a1q5, a3q6, a4q2 .. a4q4, act 5's six); the client
+flag-1 sites are ported (`news`: act 1's six, a3q6, a4q2 .. a4q4, act 5's six); the client
 doesn't also read a change in their View's log for a send
 (`rules::quest_log_sent_by_event`, `tests/test_quest_log_sends.cpp`). a1q5's
 sites, read in game.exe, all pass flag 1: the Moldy Tome's message heard
@@ -765,8 +765,56 @@ sites, read in game.exe, all pass flag 1: the Moldy Tome's message heard
 (`FUN_00595010`: into level 0x14 log 3 or 4, into 0x19 log 2) and the
 kill's timer (0x5954c0, state 5: log 0xd); the dead `FUN_00595160` isn't
 ported. Each goes to a player unless done (bit 0; bit 15 isn't read) without bit 13 / 14
-(`FUN_00594830`; `tools/emu/quest_log_sends.py`). a1q1 .. a1q4, a1q6, act 2, a3q1 .. a3q5 and a4q1 are still a change in the View's log state (none
+(`FUN_00594830`; `tools/emu/quest_log_sends.py`). Act 2, a3q1 .. a3q5 and a4q1 are still a change in the View's log state (none
 for a repeat or a flag-0 move that changes it, none at a game's first View).
+
+Act 1's other records' `FUN_00544300` calls, read at each call site in game.exe (the flag is
+the first push, the log EDX; `tests/test_quest_log_sends_act1.cpp`). Each record's callback
+(a1q1 `FUN_0058fbe0`, a1q2 `FUN_00590830`, a1q3 `FUN_005912e0`, a1q4 `FUN_005920d0`, a1q6
+`FUN_00595b20`) sends to a player unless done or closed (bit 0 or 15) without bit 13 / 14. In
+call-site order:
+
+| call site | record | log | flag | when | d2d |
+|---|---|---|---|---|---|
+| 0x58fc6f | a1q1 | 1 | 1 | Akara's talk closes after 64 (`LAB_0058fc40`, data +0x86) | not ported |
+| 0x58fef8 | a1q1 | 0xd | 0 | the reward (`FUN_0058fdd0`) | `DenQuest::said` |
+| 0x59024e | a1q1 | 5 | 1 | the clear's 8-tick timer, still state 4 (`LAB_00590230`) | `World::act1_quest_step` |
+| 0x59041d | a1q1 | 4 | 1 | a death, all rooms up and under 6 left (`FUN_00590260`) | `DenQuest::killed` |
+| 0x590455 | a1q1 | 4 | 1 | a death at log 4 with 6 or more left | `DenQuest::killed` |
+| 0x5904d3 | a1q1 | 2 | 1 | into the Den under log 2 (`FUN_00590470`) | `DenQuest::enter_den` |
+| 0x590595 | a1q1 | 1 | 1 | out of town at state 2, log not 1 (`FUN_00590470`) | not ported |
+| 0x59094c | a1q2 | 1 | 1 | Kashya's talk closes after 81 (`LAB_00590920`, data +3) | `BurialQuest::talk_closed` |
+| 0x590a54 | a1q2 | 0xd | 0 | the reward (`FUN_00590980`) | `BurialQuest::said` |
+| 0x590c04 | a1q2 | 3 | 1 | the kill's timer (`LAB_00590bf0`) | `BurialQuest::tick` |
+| 0x590ff4 | a1q2 | 2 | 1 | into the Burial Grounds at log 0 or 1 (`FUN_00590fa0`) | `BurialQuest::enter` |
+| 0x5913ff | a1q3 | 1 | 1 | Charsi's talk closes after 146 (0x5913c0, data +2) | `ToolsQuest::talk_closed` |
+| 0x591421 | a1q3 | 0xd | 1 | Charsi's talk closes after the return (data +3) | `ToolsQuest::talk_closed` |
+| 0x591891 | a1q3 | 1 | 1 | out of town at state 2, log not 1 (`LAB_00591810`) | `ToolsQuest::enter` |
+| 0x59191b | a1q3 | 1 | 1 | the last carrier loses the malus (`FUN_005918d0`, event 6: nothing calls its wrapper) | none |
+| 0x5919b4 | a1q3 | 2 | 1 | the malus picked up (`FUN_00591960`) | `ToolsQuest::picked_up` |
+| 0x591a59 | a1q3 | 3 | 1 | the last carrier leaves, the stand used (0x591a20, event 9) | not ported (d2d's log goes by what each player holds) |
+| 0x591c21 | a1q3 | 1 | 0 | the stand drops the malus (`FUN_00591ac0`) | `ToolsQuest::operate` |
+| 0x5921e9 | a1q4 | 1 | 1 | Akara's talk closes after 97 (`FUN_005921b0`, data +0x53) | `CainQuest::talk_closed` |
+| 0x59221f | a1q4 | 3 | 1 | Akara's talk closes after the decipher (data +0x64) | `CainQuest::talk_closed` |
+| 0x592371 | a1q4 | 3 | 0 | the decipher heard (`FUN_00592250`) | `CainQuest::said` |
+| 0x592c11 | a1q4 | 1 | 1 | the scroll gone, the tree used (`FUN_00592bd0`) | not ported (the rewind) |
+| 0x592c5a | a1q4 | 1 | 1 | the scroll gone, the tree not used | not ported (the rewind) |
+| 0x593446 | a1q4 | 6 | 1 | the Gibbet's mode ends (`FUN_00593290`) | `CainQuest::rescued` |
+| 0x593a65 | a1q4 | 4 | 1 | the fifth stone, under log 4 (`FUN_00593710`) | `CainQuest::stone` |
+| 0x593c3d | a1q4 | 2 | 1 | the tree drops the scroll (`FUN_00593af0`) | `CainQuest::tree` |
+| 0x595baf | a1q6 | 1 | 1 | Cain's talk closes after 166 (0x595b80, data +0x195) | `AndyQuest::talk_closed` |
+| 0x595d63 | a1q6 | 0xd | 0 | the reward (`FUN_00595c60`) | `AndyQuest::said` |
+| 0x596071 | a1q6 | 2 | 1 | into Catacombs 4 under log 2 (`FUN_00596010`) | `AndyQuest::enter` |
+| 0x596092 | a1q6 | 1 | 0 | into Catacombs 1..3 at log 0 | `AndyQuest::enter` |
+| 0x59656a | a1q6 | 3 | 1 | the kill's timer at 12, log not 3 or 0xd (0x596500) | `AndyQuest::tick` |
+| 0x596e59 | a1q4 | 4 | 0 | into Tristram, state past 5 (`FUN_00596de0`) | `CainQuest::enter` |
+| 0x596ff6 | a1q4 | 5 | 1 | into Lut Gholein before the rescue (`FUN_00596de0`) | `CainQuest::rogues` |
+| 0x5973c4 | a1q4 | 5 | 1 | the same from `FUN_00597310` | `CainQuest::rogues` |
+
+d2d takes a record's `news` at the end of the World's tick (`World::act1_update`), so the
+callback reads each player's bits then, not at the call (the Gibbet's credit passes,
+`FUN_00593130` / `LAB_005931c0`, come before `FUN_00593290`'s send in game.exe as in d2d;
+a bit set between a call and the tick's end elsewhere is not traced).
 Both local paths (the View's log change and `ev::QuestNews`) apply the act test
 above through `rules::quest_log_send_in_act`; a joined game's 0x5d is not
 tested again (the host's `FUN_00544190` sent it, and `FUN_004a2cb0` has no act

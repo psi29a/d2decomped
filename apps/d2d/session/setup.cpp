@@ -90,10 +90,10 @@ auto ClientSession::take_view(std::span<const std::uint8_t> bytes, const View* l
         character.panel = view.panel;
         // A quest's log state sent (S->C 0x5d, FUN_004a2cb0): the Quest Log
         // button, or the open log picks it.
-        // ponytail: a1q1 .. a1q4, a1q6, act 2 and a3q1 .. a3q5 aren't sent at their records' own
-        // FUN_00544300 flag-1 sites yet: a change in the View's log state stands in for each send of theirs,
-        // none at the game's first View (the join sends none). The others' sends are events
-        // (rules::quest_log_sent_by_event). Both local paths make FUN_00544190's act test (the
+        // ponytail: act 2 and a3q1 .. a3q5 aren't sent at their records' own FUN_00544300 flag-1
+        // sites yet: a change in the View's log state stands in for each send of theirs, none at the
+        // game's first View (the join sends none). The others' sends are events
+        // (rules::quest_log_sent_by_event; act 1's six since FUN_0058fbe0 .. FUN_00595b20). Both local paths make FUN_00544190's act test (the
         // player's level's act against the record's); a joined game's 0x5d comes already tested.
         for (std::size_t quest = 1; !net_game && quest < view.quest_log.size(); ++quest)   // a joined game's come as 0x5d (net_quests)
             if (quest_log.sent_known && view.quest_log[quest] && view.quest_log[quest] != quest_log.sent[quest]
