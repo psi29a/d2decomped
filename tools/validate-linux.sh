@@ -11,14 +11,16 @@ cd "$(dirname "$0")/.."
 tag="d2d-linux-ci:$(sha1sum tools/validate-linux.Dockerfile | cut -c1-12)"
 docker image inspect "$tag" >/dev/null 2>&1 || docker build -t "$tag" -f tools/validate-linux.Dockerfile tools/
 # JOBS: parallel compiles and clang-tidy runs (default: the machine's threads
-# less 2 when it has more than 4, else all of them); D2D_DOCKER_MEMORY: a container memory
+# less 2 when it has more than 4, capped at 8, else all of them); D2D_DOCKER_MEMORY: a container memory
 # limit such as 10g. A C++ job at -O3 takes up to ~2 GB, so on a small machine
 # an unlimited -j can run the host out of memory; with a limit, the OOM
 # killer stops the container instead. D2D_BUILD_VOLUME: the build's docker
 # volume (default d2d-build-linux); give each worktree its own, since all of
 # them mount at /src and ninja would take another tree's newer objects.
 threads=$(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)
-jobs=${JOBS:-$(( threads > 4 ? threads - 2 : threads ))}
+default_jobs=$(( threads > 4 ? threads - 2 : threads ))
+(( default_jobs > 8 )) && default_jobs=8
+jobs=${JOBS:-$default_jobs}
 volume=${D2D_BUILD_VOLUME:-d2d-build-linux}
 limits=()
 [[ -n "${D2D_DOCKER_MEMORY:-}" ]] && limits+=(--memory="$D2D_DOCKER_MEMORY")
