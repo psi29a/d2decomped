@@ -9,6 +9,7 @@ Writes, from the repo alone (no game files, no Ghidra):
   functions.tsv  one row per game.exe function: status, module, callers ported, ...
   history.json   with --history: the totals at main's last commit of each day, for the trend chart
   gaps.md        the gap map page (GitHub Pages; tools/site/index.html is the landing page)
+  progress.svg   badge for the README, using the gap map's byte-weighted percentage
   _includes/head-custom.html  the Pages theme's head hook: dark colours when the system asks
   symbols.tsv    d2d's names and citations, for tools/ghidra/decompile.sh to put in Ghidra
                  (names: docs/research/re/names.tsv, else a C++ function citing one FUN_)
@@ -482,6 +483,18 @@ def shade(pct):
     return f"hsl({1.2 * pct:.0f}, 70%, 42%)"
 
 
+def progress_badge(done):
+    """A self-contained badge using the same rounded percentage as the gap map."""
+    return f'''<svg xmlns="http://www.w3.org/2000/svg" width="172" height="20" role="img" aria-label="game.exe code: {done:.1f}% ported">
+<title>game.exe code: {done:.1f}% ported</title>
+<rect width="172" height="20" rx="3" fill="#555"/>
+<path fill="#176b3a" d="M108 0h61a3 3 0 0 1 3 3v14a3 3 0 0 1-3 3h-61z"/>
+<g fill="#fff" text-anchor="middle" font-family="Verdana, sans-serif" font-size="11">
+<text x="54" y="14">game.exe code</text><text x="140" y="14">{done:.1f}%</text>
+</g></svg>
+'''
+
+
 # Primer (the Pages default theme) is light only; dark follows the system.
 HEAD_CUSTOM = """<meta name="color-scheme" content="light dark">
 <style>
@@ -527,6 +540,8 @@ def write(out, summary, records, frontier):
     total = sum(t[s]["functions"] for s in LEVELS)
     size = sum(t[s]["bytes"] for s in LEVELS)
     done = 100 * (t["verified"]["bytes"] + t["ported"]["bytes"]) / size   # oracle: checked, not in d2d
+    with open(os.path.join(out, "progress.svg"), "w", encoding="utf-8") as f:
+        f.write(progress_badge(done))
     md = ["---\ntitle: D2Decomp gap map\n---\n", "# D2Decomp gap map\n",
           f"What of game.exe 1.14d d2d has looked at, ported and verified. Generated from "
           f"`{summary['generated']['commit']}` on {summary['generated']['date']} by `tools/gaps.py`. "

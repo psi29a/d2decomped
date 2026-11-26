@@ -6,6 +6,7 @@ import runpy
 import sys
 import tempfile
 import unittest
+import xml.etree.ElementTree as ET
 from pathlib import Path
 from unittest.mock import patch
 
@@ -139,6 +140,31 @@ machine.call(0x4010c0)
         self.assertEqual(gaps.shade(0), "hsl(0, 70%, 42%)")      # red
         self.assertEqual(gaps.shade(50), "hsl(60, 70%, 42%)")    # yellow
         self.assertEqual(gaps.shade(100), "hsl(120, 70%, 42%)")  # green
+
+    def test_progress_badge_displays_the_rounded_percentage(self):
+        for value, expected in ((0, "0.0%"), (42.37, "42.4%"), (100, "100.0%")):
+            with self.subTest(value=value):
+                svg = ET.fromstring(gaps.progress_badge(value))
+                self.assertIn(expected, svg.attrib["aria-label"])
+                self.assertEqual(svg.find("{http://www.w3.org/2000/svg}title").text,
+                                 f"game.exe code: {expected} ported")
+                self.assertIn(expected, [node.text for node in svg.iter("{http://www.w3.org/2000/svg}text")])
+
+    def test_written_badge_tracks_byte_weighted_gap_map(self):
+        totals = {status: {"functions": 1, "bytes": size} for status, size in
+                  zip(gaps.LEVELS, (5, 5, 40, 30, 20))}
+        totals.update(library=0, dead=0, platform=0)
+        summary = {"totals": totals, "generated": {"commit": "abc", "date": "2026-01-01"},
+                   "remaining": {}, "modules": {}, "port_next": [], "blocking": [], "gaps": [],
+                   "oracles": {"scripts": [], "missing": {}}, "credits": []}
+        with tempfile.TemporaryDirectory() as directory:
+            for ported_bytes, expected in ((30, "50.0%"), (130, "75.0%")):
+                totals["ported"]["bytes"] = ported_bytes
+                gaps.write(directory, summary, [], [])
+                badge = ET.parse(Path(directory) / "progress.svg").getroot()
+                page = (Path(directory) / "gaps.md").read_text(encoding="utf-8")
+                self.assertIn(expected, badge.attrib["aria-label"])
+                self.assertIn(f"**{expected} done**", page)
 
 if __name__ == "__main__":
     unittest.main()
