@@ -34,6 +34,32 @@ int hit_chance(int attack_rating, int def, int alvl, int dlvl) {
     return int(std::clamp<std::int64_t>(chance * 2 * alvl / std::max(alvl + dlvl, 1), 5, 95));
 }
 
+// FUN_0057d8a0 (SUnitDmg.cpp), from FUN_0057d9b0 for a player attacker before the rating's %, in its 32-bit math:
+// stat 115 nonzero zeroes the defense of a monster that is not a champion, unique or superunique (data +0x16 & 10,
+// FUN_005a0180), a MonStats boss (FUN_0063e9f0) or a hireling (FUN_0063ee90); stat 116 over 0 is halved (toward
+// zero) against a player and against such a boss, superunique (+0x16 & 2) or hireling, kept to 0..100, and takes
+// MulDiv(defense, it, 100) off the defense; stats 123 / 124, nonzero, join the rating against a demon (MonStats
+// +0xd & 0x20, FUN_0063e940) / the undead (+0xd & 0x18, FUN_0063e990). tools/emu/target_ac.py.
+void target_defense(const Fighter& fighter, const Target& target, int& attack, int& defense) {
+    const bool monster = target.unit_type == 1;
+    if (fighter.ignore_target_def != 0 && monster && !target.special && !target.boss && !target.hireling) defense = 0;
+    if (int pct = fighter.target_def_pct; pct > 0) {
+        if (target.unit_type == 0 || (monster && (target.boss || target.superunique || target.hireling))) pct /= 2;
+        pct = std::min(pct, 100);
+        defense = int(std::uint32_t(defense) - std::uint32_t(mul_div(defense, pct, 100)));
+    }
+    if (fighter.demon_tohit != 0 && monster && target.demon) attack = int(std::uint32_t(attack) + std::uint32_t(fighter.demon_tohit));
+    if (fighter.undead_tohit != 0 && monster && target.undead) attack = int(std::uint32_t(attack) + std::uint32_t(fighter.undead_tohit));
+}
+
+// FUN_0057d9b0's player branch: the rating (FUN_00622560) and the defense through target_defense, then the rating's
+// % (119, the mastery's, the swing's) on top.
+std::pair<int, int> player_to_hit(const Fighter& fighter, const Target& target, int swing_ar_pct) {
+    int attack = fighter.ar_base, defense = target.armor_class;
+    target_defense(fighter, target, attack, defense);
+    return { std::max(int(std::int64_t(attack) * (100 + fighter.ar_pct + swing_ar_pct) / 100), 1), defense };
+}
+
 // Builds the Fighter from the worn weapon / shield, the summed item stats
 // (`sum`: everything worn and carried; `weapon_sum`: the weapon and what's
 // socketed in it), the character's stats and class; defense and
@@ -131,6 +157,8 @@ Fighter make_fighter(const Tables& tables, const d2d::d2s::Item* weapon, const d
     fighter.item_slow = int(stat(kItemSlow));
     fighter.knockback = stat(kKnockback) > 0;
     fighter.prevent_heal = stat(kPreventHeal) > 0;
+    fighter.ignore_target_def = int(stat(kIgnoreTargetDefense)); fighter.target_def_pct = int(stat(kTargetDefensePercent));
+    fighter.demon_tohit = int(stat(kDemonToHit)); fighter.undead_tohit = int(stat(kUndeadToHit));
     fighter.life_steal = int(stat(kLifeDrainMinDamage)); fighter.mana_steal = int(stat(kManaDrainMinDamage));
     fighter.ias = int(stat(kFasterAttackRate)); fighter.wsm = weapon_base ? weapon_base->speed : 0; fighter.frw = int(stat(kFasterMoveVelocity)); fighter.fhr = int(stat(kFasterGetHitRate)); fighter.fbr = int(stat(kFasterBlockRate)); fighter.fcr = int(stat(kFasterCastRate));
     fighter.defense = defense;
@@ -781,8 +809,8 @@ void row_into_record(MissileDamage& damage, Swing& swing) {
 // at the hit (FUN_0064b860 -> FUN_005a89a0): the roll, the %, the crit, the blow's events.
 Blow player_blow(const Fighter& fighter, const Target& target, int clvl, Rng& rng, const Swing& swing, Rng* damage_rng) {
     Blow blow{ .hit_class = fighter.hit_class | swing.hit_class };
-    const int attack_rating = std::max(int(std::int64_t(fighter.ar_base) * (100 + fighter.ar_pct + swing.ar_pct) / 100), 1);
-    if (!swing.smite && rng(100) >= hit_chance(attack_rating, target.armor_class, clvl, target.level)) return blow;
+    const auto [attack_rating, defense] = player_to_hit(fighter, target, swing.ar_pct);
+    if (!swing.smite && rng(100) >= hit_chance(attack_rating, defense, clvl, target.level)) return blow;
     blow.prevent_heal = !swing.smite && fighter.prevent_heal;
     if (target.block > 0 && rng(100) < target.block) {
         blow.blocked = true;
