@@ -177,13 +177,15 @@ const FindLine* find_line(int level) {
 
 
 
-// An act 1 or act 2 record's per-player send callback (FUN_00544300's fn): FUN_0058fbe0, FUN_00590830, FUN_005912e0,
+// An act 1 .. 3 record's per-player send callback (FUN_00544300's fn): FUN_0058fbe0, FUN_00590830, FUN_005912e0,
 // FUN_005920d0 and FUN_00595b20 (act 1), FUN_005988b0, FUN_00599f50, FUN_0059ad50, FUN_0059bcb0 and FUN_0059c650
-// (act 2) send unless done or closed (bit 0 or 15) without bit 13 or 14; a1q5's FUN_00594830 reads no bit 15
-// (TowerQuest::log_goes_to). tools/emu/quest_log_sends.py.
+// (act 2), FUN_005b7340, FUN_005b8bf0, FUN_005b9e70, FUN_005baf70 and FUN_005bc210 (act 3) send unless done or closed
+// (bit 0 or 15) without bit 13 or 14; a1q5's FUN_00594830 reads no bit 15 (TowerQuest::log_goes_to), a3q2's
+// FUN_005b7f90 (word 0x12) no bit 13 or 14. tools/emu/quest_log_sends.py.
 bool quest_log_goes_to(const QuestBits& quest_bits, int quest) {
     if (quest == TowerQuest::kQuest) return TowerQuest::log_goes_to(quest_bits);
     const bool shut = quest::bit(quest_bits, quest, 0) || quest::bit(quest_bits, quest, 15);
+    if (quest == 0x12) return !shut;
     return !shut || quest::bit(quest_bits, quest, 13) || quest::bit(quest_bits, quest, 14);
 }
 
