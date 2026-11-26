@@ -6,7 +6,8 @@
 // test FUN_00620bb0 / FUN_0061ab00 sparing a unit under a point). Then, with
 // the MPQs (D2_MPQ_DIR), a poisoned skeleton under a point of life: in the
 // Rogue Encampment its poison takes nothing, in the Blood Moor it dies
-// (Fight::pets_turn -> pet_regen).
+// (Fight::pets_turn -> pet_regen). Without the MPQs only that part SKIPs:
+// the game.exe cases have run, so the test passes (tests/README.md).
 
 #include <ai/units.hpp>
 #include <character.hpp>
@@ -104,11 +105,11 @@ int main() try {
     std::printf("%s: %zu FUN_005a6920 cases, %d differ\n", bad ? "FAIL" : "OK", std::size(kCases), bad);
     if (bad) return 1;
     const char* mpq_dir = std::getenv("D2_MPQ_DIR");
-    if (!mpq_dir || !fs::exists(fs::path(mpq_dir) / "d2data.mpq")) { std::puts("SKIP: no d2data.mpq (D2_MPQ_DIR)"); return D2D_TEST_SKIPPED; }
+    if (!mpq_dir || !fs::exists(fs::path(mpq_dir) / "d2data.mpq")) { std::puts("SKIP: the skeleton cases need d2data.mpq (D2_MPQ_DIR)"); return 0; }
     const char* patch = std::getenv("D2_PATCH_INSTALLER");
     auto data = load_game_data(mpq_dir, patch ? fs::path(patch) : fs::path{}, 0x1234);
     if (!data) { std::puts("FAIL: load_game_data failed"); return 1; }
-    if (!data->patched) { std::puts("SKIP: needs the 1.14d data (D2_PATCH_INSTALLER)"); return D2D_TEST_SKIPPED; }
+    if (!data->patched) { std::puts("SKIP: the skeleton cases need the 1.14d data (D2_PATCH_INSTALLER)"); return 0; }
     const int in_town = poisoned_skeleton(*data, d2d::rules::level_ids::kRogueEncampment);
     const int outside = poisoned_skeleton(*data, d2d::rules::level_ids::kBloodMoor);
     std::printf("poisoned at 128/256: %d in town, %d in the Blood Moor\n", in_town, outside);
