@@ -406,6 +406,24 @@ auto Fight::calc_env() -> d2d::rules::CalcEnv {
     }
 
 auto Fight::friendly_auras(float x, float y) const -> std::vector<AuraOn> { return auras_at(x, y, false); }
+
+// Do 65 (FUN_005cf010) puts aurastate (+0x80) on the caster (FUN_0056b740 ->
+// FUN_005cedc0) and auratargetstate (+0x82) on each ally in range its
+// aurafilter takes (FUN_0056b7e0); do 66 / 81 put aurastate on the caster
+// too. A state's overlays are its look, so the merc in the player's Might
+// shows Might's glyph, and the player in the merc's or a totem's shows
+// theirs. The own aura's state, whatever its kind, then each friendly
+// aura's target state (aurastate when it has none), one of each name.
+// In 1.14d every Paladin aura's two states are one; a totem's differ
+// (oaksagecontrol on the totem, oaksage on its allies).
+auto Fight::aura_states_on(float x, float y, int own_aura) const -> std::vector<std::string_view> {
+        std::vector<std::string_view> out;
+        const auto add = [&](std::string_view state) { if (!state.empty() && !std::ranges::contains(out, state)) out.push_back(state); };
+        if (const auto* own = own_aura > 0 ? game_data->skills.get(own_aura) : nullptr) add(own->aurastate);
+        for (const auto& aura : friendly_auras(x, y))
+            if (aura.skill->id != own_aura) add(!aura.skill->auratarget.empty() ? aura.skill->auratarget : aura.skill->aurastate);
+        return out;
+    }
 // The enemy auras (do 66, Holy Freeze's 81) over the monster the same
 // way: the player's and the merc's (an Act 2 merc's Holy Freeze), each
 // only when its aurafilter takes the monster from its holder's spot

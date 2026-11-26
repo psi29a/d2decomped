@@ -178,7 +178,9 @@ inline std::vector<std::string_view> player_states(const Scene& scene, const Vie
     if (view.stunned) out.push_back("stunned");
     if (const auto* skill = scene.skills.get(view.curse)) out.push_back(skill->auratarget);   // a monster's curse: its auratargetstate
     for (const int buff : view.buffs) if (const auto* skill = scene.skills.get(buff)) out.push_back(skill->aurastate);
-    if (view.aura > 0) if (const auto* skill = scene.skills.get(view.aura)) out.push_back(skill->aurastate);
+    // Its own aura's state and those of the auras it stands in (the merc's, a totem's: View::aura_states).
+    if (!view.aura_states.empty()) out.insert(out.end(), view.aura_states.begin(), view.aura_states.end());
+    else if (view.aura > 0) if (const auto* skill = scene.skills.get(view.aura)) out.push_back(skill->aurastate);
     if (const auto state = d2d::rules::shrine_state(view.boost_code); !state.empty()) out.push_back(state);   // its overlays
     return out;
 }
