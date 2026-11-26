@@ -34,6 +34,17 @@ std::vector<d2d::d2s::ItemProp> socket_props(const GameData& game_data, const d2
     return d2d::rules::socket_props(game_data.rules, parent, filled);
 }
 
+// FUN_00663a20 (ECX item, EDX FUN_0062a370's mask of its set's members worn,
+// itself in it): add func (SetItems +0x87) 1 toggles list j or j - 1 (past
+// its own index, +0x2e) by mask bit j, j 0..5; 2 turns on the first
+// 0x6ee440[mask] - 1 lists (a popcount table, 0 from 0x40 up), the rest off.
+// The lists are the states at 0x6ee424 (0xa5..0xa9), toggled by
+// FUN_006279a0 (flag 0x2000 = off). FUN_00663cc0 runs it on stats on, and
+// FUN_0055dbc0 redoes every worn set piece, so a worn piece's lists follow
+// what's worn (combat.md "A set item's own lists"; tools/emu/set_item_lists.py).
+// ponytail: a piece taken off keeps its lists as last set (FUN_00663cc0
+// (.., 1, 0) skips FUN_00663a20); d2d recomputes them from the others worn,
+// which only the tooltip of an unworn piece shows. Not traced client-side.
 std::vector<d2d::d2s::ItemProp> set_bonus_props(const GameData& game_data, const std::vector<d2d::d2s::Item>& items,
                                                 const d2d::d2s::Item& item) {
     std::vector<d2d::d2s::ItemProp> out;
