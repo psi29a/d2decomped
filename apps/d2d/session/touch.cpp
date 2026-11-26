@@ -14,6 +14,7 @@
 #include "input/touch/glyph.hpp"
 #include "input/touch/icon.hpp"
 #include "input/touch/input.hpp"
+#include "input/touch/trade.hpp"
 #include "input/touch/potions.hpp"
 #include "items/cursor.hpp"
 #include "items/item_use.hpp"
@@ -573,20 +574,24 @@ bool ClientSession::touch_event(std::int64_t finger, touch::Phase phase, float x
                 return true;
             if (phase == touch::Phase::Cancel) {
                 if (touch_item_finger != -1 && finger != touch_item_finger) return true;
-                close_item_track();
+                cancel_touch_item();
                 touch_pointer = {};
                 return true;
             }
             follow_pointer(false, false);
             if (phase == touch::Phase::Up) {
-                place_held_at(x, y);
+                if (touch_item_drag && touch_sell_vendor >= 0) {
+                    const auto drop = touch_bag_drop(x, y);
+                    if (drop == touch::BagDrop::Sell) touch_trade(touch::ItemAction::Sell);
+                    else if (drop == touch::BagDrop::Inventory) place_held_at(x, y);
+                } else place_held_at(x, y);
                 close_item_track();
                 touch_pointer = {};
             }
             return true;
         }
         if (phase == touch::Phase::Cancel && finger == touch_item_finger) {
-            close_item_track();
+            cancel_touch_item();
             touch_pointer = {};
             return true;
         }
@@ -597,14 +602,18 @@ bool ClientSession::touch_event(std::int64_t finger, touch::Phase phase, float x
                 const auto click = item_cursor_command(*scene, character.items, held, std::max(character.character_class, 0),
                                                        { inv_open, stash_open, cube_open, belt_open, character.expansion },
                                                        int(touch_item_x), int(touch_item_y));
-                if (touch_stock.tab < 0 && touch_sell_vendor < 0 && click.cmd) send(*click.cmd);
+                if (touch_stock.tab < 0 && click.cmd) send(*click.cmd);
                 follow_pointer(false, false);
             }
             if (touch_item_drag) {
                 follow_pointer(false, false);
                 if (phase == touch::Phase::Up) {
-                    if (touch_stock.tab >= 0 || touch_sell_vendor >= 0) {
-                        if (touch_trade_drop().contains(x, y)) touch_trade(touch_stock.tab >= 0 ? touch::ItemAction::Buy : touch::ItemAction::Sell);
+                    if (touch_stock.tab >= 0) {
+                        if (touch_trade_drop().contains(x, y)) touch_trade(touch::ItemAction::Buy);
+                    } else if (touch_sell_vendor >= 0) {
+                        const auto drop = touch_bag_drop(x, y);
+                        if (drop == touch::BagDrop::Sell) touch_trade(touch::ItemAction::Sell);
+                        else if (drop == touch::BagDrop::Inventory) place_held_at(x, y);
                     } else place_held_at(x, y);
                     close_item_track();
                     touch_pointer = {};
@@ -651,7 +660,7 @@ bool ClientSession::touch_event(std::int64_t finger, touch::Phase phase, float x
                 touch_hold_edge = true;
                 touch_item_x = x; touch_item_y = y;
                 touch_item_hint = touch_stock.tab >= 0 ? "Tap to buy, drag into inventory to buy" : std::string(action.label);
-                if (can_sell) touch_item_hint = "Tap to sell, drag into vendor grid to sell";
+                if (can_sell) touch_item_hint = "Drag within inventory to move, into vendor grid to sell";
                 return true;
             }
         }

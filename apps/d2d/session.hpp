@@ -14,6 +14,7 @@
 #include "input/teleport_aim.hpp"
 #include "input/touch/gestures.hpp"
 #include "input/touch/input.hpp"
+#include "input/touch/trade.hpp"
 #include "items/item_use.hpp"
 #include "items/use_item.hpp"
 #include "netgame.hpp"
@@ -578,6 +579,7 @@ struct ClientSession {
     const d2d::d2s::Item* touch_bag_item() const;
     bool touch_can_sell(const d2d::d2s::Item* item) const;
     touch::Box touch_trade_drop() const;
+    touch::BagDrop touch_bag_drop(float x, float y) const;
     void draw_touch_trade_hint(std::vector<std::uint8_t>& framebuffer) const;
     void close_touch_item();
     void cancel_touch_item();

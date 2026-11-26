@@ -378,8 +378,10 @@ instead of selecting the item that moved into its old list position.
 A vendor drag highlights its destination grid. Releasing there asks the normal
 trade operation, which retains host validation, pricing and item placement.
 Releasing elsewhere, cancelling, changing panels, losing focus or handing off
-input does not trade. Vendor gestures do not put the item on the cursor or
-emit a ground drop. Buy/Sell buttons commit only on the owning finger's release
+input does not trade. Stock drags do not pick stock up onto the cursor. Bag drags retain normal
+cursor placement within inventory and sell when released onto the vendor grid.
+An outside release or cancellation leaves a held bag item available for
+placement, without emitting a ground drop. Buy/Sell buttons commit only on the owning finger's release
 inside the same button; leaving it disarms the press. Use, Fill and Identify
 retain their confirmation flows.
 

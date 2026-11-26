@@ -4,6 +4,7 @@
 // test-sources: apps/d2d/input/touch/trade.cpp apps/d2d/panels/store_selection.cpp
 // Native input/identity regression; no claim of original touch UI parity.
 #include "input/touch/input.hpp"
+#include "input/touch/trade.hpp"
 #include "panels/store_selection.hpp"
 
 #include <d2s_items.hpp>
@@ -19,6 +20,12 @@
 int main() try {
     using namespace d2d::client;
     using namespace d2d::rules;
+    const touch::Box inventory{ 500, 200, 290, 116 }, vendor{ 96, 123, 290, 290 };
+    assert(touch::bag_drop(inventory, vendor, 610, 260) == touch::BagDrop::Inventory);
+    assert(touch::bag_drop(inventory, vendor, 110, 137) == touch::BagDrop::Sell);
+    assert(touch::bag_drop(inventory, vendor, 450, 450) == touch::BagDrop::None);
+    assert(touch::bag_drop(inventory, {}, 110, 137) == touch::BagDrop::None);
+    assert(touch::bag_drop(inventory, {}, 610, 260) == touch::BagDrop::Inventory);
     Store store;
     store.npc = 2; store.npc_id = "Akara";
     store.tabs[0] = { { .code = "hp1", .id = 101 }, { .code = "tsc", .id = 102 } };

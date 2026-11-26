@@ -545,6 +545,17 @@ if touch_ux:
             assert int(state()["items"]) == before + 1, "touch stock gesture did not buy"
             bought = [line for line in cmd("items").splitlines() if line.startswith("[") and "panel=1 " in line][-1]
             return item_point(bought.split(" id=")[1].split()[0])
+        # Sellable bag items must still move within inventory while a vendor is open.
+        movable = carried("cap", 6, 0)
+        origin = item_point(movable)
+        destination = (origin[0] + 58, origin[1] + 58)
+        finger(2, "down", *origin); finger(2, "move", *destination)
+        finger(2, "up", *destination)
+        assert item_point(movable) != origin, "shop drag did not rearrange the bag item"
+        before = int(state()["items"])
+        finger(2, "down", *item_point(movable)); finger(2, "move", 110, 137)
+        finger(2, "up", 110, 137)
+        assert int(state()["items"]) == before - 1, "drag into vendor grid did not sell"
         pixel_x, pixel_y = buy()
         before = int(state()["items"])
         finger(2, "down", pixel_x, pixel_y)
