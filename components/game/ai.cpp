@@ -1227,7 +1227,9 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     // spawn's through Spawning::LevelState::spawn_slots).
     // A revived monster's owner (FUN_005c55c0) is Fight::pets_turn's. Taunt (FUN_005d8570) sets none (0x5d8718):
     // put_state's leader_lost.
-    // ponytail: item_reanimate's monster (FUN_005c07a0: its player, 0x5c08ca) isn't made.
+    // item_reanimate's monster (FUN_005c07a0: its player, 0x5c08ca) rises from a corpse as its death ends: FUN_005c09e0
+    // hooks unit event 0xd on the victim, which mode 0's end (0x5a72b0, table 0x6e2260 row 0 +8) fires after DD.
+    // ponytail: that monster isn't made: the kill hook and the raise belong to the deaths and pets (fight/).
     if (monster.boss == d2d::rules::Boss::minion && !monster.leader_lost && monster.leader >= 0 && std::size_t(monster.leader) < pack.size()
         && &pack[std::size_t(monster.leader)] != &monster && pack[std::size_t(monster.leader)].boss != d2d::rules::Boss::none
         && pack[std::size_t(monster.leader)].boss != d2d::rules::Boss::minion) {
