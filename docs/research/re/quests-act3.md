@@ -276,16 +276,23 @@ needing a flail / a Cube (`FUN_005bb7b0`).
 - **The sequence filter** (`Q22_SequenceFilter`, `FUN_005bb410`): the
   chain pattern (`quests.md`); at state 7 (fully done) chains to
   `nSequenceQuestId = QUEST_TheGoldenBird`.
-- **Tracking a Council kill** (`Q22_TrackCouncilKill`, `FUN_005bb550`):
-  called per Council death; sets `bCouncilTrackingActive`, dedups the
-  killer's GUID into a 6-slot list and bumps `nCouncilKillCount` /
-  `nCouncilKillsRemaining`. On the first qualifying kill it broadcasts
-  live state 1 or 3 via `QUEST_SetStateAndBroadcast` (using
-  `Q22_PlayerNotifyCompleted` above), then sets `nStateFlag` to 4 or 5
-  by whether Lam Esen's Tome (`quests-act3.md` "Lam Esen's Tome") has
-  just completed, and resyncs every player's log. This is the detail
-  behind the existing "**The Council**" paragraph's "the last [kill]:
-  state 6 / 7" above — the two functions share the same kill path.
+- **A Council member made** (`FUN_005bb550`, reached from `FUN_005a49b0`'s
+  case 0x1a / 0x1b / 0x1d through `FUN_00545b50` when the level is under
+  0x6c; act 5's jump to 0x58cfd0): not when the member dies. With the
+  record open: data +5 1; a unit id not yet in the list (data +0x10, at most
+  6, the count +0x30 copied to +0x34): log 1 at state 0 / 1, else 3, unless
+  it is (flag 1, 0x5bb5ec); state 4, or 5 without Lam Esen's game bit 13
+  (0x5bb5fb); everyone marked (`LAB_005badc0`: not done, bit 2 at state 2 /
+  3, bit 3 with data +5). d2d: `World::act3_bind_new_bosses` ->
+  `BlackenedTempleQuest::council_made_one`.
+- **The record's log** (+0xb, the usual `quest_log`) moves at its
+  `FUN_00544300` sites: Ormus's talk's close (`LAB_005bb0c0`, put in +0xa8
+  entering the Causeway at state 0, cleared when it fires: with data +4,
+  Ormus's 594, log 2, flag 1, 0x5bb0ee, then everyone marked), out of the
+  docks told (log 2 under 3, flag 0, 0x5bb1c0, then everyone marked), the
+  member made (above), the last death (log 4 at state 6, 0xd at 7, flag 1,
+  0x5bbdb3) and Cain's 626 with bit 13 (log 0xd, flag 0, 0x5bb35c).
+  `tests/game/test_temple_log.cpp`.
 - **The status filter** (`Q22_StatusFilter`, `FUN_005bbe20`): hides the
   log entry (byte 0) until `QUEST_AbleGoToAct3` is Completed; once
   visible, Completed → 0xb (0xd if JustCompleted), Step0x04 → 0x4 or

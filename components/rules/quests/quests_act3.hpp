@@ -7,6 +7,7 @@
 #include <monster_ids.hpp>
 #include <quests.hpp>
 
+#include <algorithm>
 #include <array>
 #include <utility>
 #include <vector>
@@ -599,6 +600,9 @@ struct KhalimQuest {
 // (bit 0; Khalim's parts gone once his Will's done). Bits: 2 told, 3 under
 // way, 4 the Council dead (Cain's due), 13 / 14 here / others'.
 // The Council's drops and credit go over the players (World::act3_kill).
+// Its log (+0xb, read by quest_log) moves at its FUN_00544300 sites: Ormus's
+// talk's close, the docks, each Council member made (FUN_005bb550), the last
+// one's death and Cain's.
 struct BlackenedTempleQuest {
     static constexpr int kQuest = 0x15, kOrmus = monster_ids::kOrmus, kCain = monster_ids::kCainAct3, kTells = 594, kDone = 626;
     static constexpr int kCauseway = 82, kDocks = 75;
@@ -612,7 +616,18 @@ struct BlackenedTempleQuest {
     bool cube_dropped = false;     // data+0xe
     int orb_hits = 0;              // data+0x38
     bool orb_broken = false;       // data+0xc
+    bool closing = false;          // +0xa8: LAB_005bb0c0 armed (into the Causeway at state 0), till it fires
+    bool told_pending = false;     // data+4: Ormus's 594, log 2 on his talk's close
+    bool council_seen = false;     // data+5: a Council member made (FUN_005bb550): bit 3 in the marks
+    std::vector<int> council_made; // data+0x10 .. +0x30: their unit ids, at most 6
     quest::Players rewarded;         // +0x1c
+
+    // A player's bits (LAB_005badc0, over the players): told at state 2 / 3, bit 3 once the Council's made.
+    void mark(QuestBits& quest_bits) const {
+        if (quest::bit(quest_bits, kQuest, 0)) return;
+        if (state == 2 || state == 3) quest::set(quest_bits, kQuest, 2);
+        if (council_seen) quest::set(quest_bits, kQuest, 3);
+    }
 
     // The player joins (LAB_005bb480).
     void join(QuestBits& quest_bits, QuestBits& game_bits) {
@@ -622,16 +637,39 @@ struct BlackenedTempleQuest {
         if (quest::bit(quest_bits, kQuest, 3)) { log = 3; state = tome ? 4 : 5; }
         else if (quest::bit(quest_bits, kQuest, 2)) { log = 2; state = tome ? 2 : 3; }
     }
-    // A level change (LAB_005bb120); `tome_done`: Lam Esen's game bit 13 (word 0x11, 0x5bb1ce).
-    void enter(const QuestBits& quest_bits, int from, int into, bool tome_done) {
-        if (into == kCauseway && open && state == 0) state = 1;
-        if (from != kDocks || state < 2 || state > 3 || quest::bit(quest_bits, kQuest, 0) || quest::bit(quest_bits, kQuest, 4)) return;
-        state = tome_done ? 4 : 5;   // LAB_005badc0 after it marks none: the state's past 2 / 3
+    // A level change (LAB_005bb120); `tome_done`: Lam Esen's game bit 13 (word 0x11, 0x5bb1ce). Out of the
+    // docks, told: log 2 under 3 (flag 0, 0x5bb1c0), then 4 / 5. True: everyone's marked (LAB_005badc0).
+    bool enter(const QuestBits& quest_bits, int from, int into, bool tome_done) {
+        if (into == kCauseway && open && state == 0) { state = 1; closing = true; }
+        if (from != kDocks || state < 2 || state > 3 || quest::bit(quest_bits, kQuest, 0) || quest::bit(quest_bits, kQuest, 4)) return false;
+        if (log < 3) log = 2;
+        state = tome_done ? 4 : 5;
+        return true;
+    }
+    // A Council member made (FUN_00545b50 -> FUN_005bb550, `unit_id`): data +5; a new one of up to 6, log 1
+    // (state 0 / 1) or 3 unless it is (flag 1, 0x5bb5ec), state 4 / 5. True: everyone's marked (LAB_005badc0).
+    bool council_made_one(int unit_id, bool tome_done) {
+        if (!open) return false;
+        council_seen = true;
+        if (council_made.size() >= 6 || std::ranges::contains(council_made, unit_id)) return false;
+        council_made.push_back(unit_id);
+        const int shown = state <= 1 ? 1 : 3;
+        if (log != shown) log = shown;
+        state = tome_done ? 4 : 5;
+        return true;
+    }
+    // The talk with `npc` closed (LAB_005bb0c0, once armed): Ormus's after his 594, log 2 (flag 1, 0x5bb0ee),
+    // the hook off. True: everyone's marked (LAB_005badc0).
+    bool talk_closed(int npc) {
+        if (!closing || npc != kOrmus || !told_pending) return false;
+        told_pending = closing = false;
+        log = 2;
+        return true;
     }
     // A Council member died (FUN_005bbc00): the first's round drops a flail
     // for each player who needs one, the next's a Cube for each without
-    // (wants_flail / wants_cube); the last is the record's end, each
-    // player's share their own (council_credit).
+    // (wants_flail / wants_cube); the last is the record's end (state 6, log 4;
+    // 7, 0xd with the orb broken), each player's share their own (council_credit).
     struct Death { bool flail_round = false, cube_round = false, last = false; };
     Death council_died(QuestBits& game_bits) {
         Death out;
@@ -640,6 +678,7 @@ struct BlackenedTempleQuest {
         if (!open || council <= 0 || --council != 0) return out;
         out.last = true;
         state = orb_broken ? 7 : 6;
+        log = orb_broken ? 0xd : 4;   // flag 1 (0x5bbdb3)
         quest::set(game_bits, kQuest, 13);
         return out;
     }
@@ -668,10 +707,10 @@ struct BlackenedTempleQuest {
     // whether Khalim's parts go (Cain's, with his Will done).
     bool said(QuestBits& quest_bits, QuestBits& game_bits, int npc, int string, bool tome_done, int player) {
         if (quest::bit(quest_bits, kQuest, 0)) return false;
-        if (npc == kOrmus && string == kTells) { state = tome_done ? 2 : 3; return false; }
+        if (npc == kOrmus && string == kTells) { state = tome_done ? 2 : 3; told_pending = true; return false; }
         if (npc != kCain || string != kDone || !quest::bit(quest_bits, kQuest, 4)) return false;
         const bool parts_go = quest::bit(quest_bits, KhalimQuest::kQuest, 0);
-        if (quest::bit(quest_bits, kQuest, 13) && state != 7) { quest::set(game_bits, kQuest, 13); state = 7; }
+        if (quest::bit(quest_bits, kQuest, 13) && state != 7) { quest::set(game_bits, kQuest, 13); log = 0xd; state = 7; }   // flag 0 (0x5bb35c)
         quest::set(quest_bits, kQuest, 0);
         quest::set(quest_bits, kQuest, 4, false);
         rewarded.add(player);
