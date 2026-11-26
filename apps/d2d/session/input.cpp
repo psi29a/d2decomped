@@ -5,6 +5,7 @@
 
 #include "audio/audio.hpp"
 #include "common.hpp"
+#include "corpse_select.hpp"
 #include "frontend/roster.hpp"
 #include "input/gamepad.hpp"
 #include "input/gamepad_map.hpp"
@@ -237,12 +238,13 @@ auto ClientSession::shift_pick(int skill) const -> int {
 // The units go in the near rooms' list order (FUN_0065ac70, rules::search_enemy_near_walk: each
 // room's units by their room stamp), so equals tie apart as game.exe's do.
 // The other players go in through add_near_players (near_players.cpp: FUN_00465c60's player arm,
-// relation bit 8), and one picked goes as a type 0 target. The ground items go by the order they
-// arrived in their room's list (ground_arrival; only Iron Golem's search sees them).
+// relation bit 8), and one picked goes as a type 0 target.
+// The ground items go by the order they arrived in their room's list (ground_arrival; only Iron
+// Golem's search sees them).
 // ponytail: local co-op keeps no relation nodes, so its players are never hostile (and a hosted World
-// reads UseSkill::unit as a monster's id); the stamps are the ones the last Fight::restamp left; a corpse's hit test is usable_corpse (the target kind callbacks at
-// 0x711f34, FUN_00464310, aren't traced per skill); Iron Golem's item goes as its spot, and the
-// World takes the one there (Fight::golem_item_at), not by its id.
+// reads UseSkill::unit as a monster's id); SelectProcs 4 and 6 also require MonStats2 soft, which the
+// loaded MonType does not retain; the stamps are the ones the last Fight::restamp left; Iron Golem's
+// item goes as its spot, and the World takes the one there (Fight::golem_item_at), not by its id.
 auto ClientSession::near_pick(int skill, int& unit, int& unit_type, float& at_x, float& at_y) const -> bool {
         constexpr int kIronGolemSkill = 0x5a;   // FUN_00467490's FUN_00643ce0 == 0x5a
         const auto* info = scene ? scene->skills.get(skill) : nullptr;
@@ -251,6 +253,8 @@ auto ClientSession::near_pick(int skill, int& unit, int& unit_type, float& at_x,
         const auto cell_subtile = [](float cells) { return int(std::floor(cells * 5)); };
         const int level_id = level ? level->id : 0;
         const bool iron_golem = skill == kIronGolemSkill;
+        const auto* left_skill = scene->skills.get(skillbar.left);
+        const auto* right_skill = scene->skills.get(skillbar.right);
         std::vector<d2d::rules::NearUnit> units;
         std::vector<d2d::rules::RoomUnit> listed;
         units.reserve(view.monsters.size() + view.others.size() + (iron_golem ? view.ground.size() : 0));
@@ -258,7 +262,13 @@ auto ClientSession::near_pick(int skill, int& unit, int& unit_type, float& at_x,
         for (const auto& monster : view.monsters) {
             const bool alive = monster.alive();
             const int mode = alive ? 1 : monster.mode == "DD" ? 0xc : 0;
-            const bool hit = !monster.ally_not_interact(*scene, level_id) && (alive ? monster.targetable() : info->target_corpse && monster.usable_corpse());
+            const bool known = monster.type >= 0 && std::size_t(monster.type) < scene->monsters.types.size();
+            const bool corpse_hit = info->target_corpse && known
+                && corpse_cursor_takes(left_skill, right_skill, monster,
+                                       scene->monsters.types[std::size_t(monster.type)],
+                                       d2d::rules::level_ids::is_town(level_id));
+            const bool hit = !monster.ally_not_interact(*scene, level_id)
+                && (alive ? monster.targetable() : corpse_hit);
             units.push_back({ 1, subtile(monster.unit.x), subtile(monster.unit.y), mode, false, hit, false });
             listed.push_back({ level ? d2d::game::room_of(*level, monster.unit.x, monster.unit.y) : -1, true, monster.unit.room_stamp });
         }

@@ -3576,20 +3576,40 @@ argument (a unit). Returns 1 then.
 Read from memory: `0x711f50` is 7, and the table `0x711f34` holds seven
 dwords: `0`, `0x464210`, `0x464220`, `0x464230`, `0x464280`, `0x4642a0`,
 `0x464290`. So index 0 is unused (a zero byte already returns 0), indices
-1..6 are the six select procs at those addresses. Their bodies were not
-read. Ghidra's name is `SKILL_ExecuteSelectProc`; the Skills.txt column
-behind `+0x15` was not matched to a header here.
+1..6 are the six select procs at those addresses. The Skills.txt loader
+`FUN_00613f80` names byte `+0x15` `SelectProc`. The callbacks, in table
+order, are:
+
+- 1 (`0x464210`) calls `FUN_00645680`: a type-1 unit in mode `0xc`, with no
+  `FUN_0063a770` hidden/dead state and MonStats2 `corpseSel` (bit 7).
+- 2 (`0x464220`) calls `FUN_00645510(unit, 0)`: proc 1 plus nonzero MonStats
+  `Velocity` (`+0x32`).
+- 3 (`0x464230`) first calls proc 2, then requires `FUN_004b11f0`: the
+  MonStats row has a walking mode and SwitchAI, is not a MonStats `boss`,
+  and monster-data `+0x16` has neither bit 2 nor bit 8 (no champion,
+  unique, or superunique).
+- 4 (`0x464280`) and 6 (`0x464290`) require proc 1 plus MonStats2 `soft`
+  (bit 12, through `FUN_00621f60`).
+- 5 (`0x4642a0`) is the same as proc 1.
+
+The stock Skills table uses nonzero procs on rows 70, 74, 80, 83, 95, 131,
+142, 150 and 351. The player corpse skills use proc 2 for Raise Skeleton /
+Skeletal Mage, proc 1 for Corpse / Poison Explosion, and proc 3 for Revive.
 
 Callers: `FUN_00464310` (`SKILL_CheckActiveSkillSelectProc`, cited) twice,
 at `00464337` and `0046435f`; it passes the skill id from `FUN_00643ce0`
 in EAX and its own unit on the stack.
 
-d2d: `git grep` finds no select-proc table in `components/` or `apps/`; how
-d2d decides a skill may be selected was not compared. Not traced: the six
-procs and the column name.
+d2d: `client::corpse_cursor_takes` applies the stock row-to-proc mapping and
+the traced gates to `ClientSession::near_pick`; procs 4 and 6 lack only their
+MonStats2 `soft` gate because d2d's `MonType` does not retain that field. The
+other TargetCorpse skills use ordinary corpse flags. `tools/emu/skill_select_proc.py` runs `FUN_00464310`,
+`FUN_004642b0` and all six callbacks on synthetic records (73 cases, four
+mutation checks).
 
-Re-check: `python3 tools/ghidra/fn.py 004642b0`; disassemble
-`004642b0`..`00464303` and read dwords at `0x711f34` and `0x711f50`.
+Re-check: `python3 tools/ghidra/fn.py 004642b0 00645510 00645590 006455e0
+00645630 00645680`; disassemble `00464210`..`004642af`, and run
+`tools/emu/txt_fields.py SelectProc --all`.
 
 ### The client unit lists: idle message, placing, allegiance, tick: `FUN_00463b80`, `FUN_00463bc0`, `FUN_00463c00`, `FUN_00463cc0` (batch 22)
 

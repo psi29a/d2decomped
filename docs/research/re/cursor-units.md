@@ -21,6 +21,28 @@ the rooms round the player and keeps those the hit test
 4. The pixel or box test (per-layer selectable rectangles when the class
    asks for them, else the frame's box).
 
+### The active skill's select proc (`FUN_00464310`)
+
+`FUN_00464310` takes the target in **ESI** and the local player in **EDI**.
+It returns 0 for null or non-monster targets. For a monster it gets the
+player's left skill (`FUN_00620190`), obtains its id through
+`FUN_00643ce0(..., "UNIT\\CUnit.cpp", 0x68a)`, and runs
+`FUN_004642b0(id, target)`. A true left result returns at once; otherwise it
+does the same for the right skill (assert line `0x68e`) and returns that
+result. The runner reads Skills.txt `SelectProc` at record `+0x15` and calls
+one of six callbacks. Their full gates are recorded in collision.md "The
+skill select-proc runner".
+
+For player skills the effects are: Corpse / Poison Explosion require a DD,
+non-hidden `corpseSel` corpse; Raise Skeleton / Skeletal Mage additionally
+require nonzero MonStats `Velocity`; Revive additionally requires a walking,
+SwitchAI, non-MonStats-boss class and no champion/unique/superunique bits.
+`client::corpse_cursor_takes` applies the stock row mapping and these gates to
+`near_pick`. Procs 4 and 6 also require MonStats2 `soft`; d2d's `MonType`
+does not retain that field, so that final gate remains unported.
+`tools/emu/skill_select_proc.py` runs the native runner and every callback on
+73 synthetic cases and catches four mutations.
+
 ## May the player interact with it (`FUN_00465c60`)
 
 - **In town** (`FUN_0061ab00` → `FUN_006426a0`: levels 1, 40, 75, 103,
