@@ -14,8 +14,8 @@
 #include "input/touch/glyph.hpp"
 #include "input/touch/icon.hpp"
 #include "input/touch/input.hpp"
-#include "input/touch/trade.hpp"
 #include "input/touch/potions.hpp"
+#include "input/touch/trade.hpp"
 #include "items/cursor.hpp"
 #include "items/item_use.hpp"
 #include "items/use_item.hpp"
@@ -628,12 +628,13 @@ bool ClientSession::touch_event(std::int64_t finger, touch::Phase phase, float x
             const bool can_buy = touch_stock.index(store) >= 0;
             touch_item_finger = -1;
             touch_hold.clear();
-            touch_sheet = touch::make_item_sheet(can_use && !can_sell, can_sell, can_buy);
+            touch_sheet = touch::make_item_sheet(can_use, can_sell, can_buy);
             if (!touch_sheet.open) {
                 close_item_track();
                 return true;
             }
-            touch_item_hint = can_sell || can_buy ? "Release on Buy / Sell" : "Tap an action, then Confirm";
+            touch_item_hint = can_use && can_sell ? "Use then Confirm, or release Sell"
+                : can_sell || can_buy ? "Release on Buy / Sell" : "Tap an action, then Confirm";
             return true;
         }
         if (phase == touch::Phase::Down && scene && identify_with >= 0 && !held) {
