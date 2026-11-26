@@ -500,10 +500,18 @@ auto World::tower_treasure(std::uint32_t now_ms) -> void {
 // (FUN_005de080) finds him out of mode 1 and puts him back in NU
 // (FUN_005a73e0), so he stands and the walk goes on from the spot noted
 // (tools/emu/quest_cain_first_think.py runs FUN_005a7c20 and both mode
-// starts for real: DD, then NU).
+// starts for real: DD, then NU). DD's start (0x5a7390) runs the death
+// steps (FUN_005a6520) with the request's direction byte +0x14, which
+// FUN_005a7e60 leaves 0 (only +0x15 is set, 100): path facing +0x64 and
+// +0x65 = 0 (FUN_006488a0), kept by NU (tools/emu/cain_death_start.py).
+// Its other steps act on records d2d's Cain doesn't carry: no aura
+// (unit +0xa4), leader or targeters (FUN_0058f6c0, FUN_005b1a90), and AI
+// events 2, 3 (FUN_005738d0), 8 and 9 dropped, event 2 set again by the
+// idle (cain_walk.next).
 // ponytail: the thinks' idles (1, 20 frames) stand in for the AI's own
-// tick (ai.cpp); mode 0xc's start (FUN_005a6520's death steps, timers 8
-// and 9 dropped) isn't made, nor anything that reads his life.
+// tick (ai.cpp); the death steps' unit flags (+0xc4), death states
+// (FUN_00639fb0) and corpse grid (FUN_00649f70(unit, 1)) aren't made,
+// nor anything that reads his life.
 auto World::cain_step(std::uint32_t now_ms, float /* elapsed: a step is a frame */) -> void {
         if (cain_walk.npc < 0 || level->id != d2d::rules::CainQuest::kTristram || std::size_t(cain_walk.npc) >= npc_states.size()) return;
         const auto& npc = level->npcs[std::size_t(cain_walk.npc)];
@@ -526,6 +534,7 @@ auto World::cain_step(std::uint32_t now_ms, float /* elapsed: a step is a frame 
             else {                                                                                      // the spot noted before stays
                 cain_walk.spot_x = cain.spot_x; cain_walk.spot_y = cain.spot_y;
                 cain_walk.lifeless = true;                                                              // FUN_00627260(unit, 6, 0, 0); DD, then NU (FUN_005de080)
+                face(unit, missile_direction(0, 16));                                                   // FUN_005a6520: the request's +0x14, 0 (FUN_005a7e60)
             }
             cain_walk.x = at_x + 3; cain_walk.y = at_y + 3;
             cain_walk.stage = 1;
