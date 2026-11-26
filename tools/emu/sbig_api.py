@@ -3,7 +3,7 @@
 
 Run: uv run python sbig_api.py [--exe /path/to/game.exe] [--mutation-check]
 
-# gaps-runs: FUN_00423790 FUN_004237b0 FUN_004237d0 FUN_00423800 FUN_00423870 FUN_004238b0 FUN_004238d0 FUN_004238f0 FUN_00423910 FUN_00423930 FUN_004239e0 FUN_00423a00 FUN_00423a20 FUN_00423a40 FUN_00423a60 FUN_00423a80 FUN_00423aa0 FUN_00423ac0 FUN_00423b80 FUN_00423c20 FUN_00423c60 FUN_00423d60
+# gaps-runs: FUN_00422780 FUN_00423790 FUN_004237b0 FUN_004237d0 FUN_00423800 FUN_00423870 FUN_004238b0 FUN_004238d0 FUN_004238f0 FUN_00423910 FUN_00423930 FUN_004239e0 FUN_00423a00 FUN_00423a20 FUN_00423a40 FUN_00423a60 FUN_00423a80 FUN_00423aa0 FUN_00423ac0 FUN_00423b80 FUN_00423c20 FUN_00423c60 FUN_00423d60
 
 Numbers are made and read through the cited SBigNew (FUN_00423950),
 SBigFromBinary (FUN_00423850) and SBigToBinaryBuffer (FUN_00423b30), with
@@ -44,6 +44,7 @@ def width(a):
 
 
 OPS = {   # address: (arguments, operation, {mutation: operation})
+    0x422780: ("test_esi", lambda a: int(a == 0), {"one_is_zero": lambda a: int(a <= 1), "always_one": lambda a: 1}),
     0x423790: ("ab", lambda a, b: a + b, {"add_plus_one": lambda a, b: a + b + 1, "add_xor": lambda a, b: a ^ b}),
     0x4237B0: ("ab", lambda a, b: a & b, {"and_or": lambda a, b: a | b}),
     0x4237D0: ("a", lambda a: a, {"copy_zero": lambda a: 0}),
@@ -94,9 +95,9 @@ class Rig:
         self.sizes[pointer] = size
         return pointer
 
-    def run(self, address, *args, popped):
+    def run(self, address, *args, popped, regs=None):
         machine = self.machine
-        result = machine.call(address, *args, limit=5_000_000)
+        result = machine.call(address, *args, limit=5_000_000, regs=regs)
         if machine.mu.reg_read(UC_X86_REG_EIP) != emu.RET_MAGIC:
             raise SystemExit(f"FUN_{address:08x} did not return within the budget")
         if machine.mu.reg_read(UC_X86_REG_ESP) != emu.STACK + emu.STACK_SIZE - 0x1000 + 4 * (popped - len(args)):
@@ -159,6 +160,8 @@ def compare(rig, seed, count, mutation=None, only=None):
                 got = int.from_bytes(rig.machine.read(rig.machine.r32(pointer), len(text) + 1), "little")
             elif kind == "test":
                 got, want = rig.run(address, ha, popped=1), operation(a)
+            elif kind == "test_esi":
+                got, want = rig.run(address, popped=0, regs={"esi": ha}), operation(a)
             else:
                 dest = rig.number(rng.choice((0, operand(rng))))
                 if kind in ("ab", "ab_ge"):

@@ -15,6 +15,7 @@ SRP or Warden big numbers, so no row has a counterpart.
 
 | Address | Name | Reading | d2d |
 |---|---|---|---|
+| `FUN_00422780` | `sbig_is_zero_fast` | `ESI` number (`RET 0`): normalizes (`FUN_00422140`), then 1 when the number is 0, else 0; the fastcall internal behind `sbig_is_zero` | no counterpart (as `sbig_pow_mod`) |
 | `FUN_00423790` | `sbig_add` | dst, a, b (`RET 0xc`): `ESI` = dst, then `FUN_00422300(a, b)`; dst = a + b | no counterpart (as `sbig_pow_mod`) |
 | `FUN_004237b0` | `sbig_and` | dst, a, b (`RET 0xc`): `ESI` = dst, then `FUN_00422440(a, b)`; dst = a AND b | no counterpart (as `sbig_pow_mod`) |
 | `FUN_004237d0` | `sbig_copy` | dst, src (`RET 8`): unless dst is src, the digits via `sbig_set_digits` (`FUN_004215c0`, src `+4`, `+8`); then `+0xc` and `+0x10` copied; dst = src | no counterpart (as `sbig_pow_mod`) |
