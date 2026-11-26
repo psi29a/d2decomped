@@ -13,6 +13,21 @@ namespace d2d::client::touch {
 inline constexpr Box kBindingPrevious{ 250, 396, 64, 64 };
 inline constexpr Box kBindingNext{ 330, 396, 64, 64 };
 
+inline int trigger_binding(const skillpad::Sheet& sheet, bool alternate, int fallback) { return sheet.trigger(alternate) == skillpad::kUnset ? fallback : sheet.trigger(alternate); }
+
+template <class Save>
+bool assign_binding(skillpad::Sheet& sheet, int slot, int skill, bool alternate, Save&& save) {
+    if (slot < 0 || slot > kAttackBind || skill == skillpad::kUnset) return false;
+    auto candidate = sheet;
+    if (slot == kAttackBind) {
+        if (alternate) candidate.alt_main = skill;
+        else candidate.main = skill;
+    } else candidate.set_slot(alternate, slot, skill);
+    if (!save(candidate)) return false;
+    sheet = candidate;
+    return true;
+}
+
 // Touch pages are fixed groups, independent of the controller wheel's sliding window.
 struct BindingPicker {
     int page = 0, selected = -1;

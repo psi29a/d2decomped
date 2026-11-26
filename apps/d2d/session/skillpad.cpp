@@ -9,9 +9,9 @@
 #include "input/touch/input.hpp"
 #include "skills/dispatch.hpp"
 #include "skills/pad.hpp"
+#include "skills/portal.hpp"
 #include "skills/tree.hpp"
 
-#include <d2s_items.hpp>
 #include <level_ids.hpp>
 #include <log.hpp>
 #include <skills.hpp>
@@ -511,14 +511,12 @@ auto ClientSession::portal_tome(std::string_view name, bool charged) const -> in
         for (const auto& candidate : world.players)
             if (candidate && candidate->character.name == name) { owner = &candidate->character; break; }
     if (!owner) return -1;
-    for (const auto& item : owner->items)
-        if (item.code == "tbk" && item.location == d2d::d2s::item_location::kStored && item.panel == 1 && (!charged || item.quantity > 0)) return item.id;
-    return -1;
+    return skillpad::portal_item_id(owner->items, charged);
 }
 
 /**
  * Check whether the named character can bind a skill in the modern controller/touch editor. Filter
- * unavailable, passive and excluded inventory-action entries. Portal entries require a carried tome,
+ * unavailable, passive and excluded inventory-action entries. Portal entries require a carried tome or loose scroll,
  * while ordinary skills require a learned or granted skill level.
  */
 auto ClientSession::skill_known(std::string_view name, int skill) const -> bool {

@@ -91,7 +91,7 @@ std::vector<pad::Candidate> touch_skill_foes(const View& view, const Scene& scen
 touch::Target ClientSession::resolve_skill(PadPlayer& player_pad, int skill, float dx, float dy, bool manual, const UnitState* owner, std::string_view owner_name, int sticky) const {
     touch::Target target;
     target.skill = skill;
-    if (skillpad::panel_index(skill) >= 0) { target.valid = true; return target; }
+    if (skillpad::binds_action(skill)) { target.valid = true; return target; }
     if (!scene) return target;
     if (!skill_known(owner_name.empty() ? std::string_view(character.name) : owner_name, skill)) return target;
     const auto* info = scene->skills.get(skill);

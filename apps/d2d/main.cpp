@@ -518,6 +518,7 @@ inline void pace_frame(std::uint64_t frame_start_ns, FrameBudget budget) {
 // Widescreen spare columns live outside that band; touch input and draw_touch
 // stay 800-wide, so insets are only within [0, 800].
 void apply_safe_inset(const Window& win) {
+    touch::viewport_width = float(std::max(win.view_w, int(kScreenWidth)));
 #if SDL_VERSION_ATLEAST(3, 2, 0)   // SDL_GetWindowSafeArea and SDL_RenderCoordinatesFromWindow: since 3.2.0
     SDL_Rect area{};
     float left = 0, top = 0, right = 0, bottom = 0;
@@ -531,23 +532,10 @@ void apply_safe_inset(const Window& win) {
         touch::safe_inset = {};
         return;
     }
-    const float band_left = (float(win.view_w) - float(kScreenWidth)) / 2.f;
-    const float band_right = band_left + float(kScreenWidth);
-    const float left_from_safe = std::max(0.f, left - band_left);
-    const float right_from_safe = std::max(0.f, band_right - right);
-#if defined(TARGET_OS_IPHONE) && TARGET_OS_IPHONE
-    // The landscape notch sits in the widescreen gutter, outside this band.
-    // A few points of sliver, plus the home indicator. Keep leftover left and right.
-    constexpr float kMaxHorizontal = 20.f;
-    constexpr float kMaxVertical = 36.f;
-#else
-    constexpr float kMaxHorizontal = 48.f;
-    constexpr float kMaxVertical = 48.f;
-#endif
-    auto clamp_h = [kMaxHorizontal](float value) { return std::clamp(value, 0.f, kMaxHorizontal); };
-    auto clamp_v = [kMaxVertical](float value) { return std::clamp(value, 0.f, kMaxVertical); };
-    touch::safe_inset.left = clamp_h(left_from_safe);
-    touch::safe_inset.right = clamp_h(right_from_safe);
+    const float max_horizontal = std::max(0.f, (touch::viewport_width - 400.f) * .5f);
+    touch::safe_inset.left = std::clamp(left, 0.f, max_horizontal);
+    touch::safe_inset.right = std::clamp(touch::viewport_width - right, 0.f, max_horizontal);
+    const auto clamp_v = [](float value) { return std::clamp(value, 0.f, 100.f); };
     touch::safe_inset.top = clamp_v(std::max(0.f, top));
     touch::safe_inset.bottom = clamp_v(std::max(0.f, float(kScreenHeight) - bottom));
 #else
@@ -961,14 +949,14 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
             // convert so the mouse lands in 800x600 game pixels.
             SDL_ConvertEventToRenderCoordinates(win.renderer, &event);
             // Widescreen: mouse x counts from the centre 800x600, where the UI is.
-            const float view_off = float(win.view_w - int(kScreenWidth)) / 2;
+            const float view_off = float((win.view_w - int(kScreenWidth)) / 2);
             if (event.type == SDL_EVENT_MOUSE_MOTION) {
                 event.motion.x -= view_off;
                 if (event.motion.xrel != 0 || event.motion.yrel != 0) roster_navigation = false;
             }
             else if (event.type == SDL_EVENT_MOUSE_BUTTON_DOWN || event.type == SDL_EVENT_MOUSE_BUTTON_UP) event.button.x -= view_off;
             else if (event.type == SDL_EVENT_MOUSE_WHEEL) event.wheel.mouse_x -= view_off;
-            if (event.type == SDL_EVENT_WINDOW_FOCUS_LOST && screen == Screen::InGame) { session.pad.teleport.clear(); session.loot_chooser.clear(); session.cancel_touch_item(); }
+            if (event.type == SDL_EVENT_WINDOW_FOCUS_LOST && screen == Screen::InGame) { session.pad.teleport.clear(); session.loot_chooser.clear(); session.touch_effect.cancel(); session.touch_get_hold.clear(); session.cancel_touch_item(); }
             if (session.touch_enabled && screen == Screen::InGame) {
                 if (event.type == SDL_EVENT_WINDOW_FOCUS_LOST) {
                     session.touch_cancel_skill_chase(); session.touch_stop_skill_chase(false);
@@ -987,19 +975,19 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                     const bool down = event.type == SDL_EVENT_MOUSE_BUTTON_DOWN;
                     if ((down && touch_last) || (!down && (touch_last || pointer_held))) {
                         const auto phase = down ? touch::Phase::Down : touch::Phase::Up;
-                        if (session.touch_event(-2, phase, event.button.x, event.button.y)) continue;
+                        if (session.touch_event(-2, phase, touch::to_viewport_x(event.button.x), event.button.y)) continue;
                     }
                 }
                 if ((touch_last || pointer_held) && event.type == SDL_EVENT_MOUSE_MOTION && (event.motion.state & SDL_BUTTON_LMASK))
-                    if (session.touch_event(-2, touch::Phase::Move, event.motion.x, event.motion.y)) continue;
+                    if (session.touch_event(-2, touch::Phase::Move, touch::to_viewport_x(event.motion.x), event.motion.y)) continue;
                 if (event.type == SDL_EVENT_FINGER_DOWN || event.type == SDL_EVENT_FINGER_UP ||
                     event.type == SDL_EVENT_FINGER_MOTION || event.type == SDL_EVENT_FINGER_CANCELED) {
                     session.last_device = touch::LastDevice::Touch;
                     const auto phase = event.type == SDL_EVENT_FINGER_DOWN ? touch::Phase::Down : event.type == SDL_EVENT_FINGER_UP ? touch::Phase::Up
                                      : event.type == SDL_EVENT_FINGER_MOTION ? touch::Phase::Move : touch::Phase::Cancel;
-                    const float touch_x = event.tfinger.x - view_off, touch_y = event.tfinger.y;
+                    const float touch_x = event.tfinger.x, touch_y = event.tfinger.y;
                     if (session.touch_event(std::int64_t(event.tfinger.fingerID), phase, touch_x, touch_y)) continue;
-                    mouse.x = int(touch_x); mouse.y = int(touch_y);
+                    mouse.x = int(touch::to_legacy_x(touch_x)); mouse.y = int(touch_y);
                     if (phase == touch::Phase::Down) { mouse.down = true; mouse.press_this_frame = true; }
                     if (phase == touch::Phase::Up) { mouse.down = false; mouse.release_this_frame = true; }
                     if (phase == touch::Phase::Cancel) mouse.down = false;
@@ -1064,7 +1052,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                                                                          : session.pad_field() ? pad::Context::Game : pad::Context::Panel)
                                            : screen == Screen::Title  ? pad::Context::Title : pad::Context::Menu;
             const auto pad_changes = gamepads.changes();
-            if (!pad_changes.went.empty()) { session.pad.teleport.clear(); session.loot_chooser.clear(); session.cancel_touch_item(); }
+            if (!pad_changes.went.empty()) { session.pad.teleport.clear(); session.loot_chooser.clear(); session.touch_effect.cancel(); session.touch_get_hold.clear(); session.cancel_touch_item(); }
             if (screen == Screen::InGame) {                      // hotplug, shown: a pad in or out mid-game (not the Deck's own controls: docked, they play no one)
                 for (const auto& pad : pad_changes.came) if (!pad.built_in) session.add_chat(pad.name + " connected");
                 for (const auto& pad : pad_changes.went) if (!pad.built_in) session.add_chat(pad.name + " disconnected");

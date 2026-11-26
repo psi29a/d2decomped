@@ -12,9 +12,11 @@
 #include "input/loot_chooser.hpp"
 #include "input/pad_hold.hpp"
 #include "input/teleport_aim.hpp"
+#include "input/touch/effects.hpp"
 #include "input/touch/gestures.hpp"
 #include "input/touch/input.hpp"
 #include "input/touch/trade.hpp"
+#include "input/touch/ui_sound.hpp"
 #include "items/item_use.hpp"
 #include "items/use_item.hpp"
 #include "netgame.hpp"
@@ -566,6 +568,13 @@ struct ClientSession {
     [[nodiscard]] bool touch_compact_field() const;
     void drive_touch_hold(float seconds);
     touch::Input touch_input;
+    touch::HoldGesture touch_get_hold;
+    bool touch_get_inside = false;
+    bool touch_show_loot_labels() const { return last_device == touch::LastDevice::Touch && (touch_get_hold.activated || (loot_chooser.open && loot_chooser.touch)); }
+    touch::EffectGesture touch_effect;
+    int touch_effect_level = -1;
+    bool touch_effect_event(std::int64_t finger, touch::Phase phase, float x, float y);
+    void draw_touch_effects(std::vector<std::uint8_t>& framebuffer);
     touch::SkillHold touch_skill_hold;
     TeleportAim touch_teleport;
     bool touch_stop_chase = false;
@@ -612,6 +621,9 @@ struct ClientSession {
     std::string touch_feedback;
     enum class TouchBindPhase { Off, PickSlot, PickSkill };
     TouchBindPhase touch_bind = TouchBindPhase::Off;
+    touch::UiClickThrottle touch_clicks;
+    void touch_play_ui_click(touch::UiClick action, int destination = 0);
+    std::vector<int> touch_bind_ids;
     int touch_bind_slot = -1;
     int touch_bind_wheel_at = 0;
     int touch_bind_wheel_page = 0;
@@ -621,7 +633,7 @@ struct ClientSession {
     void touch_rebuild_bind_wheel();
     void touch_open_bind();
     void touch_close_bind();
-    void touch_apply_bind(int slot, int skill);
+    bool touch_apply_bind(int slot, int skill);
     [[nodiscard]] int touch_bound_skill(int slot) const;
     [[nodiscard]] int touch_store_panel_x() const;
     bool touch_event(std::int64_t finger, touch::Phase phase, float x, float y);
@@ -636,7 +648,7 @@ struct ClientSession {
     void drive_touch();
     void draw_touch(std::vector<std::uint8_t>& framebuffer);
     void load_touch_sheet(const std::string& name);
-    void save_touch_sheet(const std::string& name) const;
+    bool save_touch_sheet(const std::string& name, const skillpad::Sheet& sheet) const;
     [[nodiscard]] touch::Target resolve_skill(PadPlayer& player_pad, int skill, float dx = 0, float dy = 0, bool manual = false, const UnitState* owner = nullptr, std::string_view owner_name = {}, int sticky = -1) const;
     void cast_resolved(PadPlayer& player_pad, const touch::Target& target);
     pad::Actions skill_actions;

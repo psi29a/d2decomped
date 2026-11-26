@@ -352,6 +352,7 @@ auto ClientSession::update(std::vector<std::uint8_t>& framebuffer, const Mouse& 
             // closes, else every Esc-closable panel at once (FUN_00456300;
             // not the automap or the mini-panel), else the menu opens.
             if (key == SDLK_ESCAPE) {
+                if (touch_effect.modal) { touch_effect.cancel(); continue; }
                 if (chat_typing) chat_typing.reset();                         // a chat line being typed first
                 else if (touch_bind != TouchBindPhase::Off) { touch_close_bind(); touch_input.clear(); }
                 else if (touch_assign != skillpad::kUnset) { touch_assign = skillpad::kUnset; tree_open = touch_assignment_from_tree; touch_assignment_from_tree = false; touch_input.clear(); }
