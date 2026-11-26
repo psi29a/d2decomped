@@ -3,11 +3,12 @@
 // A monster's unit event 3 under its states (FUN_005a6920, rules::regen_event):
 // tools/emu/pet_poison_town.py's frozen answers from game.exe (the life group
 // FUN_0063a750 taking the own stat 0x4a off, preventheal 0x34, and the room
-// test FUN_00620bb0 / FUN_0061ab00 sparing a unit under a point). Then, with
-// the MPQs (D2_MPQ_DIR), a poisoned skeleton under a point of life: in the
-// Rogue Encampment its poison takes nothing, in the Blood Moor it dies
-// (Fight::pets_turn -> pet_regen). Without the MPQs only that part SKIPs:
-// the game.exe cases have run, so the test passes (tests/README.md).
+// test FUN_00620bb0 / FUN_0061ab00 sparing a unit under a point). Then the
+// rule through Fight::pets_turn -> pet_regen on made-up data (TestData, no
+// MPQs): a pet poisoned under a point of life keeps it in town and dies
+// outside. Then, with the MPQs (D2_MPQ_DIR), the same with a real raised
+// skeleton. Without the MPQs only that last part SKIPs and the test passes
+// (tests/README.md).
 
 #include <ai/units.hpp>
 #include <character.hpp>
@@ -20,6 +21,7 @@
 #include <level_ids.hpp>
 #include <monsters.hpp>
 #include <rules.hpp>
+#include <test_data.hpp>
 #include <world.hpp>
 
 #include <algorithm>
@@ -60,6 +62,34 @@ int game_cases() {
         }
     }
     return bad;
+}
+
+// A pet on `pet_level` poisoned at half a point of life, the player on
+// `player_level`, for four frames of Fight::pets_turn: its life after (0 once
+// dead). Made-up data: the rule, not the game's numbers.
+int poisoned_pet(int player_level, int pet_level) {
+    d2d::test::TestData fixture;
+    fixture.monster(0, "pet");
+    Level player_on, pet_on;
+    player_on.id = player_level;
+    pet_on.id = pet_level;
+    World world(&fixture.data, -1, -1);
+    world.level = &player_on;
+    world.fight.mon_level = &player_on;
+    auto& pet = world.actor->pets.emplace_back();
+    pet.where = player_level == pet_level ? &player_on : &pet_on;
+    pet.idle = true;
+    pet.monster.type = 0;
+    pet.monster.hit_points = pet.monster.stats.hit_points = 50;
+    pet.monster.set_life_fine(128);
+    std::uint32_t now = 40000;
+    Foe poisoner{};
+    poisoner.poison = 40; poisoner.poison_ticks = 25;
+    world.fight.pet_poisoned(pet, poisoner, now);
+    const Crowd crowd;
+    for (int frame = 0; frame < 4; ++frame) world.fight.pets_turn(now += 40, 0.04f, crowd);
+    auto& pets = world.actor->pets;
+    return pets.empty() || !pets.front().monster.alive() ? 0 : pets.front().monster.life_fine();
 }
 
 // A raised skeleton poisoned at half a point of life on `level_id` for four frames: its life after.
@@ -104,6 +134,12 @@ int main() try {
     const int bad = game_cases();
     std::printf("%s: %zu FUN_005a6920 cases, %d differ\n", bad ? "FAIL" : "OK", std::size(kCases), bad);
     if (bad) return 1;
+    using d2d::rules::level_ids::kBloodMoor, d2d::rules::level_ids::kRogueEncampment;
+    const int rule_town = poisoned_pet(kRogueEncampment, kRogueEncampment);
+    const int rule_outside = poisoned_pet(kBloodMoor, kBloodMoor);
+    std::printf("made-up pet poisoned at 128/256: %d in town, %d in the Blood Moor\n", rule_town, rule_outside);
+    assert(rule_town == 128 && rule_outside == 0);
+    std::puts("OK: under a point, a pet's poison takes nothing in town and kills it outside (no game data)");
     const char* mpq_dir = std::getenv("D2_MPQ_DIR");
     if (!mpq_dir || !fs::exists(fs::path(mpq_dir) / "d2data.mpq")) { std::puts("SKIP: the skeleton cases need d2data.mpq (D2_MPQ_DIR)"); return 0; }
     const char* patch = std::getenv("D2_PATCH_INSTALLER");
@@ -112,7 +148,7 @@ int main() try {
     if (!data->patched) { std::puts("SKIP: the skeleton cases need the 1.14d data (D2_PATCH_INSTALLER)"); return 0; }
     const int in_town = poisoned_skeleton(*data, d2d::rules::level_ids::kRogueEncampment);
     const int outside = poisoned_skeleton(*data, d2d::rules::level_ids::kBloodMoor);
-    std::printf("poisoned at 128/256: %d in town, %d in the Blood Moor\n", in_town, outside);
+    std::printf("raised skeleton poisoned at 128/256: %d in town, %d in the Blood Moor\n", in_town, outside);
     assert(in_town == 128 && outside == 0);
     std::puts("OK: under a point, a pet's poison takes nothing in town (FUN_0061ab00) and kills it outside");
     return 0;
