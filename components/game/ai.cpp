@@ -2927,7 +2927,8 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     if (const auto back = d2d::rules::iron_maiden_fine(true, false, false, physical, monster.reflect_pct, 0, 0)) {
                         const int fine = d2d::rules::resisted_fine(*back, std::max(monster.target(game_data).res[0], -100));
                         const bool out_of_gh = monster.mode != "GH";
-                        if (hurt(game_data, monster, fine >> 8, now_ms, fine & 255, maiden->hit_class)) return true;
+                        // Its flags are the skill's ResultFlags | 0x20 (FUN_005c5f50).
+                        if (hurt(game_data, monster, fine >> 8, now_ms, fine & 255, maiden->hit_class, false, 0, record_gets_hit(maiden->result_flags | 0x20))) return true;
                         // The record is ResultFlags 0x4001 | 0x20 (0x4021, as Thorns'): FUN_0057cee0's 0x4000
                         // branch raises event 4 (FUN_005a43a0) whatever the damage, 0 included.
                         if (out_of_gh) monster.struck_event = true;
@@ -2936,9 +2937,9 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 const int thorns = foe.fighter.thorns + d2d::rules::resisted(foe.fighter.thorns_light, res[3]) + taken.damage * foe.fighter.thorns_pct / 100;
                 if (taken.hit && thorns > 0) {
                     // Thorns' record carries 0x4021 (FUN_005bf670): FUN_0057cee0 raises event 4
-                    // (FUN_005a43a0) for 0x4000, and hook 4 tests the mode it was struck in.
+                    // (FUN_005a43a0) for 0x4000, no get-hit roll, and hook 4 tests the mode it was struck in.
                     const bool out_of_gh = monster.mode != "GH";
-                    if (hurt(game_data, monster, thorns, now_ms)) return true;
+                    if (hurt(game_data, monster, thorns, now_ms, 0, 0, false, 0, record_gets_hit(0x4021))) return true;
                     if (out_of_gh) monster.struck_event = true;
                 }
             }
@@ -3381,7 +3382,7 @@ int soak(Monster& monster, int physical, int damage) {
 // its get-hit (rules::get_hit); a source without them (thorns, a blast) is class 0.
 // `crush` (256ths) is a Crushing Blow's share of the damage: the life it takes
 // is not in the record's total (+0x4c), which is the get-hit's size (FUN_0057cb00).
-bool hurt(const GameData& game_data, Monster& monster, int damage, std::uint32_t now_ms, int fraction, int hit_class, bool marked, int crush) {
+bool hurt(const GameData& game_data, Monster& monster, int damage, std::uint32_t now_ms, int fraction, int hit_class, bool marked, int crush, bool rolls_get_hit) {
     if (!monster.targetable() || (damage <= 0 && fraction <= 0 && !monster.lifeless)) return false;
     // This blow's own size in 256ths, for its get-hit, before the carried
     // part of a point joins it: the record's total (+0x4c), which a Crushing
@@ -3400,17 +3401,31 @@ bool hurt(const GameData& game_data, Monster& monster, int damage, std::uint32_t
     // max life by the blow's hit class, rolled on its own seed (unit +0x20), then
     // MonStats2's mGH (0x57cbda, after the rolls at 0x57cb95 / 0x57cbc0: one without
     // it still rolls); a stunned one (state 0x15) takes it without the roll (0057d0b9).
-    else if (now_ms < monster.stun_until
-             || (d2d::rules::get_hit(monster.max_life_fine(), blow_fine, hit_class, marked, monster.seed)
-                 && game_data.monsters.types[std::size_t(monster.type)].can_get_hit))
+    // A record without the get-hit bit (record_gets_hit) takes neither.
+    else if (rolls_get_hit
+             && (now_ms < monster.stun_until
+                 || (d2d::rules::get_hit(monster.max_life_fine(), blow_fine, hit_class, marked, monster.seed)
+                     && game_data.monsters.types[std::size_t(monster.type)].can_get_hit)))
         set_mode(game_data, monster, "GH", now_ms);
     return !monster.alive();
 }
 
-bool blow_hurt(const GameData& game_data, Monster& monster, const d2d::rules::Blow& blow, std::uint32_t now_ms) {
+// FUN_0057cee0's monster branch (not in mode 0 or 0xc, no state 0x36) tests
+// the record's flags (+4) in order: 2 (FUN_0057ccb0), 8 (a knockback, as 4
+// for a monster without KB: FUN_0046c140), 0x10, then 4: the get-hit roll
+// (FUN_0057cb00, skipped under a stun, state 0x15). A record with 0x4000 and
+// no 4 (Static Field's 0x4001 at 0x5c97d2, Thorns' 0x4021 from
+// FUN_005bf670) only refreshes the unit (FUN_0064c040, +0xc4 |= 0x8000) and
+// raises event 4 (FUN_005a43a0): no get-hit, stunned or not.
+bool record_gets_hit(int result_flags) {
+    return (result_flags & (2 | 8 | 0x10)) == 0 && (result_flags & 4) != 0;
+}
+
+// Fight::land's blow (FUN_0057c6c0's record): `rolls_get_hit` as hurt's.
+bool blow_hurt(const GameData& game_data, Monster& monster, const d2d::rules::Blow& blow, std::uint32_t now_ms, bool rolls_get_hit) {
     // Bone Armor's pool takes the record's fine physical (FUN_005c6370 on +8).
     const int taken = soak(monster, blow.phys_fine, (blow.damage << 8) + blow.frac);
-    return hurt(game_data, monster, taken >> 8, now_ms, taken & 255, blow.hit_class, blow.elemental || blow.deadly, blow.crush_fine);
+    return hurt(game_data, monster, taken >> 8, now_ms, taken & 255, blow.hit_class, blow.elemental || blow.deadly, blow.crush_fine, rolls_get_hit);
 }
 
 void heal(Monster& monster, int points) {

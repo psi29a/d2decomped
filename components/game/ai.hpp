@@ -307,9 +307,14 @@ int mode_end_event(const GameData& game_data, const Monster& monster, std::strin
 // notices.
 // `hit_class` and `marked` (an element or a doubled hit) are the blow's, for
 // `crush` (256ths) is a Crushing Blow's share of the damage: the life it takes
-bool hurt(const GameData& game_data, Monster& monster, int damage, std::uint32_t now_ms, int fraction = 0, int hit_class = 0, bool marked = false, int crush = 0);
+// `rolls_get_hit` false for a record whose ResultFlags lack the get-hit bit (record_gets_hit): no GH, stunned or not.
+bool hurt(const GameData& game_data, Monster& monster, int damage, std::uint32_t now_ms, int fraction = 0, int hit_class = 0, bool marked = false, int crush = 0,
+          bool rolls_get_hit = true);
+// Whether a damage record's ResultFlags (record +4) reach a monster's get-hit roll (FUN_0057cee0 -> FUN_0057cb00).
+bool record_gets_hit(int result_flags);
 // A landed player blow on a monster (Fight::land): Bone Armor's pool takes the physical, then `hurt`, the crush kept out of the get-hit's size.
-bool blow_hurt(const GameData& game_data, Monster& monster, const d2d::rules::Blow& blow, std::uint32_t now_ms);
+// `rolls_get_hit` as hurt's (Static Field's record, 0x4001, would pass false).
+bool blow_hurt(const GameData& game_data, Monster& monster, const d2d::rules::Blow& blow, std::uint32_t now_ms, bool rolls_get_hit = true);
 // Life back (FUN_0057a980): `points` whole points, capped at max life; a heal
 // the cap cuts leaves it at full life, no 256ths taken off.
 void heal(Monster& monster, int points);
