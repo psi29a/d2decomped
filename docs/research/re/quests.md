@@ -765,7 +765,7 @@ flag 1, 18 pass 0 (`FUN_00587b00`, `FUN_0058fdd0`, `FUN_00590980`,
 callback is tested after the call (`CMP AL, 1` at 0x5442af); that branch isn't read.
 
 d2d sends a quest's log as an event (`ev::QuestNews`) where its record's
-flag-1 sites are ported (`news`: act 1's six, a3q6, a4q2 .. a4q4, act 5's six); the client
+flag-1 sites are ported (`news`: act 1's six, act 2's five but a2q2, a3q6, a4q2 .. a4q4, act 5's six); the client
 doesn't also read a change in their View's log for a send
 (`rules::quest_log_sent_by_event`, `tests/test_quest_log_sends.cpp`). a1q5's
 sites, read in game.exe, all pass flag 1: the Moldy Tome's message heard
@@ -773,7 +773,7 @@ sites, read in game.exe, all pass flag 1: the Moldy Tome's message heard
 (`FUN_00595010`: into level 0x14 log 3 or 4, into 0x19 log 2) and the
 kill's timer (0x5954c0, state 5: log 0xd); the dead `FUN_00595160` isn't
 ported. Each goes to a player unless done (bit 0; bit 15 isn't read) without bit 13 / 14
-(`FUN_00594830`; `tools/emu/quest_log_sends.py`). Act 2, a3q1 .. a3q5 and a4q1 are still a change in the View's log state (none
+(`FUN_00594830`; `tools/emu/quest_log_sends.py`). a2q2, a3q1 .. a3q5 and a4q1 are still a change in the View's log state (none
 for a repeat or a flag-0 move that changes it, none at a game's first View).
 
 Act 1's other records' `FUN_00544300` calls, read at each call site in game.exe (the flag is
@@ -819,7 +819,45 @@ call-site order:
 | 0x596ff6 | a1q4 | 5 | 1 | into Lut Gholein before the rescue (`FUN_00596de0`) | `CainQuest::rogues` |
 | 0x5973c4 | a1q4 | 5 | 1 | the same from `FUN_00597310` | `CainQuest::rogues` |
 
-d2d takes a record's `news` at the end of the World's tick (`World::act1_update`), so the
+Act 2's `FUN_00544300` calls, read the same way (a linear sweep of 0x5985b0 .. 0x59f940 for
+`call 0x544300` finds these 24; `tests/test_quest_log_sends_act2.cpp`). Each record's callback (a2q1
+`FUN_005988b0`, a2q3 `FUN_00599f50`, a2q4 `FUN_0059ad50`, a2q5 `FUN_0059bcb0`, a2q6 `FUN_0059c650`) sends
+to a player unless done or closed (bit 0 or 15) without bit 13 / 14, as act 1's do; it hands
+`FUN_00544190` the record id (the word less one). a2q2 (record 9, quest 10) has no `FUN_00544300` call:
+its log is its own (+0xe8 `FUN_0059e630`), sent straight to the one player by `FUN_00544190(9)` from the
+item pickup (`FUN_00599a30`, `FUN_00599570`), which d2d still reads from the View's change. In call-site
+order:
+
+| call site | record | log | flag | when | d2d |
+|---|---|---|---|---|---|
+| 0x5989bc | a2q1 | 1 | 1 | Atma's talk closes after 304 (`LAB_00598990`, data +8) | `RadamentQuest::talk_closed` |
+| 0x598b42 | a2q1 | 0xd | 1 | Atma's 334 with bits 1 and 13, state not 5 (`FUN_00598a70`) | `RadamentQuest::said` |
+| 0x598f8e | a2q1 | 3 | 1 | the kill's 12-tick timer, state 4 (`LAB_00598f70`) | `RadamentQuest::tick` |
+| 0x5994c1 | a2q1 | 2 | 1 the first time (data +9), then 0 | Radament thinks in Sewers 3 under state 3 or log 2 (`FUN_00599420`, from `FUN_005f2b10`) | not ported (d2d's Radament think calls no quest hook) |
+| 0x59a364 | a2q3 | 1 | 1 | the sun goes out (`FUN_0059a350`): its timer (`LAB_0059ed80`), the altar's room, the join, into town with it pending | `TaintedSunQuest::tick`, `TaintedSunQuest::altar_seen`; the join's (`FUN_0059a5d0` -> `FUN_0059a570`) not ported (whether the joining player is on the list then isn't traced); the pending one (data +3, the act not loaded, `FUN_0059ee00`) d2d doesn't hold |
+| 0x59a455 | a2q3 | 2 | 1 | the altar's room comes up at log 0 (`FUN_0059a3f0`) | `TaintedSunQuest::altar_seen` |
+| 0x59a71e | a2q3 | 3 | 1 | the altar's 10-tick timer, state 4 (`LAB_0059a700`) | `TaintedSunQuest::tick` |
+| 0x59ae8e | a2q4 | 2 | 1 | Drognan's talk closes after 373 (`LAB_0059ae60`, data +4) | `ArcaneQuest::talk_closed` |
+| 0x59b07f | a2q4 | 5 | 0 | the journal's 396, open, under log 5 (`FUN_0059af50`) | `ArcaneQuest::said` |
+| 0x59b199 | a2q4 | 3 | 1 | Jerhyn's 377 (`FUN_0059af50`) | `ArcaneQuest::said` |
+| 0x59b6b0 | a2q4 | 1 | 1 | the staff made, open, log 0 (`FUN_0059b660`) | `ArcaneQuest::staff_made` |
+| 0x59be04 | a2q5 | 0xd | 1 | the thanks (419..429) with bits 1 and 13 (`FUN_0059bd70`) | `SummonerQuest::said` |
+| 0x59c006 | a2q5 | 4 | 1 | the death's timer's second run (`LAB_0059bfd0`) | `SummonerQuest::tick` |
+| 0x59c389 | a2q5 | 2 | 1 | his first think, under log 2 (`FUN_0059c330`) | `SummonerQuest::engaged` |
+| 0x59c798 | a2q6 | 4 | 1 | Tyrael's talk closes after 302 (`LAB_0059c760`, data +9) | `SevenTombsQuest::talk_closed` |
+| 0x59c7c4 | a2q6 | 1 | 1 | Jerhyn's talk closes after 430 (data +8) | `SevenTombsQuest::talk_closed` |
+| 0x59c7e2 | a2q6 | 6 | 1 | Jerhyn's talk closes after 442 (data +0xa) | `SevenTombsQuest::talk_closed` |
+| 0x59cdfc | a2q6 | 0xd | 1 | Meshif's 450 with bits 4 and 13 (`FUN_0059cb20`) | `SevenTombsQuest::said` |
+| 0x59cf07 | a2q6 | 3 | 1 | Duriel's 8-tick timer, log not 3..5 (`LAB_0059cee0`) | `SevenTombsQuest::tick` |
+| 0x59d299 | a2q6 | 1 | 1 | into the Canyon at log 0, Duriel alive (`FUN_0059d1c0`) | `SevenTombsQuest::enter` |
+| 0x59d2e1 | a2q6 | 2 | 0 | into the true tomb or the Lair at log 0 or 1 | `SevenTombsQuest::enter` |
+| 0x59ec56 | a2q3 | 0xd | 0 | the thanks (362..372) with bit 13, open, state not 5 (`LAB_0059ebe0`) | `TaintedSunQuest::said` |
+| 0x59ecd4 | a2q3 | 2 | 0 | Drognan's 348 at log 1 | `TaintedSunQuest::said` |
+| 0x59f110 | a2q4 | 4 | 1 | into the Sanctuary under log 4 (`FUN_0059f0c0`) | `ArcaneQuest::enter` |
+
+Unlike act 1's, act 2's rewards (a2q1's, a2q5's and a2q6's log 0xd) are flag 1; a2q3's is flag 0.
+
+d2d takes a record's `news` at the end of the World's tick (`World::act1_update`, `World::act2_update`), so the
 callback reads each player's bits then, not at the call (the Gibbet's credit passes,
 `FUN_00593130` / `LAB_005931c0`, come before `FUN_00593290`'s send in game.exe as in d2d;
 a bit set between a call and the tick's end elsewhere is not traced).

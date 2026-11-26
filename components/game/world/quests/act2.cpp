@@ -19,6 +19,7 @@
 #include <outdoor_data.hpp>
 #include <quests.hpp>
 #include <rules.hpp>
+#include <utility>
 #include <vector>
 
 namespace d2d::game {
@@ -178,8 +179,10 @@ auto World::act2_kill(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
         }
     }
 
+// The Summoner's first think opens his record; then a log moved with flag 1 (FUN_00544300) is sent
+// (S->C 0x5d) to each player its record's callback passes (rules::quest_log_goes_to: FUN_005988b0,
+// FUN_00599f50, FUN_0059ad50, FUN_0059bcb0, FUN_0059c650), for act 2's records but a2q2's.
 auto World::act2_update() -> void {
-        // The Summoner goes for the player (FUN_005f85c0's first think -> FUN_0059c330).
         // His first think (FUN_005f85c0: AI control +0x14 0 -> 1) opens it (FUN_0059c330).
         if (!summoner.started && !hosted_quests && level->id == d2d::rules::SummonerQuest::kSanctuary)
             for (const auto& monster : fight.monsters)
@@ -188,6 +191,16 @@ auto World::act2_update() -> void {
                     each_player([&](Player&) { summoner.mark(quests()); });   // every player's bit 2 (FUN_0059c330's mark)
                     break;
                 }
+        const std::pair<int, bool*> records[] = { { d2d::rules::RadamentQuest::kQuest, &radament.news }, { d2d::rules::TaintedSunQuest::kQuest, &tainted.news },
+                                                  { d2d::rules::ArcaneQuest::kQuest, &arcane.news }, { d2d::rules::SummonerQuest::kQuest, &summoner.news },
+                                                  { d2d::rules::SevenTombsQuest::kQuest, &tombs.news } };
+        for (const auto& [quest, news] : records) {
+            if (!std::exchange(*news, false)) continue;
+            for (auto& player : players) {
+                const auto difficulty = std::size_t(std::clamp(player->character.header.active_difficulty(), 0, 2));
+                if (d2d::rules::quest_log_goes_to(player->character.header.quests[difficulty], quest)) player->events.push_back(ev::QuestNews{ quest });
+            }
+        }
     }
 
 }  // namespace d2d::game

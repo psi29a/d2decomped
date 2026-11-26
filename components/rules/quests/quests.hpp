@@ -286,6 +286,7 @@ struct RadamentQuest {
     bool pending = false;          // data+8: Atma spoke, the log waits for the talk to close
     quest::Players rewarded;         // in the +0x1c list
     bool reward_closed = false;    // data+0x10: joined closed with the reward due
+    bool news = false;             // the log sent to each player (FUN_00544300 flag 1, FUN_005988b0) since the World last took it
 
     // A player's bits for the state (LAB_005989e0).
     void mark(QuestBits& quest_bits) const {
@@ -296,9 +297,9 @@ struct RadamentQuest {
     // The player joins.
     void join(QuestBits& quest_bits, QuestBits& game_bits, bool has_book);
     [[nodiscard]] int log_state(const QuestBits& quest_bits) const { return quest_log(quest_bits, kQuest, state, log, 4); }
-    // A quest-clock step (QuestClock).
+    // A quest-clock step (QuestClock): the kill's timer (LAB_00598f70) sends log 3 (flag 1).
     void tick() {
-        if (log_in > 0 && --log_in == 0 && state == 4) log = 3;
+        if (log_in > 0 && --log_in == 0 && state == 4) { log = 3; news = true; }
     }
     // What `npc` says (FUN_00598c40): blocks at 0x739218 by the state
     // (0x7398fc: -1, 0, 1, 2, 3, 4); kind 2 a topic, else greets.
@@ -403,6 +404,7 @@ struct ArcaneQuest {
     bool pending = false;      // data+4: Drognan spoke, the log waits for the talk to close
     int journal_room = -1;     // data+8: the journal's room (the Sanctuary's)
     bool portal_made = false;  // data+0x16
+    bool news = false;         // the log sent to each player (FUN_00544300 flag 1, FUN_0059ad50) since the World last took it
     quest::Players rewarded;
 
     // A player's bits for the state (LAB_0059adb0).
@@ -487,6 +489,7 @@ struct SummonerQuest {
     bool started = false;      // data+1
     int log_in = 0;            // data+8: the death's 3-tick timer (LAB_0059bfd0), in quest steps
     bool voiced = false;       // data+9: its first run, the voice, done; the next sets the log
+    bool news = false;         // the log sent to each player (FUN_00544300 flag 1, FUN_0059bcb0) since the World last took it
     quest::Players rewarded;
     void mark(QuestBits& quest_bits) const {   // LAB_0059bd10
         if (!quest::bit(quest_bits, kQuest, 0) && !quest::bit(quest_bits, kQuest, 1) && state == 1) quest::set(quest_bits, kQuest, 2);
@@ -552,6 +555,7 @@ struct SevenTombsQuest {
     bool timer_started = false;   // data+3
     int open_in = -1;          // the orifice's timer (FUN_0059d870)
     int log_in = 0;            // Duriel's death's 8-tick timer (LAB_0059cee0), in quest steps
+    bool news = false;         // the log sent to each player (FUN_00544300 flag 1, FUN_0059c650) since the World last took it
     quest::Players rewarded;
     void mark(QuestBits& quest_bits) const {    // FUN_0059c6c0
         if (!quest::bit(quest_bits, kQuest, 0) && state > 1) quest::set(quest_bits, kQuest, 2);
@@ -619,6 +623,7 @@ struct TaintedSunQuest {
     bool dark = false;  // data+2: the sun's out (FUN_0061c450 .. FUN_0061c4d0)
     bool used = false;  // data+4: the altar's been used (data+8 its mode 2)
     int log_in = 0;     // the altar's timer (10 ticks, LAB_0059a700): log 3; in quest steps
+    bool news = false;  // the log sent to each player (FUN_00544300 flag 1, FUN_00599f50) since the World last took it
     quest::Players rewarded;
 
     // A player's bits for the state (LAB_0059a4f0).
@@ -629,7 +634,8 @@ struct TaintedSunQuest {
         if (state == 3) quest::set(quest_bits, kQuest, 4);
     }
     // The sun goes out (FUN_0059a350): log 1, given out, the act's sky
-    // dark (each player gets S->C 0x53 {5, 0, 1}, FUN_0059a100).
+    // dark (each player gets S->C 0x53 {5, 0, 1}, FUN_0059a100). Its log 1
+    // is flag 1 (0x59a364): the callers raise news, but for the join's.
     void darken() {
         log = 1;
         if (state == 0) state = 1;
@@ -1057,12 +1063,14 @@ inline constexpr std::array<std::array<std::uint16_t, 29>, 27> kQuestLogRecords 
 } };
 // Whether the World sends a quest's log state itself, at its record's own FUN_00544300 flag-1 sites (each one
 // FUN_00544190 -> S->C 0x5d, ev::QuestNews), so the client doesn't read a change in the View's log for one.
-// Those are act 1's 1 .. 6, a3q6 (0x16: GuardianQuest), a4q2 .. a4q4 (0x19 Izual, 0x1a Terror's End, 0x1b Hellforge) and act 5's
-// 0x23 .. 0x28. The others (act 2, a3q1 .. a3q5, a4q1's 0x18) keep the View's change for their sends.
+// Those are act 1's 1 .. 6, act 2's 9 and 11 .. 14 (not a2q2's 10: it has no FUN_00544300 site), a3q6 (0x16: GuardianQuest),
+// a4q2 .. a4q4 (0x19 Izual, 0x1a Terror's End, 0x1b Hellforge) and act 5's 0x23 .. 0x28. The others (a2q2, a3q1 .. a3q5,
+// a4q1's 0x18) keep the View's change for their sends.
 [[nodiscard]] constexpr bool quest_log_sent_by_event(int quest) {
-    return (quest >= 0x1 && quest <= 0x6) || quest == 0x16 || (quest >= 0x19 && quest <= 0x1b) || (quest >= 0x23 && quest <= 0x28);
+    return (quest >= 0x1 && quest <= 0x6) || quest == 0x9 || (quest >= 0xb && quest <= 0xe) || quest == 0x16 || (quest >= 0x19 && quest <= 0x1b)
+        || (quest >= 0x23 && quest <= 0x28);
 }
-// Whether an act 1 record's log send (FUN_00544300 flag 1) reaches a player, by their bits: the record's per-player callback.
+// Whether an act 1 or act 2 record's log send (FUN_00544300 flag 1) reaches a player, by their bits: the record's per-player callback.
 [[nodiscard]] bool quest_log_goes_to(const QuestBits& quest_bits, int quest);
 // `state` is what the picker keeps as the quest's last shown state
 // (0x7bf380, -1 left as it was); `marks` when a change of it is news (+0x263:
