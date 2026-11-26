@@ -84,6 +84,25 @@ int main() try {
     assert(camp.room_seeds[first].low == rolled.low && camp.room_seeds[first].high == rolled.high);
     assert(first_seed.low == expected[first]);           // laying more rooms never changes an earlier room's seed
     std::printf("OK: camp room %zu, up after room %zu, takes the seed it comes up with\n", later, first);
+
+    // A room retired leaves `order` (age_live_room); one coming up after that takes the seed it
+    // comes up with, laid without the retired room (its tiles freed, FUN_0061a910).
+    std::optional<std::pair<std::size_t, std::size_t>> retired;   // a room whose seed alone differs from after the other
+    for (std::size_t gone = 0; gone < count && !retired; ++gone) {
+        const auto with_gone = seeds_for(*data, { gone });
+        for (std::size_t next = 0; next < count && !retired; ++next)
+            if (next != gone && seeds_for(*data, { next })[next] != with_gone[next]) retired = { gone, next };
+    }
+    assert(retired);
+    const auto [gone, next] = *retired;
+    Spawning::LevelState again;
+    again.order = { gone };
+    keep(*data, again);
+    std::erase(again.order, gone);                         // retired
+    again.order.push_back(next);                          // then another room comes up
+    keep(*data, again);
+    assert(again.room_seeds[next].low == seeds_for(*data, { next })[next]);
+    std::printf("OK: camp room %zu, up after room %zu was retired, takes the seed it comes up with\n", next, gone);
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_camp_seeds_later: %s\n", error.what());

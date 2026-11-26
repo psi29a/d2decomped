@@ -64,7 +64,7 @@ struct Spawning {
         std::shared_ptr<ObjectRooms> objects;
         std::vector<GroupRoom> group_rooms;
         std::vector<d2d::rules::Rng> room_seeds;
-        std::size_t seeds_up = 0;                          // the camp's (keep_camp_seeds): how many of `order` its seeds were laid with
+        std::vector<bool> seeds_laid;                      // the camp's (keep_camp_seeds): by room index, its seed laid as it came up
         // A room's room1 seed stepped before it populated: a water monster's
         // party searching the room its leader stands in (FUN_005b2700).
         std::vector<std::optional<d2d::rules::Rng>> early_seeds;

@@ -101,7 +101,9 @@ rooms came up in (a shared edge's re-pick rolls on the later room's seed). Check
 reverse and shuffled order against `drlg-dump ... 1 <dir> camp`). A room's seed
 depends only on the rooms laid before it, so `keep_camp_seeds` lays the camp
 again whenever more rooms are up and gives only the rooms new to `order` their
-seed; a room already up keeps its stream (`test_camp_seeds_later`). Not done:
+seed; a room already up keeps its stream (`test_camp_seeds_later`). It keeps
+which rooms it laid by index (`seeds_laid`): a retired room leaves `order`
+(`age_live_room`), and a room up after that is laid without it. Not done:
 the client's critters (apps/d2d/session/ambient.cpp) still use the DRLG room's
 seed.
 
