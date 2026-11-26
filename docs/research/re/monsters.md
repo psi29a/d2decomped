@@ -825,6 +825,21 @@ another. d2d: room_tiles.hpp `logic_areas` / `merge_areas`,
 `game::area_id_at`; `tools/emu/area_ids.py` calls FUN_0061b130 at every
 tile as each room populates.
 
+**Across a level's edge** a monster walks on, as from room to room. A step
+(FUN_00554ca0, from the mode actions: FUN_005a7670 the ordinary one,
+FUN_005a8670 a sequence's) moves the path (FUN_00650840, flag 0x400);
+when the path's room changed (FUN_00620f50), FUN_00554670 takes the new
+room from FUN_005545c0: the path's next room (+0x20, FUN_00648aa0) if it
+is one of the act's rooms (the list at game +0xbc + act * 4, next +0x7c),
+else none (FUN_00648ab0 clears it). Nothing compares levels. FUN_00554670
+then clears a monster's spawn area (monster data +0x50) and tells the
+clients of the old room and of the new one (room +0x48 list, +0x78
+count). d2d runs one level's monsters at a time, so
+`Fight::monsters_cross` (World::cross_level, before `Fight::enter`)
+brings the level's monsters near the player into the next level's list,
+moved by the levels' offset. Not traced: what FUN_00648aa0's next room is
+set from (D2Common's path step).
+
 ## Act 4's population (2026-10-16)
 
 - **The knights' variant** (FUN_00573cb0, after the look, before the life
