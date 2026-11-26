@@ -1220,9 +1220,11 @@ auto Fight::corpse_blast(const d2d::rules::Skill& skill, int lvl, std::size_t co
 
 // Static Field's walk takes its aurafilter (0x8783) from the
 // caster: a clear line (0x200), out of town.
-// ponytail: Static Field hits only monsters (0x8783's 0x1 takes an
-// enemy player: FUN_0056b3e0 type 0) and the knockback guards aren't
-// applied.
+// Its record's result flags are 0x4001 (0x5c97d2): no knockback (8) and no
+// get-hit (4); FUN_0057cee0's monster branch takes 0x4000 to event 4 alone.
+// ponytail: Static Field hits only monsters (0x8783's 0x1 takes an enemy
+// player, FUN_0056b3e0 type 0: no player strikes another in d2d), and land's
+// blow_hurt -> hurt (ai.cpp) still rolls a get-hit (rules::get_hit) on it.
 auto Fight::spot_skill(const d2d::rules::Skill& skill) -> bool {
         return std::ranges::contains(std::array{ ServerDoFunction::kPsychicHammer, ServerDoFunction::kMindBlast, ServerDoFunction::kStaticField, ServerDoFunction::kCorpseExplosion,
             ServerDoFunction::kPoisonExplosion, ServerDoFunction::kTeleport, ServerDoFunction::kCurse, ServerDoFunction::kStateAroundCaster,

@@ -1782,7 +1782,13 @@ repeat skill.
   FUN_005c96a0, Static Field): calc1 % of life within aurarange; its walk
   (FUN_0056b7e0 from 0x005c98dd: the caster in EDX, x = y = 0) takes
   Skills.txt +0x50 (0x8783), so a monster behind a wall (0x200, mask 4)
-  or in town isn't struck (`Fight::spot`, `filter_takes`). **55**
+  or in town isn't struck (`Fight::spot`, `filter_takes`). The record it
+  hands FUN_0057c6c0 / FUN_0057cee0 has result flags 0x4001 (0x5c97d2;
+  hit class +0x60 |= 0xd at 0x5c97be, +0x64 = 1): no knockback (8) and no
+  get-hit (4), so a monster goes through FUN_0057cee0's 0x4000 path
+  (FUN_0064c040, unit flag 0x8000, FUN_005734c0, event 4 FUN_005a43a0) and
+  never into GH or KB; d2d's `hurt` still rolls a get-hit (strike.cpp's
+  ponytail). **55**
   (FUN_005c4df0, Corpse Explosion): the corpse's average life at its level
   ((min + max) << 7 of FUN_006538a0's range) x calc1..calc2 %, each through
   FUN_00483360 with the % as the value and the life as the times
