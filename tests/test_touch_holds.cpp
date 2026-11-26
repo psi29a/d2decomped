@@ -135,6 +135,21 @@ int main() try {
     input.event(7, touch::Phase::Up, -1, y, {}, false, false, 6400);
     assert(input.casts.empty());
     assert(input.feedback.sample(0, 6400).kind == touch::FeedbackKind::Cancelled);
+    // A second finger's modal can consume the Get finger's release.
+    // Clear both pending and already-activated pickup holds.
+    for (const bool activated : { false, true }) {
+        input.clear();
+        input.event(7, touch::Phase::Down, x, y, spell, false, false, 7000);
+        skill.begin(7, 7000, -1, 0.f, 0.f, true);
+        hold.begin(8, 7000);
+        if (activated) assert(hold.update(7300));
+        touch::cancel_modal_gestures(false, input, hold, skill);
+        assert(hold.finger == 8 && hold.activated == activated && input.aiming);
+        touch::cancel_modal_gestures(true, input, hold, skill);
+        assert(hold.finger == -1 && !hold.activated && !hold.update(8000));
+        assert(!input.aiming && !input.move_held() && input.casts.empty());
+        assert(skill.finger == -1);
+    }
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_touch_holds: %s\n", error.what());

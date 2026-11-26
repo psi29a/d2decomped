@@ -4,6 +4,7 @@
 
 #include "common.hpp"
 #include "input/touch/effects.hpp"
+#include "input/touch/gestures.hpp"
 #include "input/touch/icon.hpp"
 #include "scene.hpp"
 #include "wear.hpp"
@@ -23,7 +24,8 @@ bool ClientSession::touch_effect_event(std::int64_t finger, touch::Phase phase, 
     if (result.dismiss) send(cmd::DismissEffect{ result.dismiss->kind, result.dismiss->instance });
     if (touch_effect.modal) {
         touch_cancel_skill_chase(); touch_stop_skill_chase(false);
-        touch_input.clear(); touch_skill_hold.clear();
+        touch::cancel_modal_gestures(true, touch_input, touch_get_hold, touch_skill_hold);
+        touch_get_inside = false;
     }
     return result.consumed;
 }

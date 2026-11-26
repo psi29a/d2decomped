@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // test-links: game
 // test-includes: apps/d2d
-// test-sources: apps/d2d/input/touch/effects.cpp
+// test-sources: apps/d2d/input/touch/effects.cpp apps/d2d/input/touch/gestures.cpp
 #include "input/touch/effects.hpp"
+#include "input/touch/gestures.hpp"
 #include "input/touch/input.hpp"
 #include "world.hpp"
 
@@ -50,6 +51,16 @@ int main() try {
     gesture.event(2, Phase::Move, 799, 1, layout, effects, 1860);
     assert(!gesture.event(2, Phase::Up, confirm.x + 10, confirm.y + 10, layout, effects, 1870).dismiss);
     gesture.cancel(); assert(!gesture.modal && gesture.finger == -1);
+    tap(1900); tap(2000); assert(gesture.modal);
+    HoldGesture pickup;
+    SkillHold skill;
+    Input input;
+    pickup.begin(8, 1900);
+    // The modal consumes the Get release before field routing sees it.
+    assert(gesture.event(8, Phase::Up, 600, 500, layout, effects, 2050).consumed);
+    cancel_modal_gestures(gesture.modal, input, pickup, skill);
+    gesture.cancel();
+    assert(!pickup.update(2400) && !pickup.activated && pickup.finger == -1);
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "%s\n", error.what());

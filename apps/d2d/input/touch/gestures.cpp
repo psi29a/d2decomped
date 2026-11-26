@@ -57,4 +57,11 @@ bool SkillHold::dispatch(std::uint32_t now, bool ready, std::uint32_t interval) 
     return true;
 }
 
+void cancel_modal_gestures(bool modal, Input& input, HoldGesture& pickup, SkillHold& skill) {
+    if (!modal) return;
+    input.clear();
+    pickup.clear();
+    skill.clear();
+}
+
 } // namespace d2d::client::touch

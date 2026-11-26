@@ -1058,6 +1058,8 @@ void ClientSession::drive_touch() {
         touch_skill_hold.clear(); touch_teleport.clear();
         const Send stop = [this](const Command& command) { send(command); };
         pad_walk(touch_player, view.player, view.dead, false, stop);
+        touch::cancel_modal_gestures(touch_effect.modal, touch_input, touch_get_hold, touch_skill_hold);
+        if (touch_effect.modal) touch_get_inside = false;
         touch_input.clear();
         if (touch_sheet.belt_index >= 0) touch_sheet = {};
         return;
