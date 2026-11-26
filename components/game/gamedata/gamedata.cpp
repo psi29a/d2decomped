@@ -1306,6 +1306,16 @@ static void seed_made(std::vector<d2d::drlg::Outdoor::RoomSeed>& made, const std
             if (found.x == room.x && found.y == room.y) room.seed = found.seed, room.seed_high = found.seed_high;
 }
 
+// A preset level's DRLG rooms (generate_preset on the map seed): the room seeds (by position, seed_made)
+// its tile picks roll on, game.exe's room +0x14 for the walk (FUN_0066d820 on {room +4, 666}).
+static std::vector<d2d::drlg::Outdoor::RoomSeed> preset_generated(const GameData& game_data, const d2d::drlg::OutdoorAssets& assets, int level_id) {
+    const auto row = d2d::drlg::level_row(assets.levels, level_id);
+    if (!row) return {};
+    std::vector<std::string> notes;
+    return d2d::drlg::generate_preset(assets.data, level_id, d2d::drlg::to_int(assets.levels.get(*row, "SizeX")),
+                                      d2d::drlg::to_int(assets.levels.get(*row, "SizeY")), d2d::drlg::level_seed(game_data.map_seed, level_id), notes);
+}
+
 // The DT1s a preset level's rooms pick from (FUN_0066d820); none for the miniature towns.
 static d2d::drlg::RoomDt1s preset_dt1s(const GameData& game_data, const Level& level) {
     const auto found = game_data.layouts.prest_automap_dt1s.find(level.id);
@@ -1315,12 +1325,13 @@ static d2d::drlg::RoomDt1s preset_dt1s(const GameData& game_data, const Level& l
 // The camp's split (room_rects, made order) laid as camp_rooms lays it for
 // the level next door, here in the preset level's own tiles. Every word the
 // walk takes gets a tile, as game.exe's: FUN_0066e620 adds whatever
-// FUN_0066d820 picks, (10, 0, 0) when the word has none.
-// ponytail: the picks roll on seed 0, not the rooms' DRLG seeds (seed_made),
-// so a key with several rarities may take another tile than game.exe's.
+// FUN_0066d820 picks, (10, 0, 0) when the word has none. The picks roll on
+// each room's DRLG seed (preset_generated), so a key with several rarities
+// takes game.exe's tile, as lay_camp_picks draws the camp (list order).
 std::vector<d2d::drlg::BuiltRoom> preset_rooms(const GameData& game_data, const Level& level, const d2d::drlg::OutdoorAssets& assets) {
     auto made = preset_made(game_data, level, assets);
     if (made.empty()) return {};
+    seed_made(made, preset_generated(game_data, assets, level.id));
     std::vector<std::string> notes;
     auto rooms = d2d::drlg::level_room_tiles(made, {}, assets.data, preset_dt1s(game_data, level), level.id, d2d::drlg::warp_slots(assets, level.id), notes);
     std::ranges::reverse(rooms);                          // the list is newest first: split order
@@ -1542,14 +1553,9 @@ std::optional<std::vector<d2d::drlg::Outdoor::RoomSeed>> camp_room_seeds(const G
                                       d2d::drlg::to_int(assets.levels.get(*row, "SizeY")), d2d::drlg::level_seed(game_data.map_seed, d2d::rules::level_ids::kRogueEncampment), notes);
 }
 
-// The camp's DRLG rooms (generate_preset on the map seed): the room seeds its tile picks roll on.
+// The camp's DRLG rooms (preset_generated): the room seeds its tile picks roll on.
 static std::vector<d2d::drlg::Outdoor::RoomSeed> camp_generated(const GameData& game_data, const d2d::drlg::OutdoorAssets& assets) {
-    const auto row = d2d::drlg::level_row(assets.levels, d2d::rules::level_ids::kRogueEncampment);
-    if (!row) return {};
-    std::vector<std::string> notes;
-    return d2d::drlg::generate_preset(assets.data, d2d::rules::level_ids::kRogueEncampment, d2d::drlg::to_int(assets.levels.get(*row, "SizeX")),
-                                      d2d::drlg::to_int(assets.levels.get(*row, "SizeY")),
-                                      d2d::drlg::level_seed(game_data.map_seed, d2d::rules::level_ids::kRogueEncampment), notes);
+    return preset_generated(game_data, assets, d2d::rules::level_ids::kRogueEncampment);
 }
 
 // The camp's rooms' room1 seeds (preset_room1_seeds) under the builder's lock, which holds Act 1's tables.
