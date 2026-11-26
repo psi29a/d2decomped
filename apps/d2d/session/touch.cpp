@@ -241,10 +241,30 @@ void ClientSession::cast_resolved(PadPlayer& player_pad, const touch::Target& ta
  */
 bool ClientSession::touch_event(std::int64_t finger, touch::Phase phase, float x, float y) {
     if (!touch_enabled) return false;
+    if (loot_chooser.open) {
+        if (!loot_chooser.touch || !pad_field() || view.dead) { loot_chooser.clear(); return true; }
+        const auto box = LootChooser::list_box();
+        const touch::Box close{ box.x + box.width - 70.f, box.y - 48.f, 70.f, 44.f };
+        if (phase == touch::Phase::Down && close.contains(x, y)) { loot_chooser.clear(); return true; }
+        if (const int picked = loot_chooser.touch_event(finger, phase, x, y); picked >= 0) commit_loot(picked);
+        return true;
+    }
+    if (touch_cancelled_item_finger == finger) {
+        if (phase == touch::Phase::Down) touch_cancelled_item_finger = -1;
+        else {
+            if (phase == touch::Phase::Up || phase == touch::Phase::Cancel) {
+                touch_cancelled_item_finger = -1; touch_fingers = std::max(0, touch_fingers - 1);
+            }
+            return true;
+        }
+    }
     if (!touch_input.belt_expanded && touch_sheet.belt_index >= 0) touch_sheet = {};
     if (phase == touch::Phase::Down) ++touch_fingers;
     else if (phase == touch::Phase::Up || phase == touch::Phase::Cancel)
         touch_fingers = std::max(0, touch_fingers - 1);
+    if ((touch_stock.tab >= 0 && touch_stock.index(store) < 0) || (touch_sell_vendor >= 0 && (touch_sell_vendor != store.npc || touch_sell_tab != store.tab || store.gamble))) {
+        cancel_touch_item(); return true;
+    }
     // Paths that return before event() still drop this finger. event() sees the Up first,
     // so a skill release can cast before its owner is cleared.
     struct ReleaseUnlessForwarded {
@@ -257,6 +277,9 @@ bool ClientSession::touch_event(std::int64_t finger, touch::Phase phase, float x
         }
     } release{ touch_input, finger, phase };
     const touch::Layout chrome = touch::layout_boxes();
+    if (phase == touch::Phase::Down && (chrome.menu.contains(x, y) || chrome.skills_bar.contains(x, y)
+        || chrome.stats.contains(x, y) || chrome.quest.contains(x, y) || chrome.bind.contains(x, y) || chrome.done.contains(x, y)))
+        cancel_touch_item();
     const auto acknowledge = [&] {
         if (phase != touch::Phase::Down) return;
         const std::array boxes{ chrome.menu, chrome.skills_bar, chrome.stats, chrome.quest,
@@ -428,7 +451,7 @@ bool ClientSession::touch_event(std::int64_t finger, touch::Phase phase, float x
             touch_pointer.y = y;
         };
         const auto close_item_track = [&] {
-            touch_item_finger = -1; touch_item = touch_stock = -1; touch_item_drag = false; touch_hold.clear();
+            close_touch_item();
         };
         const auto place_held_at = [&](float point_x, float point_y) {
             if (!scene || !held) return;
@@ -486,9 +509,7 @@ bool ClientSession::touch_event(std::int64_t finger, touch::Phase phase, float x
             }
         };
         const auto run_sheet_action = [&](touch::ItemAction action) {
-            if (action == touch::ItemAction::Buy && touch_stock >= 0 && store.npc >= 0) buy_stock(touch_stock);
-            else if (action == touch::ItemAction::Sell && touch_item >= 0) send(cmd::Sell{ touch_item });
-            else if (action == touch::ItemAction::Use && touch_item >= 0) {
+            if (action == touch::ItemAction::Use && touch_item >= 0) {
                 const auto found = std::ranges::find(character.items, touch_item, &d2d::d2s::Item::id);
                 if (found == character.items.end()) return;
                 const auto used = item_use(*found);
@@ -497,6 +518,13 @@ bool ClientSession::touch_event(std::int64_t finger, touch::Phase phase, float x
             }
         };
         if (touch_sheet.open) {
+            touch::ItemAction trade_action;
+            if (touch_sheet.trade_event(finger, phase, x, y, trade_action)) {
+                if (trade_action != touch::ItemAction::None) {
+                    touch_trade(trade_action); touch_sheet = {}; close_item_track();
+                }
+                return true;
+            }
             if (phase == touch::Phase::Down) {
                 const auto hit = touch_sheet.hit(x, y);
                 if (hit == touch::ItemAction::Cancel || hit == touch::ItemAction::None) {
@@ -535,6 +563,11 @@ bool ClientSession::touch_event(std::int64_t finger, touch::Phase phase, float x
             }
             return phase != touch::Phase::Move;
         }
+        if (touch_item_finger != -1 && finger != touch_item_finger) return true;
+        if (touch_sold && finger == touch_item_finger) {
+            if (phase == touch::Phase::Up || phase == touch::Phase::Cancel) close_item_track();
+            return true;
+        }
         if (held) {
             if (touch_item_finger != -1 && finger != touch_item_finger && phase != touch::Phase::Cancel)
                 return true;
@@ -564,37 +597,34 @@ bool ClientSession::touch_event(std::int64_t finger, touch::Phase phase, float x
                 const auto click = item_cursor_command(*scene, character.items, held, std::max(character.character_class, 0),
                                                        { inv_open, stash_open, cube_open, belt_open, character.expansion },
                                                        int(touch_item_x), int(touch_item_y));
-                if (click.cmd) send(*click.cmd);
+                if (touch_stock.tab < 0 && touch_sell_vendor < 0 && click.cmd) send(*click.cmd);
                 follow_pointer(false, false);
             }
             if (touch_item_drag) {
                 follow_pointer(false, false);
                 if (phase == touch::Phase::Up) {
-                    place_held_at(x, y);
+                    if (touch_stock.tab >= 0 || touch_sell_vendor >= 0) {
+                        if (touch_trade_drop().contains(x, y)) touch_trade(touch_stock.tab >= 0 ? touch::ItemAction::Buy : touch::ItemAction::Sell);
+                    } else place_held_at(x, y);
                     close_item_track();
                     touch_pointer = {};
                 }
                 return true;
             }
             if (phase == touch::Phase::Move) return true;
-            const d2d::d2s::Item* bag_item = nullptr;
-            if (touch_item >= 0) {
-                const auto found_item = std::ranges::find(character.items, touch_item, &d2d::d2s::Item::id);
-                if (found_item != character.items.end()) bag_item = &*found_item;
-            }
+            const auto* bag_item = touch_bag_item();
             const auto action = bag_item ? item_use(*bag_item) : ItemUse{};
             const bool can_use = bag_item && !action.label.empty() && action.kind != ItemUseKind::None;
-            const bool can_sell = bag_item && store.npc >= 0 && scene && d2d::rules::sellable(scene->rules, *bag_item)
-                                  && !store.gamble && store.mode != 1 && store.mode != 3;
-            const bool can_buy = touch_stock >= 0 && store.npc >= 0;
+            const bool can_sell = touch_sell_vendor == store.npc && touch_can_sell(bag_item);
+            const bool can_buy = touch_stock.index(store) >= 0;
             touch_item_finger = -1;
             touch_hold.clear();
-            touch_sheet = touch::make_item_sheet(can_use, can_sell, can_buy);
+            touch_sheet = touch::make_item_sheet(can_use && !can_sell, can_sell, can_buy);
             if (!touch_sheet.open) {
                 close_item_track();
                 return true;
             }
-            touch_item_hint = "Tap an action, then Confirm";
+            touch_item_hint = can_sell || can_buy ? "Release on Buy / Sell" : "Tap an action, then Confirm";
             return true;
         }
         if (phase == touch::Phase::Down && scene && identify_with >= 0 && !held) {
@@ -607,18 +637,21 @@ bool ClientSession::touch_event(std::int64_t finger, touch::Phase phase, float x
             return true;
         }
         if (phase == touch::Phase::Down && scene && identify_with < 0 && !held) {
-            touch_stock = store.npc >= 0 ? store_item_at(*scene, store, int(x), int(y), touch_store_panel_x()) : -1;
-            const auto* item = bag_at(int(x), int(y));
+            const int stock_index = store.npc >= 0 ? store_item_at(*scene, store, int(x), int(y), touch_store_panel_x()) : -1;
+            const auto* item = stock_index < 0 ? bag_at(int(x), int(y)) : nullptr;
             const auto action = item ? item_use(*item) : ItemUse{};
-            const bool can_sell = item && store.npc >= 0 && d2d::rules::sellable(scene->rules, *item);
-            if (touch_stock >= 0 || (item && (!action.label.empty() || can_sell))) {
+            const bool can_sell = touch_can_sell(item);
+            if (stock_index >= 0 || (item && (!action.label.empty() || can_sell))) {
+                touch_stock = StoreSelection::capture(store, stock_index);
+                touch_sell_vendor = can_sell ? store.npc : -1;
+                touch_sell_tab = can_sell ? store.tab : -1;
                 touch_item_finger = finger; touch_item = item ? item->id : -1;
                 touch_item_start = now_ms; touch_sold = false; touch_item_drag = false;
                 touch_hold.clear();
                 touch_hold_edge = true;
                 touch_item_x = x; touch_item_y = y;
-                touch_item_hint = touch_stock >= 0 ? "Tap to buy, drag to inspect" : std::string(action.label);
-                if (can_sell) touch_item_hint = "Tap for Use / Sell, drag to move";
+                touch_item_hint = touch_stock.tab >= 0 ? "Tap to buy, drag into inventory to buy" : std::string(action.label);
+                if (can_sell) touch_item_hint = "Tap to sell, drag into vendor grid to sell";
                 return true;
             }
         }
@@ -782,7 +815,9 @@ bool ClientSession::touch_event(std::int64_t finger, touch::Phase phase, float x
     }
     if (pad_field()) {
         if (phase == touch::Phase::Down && touch_interact_visible(touch_interact_pick) && chrome.interact.contains(x, y)) {
-            if (touch_interact_pick.kind == PadPick::kItem) send(cmd::Pickup{ touch_interact_pick.id });
+            if (touch_interact_pick.kind == PadPick::kItem) {
+                if (!open_loot_chooser(touch_player, view.player, true)) send(cmd::Pickup{ touch_interact_pick.id });
+            }
             else if (touch_interact_pick.kind == PadPick::kThing) send(cmd::Interact{ touch_interact_pick.id });
             return true;
         }
@@ -875,7 +910,7 @@ void ClientSession::drive_touch_hold(float seconds) {
     query.bag = true;
     query.store_mode = store.mode;
     if (world.game_data) {
-        query.sellable = d2d::rules::sellable(scene->rules, *item);
+        query.sellable = touch_sell_vendor == store.npc && touch_can_sell(item);
         query.potion = potion_code(item->code) || scene->rules.potions.contains(item->code);
         const int save_cls = std::max(character.character_class, 0);
         const int level_needed = d2d::game::required_level(*world.game_data, *item, save_cls);
@@ -892,7 +927,7 @@ void ClientSession::drive_touch_hold(float seconds) {
     const hold_confirm::Step step = touch_hold.step(edge, true, eligible, item->id, int(kind), seconds);
     if (touch_hold.armed && !touch_hold.cancelled) touch_hold_fraction = touch_hold.fraction();
     if (step != hold_confirm::Step::Act) return;
-    if (kind == PadHoldKind::Sell) { send(cmd::Sell{ item->id }); touch_sold = true; }
+    if (kind == PadHoldKind::Sell) { touch_sold = touch_trade(touch::ItemAction::Sell); }
     else if (kind == PadHoldKind::Equip) send(cmd::EquipFromBag{ item->id });
     else if (kind == PadHoldKind::Fill || kind == PadHoldKind::FillOne) {
         auto trial = character.items;
@@ -922,20 +957,22 @@ void ClientSession::drive_touch() {
     if (!touch_enabled) return;
     // Tracked whoever is last: a panel a key opened must not eat the next finger's gesture.
     const int panel_state = (store.npc >= 0 ? store.npc + 2 : 0) + (inv_open ? 1000 : 0) + (tree_open ? 2000 : 0) +
-                            (char_open ? 4000 : 0) + (game_menu.open ? 8000 : 0) + (skillbar.picking ? 16000 : 0);
+                            (char_open ? 4000 : 0) + (game_menu.open ? 8000 : 0) + (skillbar.picking ? 16000 : 0)
+                            + (store.npc >= 0 ? store.tab * 32768 + int(store.gamble) * 131072 : 0);
     if (panel_state != touch_panel_state) {
-        touch_item_finger = -1; touch_item_drag = false; touch_sheet = {}; touch_pointer = {};
+        cancel_touch_item();
         if (!tree_open) { touch_learn_skill = -1; touch_tree_tap_skill = -1; }
         touch_panel_state = panel_state;
     }
     if (last_device != touch::LastDevice::Touch) {
+        cancel_touch_item();
         touch_cancel_skill_chase(); touch_stop_skill_chase(false);
         touch_skill_hold.clear(); touch_teleport.clear();
         touch_input.clear();
         if (touch_sheet.belt_index >= 0) touch_sheet = {};
         return;
     }
-    if (!pad_field() || view.dead) {
+    if (!pad_field() || view.dead || loot_chooser.open) {
         touch_cancel_skill_chase();
         if (!view.dead) touch_stop_skill_chase(false);
         else touch_stop_chase = false;
@@ -1116,7 +1153,7 @@ void ClientSession::draw_touch(std::vector<std::uint8_t>& framebuffer) {
         if (touch_sheet.show_sell) button(touch_sheet.sell, "Sell", touch_sheet.chosen == touch::ItemAction::Sell);
         if (touch_sheet.show_buy) button(touch_sheet.buy, "Buy", touch_sheet.chosen == touch::ItemAction::Buy);
         if (touch_sheet.show_fill) button(touch_sheet.fill, "Fill", touch_sheet.chosen == touch::ItemAction::Fill);
-        button(touch_sheet.confirm, touch_sheet.identifying_target ? "Identify" : "Confirm", touch_sheet.confirming);
+        if (touch_sheet.show_confirm()) button(touch_sheet.confirm, touch_sheet.identifying_target ? "Identify" : "Confirm", touch_sheet.confirming);
         button(touch_sheet.cancel, "Cancel");
     };
     glyph_button(chrome.done, pad_field() && touch_bind == TouchBindPhase::Off && touch_assign == skillpad::kUnset
@@ -1218,8 +1255,7 @@ void ClientSession::draw_touch(std::vector<std::uint8_t>& framebuffer) {
     }
     if (!pad_field()) {
         if (inv_open) font.draw(framebuffer, kScreenWidth, kScreenHeight, palette, 12, 36, "Inventory . Done closes");
-        font.draw(framebuffer, kScreenWidth, kScreenHeight, palette, 300, 75,
-            identify_with >= 0 ? "Tap an unidentified item . Back cancels" : touch_item_hint);
+        draw_touch_trade_hint(framebuffer);
         draw_left_chips();
         glyph_button(chrome.map, touch::Glyph::Map, "Map", automap.open);
         draw_sheet();

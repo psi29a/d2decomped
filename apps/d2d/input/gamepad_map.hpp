@@ -310,6 +310,8 @@ struct Actions {
     bool  drop_press = false;                      // skill buttons: X drops the inventory item under the cursor
     bool  south_down = false, south_press = false;
     bool  right_trigger_down = false, right_trigger_press = false;
+    bool  loot_cancel = false;
+    int   loot_page = 0;
     int   tab_step = 0;                            // a store's shoulders: the tab before (-1) or after (1)
     int   focus_step = 0;                          // the menus' shoulders: the screen's button before (-1) or after (1)
     bool  modifier_held = false;                   // skill buttons: the second set
@@ -455,6 +457,7 @@ public:
         const auto key = [&](Action action, Key press) { if (hit(action)) out.keys.push_back(press); };
         out.south_down = held[std::size_t(Button::South)];
         out.south_press = pressed(Button::South);
+        out.loot_page = int(pressed(Button::DpadRight)) - int(pressed(Button::DpadLeft));
         out.right_trigger_down = right_trigger_;
         out.right_trigger_press = right_trigger_ && !right_was;
         const bool game = here != 0;
@@ -477,6 +480,7 @@ public:
             }
         }
         const Button confirm = config_.swap_confirm ? Button::East : Button::South, cancel = config_.swap_confirm ? Button::South : Button::East;
+        out.loot_cancel = pressed(cancel) || pressed(Button::Start);
 
         // The left button: Primary in the game; the confirm button or the right trigger in the menus.
         out.click_down = game ? down(Action::Primary) : held[std::size_t(confirm)] || right_trigger_;
@@ -619,8 +623,17 @@ public:
             swap_hold_ = 0; swap_cast_ = true;
         }
         prev_ = held;
+        if (modal_handoff_) {
+            const bool buttons = std::ranges::any_of(held, [](bool pressed_button) { return pressed_button; });
+            if (!buttons && std::hypot(walk_x, walk_y) <= config_.deadzone && std::hypot(aim_x, aim_y) <= config_.deadzone)
+                modal_handoff_ = false;
+            return {};
+        }
         return out;
     }
+
+    // Closing a modal consumes held controls until all buttons and sticks return to neutral.
+    void consume_until_neutral() { modal_handoff_ = true; }
 
     [[nodiscard]] const Config& config() const { return config_; }
 
@@ -641,6 +654,7 @@ private:
     std::array<float, 4> dpad_hold_{};             // up, down, left, right, while a menu d-pad is repeating
     float swap_hold_ = 0.f;                        // how long the left trigger has been down
     bool swap_cast_ = false;                       // a skill fired during that press
+    bool modal_handoff_ = false;
     bool skill_handoff_ = false;
     bool swap_down_ = false;                       // the trigger was down last frame, in the field or the wheel
 };

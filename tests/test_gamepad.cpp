@@ -24,6 +24,37 @@ Sample with(Button which) { Sample sample; sample.held[std::size_t(which)] = tru
 }
 
 int main() try {
+    // Loot has its own modal Back/page edges even when field bindings cast on East.
+    for (const bool skill_buttons : { false, true }) {
+        for (const bool swap_confirm : { false, true }) {
+            Config config; config.skill_buttons = skill_buttons; config.swap_confirm = swap_confirm;
+            Mapper mapper(config);
+            const auto button = swap_confirm ? Button::South : Button::East;
+            assert(mapper.step(with(button), Context::Game, .016f).loot_cancel);
+            assert(!mapper.step(with(button), Context::Game, .016f).loot_cancel);
+            (void)mapper.step({}, Context::Game, .016f);
+            assert(mapper.step(with(Button::Start), Context::Game, .016f).loot_cancel);
+            (void)mapper.step({}, Context::Game, .016f);
+            assert(mapper.step(with(Button::DpadRight), Context::Game, .016f).loot_page == 1);
+            assert(mapper.step(with(Button::DpadRight), Context::Game, .3f).loot_page == 0);
+            (void)mapper.step({}, Context::Game, .016f);
+            assert(mapper.step(with(Button::DpadLeft), Context::Game, .016f).loot_page == -1);
+        }
+    }
+
+    // Closing a loot modal cannot turn a held Back/attack button into a cast or walk.
+    {
+        Mapper mapper;
+        (void)mapper.step(with(Button::South), Context::Game, .016f);
+        mapper.consume_until_neutral();
+        const auto held = mapper.step(with(Button::South), Context::Game, .016f);
+        assert(!held.click_down && !held.click_press);
+        Sample stick; stick.lx = 1.f;
+        assert(!mapper.step(stick, Context::Game, .016f).move_active);
+        (void)mapper.step({}, Context::Game, .016f);
+        assert(mapper.step(stick, Context::Game, .016f).move_active);
+        assert(mapper.step(with(Button::South), Context::Game, .016f).click_press);
+    }
     // Inside the dead zone nothing moves.
     {
         Mapper mapper;

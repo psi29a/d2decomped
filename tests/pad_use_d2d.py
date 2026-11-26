@@ -520,11 +520,29 @@ if touch_ux:
         akara = next(line.split("\t") for line in cmd("npcs").splitlines() if line.startswith("Akara\t"))
         cmd(f"debug warp {float(akara[5]) + 1} {akara[6]}"); frames(6)
         cmd("debug stat 14 100000"); cmd(f"cmd trade {akara[4]}"); frames(8)
-        def buy():
-            """Tap the first stock for its sheet, Buy and Confirm; return the bought item's screen point."""
+        def buy(drag=False):
+            """Buy on release or drag; discover occupied stock through the real touch adapter."""
             before = int(state()["items"])
-            tap(110, 137); sheet(0)
-            assert int(state()["items"]) == before + 1, "touch stock tap did not buy"
+            stock_point = None
+            for row in range(10):
+                for col in range(10):
+                    point = (110 + 29 * col, 137 + 29 * row)
+                    finger(2, "down", *point)
+                    if state()["touch_item_finger"] == "2":
+                        stock_point = point
+                        break
+                    finger(2, "cancel", *point)
+                if stock_point is not None:
+                    break
+            assert stock_point is not None, "no stock captured"
+            if drag:
+                finger(2, "move", 610, 260); finger(2, "cancel", 610, 260)
+                assert int(state()["items"]) == before, "cancelled drag bought stock"
+                finger(2, "down", *stock_point); finger(2, "move", 610, 260)
+                finger(2, "up", 610, 260)
+            else:
+                finger(2, "up", *stock_point); tap(400, 208)
+            assert int(state()["items"]) == before + 1, "touch stock gesture did not buy"
             bought = [line for line in cmd("items").splitlines() if line.startswith("[") and "panel=1 " in line][-1]
             return item_point(bought.split(" id=")[1].split()[0])
         pixel_x, pixel_y = buy()
@@ -537,7 +555,7 @@ if touch_ux:
         finger(2, "up", pixel_x, pixel_y)
         assert int(state()["items"]) == before - 1, "hold did not sell"
         # Cancelled item holds must not sell, including after the hold threshold.
-        pixel_x, pixel_y = buy()
+        pixel_x, pixel_y = buy(drag=True)
         before = int(state()["items"])
         finger(2, "down", pixel_x, pixel_y)
         finger(2, "cancel", pixel_x, pixel_y)
