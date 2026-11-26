@@ -5,7 +5,8 @@ Run: export D2_MPQ_DIR=/path/to/the/local/game/data
      .venv/bin/python quest_log_sends.py [--mutation-check]
      .venv/bin/python quest_log_sends.py inc --out ../../tests/quest_log_sends_cases.inc
 
-FUN_00544300 with flag 1 runs its record's per-player callback over the
+FUN_00544300 with flag 1 runs its record's per-player callback (act 1's six,
+act 2's five: a2q2 has none) over the
 game's players (FUN_005537d0); the callback reads the player's quest bits and
 calls FUN_00544190 (the 0x5d send) or not. This runs each callback on a
 synthetic game and player over every combination of the bits it reads (0, 13,
@@ -23,14 +24,20 @@ import emu
 
 GAME_SHA256 = "631066c1649c4ea9ffe48bf97e24c00bca1f7a6759c21150f1a79982589adaaf"
 QUEST_LOG_SEND = 0x544190
-# quest -> its record's per-player send callback (the fn FUN_00544300 is passed)
+# quest word -> (its record's per-player send callback, the fn FUN_00544300 is passed; the record id the callback
+# hands FUN_00544190: act 1's are their words, act 2's one less, 0x731510's table)
 CALLBACKS = {
-    1: 0x58FBE0,   # a1q1 Den of Evil
-    2: 0x590830,   # a1q2 Sisters' Burial Grounds
-    3: 0x5912E0,   # a1q3 Tools of the Trade
-    4: 0x5920D0,   # a1q4 The Search for Cain
-    5: 0x594830,   # a1q5 The Forgotten Tower
-    6: 0x595B20,   # a1q6 Sisters to the Slaughter
+    1: (0x58FBE0, 1),    # a1q1 Den of Evil
+    2: (0x590830, 2),    # a1q2 Sisters' Burial Grounds
+    3: (0x5912E0, 3),    # a1q3 Tools of the Trade
+    4: (0x5920D0, 4),    # a1q4 The Search for Cain
+    5: (0x594830, 5),    # a1q5 The Forgotten Tower
+    6: (0x595B20, 6),    # a1q6 Sisters to the Slaughter
+    9: (0x5988B0, 8),    # a2q1 Radament's Lair
+    11: (0x599F50, 10),  # a2q3 The Tainted Sun
+    12: (0x59AD50, 11),  # a2q4 The Arcane Sanctuary
+    13: (0x59BCB0, 12),  # a2q5 The Summoner
+    14: (0x59C650, 13),  # a2q6 The Seven Tombs
 }
 BITS = (0, 13, 14, 15)
 
@@ -63,15 +70,16 @@ class Game:
         machine.hook(QUEST_LOG_SEND, send, 1)
 
     def sends(self, quest, set_bits):
-        """Run `quest`'s callback for a player with `set_bits`; True when it sent that quest's log."""
+        """Run `quest`'s callback for a player with `set_bits`; True when it sent that quest's record's log."""
         image = bytearray(0x60)
         for bit in set_bits:
             index = quest * 16 + bit
             image[index >> 3] |= 1 << (index & 7)
         self.machine.mu.mem_write(self.quest_bits, bytes(image))
         self.sent = []
-        self.machine.call(CALLBACKS[quest], 0, ecx=self.game, edx=self.player, limit=10000)
-        if self.sent not in ([], [quest]):
+        callback, record = CALLBACKS[quest]
+        self.machine.call(callback, 0, ecx=self.game, edx=self.player, limit=10000)
+        if self.sent not in ([], [record]):
             raise SystemExit(f"quest {quest}: the callback sent {self.sent}")
         return bool(self.sent)
 
@@ -84,6 +92,8 @@ def model(quest, set_bits, mutation=None):
         return not shut or bit(13)
     if mutation == "no_bit15":
         return not bit(0) or bit(13) or bit(14)
+    if mutation == "act2_no_13" and quest >= 9:
+        return not shut or bit(14)
     return not shut or bit(13) or bit(14)
 
 
@@ -151,7 +161,7 @@ def main():
         return
     print(f"ok: {len(results)} quest-log send callback cases")
     if args.mutation_check:
-        for mutation in ("tower_bit15", "no_14", "no_bit15"):
+        for mutation in ("tower_bit15", "no_14", "no_bit15", "act2_no_13"):
             _, caught = run(game, mutation)
             if not caught:
                 raise SystemExit(f"mutation {mutation}: NOT caught")
