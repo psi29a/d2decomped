@@ -764,8 +764,8 @@ sites, read in game.exe, all pass flag 1: the Moldy Tome's message heard
 (`FUN_00594960`: log 1, and log 2 when it was 3), a level change
 (`FUN_00595010`: into level 0x14 log 3 or 4, into 0x19 log 2) and the
 kill's timer (0x5954c0, state 5: log 0xd); the dead `FUN_00595160` isn't
-ported. Each goes to a player unless done without bit 13 / 14
-(`FUN_00594830`). a1q1 .. a1q4, a1q6, act 2, a3q1 .. a3q5 and a4q1 are still a change in the View's log state (none
+ported. Each goes to a player unless done (bit 0; bit 15 isn't read) without bit 13 / 14
+(`FUN_00594830`; `tools/emu/quest_log_sends.py`). a1q1 .. a1q4, a1q6, act 2, a3q1 .. a3q5 and a4q1 are still a change in the View's log state (none
 for a repeat or a flag-0 move that changes it, none at a game's first View).
 Both local paths (the View's log change and `ev::QuestNews`) apply the act test
 above through `rules::quest_log_send_in_act`; a joined game's 0x5d is not
