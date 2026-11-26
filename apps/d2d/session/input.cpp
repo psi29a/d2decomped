@@ -238,12 +238,13 @@ auto ClientSession::shift_pick(int skill) const -> int {
 // The units go in the near rooms' list order (FUN_0065ac70, rules::search_enemy_near_walk: each
 // room's units by their room stamp), so equals tie apart as game.exe's do.
 // The other players go in through add_near_players (near_players.cpp: FUN_00465c60's player arm,
-// relation bit 8), and one picked goes as a type 0 target.
+// relation bit 8, or FUN_00464f70's TargetAlly party pass), and one picked goes as a type 0 target.
 // The ground items go by the order they arrived in their room's list (ground_arrival; only Iron
 // Golem's search sees them).
-// ponytail: local co-op keeps no relation nodes, so its players are never hostile (and a hosted World
-// reads UseSkill::unit as a monster's id); SelectProcs 4 and 6 also require MonStats2 soft, which the
-// loaded MonType does not retain; the stamps are the ones the last Fight::restamp left; Iron Golem's
+// ponytail: local co-op keeps no hostile relation nodes (and a hosted World reads UseSkill::unit as a
+// monster's id); View's local-co-op pets carry no unit id/owner, so the TargetPet / TargetAlly passes
+// cannot put them in this search; SelectProcs 4 and 6 also require MonStats2 soft, which the loaded
+// MonType does not retain; the stamps are the ones the last Fight::restamp left; Iron Golem's
 // item goes as its spot, and the World takes the one there (Fight::golem_item_at), not by its id.
 auto ClientSession::near_pick(int skill, int& unit, int& unit_type, float& at_x, float& at_y) const -> bool {
         constexpr int kIronGolemSkill = 0x5a;   // FUN_00467490's FUN_00643ce0 == 0x5a
@@ -255,10 +256,21 @@ auto ClientSession::near_pick(int skill, int& unit, int& unit_type, float& at_x,
         const bool iron_golem = skill == kIronGolemSkill;
         const auto* left_skill = scene->skills.get(skillbar.left);
         const auto* right_skill = scene->skills.get(skillbar.right);
+        const bool target_ally = (left_skill && left_skill->target_ally)
+            || (right_skill && right_skill->target_ally);
+        const bool target_pet = (left_skill && left_skill->target_pet)
+            || (right_skill && right_skill->target_pet);
         std::vector<d2d::rules::NearUnit> units;
         std::vector<d2d::rules::RoomUnit> listed;
         units.reserve(view.monsters.size() + view.others.size() + (iron_golem ? view.ground.size() : 0));
         listed.reserve(units.capacity());
+        const auto same_party = [&](std::uint32_t player_id) {
+            if (!net_game) return true;
+            const auto self = net_game->units.find(std::uint64_t(net_game->self_id));
+            const auto other = net_game->units.find(std::uint64_t(player_id));
+            return self != net_game->units.end() && other != net_game->units.end()
+                && self->second.party != 0xffff && self->second.party == other->second.party;
+        };
         for (const auto& monster : view.monsters) {
             const bool alive = monster.alive();
             const int mode = alive ? 1 : monster.mode == "DD" ? 0xc : 0;
@@ -267,12 +279,23 @@ auto ClientSession::near_pick(int skill, int& unit, int& unit_type, float& at_x,
                 && corpse_cursor_takes(left_skill, right_skill, monster,
                                        scene->monsters.types[std::size_t(monster.type)],
                                        d2d::rules::level_ids::is_town(level_id));
-            const bool hit = !monster.ally_not_interact(*scene, level_id)
+            std::uint32_t owner = 0;
+            if (net_game) {
+                const auto found = net_game->units.find(std::uint64_t(monster.id));
+                if (found != net_game->units.end()) owner = found->second.owner;
+            }
+            const bool exception = skill_cursor_exception(target_pet, target_ally, owner,
+                                                          net_game ? net_game->self_id : 0, owner != 0 && same_party(owner));
+            const bool hit = (!monster.ally_not_interact(*scene, level_id) || exception)
                 && (alive ? monster.targetable() : corpse_hit);
             units.push_back({ 1, subtile(monster.unit.x), subtile(monster.unit.y), mode, false, hit, false });
             listed.push_back({ level ? d2d::game::room_of(*level, monster.unit.x, monster.unit.y) : -1, true, monster.unit.room_stamp });
         }
-        add_near_players(view, level, units, listed);
+        std::vector<std::uint32_t> allied_players;
+        if (target_ally)
+            for (const auto& other : view.others)
+                if (same_party(other.id)) allied_players.push_back(other.id);
+        add_near_players(view, level, units, listed, allied_players);
         if (iron_golem)
             for (std::size_t item = 0; item < view.ground.size(); ++item) {
                 const auto& ground = view.ground[item];
