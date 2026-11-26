@@ -3,12 +3,16 @@
 // A damage record whose ResultFlags carry 0x4000 and not the get-hit bit 4 takes FUN_0057cee0's 0x4000 branch
 // (FUN_0064c040, event 4 via FUN_005a43a0) and never reaches the get-hit roll FUN_0057cb00, stunned or not:
 // Static Field's 0x4001 (0x5c97d2, FUN_005c96a0) and Thorns' 0x4021 (FUN_005bf670). A thorns hit worth half
-// the striker's life, a sure get-hit by rules::get_hit, leaves it in its swing. tools/emu/soft_hit.py runs FUN_0057cee0
-// and writes the flag rows (tests/soft_hit_cases.inc); the rest needs the game data.
+// the striker's life, a sure get-hit by rules::get_hit, leaves it in its swing. Iron Maiden's hit back (FUN_005c5f50,
+// ResultFlags | 0x20) on a player's blow, sent back late by Fight::hurt_side, likewise. tools/emu/soft_hit.py runs
+// FUN_0057cee0 and writes the flag rows (tests/soft_hit_cases.inc); the real rows need the game data.
 
 #include <ai.hpp>
 #include <ai/units.hpp>
 #include <cof_anim.hpp>
+#include <combat.hpp>
+#include <d2s_items.hpp>
+#include <fight.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
 #include <level.hpp>
@@ -16,6 +20,7 @@
 #include <monsters.hpp>
 #include <rules.hpp>
 #include <test_data.hpp>
+#include <world.hpp>
 
 #include <array>
 #include <cstdint>
@@ -24,6 +29,7 @@
 #include <exception>
 #include <filesystem>
 #include <iterator>
+#include <span>
 #include <vector>
 
 using namespace d2d::game;
@@ -104,6 +110,33 @@ int main() try {
     }
     std::printf("OK: thorns (0x4021) hurt the striker with no get-hit\n");
 
+    // Iron Maiden on a player's blow: Fight::hurt_side sends its physical back after the player's absorbs, with the
+    // skill's record (ResultFlags 0x4001 | 0x20, no flag 4): half the striker's life back and still no GH.
+    auto& maiden = fixture.skill(1, "Iron Maiden");
+    maiden.auratarget = "ironmaiden";
+    maiden.result_flags = 0x4001;
+    World world(&data, -1, -1);
+    auto& actor = *world.actor;
+    actor.character.stats.values[d2d::d2s::kLife] = actor.character.stats.values[d2d::d2s::kMaxLife] = std::int64_t(100000) << 8;
+    Monster cursed = made;
+    cursed.stats.hit_points = cursed.hit_points = 400;
+    cursed.max_life_frac = cursed.life_frac = 0;
+    cursed.id = 0x7001;
+    cursed.curse = { 1, 1, 1u << 30 };
+    cursed.reflect_pct = 100;
+    set_mode(data, cursed, "A1", 0);
+    world.fight.monsters = { cursed };
+    std::array<Foe, 2> side{};
+    side[0].hits = 1;
+    side[0].blows = { d2d::rules::StruckBlow{ .damage = 200, .physical = 200, .reflect = true, .striker = cursed.id } };
+    world.fight.hurt_side(side, 5000);
+    const auto& reflected = world.fight.monsters[0];
+    if (reflected.hit_points != 200 || reflected.mode == "GH" || !reflected.struck_event) {
+        std::printf("FAIL: iron maiden: life %d struck %d mode %.*s\n", reflected.hit_points, int(reflected.struck_event), int(reflected.mode.size()), reflected.mode.data());
+        return 1;
+    }
+    std::printf("OK: iron maiden (0x4021) through Fight::hurt_side hurt the striker with no get-hit\n");
+
     const char* mpq_dir = std::getenv("D2_MPQ_DIR");
     const char* home = std::getenv("HOME");
     const fs::path data_dir = mpq_dir ? fs::path(mpq_dir) : fs::path(home ? home : "") / "Workspace/private/diablo2";
@@ -122,6 +155,12 @@ int main() try {
                 return 1;
             }
             std::printf("OK: real 1.14d zombie1 has a get-hit mode\n");
+            const auto maiden_row = real_data->skills.by_name.find("Iron Maiden");
+            if (maiden_row == real_data->skills.by_name.end() || record_gets_hit(real_data->skills.get(maiden_row->second)->result_flags | 0x20)) {
+                std::printf("FAIL: real Iron Maiden's record has the get-hit bit 4\n");
+                return 1;
+            }
+            std::printf("OK: real 1.14d Iron Maiden ResultFlags %#x: no get-hit\n", unsigned(real_data->skills.get(maiden_row->second)->result_flags));
         }
     }
     return 0;

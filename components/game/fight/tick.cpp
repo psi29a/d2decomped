@@ -979,7 +979,7 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
             if (const auto back = d2d::rules::iron_maiden_fine(true, false, false, physical, striker.reflect_pct, 0, 0)) {
                 const int fine = d2d::rules::resisted_fine(*back, std::max(striker.target(*game_data).res[0], -100));
                 const bool out_of_gh = striker.mode != "GH";
-                if (hurt(*game_data, striker, fine >> 8, now_ms, fine & 255, maiden->hit_class)) { killed(std::size_t(index), now_ms); continue; }   // the player's record (FUN_005c5f50's B)
+                if (hurt(*game_data, striker, fine >> 8, now_ms, fine & 255, maiden->hit_class, false, 0, record_gets_hit(maiden->result_flags | 0x20))) { killed(std::size_t(index), now_ms); continue; }   // FUN_005c5f50's record: ResultFlags | 0x20, a GH only with flag 4 (FUN_0057cee0)
                 if (out_of_gh) striker.struck_event = true;   // 0x4021: FUN_0057cee0's 0x4000 branch raises event 4
             }
         }

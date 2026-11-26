@@ -598,7 +598,8 @@ flags 2, 8, 0x10, 4, 0x4000 it has: only 4 reaches the test. A record with
 `FUN_005c96a0`; Thorns' 0x4021 from `FUN_005bf670`) only refreshes the unit
 (`FUN_0064c040`, +0xc4 |= 0x8000) and raises event 4 (`FUN_005a43a0`):
 no get-hit, stunned or not. d2d: `record_gets_hit`, `hurt`'s
-`rolls_get_hit` (Thorns and Iron Maiden's records in the monster's swing),
+`rolls_get_hit` (Thorns and Iron Maiden's records in the monster's swing, and
+Iron Maiden's on a player's blow in `Fight::hurt_side`),
 `tests/game/test_soft_hit_no_get_hit.cpp`, oracle `tools/emu/soft_hit.py`.
 Static Field's own blow (`Fight::spot`) does not pass it yet.
 It returns 1 (too small) for a frozen unit (state 1, `FUN_00639df0`), a
