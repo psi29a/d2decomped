@@ -160,6 +160,7 @@ address	name	evidence
 00421ba0	sbig_assign_with_step	ECX number, source (ret 4): as sbig_assign, then the source's grow step +0xc copied too; returns the number (source-sbig-arrays.md)
 00421e10	sbig_temps_ctor	Zeroes five dwords, constructs 16 big numbers of 0x14 bytes at +0x14, zeroes +0x154..+0x164. Only caller FUN_00423950 (source-frontier.md)
 00421fe0	sbig_reserve	Makes room for +0x10 + n entries: grows (by +0xc, else sbig_grow_step, rounded up to its multiple) and zero-fills the new part (FUN_0041d300), +4 = that size (source-frontier.md)
+00422780	sbig_is_zero_fast	ESI number (ret 0): normalizes (FUN_00422140), 1 when the number is 0, else 0; the fastcall internal behind sbig_is_zero (source-sbig-api.md)
 004235f0	sbig_zero	EAX number: count +4 = 0, then FUN_00421cb0 (source-frontier.md)
 00423790	sbig_add	dst, a, b (ret 0xc): dst = a + b via FUN_00422300 (source-sbig-api.md)
 004237b0	sbig_and	dst, a, b (ret 0xc): dst = a & b via FUN_00422440 (source-sbig-api.md)
