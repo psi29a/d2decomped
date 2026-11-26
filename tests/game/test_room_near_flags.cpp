@@ -13,8 +13,10 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cstdint>
 #include <cstdio>
 #include <exception>
+#include <initializer_list>
 #include <memory>
 #include <utility>
 
