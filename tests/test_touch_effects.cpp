@@ -58,7 +58,9 @@ int main() try {
     pickup.begin(8, 1900);
     // The modal consumes the Get release before field routing sees it.
     assert(gesture.event(8, Phase::Up, 600, 500, layout, effects, 2050).consumed);
-    cancel_modal_gestures(gesture.modal, input, pickup, skill);
+    std::int64_t ground_finger = 9;
+    cancel_modal_gestures(gesture.modal, input, pickup, skill, ground_finger);
+    assert(ground_finger == -1);
     gesture.cancel();
     assert(!pickup.update(2400) && !pickup.activated && pickup.finger == -1);
     return 0;

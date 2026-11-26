@@ -143,9 +143,12 @@ int main() try {
         skill.begin(7, 7000, -1, 0.f, 0.f, true);
         hold.begin(8, 7000);
         if (activated) assert(hold.update(7300));
-        touch::cancel_modal_gestures(false, input, hold, skill);
+        std::int64_t ground_finger = 9;
+        touch::cancel_modal_gestures(false, input, hold, skill, ground_finger);
+        assert(ground_finger == 9);
         assert(hold.finger == 8 && hold.activated == activated && input.aiming);
-        touch::cancel_modal_gestures(true, input, hold, skill);
+        touch::cancel_modal_gestures(true, input, hold, skill, ground_finger);
+        assert(ground_finger == -1);
         assert(hold.finger == -1 && !hold.activated && !hold.update(8000));
         assert(!input.aiming && !input.move_held() && input.casts.empty());
         assert(skill.finger == -1);

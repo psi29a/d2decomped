@@ -24,7 +24,7 @@ bool ClientSession::touch_effect_event(std::int64_t finger, touch::Phase phase, 
     if (result.dismiss) send(cmd::DismissEffect{ result.dismiss->kind, result.dismiss->instance });
     if (touch_effect.modal) {
         touch_cancel_skill_chase(); touch_stop_skill_chase(false);
-        touch::cancel_modal_gestures(true, touch_input, touch_get_hold, touch_skill_hold);
+        touch::cancel_modal_gestures(true, touch_input, touch_get_hold, touch_skill_hold, touch_ground_finger);
         touch_get_inside = false;
     }
     return result.consumed;
