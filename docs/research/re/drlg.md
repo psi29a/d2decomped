@@ -906,7 +906,12 @@ upper bounds (an orient-3 cell also adds the extra orient-4 tile in d2d's
 `add(0, x, y, 4, ...)`, which is what the orient pass is for).
 Re-check: `python3 tools/ghidra/fn.py 0066ece0 0066edb0 0067c570`.
 Loaded DT1s are a list at 0x8adbb4 `{name[0x104], buf, lib, next}`,
-cached by name.
+cached by name. One it can't open is fatal: FUN_00600790 reads it
+(FUN_00516e46 reports "Error opening file: %s"), and FUN_0060a390 exits
+through FUN_00681e09(-1) unless the header's version is 7. So game.exe
+never lays a room with a DT1 missing; d2d's camp keeps load_town's first
+match then (`finish_level`), a fallback for incomplete MPQs only.
+Re-check: `python3 tools/ghidra/fn.py 00600790 0060a390 00516e46`.
 
 ## Act 3's jungle (FUN_0067f450, levels 76–78)
 

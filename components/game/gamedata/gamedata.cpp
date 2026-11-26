@@ -963,6 +963,7 @@ void find_spawn_spots(Level& level) {
         }
 }
 
+// The level's tile lookup (each key's first match) and its walk grid: from its picks when it has them, else its DS1.
 void finish_level(Level& level) {
     // Populate the (style, seq, type) lookup across all DT1s. First DT1
     // to define a tuple wins — matches how D2's renderer resolves tile
@@ -970,8 +971,9 @@ void finish_level(Level& level) {
     // walls, trees, roofs, shadows in one map.
     // A level with no Level::picks keeps the first match, not game.exe's rarity pick:
     // generated levels and the camp (lay_camp_picks) carry the real picks and use those.
-    // ponytail: the camp's stays the first match when its DT1 list doesn't line up with
-    // the preset's (a DT1 the MPQs lack); every level the game ships has all of them.
+    // The camp's stays the first match only when its DT1 list doesn't line up with the
+    // preset's (a DT1 the MPQs lack), which game.exe never runs on: a DT1 it can't open
+    // fails FUN_00600790's header check (FUN_0060a390, version 7) and the game exits.
     for (const auto& dt1 : level.dt1s)
         for (const auto& tile : dt1.tiles()) level.tile_lookup.try_emplace(tile_key(tile.style, tile.sequence, tile.type), &tile);
     // Collision grid from the same tiles the renderer draws: floors
