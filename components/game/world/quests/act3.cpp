@@ -62,11 +62,14 @@ auto World::act3_join() -> void {
         golden_bird.join(quests(), carries(d2d::rules::GoldenBirdQuest::kBird), carries(d2d::rules::GoldenBirdQuest::kFigurine));
     }
 
+// A level change: a3q5's and a3q6's states past the docks go by Lam Esen's game bit 13 (FUN_00544760(game,
+// 0x11, 0xd) at 0x5bb1ce and 0x5bc45e), not their own.
 auto World::act3_enter(const Level& from) -> void {
+        const bool tome_done = d2d::rules::quest::bit(game_bits, d2d::rules::LamEsenQuest::kQuest, 13);
         lam_esen.enter(quests(), from.id, level->id);
-        guardian.enter(quests(), from.id, level->id, d2d::rules::quest::bit(game_bits, d2d::rules::GuardianQuest::kQuest, 13));
+        guardian.enter(quests(), from.id, level->id, tome_done);
         khalim.enter(level->id);
-        temple.enter(quests(), from.id, level->id, d2d::rules::quest::bit(game_bits, d2d::rules::BlackenedTempleQuest::kQuest, 13));
+        temple.enter(quests(), from.id, level->id, tome_done);
         blade.enter(quests(), from.id, level->id, carries(d2d::rules::BladeQuest::kGidbinn));
     }
 
@@ -85,6 +88,7 @@ auto World::act3_talk_closed(int hc_idx) -> void {
         khalim.talk_closed(hc_idx);
     }
 
+// The player heard `message_string` from `hc_idx`: each act 3 record's +0xcc (FUN_005b7740 .. FUN_005bc5a0).
 auto World::act3_said(int hc_idx, int message_string) -> void {
         d2d::rules::HratliGreeting::said(quests(), game_bits, hc_idx, message_string);
         // Lam Esen's Tome handed to Alkor (FUN_005b7740): the tome goes (FUN_00544160), 5 stat points.
@@ -112,8 +116,10 @@ auto World::act3_said(int hc_idx, int message_string) -> void {
         // Khalim's Will (FUN_005b8060): Cain's bits; the Blackened Temple
         // (FUN_005bb210): Cain's done, Khalim's parts gone once his Will's done.
         khalim.said(quests(), hc_idx, message_string);
-        guardian.said(quests(), hc_idx, message_string, d2d::rules::quest::bit(game_bits, d2d::rules::GuardianQuest::kQuest, 13));
-        if (temple.said(quests(), game_bits, hc_idx, message_string, d2d::rules::quest::bit(game_bits, d2d::rules::BlackenedTempleQuest::kQuest, 13), actor->id)) {
+        // Ormus's told states go by Lam Esen's game bit 13 (word 0x11: 0x5bc603, 0x5bb26f).
+        const bool tome_done = d2d::rules::quest::bit(game_bits, d2d::rules::LamEsenQuest::kQuest, 13);
+        guardian.said(quests(), hc_idx, message_string, tome_done);
+        if (temple.said(quests(), game_bits, hc_idx, message_string, tome_done, actor->id)) {
             using K = d2d::rules::KhalimQuest;
             for (const char* part : { K::kEyeCode, K::kHeartCode, K::kBrainCode, K::kFlailCode, K::kWillCode }) while (carries(part)) take_carried(part);
             d2d::log::info("The Blackened Temple: done, Khalim's parts taken");
