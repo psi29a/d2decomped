@@ -90,6 +90,10 @@ struct Fighter {
     int prime_evil_pct = 100;                       // FUN_0057c060's percent on a prime evil's blow: a hireling 200, a player's other pet 400
 };
 
+// A weapon's base damage pair as its stats hold it: the record's min / max
+// bytes, low quality's 3/4 and ethereal's 3/2 (`thrown`: the throw pair).
+std::pair<int, int> weapon_base_damage(int min_byte, int max_byte, bool low, bool ethereal, bool thrown);
+
 // Builds the Fighter from the worn weapon / shield, the summed item stats (`sum`.
 Fighter make_fighter(const Tables& tables, const d2d::d2s::Item* weapon, const d2d::d2s::Item* shield,
                      const StatSum& sum, const StatSum& weapon_sum, const d2d::d2s::Stats& stats,

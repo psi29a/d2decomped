@@ -34,6 +34,27 @@ int hit_chance(int attack_rating, int def, int alvl, int dlvl) {
     return int(std::clamp<std::int64_t>(chance * 2 * alvl / std::max(alvl + dlvl, 1), 5, 95));
 }
 
+// A loaded weapon's base damage stats (FUN_0062cbe0, 0x62d495..0x62d6f9):
+// low quality (FUN_00627e70 == 1) sets each melee stat whose byte isn't 0 to
+// byte x 3 >> 2, at least 1 (min) or 2 (max), and the throw pair (0x9f /
+// 0xa0) only when the max byte isn't 0, the min at least 1 even from a 0
+// byte; any other quality takes the bytes as they are (the throw pair again
+// only with a max). Ethereal (FUN_0062a8d0) then takes each x 3 / 2, as
+// FUN_0065e4d0 does on a new one.
+std::pair<int, int> weapon_base_damage(int min_byte, int max_byte, bool low, bool ethereal, bool thrown) {
+    int low_end = 0, high_end = 0;
+    if (thrown && max_byte == 0) return { 0, 0 };
+    if (low) {
+        if (min_byte != 0 || thrown) low_end = std::max(min_byte * 3 >> 2, 1);
+        if (max_byte != 0) high_end = std::max(max_byte * 3 >> 2, 2);
+    } else {
+        low_end = min_byte;
+        high_end = max_byte;
+    }
+    if (ethereal) { low_end = low_end * 3 / 2; high_end = high_end * 3 / 2; }
+    return { low_end, high_end };
+}
+
 // Builds the Fighter from the worn weapon / shield, the summed item stats
 // (`sum`: everything worn and carried; `weapon_sum`: the weapon and what's
 // socketed in it), the character's stats and class; defense and
@@ -74,12 +95,16 @@ Fighter make_fighter(const Tables& tables, const d2d::d2s::Item* weapon, const d
     if (weapon) if (const auto* info = info_of(tables, *weapon)) fighter.two_handed = info->two_handed;   // FUN_006289c0 on the owner's weapon (FUN_00623990, 0x64bab3)
     // In 256ths, as game.exe keeps them.
     // `thrown`: the weapon's throw damage (FUN_0064b860: stats 0x9f / 0xa0, minmisdam / maxmisdam).
-    const int base_min = weapon_base ? (thrown ? weapon_base->min_misdam : weapon_base->mindam) : 0, base_max = weapon_base ? (thrown ? weapon_base->max_misdam : weapon_base->maxdam) : 0;
+    // The record's bytes through low quality and ethereal (weapon_base_damage), as the weapon's stats hold them.
+    const bool low_quality = weapon && weapon->quality == 1, ethereal = weapon && weapon->ethereal;
+    const auto [melee_min, melee_max] = weapon_base ? weapon_base_damage(weapon_base->mindam, weapon_base->maxdam, low_quality, ethereal, false) : std::pair{ 0, 0 };
+    const auto [throw_min, throw_max] = weapon_base ? weapon_base_damage(weapon_base->min_misdam, weapon_base->max_misdam, low_quality, ethereal, true) : std::pair{ 0, 0 };
+    const int base_min = thrown ? throw_min : melee_min, base_max = thrown ? throw_max : melee_max;
     std::int64_t low = (weapon_base ? base_min * (100 + weapon_stat(kMinDamagePercent)) / 100 : 1) + stat(kMinDamage) + stat(kNormalDamage),
                  high = (weapon_base ? base_max * (100 + weapon_stat(kMaxDamagePercent) + weapon_stat(kMaxDamagePercentPerLevel) * clvl / 8) / 100 : 2) + stat(kMaxDamage) + stat(kMaxDamagePerLevel) * clvl / 8 + stat(kNormalDamage);
     if (weapon_base) {
-        fighter.throw_lo = int(weapon_base->min_misdam * (100 + weapon_stat(kMinDamagePercent)) / 100 + stat(kMinDamage));
-        fighter.throw_hi = int(weapon_base->max_misdam * (100 + weapon_stat(kMaxDamagePercent) + weapon_stat(kMaxDamagePercentPerLevel) * clvl / 8) / 100
+        fighter.throw_lo = int(std::int64_t(throw_min) * (100 + weapon_stat(kMinDamagePercent)) / 100 + stat(kMinDamage));
+        fighter.throw_hi = int(std::int64_t(throw_max) * (100 + weapon_stat(kMaxDamagePercent) + weapon_stat(kMaxDamagePercentPerLevel) * clvl / 8) / 100
                                + stat(kMaxDamage) + stat(kMaxDamagePerLevel) * clvl / 8);
     }
     fighter.unit_min_pct = int(stat(kMinDamagePercent) - weapon_stat(kMinDamagePercent));

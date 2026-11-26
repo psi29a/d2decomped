@@ -1591,13 +1591,15 @@ int classic_set_pick(const Tables& tables, const std::string& code, Rng& rng, in
 // A weapon's base damage (stats 21-24, 159 / 160) isn't kept on the item:
 // game.exe sets it from the record (FUN_005563d0), low takes 75% (FUN_005c2d40)
 // and ethereal 3/2 (FUN_0065e4d0), and a load sets it again from the record,
-// quality and flag (FUN_0062cbe0), so d2d derives it at use (item_text.cpp).
+// quality and flag (FUN_0062cbe0), so d2d derives it at use by the load's
+// rule (weapon_base_damage in make_fighter; item_text.cpp's own copy).
 // dmg%'s +1 max damage on a weak weapon is a prop in game.exe too
 // (FUN_0065f010 -> FUN_0065ee80 -> FUN_0065ea50, the item's mod list).
-// ponytail: without a unit seed none of the other rolls above is made;
-// make_fighter (combat.cpp) reads the record's damage bytes without low's
-// 3/4 or ethereal's 3/2. A code with no ItemBase row still gets the old
-// stand-in affix counts (game.exe has no such item).
+// ponytail: without a unit seed none of the other rolls above is made; a
+// new low weapon's stats keep FUN_005c2d40's rule until a save and load
+// (1 / 2 from a 0 byte, its throw pair through FUN_005c0d40), where d2d
+// uses the load's throughout. A code with no ItemBase row still gets the
+// old stand-in affix counts (game.exe has no such item).
 d2d::d2s::Item roll_item(const Tables& tables, const std::string& code, int ilvl, int quality, Rng& rng,
                          Rng* unit_seed, std::vector<bool>* found_uniques, bool bovine,
                          int difficulty, int special_wanted, bool classic) {
