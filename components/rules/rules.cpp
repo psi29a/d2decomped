@@ -1588,11 +1588,16 @@ int classic_set_pick(const Tables& tables, const std::string& code, Rng& rng, in
 // the own seed alone, so they are rolled the same with or without a unit
 // seed (an imbue, tests); only the base rolls and the FUN_00557450 tail
 // need the unit seed.
+// A weapon's base damage (stats 21-24, 159 / 160) isn't kept on the item:
+// game.exe sets it from the record (FUN_005563d0), low takes 75% (FUN_005c2d40)
+// and ethereal 3/2 (FUN_0065e4d0), and a load sets it again from the record,
+// quality and flag (FUN_0062cbe0), so d2d derives it at use (item_text.cpp).
+// dmg%'s +1 max damage on a weak weapon is a prop in game.exe too
+// (FUN_0065f010 -> FUN_0065ee80 -> FUN_0065ea50, the item's mod list).
 // ponytail: without a unit seed none of the other rolls above is made;
-// base damage isn't kept on the item, so low's 75%, ethereal's 3/2 and
-// dmg%'s +1 max damage on a weak weapon only reach its props. A code with
-// no ItemBase row still gets the old stand-in affix counts (game.exe has
-// no such item).
+// make_fighter (combat.cpp) reads the record's damage bytes without low's
+// 3/4 or ethereal's 3/2. A code with no ItemBase row still gets the old
+// stand-in affix counts (game.exe has no such item).
 d2d::d2s::Item roll_item(const Tables& tables, const std::string& code, int ilvl, int quality, Rng& rng,
                          Rng* unit_seed, std::vector<bool>* found_uniques, bool bovine,
                          int difficulty, int special_wanted, bool classic) {
