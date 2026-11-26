@@ -608,7 +608,8 @@ any level, holds its level's walk-across slots: each Blood Moor preset room
 gets its cell's +0x18 alone (FUN_0067d540's sixth argument, `0067521a`):
 a contact span's slot on the level's edge, 0x30000, the table values.
 Run on game.exe (`room_vis.py`, rooms as generated, before they come up):
-d2d's `Level::room_flags` agree on every room of LEVELS for map seeds 1-3.
+d2d's `Level::room_flags` agree on every room of levels 2, 3, 26, 27, 41,
+47 and 111 for map seeds 1-3.
 The near list (FUN_0066c370) walks every slot those flags hold, a walk
 across as a warp: FUN_0066c220 takes the slot's level's rooms holding a
 slot of theirs naming this level, and for a walk only those under 6 tiles
