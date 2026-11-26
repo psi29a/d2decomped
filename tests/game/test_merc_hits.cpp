@@ -118,7 +118,7 @@ int main() try {
         fight.strike(missile, fight.monsters.size() - 1, 1000, 0, nullptr);
     }
     std::printf("the merc's Fire Arrow at divisor 1000: %d/256 -> %d/256\n", 50 * 256, actor.merc->life_fine());
-    assert(actor.merc->life_fine() > 50 * 256);
+    assert(actor.merc->life_fine() - 50 * 256 >= 128);   // divisor 1000 would round a ~500/256 leech to 0
     std::puts("OK: the merc's skill missile leeches with no LifeStealDivisor (merc_target)");
     return 0;
 } catch (const std::exception& error) {
