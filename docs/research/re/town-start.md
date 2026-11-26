@@ -116,8 +116,8 @@ grid read the picked tiles where load_town's first match in the DT1s stood. Chec
 `uv run python camp_tiles.py 1-8 --mutation-check` (every camp room brought up in game.exe
 against `drlg-dump ... 1 <dir> camptiles`, the tile sets equal). Laid with the rooms up in a given
 order (`lay_camp_picks`' `came_up`), they are game.exe's with its rooms brought up (FUN_0061b730) in
-that order: `uv run python camp_tiles_order.py 1-10 --mutation-check` (list, reverse and shuffled,
-against `ORDER=<kind> drlg-dump ... 1 <dir> camptiles`). As a player walks, `relevel` lays the
+that order: `uv run python camp_tiles_order.py 1-10 <dir> --mutation-check` (list, reverse and shuffled,
+against `ORDER=<kind> drlg-dump ... 1 <dir>/<kind> camptiles`, its usage line). As a player walks, `relevel` lays the
 camp again with its rooms in the order they came up (Spawning order, as `keep_camp_seeds` takes
 the room1 seeds), from the rooms, DT1s and assets `lay_camp_picks` keeps, and stamps the objects'
 footprints back (`test_camp_picks_order`). Not done: a Blood Moor room up before a camp room, whose edge
