@@ -1589,6 +1589,8 @@ void lay_camp_picks(GameData& game_data, const d2d::drlg::OutdoorAssets& assets)
     finish_level(town);
 }
 
+// Level `id` built from its DS1s or its DRLG: rooms, tiles, preset units,
+// the level's sounds and light, Lut Gholein's palace NPCs.
 std::unique_ptr<Level> build_level(const GameData& game_data, GameData::LevelBuilder& builder, int id) {
     const auto start_ms = d2d::log::ms();
     std::lock_guard lock(builder.mutex);
@@ -1655,9 +1657,13 @@ std::unique_ptr<Level> build_level(const GameData& game_data, GameData::LevelBui
     // The guard (object 122, FUN_0059f440): FUN_005b3090(x + 1, y, 0x14b, 1, 0)
     // -> FUN_005b2a00 (spawn_spot, radius -1: the spot alone). A miss keeps
     // the one asked.
-    // ponytail: that search runs as the room comes up and steps the room seed
-    // after room_objects' first step. Here it tries the room1 seed while the
-    // level is built, with no crowd.
+    // No spot here depends on the seed: FUN_00545340 draws nothing, and at
+    // radius -1 FUN_005b2a00's one pass steps the room1 seed (+0x6c) three
+    // times for an offset of 0 (rand_below(0), its signs), the asked spot.
+    // ponytail: game.exe makes them as the room comes up (the objects'
+    // inits, gated by a2q4's state), so each make's three steps go on the
+    // room's seed then and units there count; d2d leaves the steps off the
+    // camp room's seed and tests the spot with no crowd.
     for (const auto& unit : level->units) {
         if (id != d2d::rules::level_ids::kLutGholein || unit.type != d2d::rules::unit_type::kObject || (unit.id != 121 && unit.id != 122)) continue;
         auto add = [&](int hc_idx, int at_x, int at_y, int palace, int size) {
