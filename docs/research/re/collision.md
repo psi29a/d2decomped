@@ -3345,7 +3345,9 @@ d2d: `rules::target_defense` (components/rules/combat/combat.cpp) is
 Fighter; `rules::player_to_hit` runs it before the rating's % for each
 player to-hit roll (`player_blow`, a missile's `to_hit` roll in
 `Fight`'s missile hit). `Monster::target` fills the Target's boss,
-superunique and hireling. Oracle `tools/emu/target_ac.py` (20000 cases, all
+superunique and hireling. A hireling attacker (type 1) takes the other
+branch of `FUN_0057d9b0`, so `Fight::merc_fighter` zeroes the four stats
+its gear sums give it (tests/game/test_merc_hits.cpp). Oracle `tools/emu/target_ac.py` (20000 cases, all
 of `FUN_0057d8a0` reached), fixture `tests/target_ac_cases.inc`.
 Stats 0xb3 / 0xb4 (179 `attack_vs_montype`, 180 `damage_vs_montype`, the
 `FUN_0057a830` / `FUN_0057b6a0` terms) come only from Properties.txt

@@ -51,7 +51,9 @@ int main() try {
     ring.code = "rin";
     ring.location = d2d::d2s::item_location::kEquipped;
     ring.slot = 6;
-    ring.props = { { d2d::d2s::kItemSlow, 0, 40 }, { d2d::d2s::kLifeDrainMinDamage, 0, 50 } };
+    // Stats 115 / 116 / 123 / 124 on it too: a player's only (FUN_0057d9b0 calls FUN_0057d8a0 for attacker type 0).
+    ring.props = { { d2d::d2s::kItemSlow, 0, 40 }, { d2d::d2s::kLifeDrainMinDamage, 0, 50 }, { d2d::d2s::kIgnoreTargetDefense, 0, 1 },
+                   { d2d::d2s::kTargetDefensePercent, 0, 50 }, { d2d::d2s::kDemonToHit, 0, 100 }, { d2d::d2s::kUndeadToHit, 0, 100 } };
     character.merc_items.push_back(ring);
     // And a short bow: a weaponless merc's arrow reads its stats 21 / 22, none (FUN_0064b860), so no physical to leech.
     d2d::d2s::Item bow;
@@ -72,6 +74,10 @@ int main() try {
     actor.merc_st.level = 20;
     actor.merc_st.life = 200;                              // its max life: merc_max_life
     assert(fight.merc_fighter().item_slow == 40 && fight.merc_fighter().life_steal == 50);
+    {
+        const auto merc_fighter = fight.merc_fighter();
+        assert(merc_fighter.ignore_target_def == 0 && merc_fighter.target_def_pct == 0 && merc_fighter.demon_tohit == 0 && merc_fighter.undead_tohit == 0);
+    }
 
     const auto zombie = int(data->monsters.by_id.at("zombie1"));
     d2d::rules::Rng make_rng{ 3 };
