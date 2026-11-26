@@ -767,7 +767,17 @@ struct GuardianQuest {
     quest::Players rewarded;         // +0x1c
     static constexpr int kLogTicks = 12;   // push 0xc at 0x5bc9d6
     int log_in = 0;                // data +0 set: quest steps to his death's timer (0x5bc720), 0 none
-    bool news = false;             // the log sent again (FUN_00544300 flag 1)
+    bool news = false;             // the log sent to each player (FUN_00544300 flag 1, FUN_005bc210) since the World last took it
+    bool closing = false;          // +0xa8: LAB_005bc370 armed (opened at state 0), till it fires
+    bool told_pending = false;     // data+3: Ormus's 628, log 2 on his talk's close
+
+    // A player's bits (LAB_005bc020, over the players), not done nor bit 0xb: state 2 bit 2, 3 bit 3; 4 by the
+    // log (2, 3, 4) bits 4, 5, 6; 5 bits 7, 8, 9.
+    void mark(QuestBits& quest_bits) const {
+        if (quest::bit(quest_bits, kQuest, 0) || quest::bit(quest_bits, kQuest, 0xb)) return;
+        if (state == 2 || state == 3) { quest::set(quest_bits, kQuest, state); return; }
+        if ((state == 4 || state == 5) && log >= 2 && log <= 4) quest::set(quest_bits, kQuest, (state == 4 ? 2 : 5) + log);
+    }
 
     // Mephisto's death (FUN_005bc8b0): with the record open (+9) and
     // data +0 clear, the 12-tick timer; data +0 1.
@@ -792,24 +802,48 @@ struct GuardianQuest {
         for (const auto& [bit, stage, logged] : kByBit)
             if (quest::bit(quest_bits, kQuest, bit)) { state = stage; log = logged; return; }
     }
-    // The Blackened Temple done (its +0xf0 chain).
-    void chain() { if (state == 0 && open) state = 1; }
-    // A level change (FUN_005bc3c0); `tome_done`: Lam Esen's game bit 13 (word 0x11, 0x5bc45e).
-    void enter(const QuestBits& quest_bits, int from, int into, bool tome_done) {
+    // The Blackened Temple done (its +0xf0 chain, LAB_005bcc60): opened, the talk-close hook armed.
+    void chain() { if (state == 0 && open) { state = 1; closing = true; } }
+    // A level change (FUN_005bc3c0); `tome_done`: Lam Esen's game bit 13 (word 0x11, 0x5bc45e). Out of the
+    // docks, told: log 2 under 3 (flag 0, 0x5bc450); into the Durance 1 at log 0 / 2 log 3 (flag 1, 0x5bc4e2),
+    // into its level 3 log 4 unless it is (flag 1, 0x5bc53b). True: everyone's marked (LAB_005bc020).
+    bool enter(const QuestBits& quest_bits, int from, int into, bool tome_done) {
         const int later = tome_done ? 4 : 5;
-        if (from == kDocks && state >= 2 && state <= 3 && !quest::bit(quest_bits, kQuest, 0) && !quest::bit(quest_bits, kQuest, 0xb)) state = later;
-        if (into > 97 && open && state == 0) state = 1;
-        if (into == kDuranceOfHate1 && state == 1) state = later;
-        if (into == kDuranceOfHate3 && state != 4 && state != 5) state = later;
+        bool marks = false;
+        if (from == kDocks && state >= 2 && state <= 3 && !quest::bit(quest_bits, kQuest, 0) && !quest::bit(quest_bits, kQuest, 0xb)) {
+            if (log < 3) log = 2;
+            state = later;
+            marks = true;
+        }
+        if (into > 97 && open && state == 0) { state = 1; closing = true; }
+        if (into == kDuranceOfHate1) {
+            const bool sent = log == 2 || log == 0;
+            if (sent) { log = 3; news = true; }
+            if (state == 1) state = later;
+            else if (!sent) return marks;
+            return true;
+        }
+        if (into != kDuranceOfHate3) return marks;
+        if (log != 4) { log = 4; news = true; }
+        if (state != 4 && state != 5) state = later;
+        return true;
+    }
+    // The talk with `npc` closed (LAB_005bc370, once armed): Ormus's after his 628, log 2 (flag 1, 0x5bc39e),
+    // the hook off.
+    void talk_closed(int npc) {
+        if (!closing || npc != kOrmus || !told_pending) return;
+        told_pending = closing = false;
+        log = 2;
+        news = true;
     }
     // Mephisto died (World::mephisto_died).
     void killed(int player) { dead = true; rewarded.add(player); }
     // The player heard `string` from `npc` (FUN_005bc5a0; `tome_done`: Lam Esen's game bit 13, 0x5bc603).
     void said(QuestBits& quest_bits, int npc, int string, bool tome_done) {
         if (!quest::bit(quest_bits, kQuest, 0xb) && quest::bit(quest_bits, kQuest, 0)) return;
-        if (npc == kOrmus && string == kTells) { state = tome_done ? 2 : 3; return; }
+        if (npc == kOrmus && string == kTells) { state = tome_done ? 2 : 3; told_pending = true; return; }
         if (string < kReportFirst || string > kReportLast || !quest::bit(quest_bits, kQuest, 0xb)) return;
-        if (quest::bit(quest_bits, kQuest, 13)) state = 7;
+        if (quest::bit(quest_bits, kQuest, 13)) { log = 0xd; state = 7; }   // flag 0 (0x5bc6b1)
         quest::set(quest_bits, kQuest, 0xb, false);
     }
     // What `npc` says (FUN_005bc270; blocks 0x740ef8, state -> 0x741518).
