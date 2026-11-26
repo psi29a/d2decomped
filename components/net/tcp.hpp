@@ -74,8 +74,12 @@ private:
 };
 
 // This machine's IPv4 address as game.exe's TCP/IP screen shows it
-// (FUN_0040df60): the host name's first address, else the one a UDP
+// (FUN_0040df60): the host name's address, else the one a UDP
 // "connect" to 24.105.29.30:7 picks (nothing is sent), else "0.0.0.0".
+// "127.0.0.1" means no network (the screen's HOST and JOIN go dark).
 auto own_address() -> std::string;
+// own_address's choice, host byte order: the host name's (0: none), unless it is 0 or
+// loopback (127/8), then the UDP route's (0: none); loopback with no route is 127.0.0.1.
+auto pick_own_address(std::uint32_t named, std::uint32_t routed) -> std::uint32_t;
 
 } // namespace d2d::net
