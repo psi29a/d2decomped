@@ -12,6 +12,9 @@ FUN_00627260(unit, 6, 0, 0) (life gone) and FUN_005ddfc0(game, unit, 0xc, x, y);
 hooked): FUN_005a7c20(game, request, 1) with request mode 0xc, the unit, no target unit, (x, y).
 FUN_005de080 run for real: a unit out of mode 1 (mode 12 here) is asked for mode 1, the unit its
 own target; one in mode 1 isn't; then AI event 2 at the game frame + n (0 counts as 1).
+The pair end to end: FUN_005ddfc0(0xc) then FUN_005de080(1) with FUN_005a7c20, FUN_005a78a0 and both
+mode starts (0x5a7390 DD, 0x5a73e0 NU) run for real, their leaves hooked (FUN_00553570 logs the mode
+and writes unit +0x10): DD (death steps, events 8 and 9 dropped), then NU and AI event 2: he stands.
 d2d: World::cain_step (CainWalk::lifeless), tests/game/test_cain_first_think.cpp, which reads the
 game.exe rows `--dump` writes (record there, not busy, class 0x92: spot noted or not, life cut or not,
 goal offset).
@@ -27,7 +30,7 @@ from pathlib import Path
 import emu
 
 SHA256 = "631066c1649c4ea9ffe48bf97e24c00bca1f7a6759c21150f1a79982589adaaf"
-MUTATIONS = ("no-life-cut", "life-cut-when-fresh", "mode-not-dd", "mode-target-swapped", "no-neutral-after", "idle-zero-frames")
+MUTATIONS = ("no-life-cut", "life-cut-when-fresh", "mode-not-dd", "mode-target-swapped", "no-neutral-after", "idle-zero-frames", "stays-dead")
 UNIT_X, UNIT_Y, FRAME = 20, 30, 100
 mutation = None
 
@@ -154,9 +157,52 @@ def check_modes(machine):
     return cases
 
 
+# FUN_005a7c20's leaves (stack args popped): state test, footprint, path, combat, events, the refusal.
+REQUEST_LEAVES = {0x639DF0: 2, 0x5541B0: 0, 0x5544B0: 0, 0x649400: 1, 0x648B90: 2, 0x648AD0: 3, 0x6490E0: 2,
+                  0x5A63F0: 3, 0x5A4F50: 0, 0x5A4350: 0, 0x620210: 2, 0x5533D0: 0, 0x5A6380: 0, 0x5A4360: 0,
+                  0x553990: 0, 0x5A6B10: 0, 0x553F00: 0, 0x5539B0: 0, 0x648CF0: 2, 0x648E70: 2, 0x5415A0: 1}
+
+
+def check_dead_then_neutral(machine):
+    """Run the DD request and the idle with FUN_005a7c20 and the mode starts for real; returns 1."""
+    game, unit, tables, monstats = machine.alloc(0x200), machine.alloc(0x100), machine.alloc(0x1000), machine.alloc(0x1A8 * 0x100)
+    machine.w32(game + 0xA8, FRAME)
+    machine.w32(0x744304, tables)               # sgptDataTables: MonStats rows, none with the +0x1a5 mode override
+    machine.w32(tables + 0xA78, monstats)
+    machine.w32(tables + 0xA80, 0x100)
+    machine.w32(unit, 1)
+    machine.w32(unit + 4, 0x92)
+    machine.w32(unit + 0x10, 1)                 # NU, as the think finds him
+    log = []
+
+    def set_mode(current):
+        """Hook FUN_00553570 (free combat, set the anim mode): log it and write unit +0x10."""
+        log.append(("mode", current.arg(0)))
+        machine.w32(unit + 0x10, current.arg(0))
+        return 0
+
+    machine.stub(0, REQUEST_LEAVES)
+    machine.hook(0x5A68E0, lambda _current: log.append("leave") or 0, 0)
+    machine.hook(0x5A6520, lambda _current: log.append("death_steps") or 0, 1)
+    machine.hook(0x553570, set_mode, 1)
+    machine.hook(0x540E60, lambda current: log.append(("drop", current.arg(0))) or 0, 2)
+    machine.hook(0x5417D0, lambda current: log.append(("event", current.arg(0), current.arg(1))) or 0, 4)
+    machine.hook(0x5A7B30, lambda _current: log.append("refused") or 0, 1)
+    machine.call(0x5DDFC0, 0xC, UNIT_X, UNIT_Y, ecx=game, edx=unit, limit=20000)
+    machine.call(0x5DE080, 1, ecx=game, edx=unit, limit=20000)
+    want = ["death_steps", ("mode", 0xC), ("drop", 8), ("drop", 9)]
+    if mutation != "stays-dead":
+        want += ["leave", ("mode", 1), ("drop", 2), ("event", 2, FRAME + 1)]
+    else:
+        want += [("drop", 2), ("event", 2, FRAME + 1)]
+    if log != want or machine.r32(unit + 0x10) != (0xC if mutation == "stays-dead" else 1):
+        raise AssertionError(f"DD then idle: game.exe {log} mode {machine.r32(unit + 0x10)}, model {want}")
+    return 1
+
+
 def check(exe, rows=None):
-    """Both parts on fresh machines; returns the case count (`rows` as check_think's)."""
-    return check_think(emu.Emu(exe), rows) + check_modes(emu.Emu(exe))
+    """The parts on fresh machines; returns the case count (`rows` as check_think's)."""
+    return check_think(emu.Emu(exe), rows) + check_modes(emu.Emu(exe)) + check_dead_then_neutral(emu.Emu(exe))
 
 
 def write_cases(path, rows):
@@ -181,7 +227,7 @@ def main():
     if hashlib.sha256(args.exe.read_bytes()).hexdigest() != SHA256:
         raise SystemExit("requires stock game.exe 1.14d (1.14.3.71)")
     rows = []
-    print(f"ok: {check(str(args.exe), rows)} Cain first-think cases (FUN_005e77a0, FUN_005ddfc0, FUN_005de080; callees hooked)")
+    print(f"ok: {check(str(args.exe), rows)} Cain first-think cases (FUN_005e77a0, FUN_005ddfc0, FUN_005de080, FUN_005a7c20)")
     if args.dump:
         write_cases(args.dump, rows)
         print(f"wrote {len(rows)} rows to {args.dump}")
