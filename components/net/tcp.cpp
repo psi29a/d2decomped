@@ -251,18 +251,37 @@ auto TcpListener::accept(int timeout_ms, std::string* from) -> std::expected<std
     return std::optional<TcpConnection>{ std::move(connection) };
 }
 
+namespace {
+constexpr std::uint32_t kLoopback = 0x7f000001;   // 127.0.0.1
+auto loopback(std::uint32_t address) -> bool { return address >> 24 == 127; }
+} // namespace
+
+// FUN_0040df60 (tcpip-menu.md) takes the UDP route only when the host name has no
+// address. On Windows the name maps to the LAN address; on Android it is "localhost"
+// and on Debian-style Linux 127.0.1.1, so game.exe's rule shows loopback with Wi-Fi up.
+// d2d also takes the route past a loopback name (deviations.md improvement 22).
+auto pick_own_address(std::uint32_t named, std::uint32_t routed) -> std::uint32_t {
+    if (named != 0 && !loopback(named)) return named;
+    if (routed != 0 && !loopback(routed)) return routed;
+    return named != 0 ? kLoopback : 0;
+}
+
 auto own_address() -> std::string {
     if (!ensure_started()) return "127.0.0.1";
-    in_addr address{};
+    std::uint32_t named = 0;   // host byte order
     char name[256] = {};
     addrinfo hints{};
     hints.ai_family = AF_INET;
     addrinfo* found = nullptr;
     if (::gethostname(name, sizeof name) == 0 && ::getaddrinfo(name, nullptr, &hints, &found) == 0 && found) {
-        address = reinterpret_cast<const sockaddr_in*>(found->ai_addr)->sin_addr;
+        for (const addrinfo* entry = found; entry; entry = entry->ai_next) {   // the first that isn't loopback, else the first
+            const auto address = ntohl(reinterpret_cast<const sockaddr_in*>(entry->ai_addr)->sin_addr.s_addr);
+            if (named == 0 || (loopback(named) && !loopback(address))) named = address;
+        }
         ::freeaddrinfo(found);
     }
-    if (address.s_addr == 0) {
+    std::uint32_t routed = 0;
+    if (named == 0 || loopback(named)) {
         if (const Native socket = ::socket(AF_INET, SOCK_DGRAM, 0); socket != kNone) {
             sockaddr_in remote{};
             remote.sin_family = AF_INET;
@@ -272,10 +291,12 @@ auto own_address() -> std::string {
             socklen_t length = sizeof local;
             if (::connect(socket, reinterpret_cast<const sockaddr*>(&remote), sizeof remote) == 0
                 && ::getsockname(socket, reinterpret_cast<sockaddr*>(&local), &length) == 0)
-                address = local.sin_addr;
+                routed = ntohl(local.sin_addr.s_addr);
             close_native(socket);
         }
     }
+    in_addr address{};
+    address.s_addr = htonl(pick_own_address(named, routed));
     char text[INET_ADDRSTRLEN] = "0.0.0.0";   // inet_ntoa(0), as game.exe's sprintf of it
     ::inet_ntop(AF_INET, &address, text, sizeof text);
     return text;
