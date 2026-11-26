@@ -393,8 +393,8 @@ auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
         const auto save_class = std::size_t(std::max(actor->character.character_class, 0));
         for (const auto& made : std::exchange(actor->pet_summons, {}))            // a Shadow's traps and Blade Sentinel from last turn
             if (const auto* skill = game_data->skills.get(made.skill)) summon(*skill, made.level, made.x, made.y, now_ms);
-        const bool town = !level || d2d::rules::level_ids::is_town(level->id);   // FUN_00620bb0, FUN_0061ab00
-        for (auto& pet : actor->pets) pet_regen(*game_data, pet.monster, town, now_ms);
+        for (auto& pet : actor->pets)   // the pet's own room (FUN_00620bb0 on the unit, FUN_0061ab00): one left behind keeps its level's
+            pet_regen(*game_data, pet.monster, !pet.where || d2d::rules::level_ids::is_town(pet.where->id), now_ms);
         for (auto& pet : actor->pets) {
             auto& monster = pet.monster;
             auto& unit = monster.unit;

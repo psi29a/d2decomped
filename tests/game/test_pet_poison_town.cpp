@@ -140,6 +140,13 @@ int main() try {
     std::printf("made-up pet poisoned at 128/256: %d in town, %d in the Blood Moor\n", rule_town, rule_outside);
     assert(rule_town == 128 && rule_outside == 0);
     std::puts("OK: under a point, a pet's poison takes nothing in town and kills it outside (no game data)");
+    // The room is the pet's own (FUN_00620bb0 on the unit): one left in the Blood Moor
+    // (a shot_skill pet stays) dies while the player is in town, and the other way round.
+    const int left_outside = poisoned_pet(kRogueEncampment, kBloodMoor);
+    const int left_in_town = poisoned_pet(kBloodMoor, kRogueEncampment);
+    std::printf("player elsewhere: %d for a pet in the Blood Moor, %d for one in town\n", left_outside, left_in_town);
+    assert(left_outside == 0 && left_in_town == 128);
+    std::puts("OK: the town test is the pet's own level, not the player's");
     const char* mpq_dir = std::getenv("D2_MPQ_DIR");
     if (!mpq_dir || !fs::exists(fs::path(mpq_dir) / "d2data.mpq")) { std::puts("SKIP: the skeleton cases need d2data.mpq (D2_MPQ_DIR)"); return 0; }
     const char* patch = std::getenv("D2_PATCH_INSTALLER");
