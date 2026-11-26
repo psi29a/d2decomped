@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Check Tristram Cain's first think FUN_005e77a0 and its mode steps in game.exe 1.14d.
 
-    .venv/bin/python quest_cain_first_think.py [--exe /path/to/game.exe] [--mutation-check]
+    .venv/bin/python quest_cain_first_think.py [--exe /path/to/game.exe] [--dump ../../tests/cain_first_think_cases.inc] [--mutation-check]
 
 FUN_005e77a0 (fastcall: game in ECX, unit in EDX; its callees hooked and logged): no AI command 3
 record (FUN_0058efa0) or one with +0xc / +0x10 set: 0, nothing done. Else the record's +0xc / +0x10
@@ -12,7 +12,9 @@ FUN_00627260(unit, 6, 0, 0) (life gone) and FUN_005ddfc0(game, unit, 0xc, x, y);
 hooked): FUN_005a7c20(game, request, 1) with request mode 0xc, the unit, no target unit, (x, y).
 FUN_005de080 run for real: a unit out of mode 1 (mode 12 here) is asked for mode 1, the unit its
 own target; one in mode 1 isn't; then AI event 2 at the game frame + n (0 counts as 1).
-d2d: World::cain_step (CainWalk::lifeless), tests/game/test_cain_first_think.cpp.
+d2d: World::cain_step (CainWalk::lifeless), tests/game/test_cain_first_think.cpp, which reads the
+game.exe rows `--dump` writes (record there, not busy, class 0x92: spot noted or not, life cut or not,
+goal offset).
 Without --exe, $D2_MPQ_DIR/bin/game.exe.
 `--mutation-check` breaks the model one defect at a time and requires each to fail.
 """
@@ -47,8 +49,12 @@ def model_think(record, busy, noted, alt):
     return 1, calls, (UNIT_X + 3, UNIT_Y + 3, 1, 0)
 
 
-def check_think(machine):
-    """Run FUN_005e77a0 over the record / note / class cases; returns the case count."""
+def check_think(machine, rows=None):
+    """Run FUN_005e77a0 over the record / note / class cases; returns the case count.
+
+    With `rows` a list, appends game.exe's (noted, life cut, goal dx, goal dy) for the cases d2d's
+    cain_step can be driven into: a record, not busy, class 0x92.
+    """
     game, unit, record = machine.alloc(0x200), machine.alloc(0x100), machine.alloc(0x40)
     state = {"record": True, "noted": False}
     log = []
@@ -104,6 +110,8 @@ def check_think(machine):
                     seen = (got, list(log), fields if expect[2] else None)
                     if seen != expect:
                         raise AssertionError(f"FUN_005e77a0 record={has_record} busy={busy} noted={noted} alt={alt}: game.exe {seen}, model {expect}")
+                    if rows is not None and has_record and not busy and not alt:
+                        rows.append((noted, ("stat", 6, 0, 0) in log, fields[0] - UNIT_X, fields[1] - UNIT_Y))
                     cases += 1
     return cases
 
@@ -146,9 +154,20 @@ def check_modes(machine):
     return cases
 
 
-def check(exe):
-    """Both parts on fresh machines; returns the case count."""
-    return check_think(emu.Emu(exe)) + check_modes(emu.Emu(exe))
+def check(exe, rows=None):
+    """Both parts on fresh machines; returns the case count (`rows` as check_think's)."""
+    return check_think(emu.Emu(exe), rows) + check_modes(emu.Emu(exe))
+
+
+def write_cases(path, rows):
+    """Write game.exe's think rows as C++ initialisers for tests/game/test_cain_first_think.cpp."""
+    lines = ["// tools/emu/quest_cain_first_think.py --dump: game.exe's Cain first think (FUN_005e77a0), callees hooked,",
+             f"// unit at ({UNIT_X}, {UNIT_Y}), a record not yet busy, class 0x92. A row: spot noted already, life cut",
+             "// (FUN_00627260(unit, 6, 0, 0)), goal dx, dy. Oracle-only: no record or a busy one (d2d's cain_step",
+             "// has neither: its walk starts once) and class 0x20f (Frozen Anya's note and take, FUN_0058a940 /",
+             "// FUN_0058a980: d2d's cain_step drives Tristram's Cain, class 0x92, only)."]
+    lines += [f"{{ {str(noted).lower()}, {str(cut).lower()}, {dx}, {dy} }}," for noted, cut, dx, dy in rows]
+    Path(path).write_text("\n".join(lines) + "\n")
 
 
 def main():
@@ -156,11 +175,16 @@ def main():
     global mutation
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--exe", type=Path, default=Path(os.environ.get("D2_MPQ_DIR", ".")) / "bin" / "game.exe")
+    parser.add_argument("--dump", type=Path, help="write game.exe's think rows as C++ cases (tests/cain_first_think_cases.inc)")
     parser.add_argument("--mutation-check", action="store_true")
     args = parser.parse_args()
     if hashlib.sha256(args.exe.read_bytes()).hexdigest() != SHA256:
         raise SystemExit("requires stock game.exe 1.14d (1.14.3.71)")
-    print(f"ok: {check(str(args.exe))} Cain first-think cases (FUN_005e77a0, FUN_005ddfc0, FUN_005de080; callees hooked)")
+    rows = []
+    print(f"ok: {check(str(args.exe), rows)} Cain first-think cases (FUN_005e77a0, FUN_005ddfc0, FUN_005de080; callees hooked)")
+    if args.dump:
+        write_cases(args.dump, rows)
+        print(f"wrote {len(rows)} rows to {args.dump}")
     if args.mutation_check:
         for name in MUTATIONS:
             mutation = name

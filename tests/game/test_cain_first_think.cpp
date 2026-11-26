@@ -4,7 +4,8 @@
 // yet noted (FUN_005944b0 returns 1) it notes his subtile and heads 3 on, life kept. With it noted
 // already it takes FUN_005944f0 (camp Cain due), then his life goes (FUN_00627260(unit, 6, 0, 0)) and
 // mode 0xc (FUN_005ddfc0), undone to NU by the same think's idle (FUN_005de080): the walk goes on from
-// the noted spot. tools/emu/quest_cain_first_think.py checks game.exe's side.
+// the noted spot. tools/emu/quest_cain_first_think.py checks game.exe's side; its --dump rows
+// (tests/cain_first_think_cases.inc) are replayed here against cain_step.
 
 #include <ai/units.hpp>
 #include <ds1.hpp>
@@ -18,8 +19,23 @@
 #include <cassert>
 #include <cstdio>
 #include <exception>
+#include <iterator>
 
 using namespace d2d::game;
+
+namespace {
+// One game.exe first think (FUN_005e77a0) at subtile (20, 30): spot noted already, life cut, goal offset.
+struct ThinkCase {
+    bool noted;
+    bool lifeless;
+    int goal_dx;
+    int goal_dy;
+};
+
+constexpr ThinkCase kCases[] = {
+#include "cain_first_think_cases.inc"
+};
+}   // namespace
 
 // Drives World::cain_step's noted-spot first think (FUN_005e77a0): stat 6 is cut (FUN_00627260) only there.
 int main() try {
@@ -52,6 +68,16 @@ int main() try {
     assert(again.stage == 1 && again.x == 23 && again.y == 33 && again.spot_x == 11 && again.spot_y == 12);
     assert(again.lifeless && world.cain.camp_due && !world.npc_states[0].walking && !world.npc_states[0].hidden);
     std::printf("OK: with the spot noted, camp Cain due and his life gone (stat 6), standing again (NU)\n");
+
+    for (const auto& row : kCases) {
+        const auto walk = first_think(row.noted);
+        if (walk.lifeless != row.lifeless || walk.x != 20 + row.goal_dx || walk.y != 30 + row.goal_dy) {
+            std::printf("FAIL: noted=%d: d2d lifeless=%d goal (%d, %d), game.exe lifeless=%d goal (%d, %d)\n", row.noted, walk.lifeless,
+                        walk.x, walk.y, row.lifeless, 20 + row.goal_dx, 30 + row.goal_dy);
+            return 1;
+        }
+    }
+    std::printf("OK: %zu game.exe first-think rows (tools/emu/quest_cain_first_think.py --dump)\n", std::size(kCases));
     return 0;
 } catch (const std::exception& error) {
     std::printf("FAIL: %s\n", error.what());
