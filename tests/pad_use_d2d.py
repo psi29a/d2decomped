@@ -504,9 +504,9 @@ if touch_ux:
         target = carried("cap", 2, 0)
         portal = carried("tbk", 4, 0)
         cmd("debug unid"); frames(4)
-        def sheet(action):
-            """Tap the item sheet's row `action` (0 = its first), then Confirm (touch::make_item_sheet)."""
-            tap(400, 208 + 48 * action); tap(340, 208 + 48 * (action + 1) + 6)
+        def sheet(action, rows=1):
+            """Choose an action, then the Confirm below all rows (including a separate Sell row)."""
+            tap(400, 208 + 48 * action); tap(340, 208 + 48 * rows + 6)
         cmd("key i"); frames(5)
         before = int(state()["unid"])
         tap(*item_point(identify)); sheet(0)                   # Use, Confirm
@@ -545,6 +545,16 @@ if touch_ux:
             assert int(state()["items"]) == before + 1, "touch stock gesture did not buy"
             bought = [line for line in cmd("items").splitlines() if line.startswith("[") and "panel=1 " in line][-1]
             return item_point(bought.split(" id=")[1].split()[0])
+        # A sellable potion retains Use, and using it must not sell it instead.
+        potion = carried("hp1", 6, 0)
+        cmd("debug stat 6 256"); frames(3)
+        before = int(state()["items"])
+        before_gold = state()["gold"]
+        before_life = int(state()["life"].split("/")[0])
+        tap(*item_point(potion)); sheet(0, rows=2)
+        assert int(state()["items"]) == before - 1, "shop potion Use did not consume the potion"
+        assert state()["gold"] == before_gold, "shop potion Use sold the potion"
+        assert int(state()["life"].split("/")[0]) > before_life, "shop potion Use did not heal"
         # Sellable bag items must still move within inventory while a vendor is open.
         movable = carried("cap", 6, 0)
         origin = item_point(movable)
@@ -553,9 +563,11 @@ if touch_ux:
         finger(2, "up", *destination)
         assert item_point(movable) != origin, "shop drag did not rearrange the bag item"
         before = int(state()["items"])
+        sale_gold = int(state()["gold"])
         finger(2, "down", *item_point(movable)); finger(2, "move", 110, 137)
         finger(2, "up", 110, 137)
         assert int(state()["items"]) == before - 1, "drag into vendor grid did not sell"
+        assert state()["held"] == "-" and int(state()["gold"]) > sale_gold, "sale left the item on the cursor"
         pixel_x, pixel_y = buy()
         before = int(state()["items"])
         finger(2, "down", pixel_x, pixel_y)

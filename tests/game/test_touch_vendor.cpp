@@ -71,6 +71,17 @@ int main() try {
         assert(sheet.trade_event(1, Phase::Cancel, point_x, point_y, action));
         assert(action == touch::ItemAction::None);
     }
+    auto mixed = touch::make_item_sheet(true, true, false);
+    assert(mixed.show_use && mixed.show_sell && mixed.show_confirm());
+    assert(mixed.hit(mixed.use.x + 10.f, mixed.use.y + 10.f) == touch::ItemAction::Use);
+    assert(mixed.hit(mixed.confirm.x + 10.f, mixed.confirm.y + 10.f) == touch::ItemAction::Confirm);
+    touch::ItemAction action;
+    assert(!mixed.trade_event(1, touch::Phase::Down, mixed.use.x + 10.f, mixed.use.y + 10.f, action));
+    mixed.chosen = touch::ItemAction::Use; mixed.confirming = true;
+    assert(mixed.trade_event(2, touch::Phase::Down, mixed.sell.x + 10.f, mixed.sell.y + 10.f, action));
+    assert(action == touch::ItemAction::None);
+    assert(mixed.trade_event(2, touch::Phase::Up, mixed.sell.x + 10.f, mixed.sell.y + 10.f, action));
+    assert(action == touch::ItemAction::Sell && mixed.chosen == touch::ItemAction::Use);
     assert(touch::make_item_sheet(true, false, false).show_confirm());
     assert(touch::make_confirm_sheet().show_confirm());
     return 0;
