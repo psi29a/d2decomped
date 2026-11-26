@@ -87,6 +87,9 @@ std::vector<std::uint8_t> encode_view(const GameData& game_data, const View& vie
         chunk.u8(view.hand_status[0]).u8(view.hand_status[1]);
         chunk.u16(int(view.buffs.size()));
         for (const int buff : view.buffs) chunk.i32(buff);
+        chunk.u16(int(view.effects.size()));
+        for (const auto& effect : view.effects)
+            chunk.u8(effect.kind).i32(effect.code).u32(std::uint32_t(effect.instance)).u32(std::uint32_t(effect.instance >> 32)).u32(effect.remaining_ms).u8(effect.dismissible);
         wire::section(out, enc.section[0], std::move(chunk.bytes));
     }
     // 1: pets and the other players, 2: missiles.
@@ -329,6 +332,15 @@ bool apply_view(const GameData& game_data, std::span<const std::uint8_t> bytes, 
         view.hand_status = { byte(), byte() };
         view.buffs.clear();
         for (int count = u16(); count > 0 && input.ok; --count) view.buffs.push_back(i32());
+        view.effects.clear();
+        for (int count = u16(); count > 0 && input.ok; --count) {
+            const int kind = byte(), code = i32();
+            const std::uint64_t low = u32(), high = u32();
+            const auto remaining = u32();
+            const int dismissible = byte();
+            if (kind > 1 || dismissible > 1) { input.ok = false; break; }
+            view.effects.push_back({ kind, code, low | (high << 32), remaining, dismissible != 0 });
+        }
     });
     body([&] {
         for (auto* pets : { &view.pets, &view.party_pets }) {

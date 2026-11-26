@@ -98,6 +98,8 @@ the ones a player could notice or a test could trip on.
 | An NPC's windows (store, menu, speech) shut once the player is more than 2 cells (10 subtiles) from the NPC, as Esc (`ClientSession::update`) | game.exe's two panels cover its whole 800-pixel world, so it can't walk away with them open; a widescreen view or a click past them can. 2 cells is d2d's (game.exe talks within 6 subtiles)
 | A join that fails for reasons game.exe can't hit (a name a host won't take, a host that never finishes the join, a desync) shows d2d's own words in the OK popup | Say why, instead of only logging it |
 
+Optional touch effect dismissal (`--toggle dismiss_effects=on`, off by default) lets a player remove an allowlisted self buff or positive shrine effect. The host validates the acting player, current instance, expiry and eligibility, then recomputes derived stats. It does not permit removing curses, transformation states or another player's effects. This is d2d UX, not a traced game.exe behavior. Native LAN peers require protocol version 15 for the effect-instance payload; D2GS has no dismissal command.
+
 ## How to add one
 
 Add a row when d2d does something differently from game.exe on purpose:

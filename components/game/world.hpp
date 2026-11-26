@@ -212,6 +212,8 @@ struct View {
     struct NpcKey { int level = 0, hc_idx = -1, object_id = 0; float x = 0, y = 0; int palace = 0, quest = 0; };
     std::vector<NpcKey> npc_keys;
     std::vector<std::pair<int, int>> boost;   // the shrine boost's stats while it lasts
+    struct Effect { int kind = 0, code = 0; std::uint64_t instance = 0; std::uint32_t remaining_ms = 0; bool dismissible = false; };
+    std::vector<Effect> effects;
     int boost_code = 0;                    // ... its Shrines.txt Code (its state: rules::shrine_state)
     int aura = 0;                          // the aura that's on
     int gold_lost = 0;                     // goldlost (175) of the last death: the death screen's line
@@ -461,6 +463,7 @@ struct World {
     Cues  cues{ game_data };                   // world sounds due later
     Loot  loot{ game_data, level, rng, cues };          // on the ground (loot.hpp)
     Fight fight{ game_data, level, rng, loot, cues };   // the fight (fight.hpp)
+    bool dismiss_effects = false;           // optional deviation, controlled by the host
     bool  autoloot_gold = true;            // d2d: gold walked over goes into the purse (deviations.md #5, --toggle autoloot)
     std::vector<int> not_there;            // levels walked toward that aren't built (logged once)
     struct WirtGold { std::uint32_t next_ms; int left, item_level; };

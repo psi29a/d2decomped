@@ -43,6 +43,7 @@ std::vector<std::uint8_t> encode(const Command& command) {
         else if constexpr (std::is_same_v<T, cmd::ToBelt>) out.u8(opcode::kToBelt).i32(message.box);
         else if constexpr (std::is_same_v<T, cmd::AutoBelt>) out.u8(opcode::kAutoBelt).i32(message.item);
         else if constexpr (std::is_same_v<T, cmd::EquipFromBag>) out.u8(opcode::kEquipFromBag).i32(message.item);
+        else if constexpr (std::is_same_v<T, cmd::DismissEffect>) out.u8(opcode::kDismissEffect).u8(message.kind).u32(std::uint32_t(message.instance)).u32(std::uint32_t(message.instance >> 32));
         else if constexpr (std::is_same_v<T, cmd::Socket>) out.u8(opcode::kSocket).i32(message.item);
         else if constexpr (std::is_same_v<T, cmd::ScrollToBook>) out.u8(opcode::kScrollToBook).i32(message.book);
         else if constexpr (std::is_same_v<T, cmd::OpenTrade>) out.u8(opcode::kNpcDeal).u8(message.gamble ? npc_deal::kGamble : npc_deal::kTrade).i32(message.npc);
@@ -105,6 +106,7 @@ std::optional<Command> decode(std::span<const std::uint8_t> bytes) {
         case opcode::kToBelt: command = cmd::ToBelt{ i32() }; break;
         case opcode::kAutoBelt: command = cmd::AutoBelt{ i32() }; break;
         case opcode::kEquipFromBag: command = cmd::EquipFromBag{ i32() }; break;
+        case opcode::kDismissEffect: { const int kind = byte(); if (kind > 1) return std::nullopt; const auto low = input.get<std::uint32_t>(); const auto high = input.get<std::uint32_t>(); command = cmd::DismissEffect{ kind, std::uint64_t(low) | (std::uint64_t(high) << 32) }; break; }
         case opcode::kDropGold: command = cmd::DropGold{ i32() }; break;
         case opcode::kSocket: command = cmd::Socket{ i32() }; break;
         case opcode::kScrollToBook: command = cmd::ScrollToBook{ i32() }; break;

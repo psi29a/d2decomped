@@ -134,6 +134,8 @@ struct Waypoint { int npc = -1, level = 0; };
 // puts the bytes on a D2GS socket. One bag item into head, neck, torso,
 // feet or gloves, the old piece into the bag when a cell is free.
 struct EquipFromBag { int item = -1; };
+// d2d only: the host checks the active player, policy, instance and expiry.
+struct DismissEffect { int kind = 0; std::uint64_t instance = 0; };
 // 0x15: a typed chat line, to everyone in the game (a LAN game's; game.exe's
 // C→S 0x15 carries a whisper's target too).
 struct Say { std::string text; };
@@ -143,7 +145,7 @@ using Command = std::variant<cmd::Move, cmd::UseSkill, cmd::Interact, cmd::Picku
                              cmd::StatPoint, cmd::SkillPoint, cmd::SelectSkill, cmd::UseBelt, cmd::UseItem, cmd::ReadScroll,
                              cmd::ToCursor, cmd::Drop, cmd::ToGrid, cmd::ToBody, cmd::ToBelt, cmd::Socket, cmd::ScrollToBook,
                              cmd::OpenTrade, cmd::OpenHire, cmd::Buy, cmd::Sell, cmd::Repair, cmd::Identify, cmd::IdentifyWith, cmd::Hire, cmd::ResurrectMerc, cmd::CloseTrade, cmd::Respec,
-                             cmd::Run, cmd::Chat, cmd::QuestMessage, cmd::Waypoint, cmd::Caravan, cmd::Imbue, cmd::ObjectItem, cmd::Transmute, cmd::StashGold, cmd::DropGold, cmd::SwapWeapons, cmd::MercItem, cmd::AutoBelt, cmd::EquipFromBag, cmd::Say>;
+                             cmd::Run, cmd::Chat, cmd::QuestMessage, cmd::Waypoint, cmd::Caravan, cmd::Imbue, cmd::ObjectItem, cmd::Transmute, cmd::StashGold, cmd::DropGold, cmd::SwapWeapons, cmd::MercItem, cmd::AutoBelt, cmd::EquipFromBag, cmd::DismissEffect, cmd::Say>;
 
 // The wire form of a command (what a transport carries): its id byte —
 // game.exe's packet id where there's one to match — then its fields,
@@ -235,6 +237,7 @@ inline constexpr std::uint8_t kSwapWeapons = 0x60;
 inline constexpr std::uint8_t kMercItem = 0x61;
 inline constexpr std::uint8_t kAutoBelt = 0x63;
 inline constexpr std::uint8_t kEquipFromBag = 0x64;   // d2d only; see cmd::EquipFromBag
+inline constexpr std::uint8_t kDismissEffect = 0x65;   // d2d only
 }  // namespace opcode
 
 // 0x38's first byte: which deal (d2d's numbering; game.exe tells Respec,

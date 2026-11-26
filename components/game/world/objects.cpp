@@ -536,7 +536,7 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
         // the stamina state's end (FUN_00583a40) and its start fill stamina.
         if (auto boost = d2d::rules::shrine_boost(shrine, actor->player_combat.attack_rating); !boost.empty()) {
             if (shrine.code == 14 || shrine_code(actor->boost.shrine) == 14) stat_values[kStamina] = stat_values[kMaxStamina];
-            actor->boost = { row, std::move(boost), now_ms + std::uint32_t(shrine.duration) * 40u };
+            actor->boost = { row, std::move(boost), now_ms + std::uint32_t(shrine.duration) * 40u, actor->next_effect_instance() };
         }
         if (const auto sound = d2d::rules::shrine_sound(shrine.code); !sound.empty()) cues.cue(sound, now_ms, object.x, object.y);
         // Portal (FUN_00582a30): the free spot nearest the player for a size

@@ -135,7 +135,7 @@ auto Fight::add_state(const d2d::rules::Skill& skill, int lvl, std::uint32_t unt
             const auto* other = game_data->skills.get(state.skill);
             return state.skill == skill.id || (group != 0 && other && other->aurastate != skill.aurastate && group_of(*other) == group);
         });
-        actor->self_states.push_back({ skill.id, lvl, until });
+        actor->self_states.push_back({ skill.id, lvl, until, actor->next_effect_instance() });
     }
 
 // A state's States.txt group (+0x1e), 0 none (FUN_0056c740's test).
