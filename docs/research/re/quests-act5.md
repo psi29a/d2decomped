@@ -36,6 +36,13 @@ superunique): prisondoor 0x1b2 and act5pow → 0x20; Nihlathak (base 0x20e)
 
 **Log values** are DL at `FUN_00544300` (the record's +0xb). Records
 with +0xe8 null (a5q2, a5q5, a5q6) use the default log with done = +0xd 4.
+The six per-player callbacks `FUN_00586c80`, `FUN_005879d0`,
+`FUN_00588eb0`, `FUN_0058aea0`, `FUN_0058be20` and `FUN_0058d770` select
+difficulty from game +0x6d, get player data with `FUN_006221a0`, and test
+words 0x23..0x28 with `FUN_0065c310`. A done or closed word (bit 0 or 15)
+is skipped unless bit 13 or 14 is set; a pass calls `FUN_00544190` with
+record 0x1f..0x24. `tools/emu/quest_log_sends.py` runs all 16 combinations
+per callback and checks the record id.
 
 ## NPC introductions (a5q0) and the save
 

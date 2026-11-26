@@ -765,7 +765,8 @@ flag 1, 18 pass 0 (`FUN_00587b00`, `FUN_0058fdd0`, `FUN_00590980`,
 callback is tested after the call (`CMP AL, 1` at 0x5442af); that branch isn't read.
 
 d2d sends a quest's log as an event (`ev::QuestNews`) where its record's
-flag-1 sites are ported (`news`: act 1's six, act 2's five but a2q2, act 3's five but a3q2, a4q2 .. a4q4, act 5's six); the client
+flag-1 sites are ported (`news`: act 1's six, act 2's five but a2q2, act 3's five but a3q2, a4q2 .. a4q4,
+act 5's six except a5q4's unmodeled first-think site); the client
 doesn't also read a change in their View's log for a send
 (`rules::quest_log_sent_by_event`, `tests/test_quest_log_sends.cpp`). a1q5's
 sites, read in game.exe, all pass flag 1: the Moldy Tome's message heard
@@ -933,6 +934,57 @@ Act 4's `FUN_00544300` calls, read the same way (a linear sweep of 0x5b3780 .. 0
 | 0x5b6228 | a4q3 | 0xd | 0 | Cain's 680 reward (`FUN_005b6100`) | `HellforgeQuest::said` |
 | 0x5b6473 | a4q3 | 4 with the stone given, else 1 | 1 | Cain's talk closes after 678 / 679 (`FUN_005b6440`, data +2) | `HellforgeQuest::talk_closed` |
 
+Act 5's `FUN_00544300` calls, from the linear sweep of 0x586b50 .. 0x58e990
+(`tests/game/test_quest_log_sends_act5.cpp`). Its six callbacks send unless done or closed (bit 0 or
+15) without bit 13 / 14, and hand `FUN_00544190` records 0x1f..0x24. In call-site order:
+
+| call site | record | log | flag | when | d2d |
+|---|---|---|---|---|---|
+| 0x586dad | a5q1 | 1 | 1 | Larzuk's talk closes after 20077 (`LAB_00586d80`, data +8) | `SiegeQuest::talk_closed` |
+| 0x586dcd | a5q1 | 4 | 1 | Larzuk's talk closes after 20090 (data +0x16) | `SiegeQuest::talk_closed` |
+| 0x586fb8 | a5q1 | 0xd | 1 | Larzuk's 20090 with bits 1 and 13 (`FUN_00586e70`) | `SiegeQuest::said` |
+| 0x5873d0 | a5q1 | 3 | 1 | Shenk dies, log under 3 (`FUN_00587330`) | `SiegeQuest::killed` |
+| 0x5874bc | a5q1 | 1 | 1 | out of Harrogath at state 2 and log 0 (`FUN_005873e0`) | `SiegeQuest::enter` |
+| 0x587941 | a5q1 | 2 | 1 | Shenk's first think, open, log under 2 (`FUN_00587900`) | `SiegeQuest::shenk_seen` |
+| 0x587a68 | a5q2 | 1 | 1 | Qual-Kehk's talk closes after 20096 (`LAB_00587a30`, data +0x84) | `RescueQuest::talk_closed` |
+| 0x587c1e | a5q2 | 0xd | 0 | Qual-Kehk's 20110 reward (`FUN_00587b00`) | `RescueQuest::said` |
+| 0x588145 | a5q2 | 0xc | 1 | the fifth caged prisoner dies (`FUN_00588040`) | `RescueQuest::prisoner_died` |
+| 0x588264 | a5q2 | 1 | 1 | into the Highlands / Plateau at log 0 (`FUN_00588200`) | `RescueQuest::enter` |
+| 0x58832f | a5q2 | 1 | 1 | out of Harrogath at state 2 and log 0 | `RescueQuest::enter` |
+| 0x588707 | a5q2 | 1 | 1 | a cage's InitFn, log 0 and under five dead (`FUN_005886a0`) | `RescueQuest::cage` |
+| 0x588b5b | a5q2 | 3 | 1 | every cage is resolved with at least 12 freed (`FUN_005888d0`) | `RescueQuest::portal_opened` |
+| 0x588c2e | a5q2 | 2 | 1 | a cage portal opens before every cage is resolved | `RescueQuest::portal_opened` |
+| 0x588e08 | a5q2 | 5 | 1 | a caged prisoner's think sees a nearby player (`FUN_00588dd0`) | `RescueQuest::cried` |
+| 0x588fb7 | a5q3 | 1 | 1 | Malah's talk closes after 20116 (`LAB_00588f80`, data +0xac) | `PrisonQuest::talk_closed` |
+| 0x588fe6 | a5q3 | 4 | 1 | Malah's talk closes after giving the potion (data +0x101) | `PrisonQuest::talk_closed` |
+| 0x58976a | a5q3 | 6 | 1 | Malah gives the resistance scroll before Anya's reward (`FUN_00589580`) | `PrisonQuest::said` |
+| 0x589a3c | a5q3 | 3 | 1 | frozen Anya's 20131, log under 3 | `PrisonQuest::said` |
+| 0x589df3 | a5q3 | 1 | 1 | into the Crystalline Passage / Frozen River at log 0 (`FUN_00589d80`) | `PrisonQuest::enter` |
+| 0x589ea5 | a5q3 | 1 | 1 | out of Harrogath at state 2 and log 0 | `PrisonQuest::enter` |
+| 0x58aa3d | a5q3 | 2 | 1 | frozen Anya's InitFn under log 2 (`FUN_0058aa10`) | `PrisonQuest::fana_seen` |
+| 0x58aa9a | a5q3 | 2 | 1 | the same from `FUN_0058aa50` | `PrisonQuest::fana_seen` |
+| 0x58ac23 | a5q3 | 3 | 1 | frozen Anya used without the potion, at log 1 (`FUN_0058abc0`) | `PrisonQuest::thaw` |
+| 0x58acf9 | a5q3 | 5 | 1 | the potion is poured | `PrisonQuest::thaw` |
+| 0x58b082 | a5q4 | 1 | 1 | Anya's talk closes after 20137 (`FUN_0058b050`, data +0x86) | `BetrayalQuest::talk_closed` |
+| 0x58b230 | a5q4 | current | 1 | Anya's 20148 reward (`FUN_0058b1c0`) | `BetrayalQuest::said` |
+| 0x58b78d | a5q4 | 4 | 1 | Nihlathak's death timer (`FUN_0058b770`) | `BetrayalQuest::log_timer` |
+| 0x58ba3a | a5q4 | 2 | 1 | a join with bit 3 (`FUN_0058b990`) | `BetrayalQuest::join` |
+| 0x58ba86 | a5q4 | 1 | 1 | a join with bit 2 | `BetrayalQuest::join` |
+| 0x58bb09 | a5q4 | 2 | 1 | into Nihlathak's Temple with log 1 (`LAB_0058bab0`) | `BetrayalQuest::enter` |
+| 0x58bc6d | a5q4 | 3 | 1 | Nihlathak's first think under log 3 (`FUN_0058bc40`) | not ported (AI site) |
+| 0x58bea9 | a5q5 | 1 | 1 | Qual-Kehk's talk closes after 20153 (`LAB_0058be80`, data +1) | `RiteQuest::talk_closed` |
+| 0x58c2f2 | a5q5 | 1 | 1 | Qual-Kehk's 20153, log not 1 (`FUN_0058c290`) | `RiteQuest::said` |
+| 0x58c33d | a5q5 | 3 | 1 | the Ancients' 20002, log not 3 | `RiteQuest::said` |
+| 0x58cb86 | a5q5 | 0xd | 1 | the last Ancient dies (`FUN_0058c9a0`) | `RiteQuest::ancient_died` |
+| 0x58cc2e | a5q5 | 1 | 1 | out of Harrogath at state 2, log not 1 (`FUN_0058cba0`) | `RiteQuest::enter` |
+| 0x58cc6f | a5q5 | 2 | 1 | into the Summit after state 2, log under 2 | `RiteQuest::enter` |
+| 0x58d3ca | a5q5 | 3 | 1 | the Summit altar is used, log not 3 (`FUN_0058d310`) | `RiteQuest::altar` |
+| 0x58df72 | a5q6 | 4 | 1 | Baal dies (`FUN_0058df20`) | `EveQuest::killed` |
+| 0x58e24b | a5q6 | 1 | 1 | out of Harrogath at state 2, log not 1 (`FUN_0058e190`) | `EveQuest::enter` |
+| 0x58e289 | a5q6 | 2 | 1 | into a level past 130, open, log under 2 | `EveQuest::enter` |
+| 0x58e3ce | a5q6 | 1 | 1 | a5q5's chain opens the record (`LAB_0058e390`) | `EveQuest::opened` |
+| 0x58e637 | a5q6 | 3 | 1 | Baal walks into the Chamber portal, log under 3 (`FUN_0058e600`) | `EveQuest::baal_gone_in` |
+
 Both local paths (the View's log change and `ev::QuestNews`) apply the act test
 above through `rules::quest_log_send_in_act`; a joined game's 0x5d is not
 tested again (the host's `FUN_00544190` sent it, and `FUN_004a2cb0` has no act
@@ -942,8 +994,7 @@ row +8, and `FUN_00545d80` copies each record's act from the init table
 1..6 only in Act 1, 9..14 in Act 2, 17..22 in Act 3, 25..27 in Act 4 and 35..40
 in Act 5; word 34 is record 30, an Act 1 record with no shown slot; words with
 record 37 (24 among them) have none. `test_quest_log_act_send` covers every
-record and adjacent gap. Not traced against d2d's records: the remaining
-quests' individual flag-1 sites.
+record and adjacent gap. The unported flag-1 sites named in the per-act tables remain gaps.
 
 `FUN_004a2a80` draws it like New Stats (levelsocket, level, the label
 3928 "Quest Log" centred over it). Its row (0x7241c0, 20 bytes x0, x1,

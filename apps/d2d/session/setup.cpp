@@ -93,10 +93,12 @@ auto ClientSession::take_view(std::span<const std::uint8_t> bytes, const View* l
         // ponytail: a2q2's and a3q2's pickup sends (FUN_00599a30 -> FUN_00544190; FUN_005b8210 ->
         // FUN_005b81c0, a 0x5d to the one player) aren't events, nor a3q2's talk-close log 1 (0x5b804b):
         // a change in the View's log state stands in for each send of theirs, none at the game's first
-        // View (the join sends none). The others' sends are events (rules::quest_log_sent_by_event; act 1's
+        // View (the join sends none). Nihlathak's first-think log 3 (0x58bc6d) is an unported AI site. The
+        // other sends are events (rules::quest_log_sent_by_event; act 1's
         // six since FUN_0058fbe0 .. FUN_00595b20, act 2's five since FUN_005988b0 .. FUN_0059c650, act 3's
-        // five since FUN_005b7340 .. FUN_005bc210). Both local paths make FUN_00544190's act test (the
-        // player's level's act against the record's); a joined game's 0x5d comes already tested.
+        // five since FUN_005b7340 .. FUN_005bc210, act 4's three since FUN_005b3940 .. FUN_005b59c0, act 5's
+        // six since FUN_00586c80 .. FUN_0058d770). Both local paths make FUN_00544190's act test (the player's
+        // level's act against the record's); a joined game's 0x5d comes already tested.
         for (std::size_t quest = 1; !net_game && quest < view.quest_log.size(); ++quest)   // a joined game's come as 0x5d (net_quests)
             if (quest_log.sent_known && view.quest_log[quest] && view.quest_log[quest] != quest_log.sent[quest]
                 && !d2d::rules::quest_log_sent_by_event(int(quest)) && d2d::rules::quest_log_send_in_act(int(quest), view_act()))
