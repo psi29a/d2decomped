@@ -2,6 +2,8 @@
 
 # D2Decomp
 
+[![game.exe code progress](https://psi29a.github.io/d2decomped/progress.svg)](https://psi29a.github.io/d2decomped/gaps.html)
+
 ![D2Decomp widescreen gameplay](https://mindwerks.net/assets/images/2026/10/d2decomp-widescreen-rogue-encampment.png)
 
 D2Decomp is a cross-platform, open-source reimplementation of the Diablo II:
@@ -40,12 +42,20 @@ keyboard.
 | Gamepad (Xbox, PlayStation, Switch, Steam Deck) | ✅ remappable ([apps/d2d](apps/d2d/README.md)) |
 | Joining a game hosted by the original | 🚧 Acts I–IV checked live, Act V not yet |
 | Sound | ✅ every sound the original plays: 3,416 of the base install's 3,520 rows; the other 104 are traced as never played by stock 1.14d ([unit-sounds.md](docs/research/re/unit-sounds.md)) |
-| Multiplayer with a d2d host | Not started |
+| Multiplayer with a d2d host | 🚧 LAN hosting for d2d clients; original clients cannot join ([LAN host](docs/design/lan-host.md)) |
 | Dedicated server | Not started |
 
-Every ✅ act's maps, monster and object placement, drops and monster AI are
-checked against the original; the few details left are in the
+Maps, placement, drops and monster AI have been checked against the original,
+but there are still gameplay and fidelity gaps, including skills and the
+uber levels. See the [open gaps](docs/research/re/todo.md) and
 [roadmap](docs/PLAN.md).
+
+The badge is the [gap map](https://psi29a.github.io/d2decomped/gaps.html)'s
+estimate of the share of in-scope game.exe 1.14d function bytes marked
+ported or verified, based on address citations in the repository. It excludes
+library code, stubs and Win32 wrappers; it is not a measure of gameplay
+completeness or a guarantee of correctness. It updates when the gap map is
+published after a push to `main`.
 
 ## Bring your own game
 
@@ -75,8 +85,8 @@ the screen's edges at any resolution, the world's sounds pause with the
 game menu, and Configure Controls can put Attack and the right-hand skill on
 a mouse's extra buttons.
 
-**Planned:** let d2d host multiplayer games and run a dedicated server, and
-support high-DPI displays. These features are not implemented yet.
+**Planned:** let original game clients join a d2d host, run a dedicated
+server, and support high-DPI displays. These features are not implemented yet.
 
 ## Steam Deck
 
@@ -104,9 +114,10 @@ keyboard in Gaming Mode; if one doesn't, press STEAM + X.
 ## Build and run
 
 You'll need a C++23 compiler, CMake 3.28+, Ninja, SDL3, OpenAL, zlib, libcurl
-and Qt 6.5+ for the launcher. The build fetches CLI11 and Sentry itself. On Linux
-and macOS it also builds a small Bink-only FFmpeg. StormLib comes from your
-system if it has one, or from source if not.
+and Qt 6.5+ for the launcher. The build fetches CLI11; Sentry is fetched only
+when crash-report support is enabled (`-DD2D_SENTRY=ON`). On Linux and macOS
+it also builds a small Bink-only FFmpeg. StormLib comes from your system if
+it has one, or from source if not.
 
 Debian / Ubuntu (CI uses Ubuntu 26.04; you need a release with `libsdl3-dev`,
 which means Ubuntu 25.04+ or Debian 13+):
@@ -139,7 +150,15 @@ build/apps/d2d/d2d --join 192.168.1.10   # an original game's TCP/IP host, your 
 
 You can also join from the menus: Other Multiplayer → TCP/IP Game → Join
 Game, type the host's address, then pick a character. d2d remembers the
-address as `last_tcp_ip` in `d2d.cfg`. Alt+Enter switches between a window
+address as `last_tcp_ip` in `d2d.cfg`. Joining an original host also needs
+your own 1.14d `game.exe`, found beside the MPQs or in `bin/`, or specified
+with `--game-exe` or `D2_GAME_EXE`.
+
+For d2d-to-d2d LAN play, use the TCP/IP menu's Host Game and Join Game, or
+start the host with `--host 6113` and the joiner with `--connect <host-ip>`.
+This protocol is for d2d clients only.
+
+Alt+Enter switches between a window
 and borderless fullscreen; `fullscreen = 1` in `d2d.cfg` starts that way.
 
 Widescreen is an opt-in quality-of-life improvement (`--widescreen`, or
