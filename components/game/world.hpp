@@ -909,7 +909,8 @@ struct World {
     // Tristram (-1: not out), `stage` the AI data's +0x14 (-1: the Gibbet
     // still opening), `tries` +0x18, `next` his next think.
     // Subtiles: where he heads (AI +0xc / +0x10) and the noted spot (quest +0x9c / +0xa0).
-    struct CainWalk { int npc = -1, stage = -1, tries = 0, x = 0, y = 0, spot_x = 0, spot_y = 0; std::uint32_t next = 0; };
+    // `lifeless`: his life (stat 6) taken by a first think that found the spot noted.
+    struct CainWalk { int npc = -1, stage = -1, tries = 0, x = 0, y = 0, spot_x = 0, spot_y = 0; std::uint32_t next = 0; bool lifeless = false; };
     CainWalk cain_walk;
     Portal cain_portal{};                  // his portal (object 189, at the spot): no twin, not selectable
     std::uint32_t cain_portal_closes = 0;  // when it reaches mode 4 (rules::CainQuest::portal_closed_frame); 0: not due

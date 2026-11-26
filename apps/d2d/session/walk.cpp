@@ -427,7 +427,7 @@ auto ClientSession::walk(const Mouse& mouse, bool over_ui, Audio& audio, std::ui
         }
         // The screen's pad plays the screen's player (local co-op: a partner's while they have it).
         const Send to_world = [this](const Command& command) { send(command); };
-        const bool field = pad_field() && !game_menu.open && !chat_typing && !gold_box;
+        const bool field = !loot_chooser.open && pad_field() && !game_menu.open && !chat_typing && !gold_box;
         const bool touch_field_walk = touch_enabled && last_device == touch::LastDevice::Touch && touch_shows_field_controls();
         if (!touch_field_walk)
             pad_walk(pad, focused().player, view.dead && !view.ghost, field, to_world);   // a ghost walks
@@ -436,7 +436,7 @@ auto ClientSession::walk(const Mouse& mouse, bool over_ui, Audio& audio, std::ui
             pad.walking = false;
         }
         if (pad_config.skill_buttons) {
-            apply_skill_pad(pad, focused().player, view.dead, pad_field(), focused().character.name, int(focused().character.header.right_skill),
+            apply_skill_pad(pad, focused().player, view.dead, !loot_chooser.open && pad_field(), focused().character.name, int(focused().character.header.right_skill),
                             focused().character.header.expansion(), skill_actions, to_world);
             if (const int panel = std::exchange(pad.wants_panel, -1); panel >= 0) {
                 skill_strip = panel;
@@ -444,7 +444,7 @@ auto ClientSession::walk(const Mouse& mouse, bool over_ui, Audio& audio, std::ui
                 open.confirm = true;
                 drive_strip(open);
             }
-        } else pad_act(pad, focused().player, view.dead, pad_field(), skillbar.left, skillbar.right, to_world, skillbar.left_item, skillbar.right_item);
+        } else pad_act(pad, focused().player, view.dead, !loot_chooser.open && pad_field(), skillbar.left, skillbar.right, to_world, skillbar.left_item, skillbar.right_item);
         drive_touch();
         // Fixed ticks of kTickMs; after a stall, a few to catch up, then the
         // clock skips ahead (game.exe catches up one frame at most).

@@ -7,6 +7,7 @@
 #include "input/gamepad_map.hpp"
 #include "input/teleport_aim.hpp"
 #include "input/touch/input.hpp"
+#include "skills/dispatch.hpp"
 #include "skills/pad.hpp"
 #include "skills/tree.hpp"
 
@@ -366,7 +367,7 @@ auto ClientSession::drive_strip(const pad::Actions& actions) -> void {
 auto ClientSession::apply_skill_pad(PadPlayer& player_pad, const UnitState& unit, bool dead, bool field, std::string_view name, int right_skill,
                            bool expansion, const pad::Actions& actions, const Send& out) -> void {
     ensure_skill_sheet(name);
-    if (!field || dead) {
+    if (!field || dead || (&player_pad == &pad && loot_chooser.open)) {
         player_pad.teleport.clear();
         return;
     }
@@ -395,10 +396,13 @@ auto ClientSession::apply_skill_pad(PadPlayer& player_pad, const UnitState& unit
     if (actions.swap_tap && expansion) out(cmd::SwapWeapons{});
     const auto interact = [&]() {
         const PadPick pick = pad_pick(player_pad, unit, true, {}, false);
-        if (pick.kind == PadPick::kItem) out(cmd::Pickup{ pick.id });
+        if (pick.kind == PadPick::kItem) {
+            if (&player_pad != &pad || !open_loot_chooser(player_pad, unit, false)) out(cmd::Pickup{ pick.id });
+        }
         else if (pick.kind == PadPick::kThing) out(cmd::Interact{ pick.id });
     };
     if (actions.interact_press) interact();
+    if (&player_pad == &pad && loot_chooser.open) return;
     const auto found = skill_sheets.find(sheet_key(std::string(name)));
     const skillpad::Sheet sheet = found == skill_sheets.end() ? skillpad::Sheet{} : found->second;
     const auto fire = [&](int skill, bool press, bool button_down, bool& used) {
@@ -492,20 +496,9 @@ auto ClientSession::apply_skill_pad(PadPlayer& player_pad, const UnitState& unit
         }
         cast(id, press, button_down, used);
     };
-    const int trigger_set = player_pad.trigger_hold.set_for(actions.main_skill, actions.main_skill_down, actions.modifier_held);
-    if (trigger_set >= 0) {
-        int skill = sheet.trigger(trigger_set == 1);
-        if (skill == skillpad::kUnset) skill = right_skill;
-        const bool keep = skillpad::binds_action(skill) || skill == kResurrectSkill || skill_known(name, skill);
-        perform(keep ? skill : skillpad::kEmpty, actions.main_skill, actions.main_skill_down, skillpad::kSlots);
-    }
-    for (int index = 0; index < skillpad::kSlots; ++index) {
-        const bool press = actions.skill_slot == index;
-        const bool button_down = actions.slot_down[std::size_t(index)];
-        const int set = player_pad.slot_hold.set_for(index, press, button_down, actions.modifier_held);
-        if (set < 0) continue;
-        perform(sheet.slot(set == 1, index), press, button_down, index);
-    }
+    skillpad::dispatch_buttons(actions, sheet, player_pad.slot_hold, player_pad.trigger_hold, right_skill,
+        [&](int skill) { return skillpad::binds_action(skill) || skill == kResurrectSkill || skill_known(name, skill); },
+        [&] { return &player_pad == &pad && loot_chooser.open; }, perform);
 }
 
 /**

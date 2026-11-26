@@ -493,11 +493,17 @@ auto World::tower_treasure(std::uint32_t now_ms) -> void {
 // mode 4 (S2): nothing removes the object (rules::CainQuest::portal_mode).
 // A first think with the spot noted already (a second Cain unit on the
 // record, FUN_005944b0 returns 0) takes FUN_005944f0 for it: camp Cain due
-// (CainQuest::note_spot); then his life goes to 0 (FUN_00627260 stat 6)
-// and he lies in mode 0xc, DD (FUN_005ddfc0 at his own spot): cain1 has
-// DD (MonStats2 mDD), and a dead unit thinks no more and isn't picked.
+// (CainQuest::note_spot); then his life goes (0x5e7829: FUN_00627260(unit,
+// 6, 0, 0), stat 6 removed: CainWalk::lifeless) and he's put in mode 0xc
+// (DD) at his own subtile (0x5e7844: FUN_005ddfc0 -> FUN_005a7c20, mode
+// table 0x6e2260 row 12: its start at 0x5a7390). The same think's idle
+// (FUN_005de080) finds him out of mode 1 and puts him back in NU
+// (FUN_005a73e0), so he stands and the walk goes on from the spot noted
+// (tools/emu/quest_cain_first_think.py runs FUN_005a7c20 and both mode
+// starts for real: DD, then NU).
 // ponytail: the thinks' idles (1, 20 frames) stand in for the AI's own
-// tick (ai.cpp).
+// tick (ai.cpp); mode 0xc's start (FUN_005a6520's death steps, timers 8
+// and 9 dropped) isn't made, nor anything that reads his life.
 auto World::cain_step(std::uint32_t now_ms, float /* elapsed: a step is a frame */) -> void {
         if (cain_walk.npc < 0 || level->id != d2d::rules::CainQuest::kTristram || std::size_t(cain_walk.npc) >= npc_states.size()) return;
         const auto& npc = level->npcs[std::size_t(cain_walk.npc)];
@@ -516,14 +522,11 @@ auto World::cain_step(std::uint32_t now_ms, float /* elapsed: a step is a frame 
         const auto off = [&](int x, int y) { return d2d::rules::ai_distance(x - at_x, y - at_y); };
         if (cain_walk.stage < 0) {
             unit.hidden = false;
-            if (!cain.note_spot(at_x, at_y)) {                                                        // FUN_005944b0, else FUN_005944f0 (FUN_005e77a0)
-                unit.mode = "DD";                                                                       // stat 6 = 0, mode 0xc at his spot
-                unit.mode_ms = now_ms;
-                cain_walk.npc = -1;
-                d2d::log::info("Search for Cain: the spot was noted before; this Cain lies dead");
-                return;
+            if (cain.note_spot(at_x, at_y)) { cain_walk.spot_x = at_x; cain_walk.spot_y = at_y; }   // FUN_005944b0, else FUN_005944f0 (FUN_005e77a0)
+            else {                                                                                      // the spot noted before stays
+                cain_walk.spot_x = cain.spot_x; cain_walk.spot_y = cain.spot_y;
+                cain_walk.lifeless = true;                                                              // FUN_00627260(unit, 6, 0, 0); DD, then NU (FUN_005de080)
             }
-            cain_walk.spot_x = at_x; cain_walk.spot_y = at_y;
             cain_walk.x = at_x + 3; cain_walk.y = at_y + 3;
             cain_walk.stage = 1;
             cain_walk.next = now_ms + 40;
