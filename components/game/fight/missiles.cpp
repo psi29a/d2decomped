@@ -23,6 +23,7 @@
 #include <points.hpp>
 #include <replenish.hpp>
 #include <rules.hpp>
+#include <set_list.hpp>
 #include <skills.hpp>
 #include <sound_ids.hpp>
 #include <uniques.hpp>
@@ -200,6 +201,7 @@ auto Fight::out_of_ammo(std::size_t index) -> void {
             item.flags |= 0x100u;
             item.durability = 0;
             settle_requirements(*game_data, actor->character);   // FUN_0055f850 -> FUN_0055dbc0
+            d2d::rules::free_set_list(game_data->rules, actor->character.items, item);   // FUN_0055f850 -> FUN_00663cc0(.., 1, 1)
             return;
         }
         // FUN_00560cd0 refuses with an item on the cursor (FUN_0063c1e0 at 0x560d23): the spent stack
@@ -270,6 +272,7 @@ auto Fight::wear(std::size_t index, std::uint32_t now_ms) -> void {
         if (armor) {
             item.flags |= 0x100u; item.durability = 0;
             settle_requirements(*game_data, actor->character);   // FUN_0055f850 -> FUN_0055dbc0
+            d2d::rules::free_set_list(game_data->rules, actor->character.items, item);   // FUN_0055f850 -> FUN_00663cc0(.., 1, 1)
             cues.cue(d2d::rules::sound_ids::kCursorDurabilityBreak, now_ms, actor->player.x, actor->player.y);
             return;
         }
@@ -348,6 +351,7 @@ auto Fight::impale_wear(const d2d::rules::Skill& skill, std::uint32_t now_ms) ->
                         d2d::rules::wield_leaves(game_data->rules, actor->character.items, item);
                         item.durability = 0; item.flags |= 0x100u;             // FUN_0055f850: it breaks
                         settle_requirements(*game_data, actor->character);
+                        d2d::rules::free_set_list(game_data->rules, actor->character.items, item);   // FUN_0055f850 -> FUN_00663cc0(.., 1, 1)
                         cues.cue(d2d::rules::sound_ids::kCursorDurabilityBreak, now_ms, actor->player.x, actor->player.y);
                     }
                 }
@@ -438,6 +442,7 @@ auto Fight::cast_missile(int skill, float target_x, float target_y, std::uint32_
                 d2d::rules::wield_leaves(game_data->rules, actor->character.items, item);   // FUN_0055f850 -> FUN_0063d2b0
                 item.flags |= 0x100u;
                 settle_requirements(*game_data, actor->character);
+                d2d::rules::free_set_list(game_data->rules, actor->character.items, item);   // FUN_0055f850 -> FUN_00663cc0(.., 1, 1)
                 cues.cue(d2d::rules::sound_ids::kCursorDurabilityBreak, now_ms, actor->player.x, actor->player.y);
             }
             actor->attack_mon = -1;

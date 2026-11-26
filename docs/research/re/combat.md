@@ -514,10 +514,13 @@ d2d: `rules::stats_on` stamps an item where its stats go on
 (`wield_enters`, `equip_from_bag`), `rules::set_list_piece` takes the worn
 member with the highest stamp (the later in the save on a tie: a load puts
 them on in its order), `rules::set_list_rows` the rows, and `set_props`
-hands the piece to `apply_mod`. Not ported: the pass's last loop, and a
-break's or `FUN_0057f410`'s free, which leaves the pieces still worn with
-no set bonus until one goes on again (`set_list.cpp`'s ponytail). Taking a
-piece off does not: the pass rebuilds the list.
+hands the piece to `apply_mod`. `settle_requirements` ends with the last
+loop (`rules::restamp_worn_sets`), and each break site in
+`fight/missiles.cpp` calls `rules::free_set_list` after its pass
+(`Item::set_list_freed`, cleared by the next `stats_on`). Not ported: the
+corpse's `FUN_0057f410` (`set_list.cpp`'s ponytail).
+`tools/emu/set_settle.py` runs `FUN_0055dbc0` (3000 cases, every requirement
+met; `tests/set_settle_cases.inc`) and records `FUN_0055f850`'s calls.
 Oracle: `tools/emu/set_list.py` runs `FUN_00663b40` and `FUN_00660120`
 over runs of pieces going on and off (the owner's lists a Python model,
 `FUN_0065fe10` logged): 0 of 19,383 lines differ from

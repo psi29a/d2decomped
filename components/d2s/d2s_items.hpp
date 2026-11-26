@@ -109,6 +109,7 @@ struct Item {
     bool wielded = false;              // the inventory's wielded id (+0x1c) is this item's (not saved)
     bool charm_short = false;          // an inventory charm short of its requirements at the last settle (not saved)
     std::uint32_t set_stamp = 0;       // the order its stats last went on, its set's list rebuilt with it (rules::stats_on; not saved)
+    bool set_list_freed = false;       // its set's list freed by a piece's break, till a piece's stats go on again (rules::free_set_list; not saved)
     int  replenish_in = 0;             // frames to its timer 3 (FUN_00562d30: a replenishing item's next point), 0 none (not saved)
     // Its unit seed (+0x20) as its making in play left it (rules::item_seed),
     // not saved: a loaded item's starts again from uid (FUN_0062cbe0 at 0x62cd16).
