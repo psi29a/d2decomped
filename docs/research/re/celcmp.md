@@ -200,3 +200,14 @@ Not reached (callees of dead functions name them):
 | `FUN_00604760` | (key, a1, a2, a3): the bucket `key & +0x24`, re-picked when `FUN_006045b0` grew the table; slot 1 makes a record there; its link is taken out of any list and put in the list at `+8`, and the key is stored in its first dword (the same steps as net-join.md's `FUN_00530820`). Callers `FUN_00604840`, `FUN_006048c0` (themselves unreached: `FUN_006048c0`'s one call is from `FUN_00604940`, which nothing reaches) |
 | `FUN_00604810` | `TSExportTableSync`'s constructor: as `FUN_00604730` with vtable `0x6e5e24`, then `InitializeCriticalSection(+0x50)` (the static initializer has this inline) |
 | `FUN_006048a0` | `DeleteCriticalSection(+0x50)`, `FUN_00604640` |
+
+## The row encoder `FUN_00606a10`
+
+(pitch, rows, flags, &out, &size; EAX the pixels): encodes 8-bit rows
+into DC6 row tokens, the reverse of the row writers (src-frontier.md):
+a run of up to 0x7f zero bytes as `0x80 | n` (`FUN_0060d280`), up to
+0x7f non-zero bytes as n and then the bytes (`FUN_0060d3a0`), and 0x80
+at each row's end. It starts at the last row and goes up unless flags
+bit 0 is set. The output is allocated (`FUN_0040b380`); its start and
+length go to out and size. Callers: `FUN_00606b50` and `FUN_00608ee0`,
+kind 0's entries in the tables above ("The cel file").
