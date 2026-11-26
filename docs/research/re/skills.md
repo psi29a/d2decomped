@@ -1241,8 +1241,10 @@ hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
   `aura_pulse` (Prayer's hitpoints heal; 66 / 81 strike monsters in
   range), `target_of` (the target state's resistances / defense while in
   range and taken by the aurafilter, as Holy Freeze's slow in
-  `monster_states`: `enemy_auras`), thorns_percent (131) on melee hits. Not yet: perdelay's reader
-  (taken as ticks), the merc in the aura, Sanctuary / Redemption's callbacks, Holy Freeze's
+  `monster_states`: `enemy_auras`), thorns_percent (131) on melee hits;
+  the merc's aurastats from the auras it stands in (`friendly_auras` in
+  its fighter, merc-ai.md "Its auras"). Not yet: perdelay's reader
+  (taken as ticks), Sanctuary / Redemption's callbacks, Holy Freeze's
   slow (its cold chills), Sanctuary's mana and its state 0x55
   (FUN_005cf3a0), the aura overlays.
 - **aurafilter** (+0x50): dos 65, 66 and 81 pass it to FUN_0056b7e0
