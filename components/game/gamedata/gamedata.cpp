@@ -1644,7 +1644,9 @@ std::optional<std::vector<std::uint32_t>> camp_room1_seeds(const GameData& game_
 // shared edge's re-pick rolls on whichever room came up later: relevel lays the camp again in Spawning order from
 // what this keeps (its rooms, DT1s and assets), as keep_camp_seeds takes the room1 seeds in that order.
 // ponytail: a Blood Moor room up before a camp room shares its edge tiles with it (FUN_0066e940): relevel lays
-// the camp alone, and camp_rooms lays the camp beside the Blood Moor, not the reverse.
+// the camp alone, and camp_rooms lays the camp beside the Blood Moor, not the reverse. Porting it needs the
+// rooms' come-up order across levels (Spawning keeps one per level), level_room_tiles' `outside` rooms up
+// between the level's own (all are up first now, both ways), and keep_camp_seeds' room1 seeds laid with them.
 void lay_camp_picks(GameData& game_data, const d2d::drlg::OutdoorAssets& assets, const std::vector<std::size_t>& came_up) {
     auto& town = game_data.town;
     const auto heads = game_data.layouts.prest_automap_dt1s.find(town.id);

@@ -122,4 +122,10 @@ camp again with its rooms in the order they came up (Spawning order, as `keep_ca
 the room1 seeds), from the rooms, DT1s and assets `lay_camp_picks` keeps, and stamps the objects'
 footprints back (`test_camp_picks_order`). Not done: a Blood Moor room up before a camp room, whose edge
 tiles that camp room then finds (FUN_0066e940): `camp_rooms` lays the camp beside the Blood
-Moor, never the reverse.
+Moor, never the reverse. In game.exe (the Blood Moor built with FUN_00642ae0 / FUN_006424a0 and
+every room of it brought up with FUN_0061b730 before the camp's, against the camp alone, map seeds
+1-3, 2026-11-27) the camp's rooms on the Blood Moor's side pick other floors on that edge and
+their own tile lists hold fewer tiles: the ones found are the Blood Moor rooms'. Porting it needs
+the come-up order across both levels (Spawning keeps an order per level), `level_room_tiles`'
+`outside` rooms up between the level's own rather than all before them, and `keep_camp_seeds`'
+room1 seeds laid with the same rooms.
