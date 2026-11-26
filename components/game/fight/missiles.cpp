@@ -1193,6 +1193,8 @@ auto Fight::skill_missile_hits(Missile& missile, std::size_t monster_index, std:
         return missile_info.collide_kill;
     }
 
+// A missile's hit on a monster (FUN_0064b860's record, FUN_005a89a0's hit): its swing
+// (SrcDamage, Half2HSrc, the row's physical), the blow and what follows it.
 auto Fight::strike(const Missile& missile, std::size_t monster_index, std::uint32_t now_ms, int freeze, d2d::rules::MissileRoll* roll) -> void {
         const auto* skill = game_data->skills.get(missile.skill);
         if (!skill || !monsters[monster_index].alive()) return;
@@ -1216,6 +1218,7 @@ auto Fight::strike(const Missile& missile, std::size_t monster_index, std::uint3
         if (damage.srcdam > 0) {
             d2d::rules::Swing swing;
             swing.srcdam = damage.srcdam;
+            swing.half_2h_src = missile.info->half_2h_src;   // FUN_0064b860 0x64bafa
             swing.ed_pct = missile.ed_pct;
             swing.ar_pct = missile.ar_pct;
             swing.missile = true;

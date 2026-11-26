@@ -71,6 +71,7 @@ Fighter make_fighter(const Tables& tables, const d2d::d2s::Item* weapon, const d
     const ItemBase* weapon_base = nullptr;
     if (weapon && item_usable(*weapon)) if (const auto found = tables.item_base.find(weapon->code); found != tables.item_base.end()) weapon_base = &found->second;   // a broken or 0x4000 one's stats are off (FUN_0055f850, FUN_0055dbc0)
     if (weapon) if (const auto found = tables.item_base.find(weapon->code); found != tables.item_base.end() && found->second.hit_class) fighter.hit_class = found->second.hit_class;
+    if (weapon) if (const auto* info = info_of(tables, *weapon)) fighter.two_handed = info->two_handed;   // FUN_006289c0 on the owner's weapon (FUN_00623990, 0x64bab3)
     // In 256ths, as game.exe keeps them.
     // `thrown`: the weapon's throw damage (FUN_0064b860: stats 0x9f / 0xa0, minmisdam / maxmisdam).
     const int base_min = weapon_base ? (thrown ? weapon_base->min_misdam : weapon_base->mindam) : 0, base_max = weapon_base ? (thrown ? weapon_base->max_misdam : weapon_base->maxdam) : 0;
@@ -740,19 +741,24 @@ int melee_record_pct(const Fighter& fighter, const Target& target, const Swing& 
 // end + rand(the gap) on the missile's seed, the ends swapped when the min is the larger, none unless both are over
 // 0; then its % (0x5a8b09..0x5a8bde): stat 25, + 121 against a demon, + 122 against the undead (no floor of its own),
 // at least -90. SrcDamage 0 takes none of the unit's (0x64bcfe).
-// ponytail: the halved SrcDamage of row flag 0x6ce280 (FUN_006289c0, 0x64bb09) isn't here. Nor is the
-// attacker's stat 0xb4 % against a monster of its layer's MonType (FUN_005a89a0 0x5a8b8e..0x5a8bd4,
-// FUN_0057a830's MonType matrix; melee's FUN_0057b6a0 too; not MonProp): d2d keeps no MonType matrix. The row's
-// +0x12e (SrcMissDmg) branch (0x64bd07), the parent missile's damage, is only viper_poisjavcloud's (Missiles.txt
-// row 649, 128), which d2d never makes. phys_lo / phys_hi carry stat 111
+// A row with Half2HSrc (Missiles.txt +4 bit 14, the loader's field at 0x662b8a; the test is byte +5 & the mask
+// 0x6ce280 holds, 0x40) shot with a two-hander in hand (FUN_006289c0 on the unit's weapon, 0x64bb09) halves the
+// SrcDamage first, toward zero (0x64bb12..0x64bb1a): Blade Fury's, Blade Sentinel's and Blade Shield's rows.
+// tools/emu/half_2h_src.py runs it.
+// ponytail: the attacker's stat 0xb4 % against a monster of its layer's MonType (FUN_005a89a0 0x5a8b8e..0x5a8bd4,
+// FUN_0057a830's MonType matrix; melee's FUN_0057b6a0 too; not MonProp) isn't here: d2d keeps no MonType matrix. The row's +0x12e
+// (SrcMissDmg) branch (0x64bd07), the parent missile's damage, is only viper_poisjavcloud's (Missiles.txt row 649,
+// 128), which d2d never makes. The halved value also scales the owner's elemental share (0x64bed9 -> FUN_0064aa60):
+// not checked in d2d's element path. phys_lo / phys_hi carry stat 111
 // and make_fighter's floors (at least a point; phys_pct at least -90 before the missile's terms join).
 MissilePhysical missile_physical(const Fighter& fighter, const Target& target, const Swing& swing) {
     MissilePhysical physical;
     std::int64_t low = swing.row_lo, high = swing.row_hi;
     int record_pct = swing.ed_pct, demon_pct = 0, undead_pct = 0;
-    if (swing.srcdam > 0) {
-        low += std::int64_t(fighter.phys_lo) * swing.srcdam / 128;
-        high += std::int64_t(fighter.phys_hi) * swing.srcdam / 128;
+    const int srcdam = swing.half_2h_src && fighter.two_handed ? swing.srcdam / 2 : swing.srcdam;
+    if (swing.srcdam > 0) {                  // tested before the halving (0x64ba8f); 0x64bc43 scales by the halved one
+        low += std::int64_t(fighter.phys_lo) * srcdam / 128;
+        high += std::int64_t(fighter.phys_hi) * srcdam / 128;
         record_pct += fighter.phys_pct + std::max(fighter.unit_min_pct, fighter.unit_max_pct);
         demon_pct = fighter.demon_pct;
         undead_pct = fighter.undead_pct + (fighter.blunt ? 50 : 0);

@@ -56,6 +56,7 @@ struct Fighter {
     int kick_lo = 0, kick_hi = 0, kick_pct = 0;
     int smite_lo = 0, smite_hi = 0, smite_pct = 0;  // the shield's (Smite, FUN_005ce9f0 -> FUN_0057b420 on the shield)
     bool blunt = false;                             // the weapon is a Blunt type (ItemTypes Equiv chain: club, hammer, mace, scepter, wand, staff)
+    bool two_handed = false;                        // the weapon is a two-hander (weapons.txt 2handed, Items +0x11c, FUN_006289c0)
     int undead_pct = 0;                             // stat 122 (item_undeaddamage_percent) over all the gear (the game reads the unit's own stat)
     int demon_pct = 0;                              // stat 121 (item_demondamage_percent), the same way: against demons, melee or missile
     std::array<std::pair<int, int>, 5> elem{};      // added damage (poison: its total over poison_len)
@@ -476,6 +477,7 @@ struct Swing {
     // A missile's blow: its record and hit path (missile_physical: FUN_0064b860 + FUN_005a89a0),
     // no SrcDam scale after the crit, and Crushing Blow's divisor doubled (event 6, FUN_005bffc0).
     bool missile = false;
+    bool half_2h_src = false;             // the missile row's Half2HSrc: srcdam halved from a two-hander (missile_physical)
 };
 
 // A player's leech of a blow, in 256ths.
