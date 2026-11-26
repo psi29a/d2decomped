@@ -1093,6 +1093,7 @@ void load_tables(GameData& game_data, const d2d::mpq::Stack& mpqs) {
                 base.gem_sockets = number("gemsockets");
                 base.hit_class = table == &weapons ? d2d::rules::sound_ids::hit_class(table->get(row, "hit class")) : 0;
                 if (table == &weapons) base.wclass = std::string(table->get(row, "wclass"));
+                base.component = number("component");
                 base.auto_prefix = table == &misc ? 0 : number("auto prefix");
                 base.nightmare_upgrade = std::string(table->get(row, "NightmareUpgrade"));
                 base.hell_upgrade = std::string(table->get(row, "HellUpgrade"));
