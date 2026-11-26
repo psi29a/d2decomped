@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cstdio>
+#include <exception>
 #include <variant>
 
 using namespace d2d::game;
@@ -28,7 +29,7 @@ bool sent(const World::Player& player, int quest) {
 }  // namespace
 
 // Checks the flag-1 fanout and a representative flag-0 site from the Act 4 FUN_00544300 call-site table.
-int main() {
+int main() try {
     GameData data;
     World world(&data, -1, -1);
     auto& second = world.add_player();
@@ -68,4 +69,7 @@ int main() {
 
     std::puts("OK: act 4 quest-log sends fan out through their stock callbacks");
     return 0;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_quest_log_sends_act4: %s\n", error.what());
+    return 1;
 }

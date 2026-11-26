@@ -11,6 +11,7 @@
 #include <array>
 #include <cassert>
 #include <cstdio>
+#include <exception>
 #include <variant>
 
 using namespace d2d::game;
@@ -29,7 +30,7 @@ bool sent(const World::Player& player, int quest) {
 }  // namespace
 
 // Checks all six Act 5 callbacks fan out by each player's bits rather than the current actor's.
-int main() {
+int main() try {
     GameData data;
     World world(&data, -1, -1);
     auto& second = world.add_player();
@@ -68,4 +69,7 @@ int main() {
 
     std::puts("OK: act 5 quest-log sends fan out through their stock callbacks");
     return 0;
+} catch (const std::exception& error) {
+    std::fprintf(stderr, "test_quest_log_sends_act5: %s\n", error.what());
+    return 1;
 }
