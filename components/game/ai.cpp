@@ -1856,7 +1856,9 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     const Spawning* spawning) {
     auto& unit = monster.unit;
     unit.turns_on = true;
-    if (!unit.walking) turn_frame(unit);
+    // FUN_004b13a0 turns every monster path a step each client frame (FUN_00648640). A walk's own
+    // step does it while walking; DiabRun's wind-up is RN with no step, so it turns here too.
+    if (!unit.walking || monster.diab_run == 1) turn_frame(unit);
     // Its foe: the one its last think's mode or move was set against
     // (FUN_005ddf90 / FUN_005dead0 / FUN_005deb60 put the target in the mode
     // ctx, FUN_005a7c20 on the path, +0x58): an attack's hit, a shot's aim
