@@ -647,14 +647,15 @@ auto Fight::set_pmode(int mode, std::uint32_t now_ms) -> void {
             if (!item && cls >= 0 && std::size_t(cls) < kClassCode.size() && skill->cls == kClassCode[std::size_t(cls)])
                 cues.cue_on(unit_key(kSoundOnPlayer, actor->id), skill->st_sound_class, start_at, actor->player.x, actor->player.y);
             start_cast_overlay(*skill, from_charges(skill->id), actor->one_shots, now_ms);   // its castoverlay, at once
-            // Cltstfunc 15 (LAB_004e3060: Inferno, Arctic Blast). While state inferno (0xc) is off on the unit
-            // (the server's list, from its own state packet, or the client's below), the prgsound on no unit
-            // (FUN_004b9a00, EDX 0: unplaced, the listener's). Then the state's list: found (the server's or the
-            // client's) its timeout is set to 7 frames, else the client's own is made with 0x15 (FUN_006251f0 flags 2).
+            // Cltstfunc 15 (LAB_004e3060: Inferno, Arctic Blast). While state inferno (0xc) is off on the client's
+            // unit, the prgsound on no unit (FUN_004b9a00, EDX 0: unplaced, the listener's). Then the state's list:
+            // found, its timeout is set to 7 frames, else the client's own is made with 0x15 (FUN_006251f0 flags 2).
             // With the state off, first its prgoverlay (+0x10c, a row in the table: FUN_00470390 kind 2 at
             // 0x4e30c2, the row's playing one restarted: Arctic Blast's arctic_blast_cast), then the sound.
-            // ponytail: the server's list is Hero::burning, not an object: a start with only it on sets the
-            // client's 7 frames, which game.exe sets on the server's list (it would clear the state on its own).
+            // The server never sends state 0xc (States.txt inferno is nosend: FUN_005711d0 skips +0x10 bit 0 at
+            // 0x5712f0), so the client's unit has no server list or bit for it: only its own.
+            // ponytail: d2d also counts the server's Hero::burning as the state on, so a start after the client's
+            // list ran out but with the server's on is silent here and sounds in game.exe.
             // With the list there it puts the sequence at frame 8 (FUN_006212c0) with 0x500 to run (+0x48,
             // 0x4e3154): not ported, start_sequence sets the frames after this.
             if (skill->clt_st_func == 15) inferno_client_start(*skill, now_ms);
