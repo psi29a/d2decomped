@@ -1160,6 +1160,8 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
             const pad::SkillUi skill_ui = controls_pad || !session.pad_config.skill_buttons ? pad::SkillUi::None
                                          : session.skillbar.picking == 3 ? pad::SkillUi::Wheel
                                          : session.skill_strip >= 0 ? pad::SkillUi::Strip : pad::SkillUi::None;
+            const bool chooser_closed = session.loot_chooser.take_controller_close();
+            if (chooser_closed) pad_mapper.consume_until_neutral();
             pad::Actions pad_actions = pad_capture ? (void(pad_mapper.step(first, pad_context, pad_dt, skill_ui)), pad::Actions{})
                                                          : pad_mapper.step(first, pad_context, pad_dt, skill_ui);
             const int pad_side = (win.view_w - int(kScreenWidth)) / 2;   // widescreen's world beyond the 800x600 UI
@@ -1168,9 +1170,9 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
                                     || pad_actions.snap_x != 0 || pad_actions.snap_y != 0 || pad_actions.trade_press || pad_actions.tab_step != 0
                                     || pad_actions.skill_picker || pad_actions.recentre_cursor || pad_actions.focus_step != 0 || pad_actions.skill_busy
                                     || pad_actions.loot_cancel || pad_actions.aim_active;
-            if (session.loot_chooser.open && !session.loot_chooser.touch) {
+            if (!chooser_closed && session.loot_chooser.open && !session.loot_chooser.touch) {
                 session.loot_pad_event(pad_actions);
-                if (!session.loot_chooser.open) pad_mapper.consume_until_neutral();
+                if (session.loot_chooser.take_controller_close()) pad_mapper.consume_until_neutral();
                 pad_actions = {};
             } else if (session.loot_chooser.open && pad_active) {
                 session.loot_chooser.clear();

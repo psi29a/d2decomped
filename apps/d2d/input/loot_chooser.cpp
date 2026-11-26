@@ -12,6 +12,16 @@
 
 namespace d2d::client {
 
+void LootChooser::clear() {
+    const bool closed = controller_closed || (open && !touch);
+    *this = {};
+    controller_closed = closed;
+}
+
+bool LootChooser::take_controller_close() {
+    return std::exchange(controller_closed, false);
+}
+
 void LootChooser::start(std::vector<LootChoice> items, bool use_touch) {
     clear(); choices = std::move(items); touch = use_touch; open = true;
     std::vector<int> ids; ids.reserve(choices.size());
