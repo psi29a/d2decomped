@@ -516,6 +516,62 @@ over runs of pieces going on and off (the owner's lists a Python model,
 Re-check: `python3 tools/ghidra/fn.py 00663cc0 00663b40 00660120 0065fe10
 0065fd70 0065ecf0`.
 
+### A set item's own lists — FUN_00663a20 (ITEMS)
+
+A set item's aprop lists (SetItems add func 1 or 2: states `0x6ee424`,
+0xa5..0xa9, made off with flags 0x2040, drops.md) are switched on and off
+by `FUN_00663a20` (ECX item, EDX mask; fastcall, plain `RET`).
+`FUN_00663cc0` calls it at `0x663d1b` when `param_4` is set or `param_3` is
+0 (stats on; a break; not a plain take-off), before `FUN_00663b40`. Its EDX
+is `FUN_0062a370(owner, item, 1)` when the item is in its owner's inventory
+(`FUN_0063e070`) in a body grid (`FUN_0063e020` 3), else 0: bit
+SetItems +0x2e of each body item of the same set (+0x2c), quality 5, flags
+0x4000 / 0x100 off, the item itself included.
+
+1. Not an item (type 4), not quality 5 (`FUN_00627e70`), no SetItems record
+   (`FUN_0062a490`) or add func (+0x87) 0: returns 0, nothing changes.
+2. Add func 1: own = `FUN_0062b3a0` (SetItems +0x2e). For j 0..5, j ≠ own:
+   list `0x6ee424[j]`, or `[j - 1]` when j > own (signed, `0x663aef`), off
+   when mask bit j is clear. So list i follows member i below its own index,
+   member i + 1 from it on. An own index of -1 would read `0x6ee420`
+   (0xd2f, no list has that state: a no-op).
+3. Add func 2: n = `0x6ee440[mask] - 1` (0 for a mask ≥ 0x40, unsigned
+   `0x663a7c`); lists 0 .. n − 1 on, lists n .. 4 off (`< 0x6ee438`). n = −1
+   (mask 0) starts at `0x6ee420` too.
+4. Any other add func: returns 1, nothing changes. FUN_00663cc0 ignores
+   the result.
+
+`0x6ee424`: 0xa5, 0xa6, 0xa7, 0xa8, 0xa9, 0xaa (the sixth only reachable by
+add func 1 with an own index past 5), then 0. `0x6ee440`: 64 dwords, the
+bit count of the index (0, 1, 1, 2, … 6).
+
+`FUN_006279a0(item, state, off)` (stdcall 3): with a state and the item's
+stat list (+0x5c, an extended one, flag 0x80000000), the sub-list of that
+state (`FUN_00625650`: the +0x3c chain, then +0x40, next at +0x2c, state at
++0x14); off and not 0x2000, or on and 0x2000: unlinked (`FUN_006269f0`),
+flag 0x2000 flipped, relinked (`FUN_00626e10(item, list, 1)`); returns 1
+when it flipped one.
+
+`FUN_0055dbc0`'s last loop takes off and puts back on (`FUN_0055c730(.., 1,
+1)`, `FUN_0055c2c0`) every body item of quality 5 with 0x100 / 0x4000 off,
+so every worn piece's lists are redone from the mask whenever it runs (its
+callers in `game-calls.tsv` are ItemMode's moves; not every move checked).
+d2d: `game::set_bonus_props` (character.cpp) computes them from what's worn:
+add func 1, list i while member i (below its own index) or i + 1 is worn;
+add func 2, list i with i + 2 members worn. Oracle: `tools/emu/set_item_lists.py`
+runs FUN_00663a20, FUN_006279a0 and FUN_00625650 for real over add func
+0..3, own index −1..6 and masks 0..0x7f plus four large ones: 0 of the 1,536
+cases d2d's data can hold (own 0..5, mask < 0x40) differ
+(`tests/game/test_set_item_lists.cpp`, 2026-11-26). The 512 others that
+differ are add func 2 with a mask ≥ 0x40 (game.exe: all off); d2d's loader
+gives at most 6 members (0..5), so its mask stays below 0x40.
+Not ported: a piece taken off keeps its lists as last set (FUN_00663cc0
+(.., 1, 0) skips FUN_00663a20), where d2d recomputes them; only an unworn
+piece's tooltip shows it. The client's copy (`FUN_004c0d20` and the other
+0x4c… callers of FUN_00663cc0) is not traced.
+Re-check: `python3 tools/ghidra/fn.py 00663a20 00663cc0 006279a0 00625650
+0062a370 0055dbc0`.
+
 ## Corrections applied (phase 0)
 
 1. Hit chance rounds as game.exe does: percent first, then × 2 × alvl /
