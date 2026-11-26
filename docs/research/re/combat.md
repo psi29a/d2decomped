@@ -672,6 +672,15 @@ for seeds 1 and 7. It has no reduction and no resistance on the defender
   `rules::monster_regen`, `rules::regen_frame`, `pet_regen` (fight/pets.cpp);
   tools/emu/pet_regen.py runs `FUN_00573cb0`'s formula and `FUN_005a6920`
   (0 of 20,011 differ, seeds 1 and 2, 2026-11-24).
+  The event under its states (`rules::regen_event`, `pet_regen`): `FUN_0063a750`
+  is a state of data tables +0x14c, the States.txt loader's (`FUN_00618100`)
+  flag bit 0x20, its column `life` (the string 0x6e7b2c): poison 2,
+  preventheal 0x34 and openwounds 0x3e have it. Under one, the unit's own stat
+  0x4a (`FUN_006253b0`) comes off the total. A negative rate on a life of 0xff
+  or less does nothing when the unit has no room (`FUN_00620bb0`) or a town's
+  (`FUN_0061ab00` -> `FUN_006426a0`), the event still filed: a summon
+  poisoned under a point in town lives. `tools/emu/pet_poison_town.py` runs
+  `FUN_005a6920` whole on 3000 cases (`tests/pet_poison_town_cases.inc`).
 - Not in yet: skills (skills.md), the weapon swap, champions/uniques.
 
 ## Hit recovery: the length (SUnit.cpp)
