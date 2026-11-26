@@ -113,4 +113,8 @@ DT1 list by its Dt1Mask, the three always-lists after). d2d's `lay_camp_picks`
 grid read the picked tiles where load_town's first match in the DT1s stood. Checked:
 `uv run python camp_tiles.py 1-8 --mutation-check` (every camp room brought up in game.exe
 against `drlg-dump ... 1 <dir> camptiles`, the tile sets equal). Not done: the order the
-rooms come up in as a player walks (shared edges re-pick by it; relevel doesn't run on the camp).
+rooms come up in as a player walks (FUN_0061b190 lays each as it comes up, so a shared edge
+re-picks on the later room's seed, as `keep_camp_seeds` already follows for the room1 seeds;
+relevel doesn't run on the camp), nor a Blood Moor room up before a camp room, whose edge
+tiles that camp room then finds (FUN_0066e940): `camp_rooms` lays the camp beside the Blood
+Moor, never the reverse. `camp_tiles.py` checks list order only.

@@ -1627,8 +1627,11 @@ std::optional<std::vector<std::uint32_t>> camp_room1_seeds(const GameData& game_
 // The picks, their collision and patches come out as for a generated level (lay_tiles), then finish_level
 // lays the walk grid on them. The camp's DT1s are load_town's, its list the preset's by Dt1Mask (kept when the
 // two lists differ, a missing file: the first match stays).
-// ponytail: the rooms are laid once, in list order (relevel doesn't run on the camp, and neither do the near
-// levels' shared edges: camp_rooms lays the camp beside the Blood Moor, not the reverse).
+// ponytail: the picks are laid once, at load, the rooms in list order. game.exe lays each camp room as it comes
+// up (FUN_0061b190), so a shared edge's re-pick rolls on whichever room came up later (keep_camp_seeds follows
+// that order for the room1 seeds, not for the picks), and a Blood Moor room up before a camp room shares its edge
+// tiles with it (FUN_0066e940): relevel doesn't run on the camp, and camp_rooms lays the camp beside the Blood
+// Moor, not the reverse. camp_tiles.py checks list order only.
 void lay_camp_picks(GameData& game_data, const d2d::drlg::OutdoorAssets& assets) {
     auto& town = game_data.town;
     const auto heads = game_data.layouts.prest_automap_dt1s.find(town.id);
