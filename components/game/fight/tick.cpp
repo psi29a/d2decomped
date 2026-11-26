@@ -236,7 +236,7 @@ auto Fight::frenzy(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void
         const int frenzy_charges = std::min(found == actor->self_states.end() ? 1 : found->level + 1, lvl);
         const auto until = now_ms + std::uint32_t(std::max(d2d::rules::eval_calc(game_data->skills, skill.auralen, env, skill.id, lvl), 1)) * 40;
         if (found == actor->self_states.end()) actor->self_states.push_back({ skill.id, frenzy_charges, until, actor->next_effect_instance() });
-        else *found = { skill.id, frenzy_charges, until };
+        else *found = { skill.id, frenzy_charges, until, found->instance };
     }
 
 auto Fight::next_target() -> bool {
