@@ -487,9 +487,8 @@ struct Act1Thinks : Thinker {
     // nearer than aip2 or a hit (FUN_005dd2b0) starts an S1 at it (state
     // 1). Any state but 1 stands aip3. In state 1: in melee another S1, its
     // action event (FUN_005417d0 type 0) filed a frame on, then state 2;
-    // else aip1 % walks in, or wanders 8.
-    // ponytail: ai.cpp ignores the `strike` effect, so its S1 hits at the
-    // mode's own action frame.
+    // else aip1 % walks in, or wanders 8. ai.cpp schedules `strike` as the
+    // explicit next-frame action event, ahead of S1's own action frame.
     Think elemental_beast() {
         if (*input.state == 2) return { MonAct::die };
         if (*input.state == 0 && (input.dist < aip[1] || input.got_hit)) { *input.state = 1; return { MonAct::s1 }; }

@@ -1457,6 +1457,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         act = d2d::rules::mon_think(type_info.ai_name, input, monster.seed, away);
     }
     monster.move_pct = pace;                                       // the next mode takes it (FUN_005a63f0)
+    int strike_delay = 0;
     // Its effects: the leader's command done; Duriel's aura (Skill4) on;
     // states 0x5a / 0x5b (looks: blue / red) on or off; an overlay played
     // once on it; stat 0x4a (regen). The Summoner's quest reads his first
@@ -1515,6 +1516,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
                 ++monster.ai_state2;
             }   // a4q1's FUN_005b4390 (World::act4_update)
         if (effect.kind == d2d::rules::ThinkEffect::aura) { monster.aura = skill_id(game_data, type_info.skill[std::size_t(effect.id)]); monster.aura_lvl = std::max(input.aip[0], 1); }
+        if (effect.kind == d2d::rules::ThinkEffect::strike) strike_delay = effect.id;
     }
     // The unit it's at: its kin (a walk to it), the hurt one or corpse it
     // casts on; the second target, in the target's place.
@@ -1816,6 +1818,11 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             return true;
         case MonAct::none: case MonAct::untraced: return true;
     } }();
+    // ElementalBeast's in-melee branch (FUN_005f6b70) starts S1, then files
+    // its type-0 action event through FUN_005417d0 for the next game frame.
+    // That explicit event lands before S1's animation action frame.
+    if (acted && strike_delay > 0 && monster.mode == "S1")
+        monster.scheduled_action_ms = now_ms + std::uint32_t(strike_delay) * 40;
     file_think();
     return acted;
 }
@@ -1995,7 +2002,8 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
         return monster.mode != old_mode || unit.mode_ms != old_start;
     };
     if (!monster.struck && monster.scheduled_action_ms && run_older_think(*monster.scheduled_action_ms)) return false;
-    const bool attack = monster.mode == "A1" || monster.mode == "A2";
+    const bool elemental_beast_strike = monster.mode == "S1" && type_info.ai_name == "ElementalBeast";
+    const bool attack = monster.mode == "A1" || monster.mode == "A2" || elemental_beast_strike;
     const bool casting = attack || monster.mode == "S1" || monster.mode == "S2" || monster.mode == "SC" || (monster.mode == "S3" && monster.skill >= 0)
                       || (monster.mode == "DT" && monster.skill >= 0);   // DT alive: a sequence (the egg's hatch)
     if (now_ms < monster.stun_until && monster.mode != "GH" && monster.mode != "BL" && !(frozen && casting)) {
@@ -2870,9 +2878,14 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 const bool jab = struck_with && struck_with->srvdofunc == d2d::rules::ServerDoFunction::kJab;
                 if (jab || (seq && struck_with && struck_with->srvstfunc == d2d::rules::ServerStartFunction::kFireHit)) {
                     s1_strike(stats, game_data.skills, *struck_with, skill_level(game_data, monster, monster.skill));
-                } else if (smite || monster.mode == "A2") {
-                    stats.a1_min = stats.a2_min; stats.a1_max = stats.a2_max; stats.to_hit = stats.to_hit2;
-                    for (auto& element : stats.elements) element.mode = element.mode == "A2" ? "A1" : "";
+                } else if (smite || monster.mode == "A2" || elemental_beast_strike) {
+                    if (elemental_beast_strike) {
+                        stats.a1_min = stats.s1_min; stats.a1_max = stats.s1_max; stats.to_hit = stats.to_hit_s1;
+                    } else {
+                        stats.a1_min = stats.a2_min; stats.a1_max = stats.a2_max; stats.to_hit = stats.to_hit2;
+                    }
+                    const std::string_view source_mode = elemental_beast_strike ? "S1" : "A2";
+                    for (auto& element : stats.elements) element.mode = element.mode == source_mode ? "A1" : "";
                 }
                 // Charge's hit (FUN_005cf900): sure to hit (flags 9, no FUN_0057ec10), calc1 % more
                 // damage, the skill's element at its level (FUN_0056e0c0). Jab's
