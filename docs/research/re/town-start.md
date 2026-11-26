@@ -86,8 +86,9 @@ sorted again, so FUN_0066e940 finds the camp's edge tiles and the room
 rolls fewer picks on its seed (its room1 seed moves). d2d: `camp_rooms`
 (gamedata.cpp) lays the camp's rooms up on its preset (LvlPrest def 1)
 and hands them to `level_room_tiles` as `outside`; no DT1s, so the
-camp's tiles are found, never picked. Checked: the same diff, every
-room1 and room seed of seeds 1-20.
+camp's tiles are found, never picked, and a found cell draws the camp's
+own pick there (`next_door_pick`, `test_camp_edge_draw`). Checked: the
+same diff, every room1 and room seed of seeds 1-20.
 
 The camp's own rooms' room1 seeds (room1 +0x6c, FUN_006422a0: the room's
 tile seed, the DRLG room's, stepped once more after its tile picks): d2d's

@@ -1061,9 +1061,11 @@ namespace {
 // shares the camp's edge tiles (FUN_0066e940) and rolls fewer picks on its
 // seed. Laid on the camp's preset (LvlPrest def 1, its file by the Blood
 // Moor's side) in the order they came up, in `level`'s tiles, list order.
-// ponytail: no DT1s or tile seeds, so no picks: which tiles the level
-// finds is all its seeds and picks take; a cell it finds draws a stand-in
-// (lay_tiles). The camp's tiles don't take the level's shares back.
+// Laid without the camp's DT1s or tile seeds: which tiles the level finds is
+// all its seeds and picks take, and a cell it finds draws the camp's own
+// pick there (next_door_pick).
+// ponytail: the camp's tiles don't take the level's shares back (the
+// flags a share ORs in, a re-pick): the camp is laid once (lay_camp_picks).
 // Any other level next door (act 3's Travincal on the Causeway): its rooms
 // up, laid as it laid them (its seeds, its order), in `level`'s tiles.
 // ponytail: a room here re-picking a shared tile of theirs would roll
@@ -1121,6 +1123,22 @@ std::vector<d2d::drlg::BuiltRoom> camp_rooms(const GameData& game_data, const Sp
     return rooms;
 }
 
+// A tile of a room next door (camp_rooms: its DT1s aren't this level's) as
+// that level's own picks hold it at that cell, same layer, orientation,
+// style and sequence: the camp's as lay_camp_picks laid it (tools/emu
+// camp_tiles.py), another level's as its relevel did. Null: none there.
+const d2d::dt1::Tile* next_door_pick(const Level& level, const d2d::drlg::PlacedTile& tile) {
+    const int style = int((tile.word >> 20) & 0x3f), sequence = int((tile.word >> 8) & 0xff);
+    for (const auto& beside : level.nearby) {
+        const Level& other = *beside.level;
+        const int at_x = tile.x - beside.dx, at_y = tile.y - beside.dy;
+        if (other.picks.empty() || at_x < 0 || at_y < 0 || at_x >= other.ds1.width() || at_y >= other.ds1.height()) continue;
+        for (const auto& pick : other.picks[std::size_t(at_y) * std::size_t(other.ds1.width()) + std::size_t(at_x)])
+            if (pick.tile && pick.layer == tile.layer && pick.orient == tile.orient && pick.tile->style == style && pick.tile->sequence == sequence) return pick.tile;
+    }
+    return nullptr;
+}
+
 // The level's rooms brought up in `order` (level_room_tiles' list indices,
 // empty: list order) into its picks and patches.
 // FUN_0064c900: each room's grid takes, as it comes up (BuiltRoom::step),
@@ -1172,7 +1190,8 @@ std::vector<d2d::drlg::BuiltRoom> lay_tiles(Level& level, const std::vector<d2d:
             const auto& tile = built[owner].tiles[index];
             if (tile.x < 0 || tile.y < 0 || tile.x >= width || tile.y >= height) continue;
             auto drawn = tile_of(tile.file, tile.index);
-            if (!drawn && owner >= own)                  // the camp's, unpicked (camp_rooms): the level's first of its kind
+            if (!drawn && owner >= own) drawn = next_door_pick(level, tile);   // a room next door's (camp_rooms): as that level drew it
+            if (!drawn && owner >= own)                  // not laid there: the level's first of its kind
                 if (const auto found = level.tile_lookup.find(tile_key(int((tile.word >> 20) & 0x3f), int((tile.word >> 8) & 0xff), tile.orient)); found != level.tile_lookup.end()) drawn = found->second;
             if (!drawn) continue;
             // What it was when the room it lies in came up: none if that came up first.
