@@ -30,7 +30,8 @@ ItemCltEffect values are 10 and 96, and the only clteventfunc in States.txt is c
 ## Shared pieces
 
 - **The arguments.** A client function gets ECX the unit, EDX the skill id
-  and the level on the stack (`RET 4`), and returns 1 or 0. A server function
+  and the level on the stack (`RET 4`), and returns 1 or 0; `FUN_004f2590`
+  jumps to `FUN_004f2450` and returns what that returns. A server function
   gets ECX the game, EDX the unit, then the skill and level on the stack.
 - **The client missile request** is 0x5c bytes, handed to `FUN_004cd540`
   (ECX the request). These are the fields this batch writes, as
@@ -166,7 +167,7 @@ ItemCltEffect values are 10 and 96, and the only clteventfunc in States.txt is c
 | `FUN_004f3870` | cltst 20 (Raise Skeleton, Raise Skeletal Mage) | A target passing `d2d_corpse_consumable(target, 0)`: `skill_set_18` / `_1c` its x, y; 1 | not compared |
 | `FUN_004f38d0` | cltdo 31 (Raise Skeleton, Raise Skeletal Mage) | Row `FUN_004f21b0`: request `0x2001` at (`skill_get_18`, `get_1c`), then both set to 0; 1 | not compared |
 | `FUN_004f3ce0` | callee of `FUN_004f3e50` | ECX unit, EDX skill; stack level, x, y, class (`RET 0x10`). Needs a valid cltmissilea, class a MonStats row (count `+0xa80`), and x, y nonzero. `+0xc4` bit `0x40`; request `0x2001` at (x, y). A positive cltmissilec makes a second one at level 2. On the first: a positive cltmissileb runs `FUN_004cefe0(ECX missile, EDX cltmissileb, 0, 2, 0)` (missiles.md); with no target and a tgtsound (`+0x10a`), `FUN_004b9a00(ECX tgtsound, EDX missile, 0, 0, 0)`; 1 | not compared |
-| `FUN_004f3e50` | cltdo 33 (Poison Explosion) | The selected skill: `FUN_004f3ce0(unit, skill, level, get_18, get_1c, get_20)`; returns no value (`RET 4`) | not compared |
+| `FUN_004f3e50` | cltdo 33 (Poison Explosion) | The selected skill: `FUN_004f3ce0(unit, skill, level, get_18, get_1c, get_20)`, whose 1 or 0 is still in EAX at the `RET 4` (0 with no selected skill: `FUN_00620250`'s result). Ghidra types the function `void` | not compared |
 | `FUN_004f3eb0` | cltst 22 (Bone Wall, Bone Prison) | A room for the unit, the target pair, and a room there (`FUN_00463740`). 0 only when Skills byte `+5` bit 0 is clear and that room is town (`FUN_0061ab00`); else 1 | not compared |
 | `FUN_004f4000` | cltst 24 (Revive) | A monster target with `FUN_004638a0(ECX class, EDX 8)`, `d2d_corpse_consumable(target, 0)` and `FUN_004b11f0(target)`. The class's `FUN_00451fe0` record byte `+0xc`: 1 picks cltmissileb, 3 cltmissilec, else cltmissilea. Request `0x2000` (unit at `+4`, the target at `+8`, so it starts on the corpse); returns whether a missile came | not compared |
 | `FUN_004f4610` | cltdo 17 (Multiple Shot, Teeth, PrimePoisonball, Shock Wave) | `+0xc4` bit `0x40` first. cltmissilea, or cltmissileb when it exists and `FUN_00623c60()` isn't 1. n = calc1; the target pair; d through `FUN_004c5390` and `FUN_004c53d0`; start = pair − d × n / 2. Request `0x820` (unit, row, skill, level, calc2 at `+0x44`); n missiles along d; 1 | not compared |
