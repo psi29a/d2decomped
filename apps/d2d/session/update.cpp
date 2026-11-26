@@ -82,7 +82,7 @@ auto ClientSession::update(std::vector<std::uint8_t>& framebuffer, const Mouse& 
                 Screen& screen, Audio& audio, std::uint32_t frame_ms, std::uint32_t last_ms) -> void {
         now_ms = frame_ms;
         pad_show_items = false;
-        skillbar.coop = world.players.size() > 1;           // Resurrect on the right-hand picker
+        skillbar.coop = coop_partners();                    // Resurrect on the right-hand picker
         if (skillbar.right == kResurrectSkill && !skillbar.usable(kResurrectSkill, false)) skillbar.right = 0;   // co-op over: Attack
         skillbar.drop_gone();                                       // a charged entry used up or taken off
         // A partner's screen with nothing of theirs open goes back to the first player.

@@ -128,8 +128,12 @@ auto World::anyone_alive() const -> bool {
     return std::ranges::any_of(players, [](const auto& player) { return !player->own_screen && player->pmode != kModeDT && player->pmode != kModeDD; });
 }
 
+auto World::screen_players() const -> int {
+    return int(std::ranges::count_if(players, [](const auto& player) { return !player->own_screen; }));
+}
+
 auto World::shared_screen() const -> bool {
-    return !actor->own_screen && std::ranges::count_if(players, [](const auto& player) { return !player->own_screen; }) > 1;
+    return !actor->own_screen && screen_players() > 1;
 }
 
 auto World::become_ghost(Player& player) -> void {
