@@ -518,8 +518,8 @@ Log states are sent through FUN_00595b20. It calls FUN_00544190(6) unless (bit 0
 
 | log | when |
 |---|---|
-| 1 | Cain talk closed (flag 1); entering level 37 while log < 2 |
-| 2 | join with bit 4 |
+| 1 | Cain talk closed (flag 1); entering level 34..36 with log 0 (flag 0, 0x596087) |
+| 2 | join with bit 4; entering level 37 while log < 2 (flag 1, 0x596058) |
 | 3 | Andariel-dead timer, tick 12, unless log is already 3 or 0xd (flag 1); start timer 0x596580 |
 | 0xd | Warriv reward (flag 0) |
 
@@ -581,8 +581,8 @@ if level not in 34..37 (0x22..0x25) or the record is inactive:
         if state==2 and the player has !bit0 && !bit1: state=3 (L0x195); every player runs 0x595bd0
 else (Catacombs 1..4):
    if state<=2: state=3 (L0x166)
-   if level==37 and log<2: log=1 (flag 1)
-   (other catacomb levels: 0x596062 path, log 0 flag 0; not verified)
+   if level==37 and log<2: log=2 (flag 1; EDX 2 at 0x596058)
+   other catacomb levels with log 0: log=1 (flag 0; EDX 1 at 0x596087)
    every player runs 0x595bd0; FUN_00544070 (L0x180)
 ```
 
