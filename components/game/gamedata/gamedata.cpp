@@ -326,11 +326,10 @@ void sort_near(std::vector<NearRoom>& list) {
 // j that finds one (FUN_0066be10 links it). Each append sorts the list
 // again (FUN_0066bda0). tools/emu/near_rooms.py (test_room_near --near).
 // ponytail: a walk across is by closeness to a level whose Vis or this
-// one's names the other (Warp -1): an outdoor border room's slot flags
-// (game.exe's +0x28 0x70 along a Cold Plains edge) aren't kept, only a
-// preset's own vis walls (warps). A level with no flags (the camp, a level
-// not generated) takes every close room of its next-door levels, and its
-// warps by the warp back's room.
+// one's names the other (Warp -1), not by the rooms' walk slot flags
+// (walk_slot_flags) as FUN_0066c220 takes them. A level with no flags (the
+// camp, a level not generated) takes every close room of its next-door
+// levels, and its warps by the warp back's room.
 std::vector<NearRoom> near_list(const GameData& game_data, const Level& level, int room) {
     const auto rects = room_rects(level);
     const auto& self = rects[std::size_t(room)];
@@ -1474,6 +1473,22 @@ std::size_t set_level_tiles(Level& level, const d2d::drlg::OutdoorAssets& assets
     return placed;
 }
 
+namespace {
+
+// FUN_00667970's first step: 0x10 << n for each Vis slot n with a level and
+// Warp -1 (the act's links added, FUN_0066c040 / FUN_0066af30), OR'd into
+// every cell of the preset, so every room FUN_00667ed0 makes of it carries
+// the level's walk-across slots in its +0x28.
+std::uint32_t walk_slot_flags(const d2d::drlg::OutdoorAssets& assets, const GameData& game_data, int id) {
+    const auto [vis, warp] = d2d::drlg::level_vis(assets.levels, game_data.layouts.layout_of(id), id);
+    std::uint32_t flags = 0;
+    for (std::size_t slot = 0; slot < 8; ++slot)
+        if (vis[slot] != 0 && warp[slot] == -1) flags |= 0x10u << slot;
+    return flags;
+}
+
+}  // namespace
+
 // An outdoor level of the act (the Blood Moor): drlg generate_outdoor
 // where the act's layout put it, on its level seed.
 bool build_outdoor(const GameData& game_data, d2d::mpq::Stack& mpqs, d2d::drlg::OutdoorAssets& assets, Level& level) {
@@ -1489,10 +1504,19 @@ bool build_outdoor(const GameData& game_data, d2d::mpq::Stack& mpqs, d2d::drlg::
     level.world_x = outdoor_level.rect.x;
     level.world_y = outdoor_level.rect.y;
     const auto placed = set_level_tiles(level, assets, dt1s, outdoor.rooms, outdoor.plain, notes);
-    for (std::size_t i = 0; i < outdoor.rooms.size(); ++i) {        // a plain room's cell flag 0x30000 (waypoint); its 0x80 (a path) is road_rooms, not a room2 flag
+    for (std::size_t i = 0; i < outdoor.rooms.size(); ++i) {        // a plain room's cell +0x18 (FUN_0067d540): 0x30000 (waypoint), slot bits (contacts); +0x2c 0x80 (a path) is road_rooms
         const auto& room = outdoor.rooms[i];
         const auto cell = std::size_t(room.y / 8) * std::size_t(outdoor.cells_wide) + std::size_t(room.x / 8);
-        if (room.kind == 1 && cell < outdoor.g18.size()) level.room_flags[i] |= outdoor.g18[cell] & 0x30000;
+        if (room.kind == 1 && cell < outdoor.g18.size()) level.room_flags[i] |= outdoor.g18[cell] & 0x30ff0;
+    }
+    // A preset room: the walk slots, and its preset's top-left cell's +0x18
+    // value (FUN_006750f0 hands it to FUN_00667ed0) slot bits (contacts).
+    const auto walks = walk_slot_flags(assets, game_data, level.id);
+    for (std::size_t i = 0; i < outdoor.rooms.size(); ++i) {
+        const auto& room = outdoor.rooms[i];
+        if (room.kind != 2) continue;
+        const auto cell = std::size_t(room.preset_y / 8) * std::size_t(outdoor.cells_wide) + std::size_t(room.preset_x / 8);
+        level.room_flags[i] |= walks | (cell < outdoor.g18.size() ? outdoor.g18[cell] & 0xff0 : 0);
     }
     for (const auto& room : outdoor.rooms)
         level.road_rooms.push_back(room.kind == 1 && (outdoor.g2c[std::size_t(room.y / 8 * outdoor.cells_wide + room.x / 8)] & 0x80));
@@ -1545,6 +1569,8 @@ bool build_maze(const GameData& game_data, d2d::mpq::Stack& mpqs, d2d::drlg::Out
     level.world_y = rect[1];
     const auto dt1s = load_level_dt1s(level, mpqs, assets, level.type, game_data.tile_pixels ? d2d::dt1::Pixels::decode : d2d::dt1::Pixels::skip);
     const auto placed = set_level_tiles(level, assets, dt1s, made, {}, notes);
+    const auto walks = walk_slot_flags(assets, game_data, level.id);     // every room is a preset's (FUN_00667970)
+    for (auto& flags : level.room_flags) flags |= walks;
     level.rooms = std::move(made);
     for (const auto& note : notes) d2d::log::info("  not implemented: {}", note);
     d2d::log::info("  {}: {}x{} tiles, {} rooms, {} tilesets, {} picked tiles, {} warp tiles", level.name, width, height,

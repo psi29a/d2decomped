@@ -596,6 +596,20 @@ sets the new room's +0x04 to `(cell +0x2c >> 16) & 0xf`
 nothing, the rest plain 8×8 rooms (FUN_0067d540 with +0x18, +0x2c,
 +0x40 and a LevelType word: 2 → 0x44103).
 
+**Room slot flags** (room2 +0x28 & 0xff0, read by the near list
+FUN_0066c370). The anchor's call hands FUN_00667ed0 its cell's +0x18
+value (`006751e0`), and FUN_00667970 ORs into it 0x10 << n for each slot
+n whose Vis (FUN_0066c040: the act's override list +0x90, else Levels.txt)
+is set and whose warp (FUN_0066af30) is −1 (`006679b0`..`006679d3`), then
+fills every cell of the preset's grid with that (FUN_0067c590, operator 0)
+before its warp walls add their own bits. So every room of a preset, in
+any level, holds its level's walk-across slots: each Blood Moor preset room
+0x30 (the camp, the Cold Plains), each Cold Plains one 0x70. A plain room
+gets its cell's +0x18 alone (FUN_0067d540's sixth argument, `0067521a`):
+a contact span's slot on the level's edge, 0x30000, the table values.
+Run on game.exe (`room_vis.py`, rooms as generated, before they come up):
+d2d's `Level::room_flags` agree on every room of LEVELS for map seeds 1-3.
+
 ### Act 2's desert (FUN_0067f980, LevelType 16, levels 41–46)
 
 FUN_00675360 picks the act's body (act 1 FUN_006807f0, 2 FUN_0067f980, 3
