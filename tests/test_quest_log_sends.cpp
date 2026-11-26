@@ -15,6 +15,20 @@ using namespace d2d::rules;
 
 // Checks which quest records the World sends by event, so the View-change stand-in skips them (FUN_00544190).
 int main() {
+    {   // Which players a send reaches, by their bits: the oracle's cases (tools/emu/quest_log_sends.py).
+        struct OracleCase { int quest; bool bit0, bit13, bit14, bit15, sent; };
+        static constexpr OracleCase oracle_cases[]{
+#include "quest_log_sends_cases.inc"
+        };
+        for (const auto& sample : oracle_cases) {
+            QuestBits bits{};
+            quest::set(bits, sample.quest, 0, sample.bit0);
+            quest::set(bits, sample.quest, 13, sample.bit13);
+            quest::set(bits, sample.quest, 14, sample.bit14);
+            quest::set(bits, sample.quest, 15, sample.bit15);
+            assert(TowerQuest::log_goes_to(bits) == sample.sent);
+        }
+    }
     // The records whose `news` the World turns into an event (world/quests/act3.cpp, act4.cpp, act5.cpp).
     for (const int quest : { GuardianQuest::kQuest, IzualQuest::kQuest, HellforgeQuest::kQuest, TerrorQuest::kQuest, SiegeQuest::kQuest, RescueQuest::kQuest,
                              PrisonQuest::kQuest, BetrayalQuest::kQuest, EveQuest::kQuest, RiteQuest::kQuest, TowerQuest::kQuest })

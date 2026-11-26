@@ -847,9 +847,10 @@ struct TowerQuest {
     void tick() {
         if (log_in > 0 && --log_in == 0 && state == 5) { log = 13; news = true; }   // Q05_TimerNotifyCompletion (0x5954c0): log 0xd, flag 1
     }
-    // Whether a player is sent the log (FUN_00594830): not one done (bit 0 or 15) without bit 13 or 14.
+    // Whether a player is sent the log (FUN_00594830): not one done (bit 0; unlike the other act 1 records',
+    // bit 15 isn't read) without bit 13 or 14.
     static bool log_goes_to(const QuestBits& quest_bits) {
-        return !(quest::bit(quest_bits, kQuest, 0) || quest::bit(quest_bits, kQuest, 15)) || quest::bit(quest_bits, kQuest, 13) || quest::bit(quest_bits, kQuest, 14);
+        return !quest::bit(quest_bits, kQuest, 0) || quest::bit(quest_bits, kQuest, 13) || quest::bit(quest_bits, kQuest, 14);
     }
     // The Moldy Tome read, then its message 127 heard.
     void read_tome(QuestBits& quest_bits, int player);
