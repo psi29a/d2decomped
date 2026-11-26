@@ -1627,16 +1627,18 @@ std::optional<std::vector<std::uint32_t>> camp_room1_seeds(const GameData& game_
 }
 
 // The camp's tiles as game.exe's rooms pick them: each cell's tile is the rarity pick on its DRLG room's seed
-// (FUN_0066d820 through level_room_tiles, rooms up in list order), where load_town's first match in the DT1s stood.
+// (FUN_0066d820 through level_room_tiles, rooms up in `came_up` order, the rest in list order), where load_town's first match
+// in the DT1s stood.
 // The picks, their collision and patches come out as for a generated level (lay_tiles), then finish_level
 // lays the walk grid on them. The camp's DT1s are load_town's, its list the preset's by Dt1Mask (kept when the
 // two lists differ, a missing file: the first match stays).
-// ponytail: the picks are laid once, at load, the rooms in list order. game.exe lays each camp room as it comes
+// Laid in a given order, the tiles are game.exe's with its rooms up in that order (tools/emu camp_tiles_order.py).
+// ponytail: the game lays the picks once, at load, the rooms in list order. game.exe lays each camp room as it comes
 // up (FUN_0061b190), so a shared edge's re-pick rolls on whichever room came up later (keep_camp_seeds follows
 // that order for the room1 seeds, not for the picks), and a Blood Moor room up before a camp room shares its edge
 // tiles with it (FUN_0066e940): relevel doesn't run on the camp, and camp_rooms lays the camp beside the Blood
-// Moor, not the reverse. camp_tiles.py checks list order only.
-void lay_camp_picks(GameData& game_data, const d2d::drlg::OutdoorAssets& assets) {
+// Moor, not the reverse.
+void lay_camp_picks(GameData& game_data, const d2d::drlg::OutdoorAssets& assets, const std::vector<std::size_t>& came_up) {
     auto& town = game_data.town;
     const auto heads = game_data.layouts.prest_automap_dt1s.find(town.id);
     if (town.ds1.width() == 0 || heads == game_data.layouts.prest_automap_dt1s.end()) return;
@@ -1651,8 +1653,13 @@ void lay_camp_picks(GameData& game_data, const d2d::drlg::OutdoorAssets& assets)
     for (std::size_t index = 0; index < list.size(); ++index) dt1s.archive[list[index]] = &town.dt1s[index];
     town.assets = &assets;                                // lay_tiles reads these two; the camp keeps neither
     town.tile_dt1s = std::move(dt1s);
+    const std::size_t count = made.size();
+    std::vector<std::size_t> order;                       // list indices: the list is newest first
+    std::vector<bool> taken(count);
+    for (const auto room : came_up) if (room < count && !taken[count - 1 - room]) { order.push_back(count - 1 - room); taken[count - 1 - room] = true; }
+    if (!order.empty()) for (std::size_t i = 0; i < count; ++i) if (!taken[i]) order.push_back(i);
     std::vector<std::string> notes;
-    lay_tiles(town, made, {}, notes);
+    lay_tiles(town, made, order, notes);
     town.assets = nullptr;
     town.tile_dt1s = {};
     town.room_tiles.clear();

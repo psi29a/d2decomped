@@ -363,8 +363,9 @@ struct GameData::LevelBuilder {
 // A preset level's (no generated rooms.
 // `assets`: any generated level's (the presets' rows and DS1s).
 std::vector<d2d::drlg::BuiltRoom> preset_rooms(const GameData& game_data, const Level& level, const d2d::drlg::OutdoorAssets& assets);
-// The camp's tiles as game.exe's rooms pick them (rarity, on the DRLG room seeds), into Level::picks.
-void lay_camp_picks(GameData& game_data, const d2d::drlg::OutdoorAssets& assets);
+// The camp's tiles as game.exe's rooms pick them (rarity, on the DRLG room seeds), into Level::picks;
+// the rooms in `came_up` (room_rects indices) brought up first in that order, the rest after in list order.
+void lay_camp_picks(GameData& game_data, const d2d::drlg::OutdoorAssets& assets, const std::vector<std::size_t>& came_up = {});
 // Its rooms' room1 seeds by room_rects index, the rooms in `came_up` (room_rects indices) brought up in that
 // order; `generated`: drlg::generate_preset's rooms, which hold the DRLG room seeds.
 std::vector<std::uint32_t> preset_room1_seeds(const GameData& game_data, const Level& level, const d2d::drlg::OutdoorAssets& assets,
