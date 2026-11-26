@@ -562,8 +562,8 @@ struct KhalimQuest {
 };
 
 // The Blackened Temple (a3q5.cpp, record 0x13, word 0x15): the Kurast
-// Causeway (82) opens it (state 1); Ormus (255) tells (594: state 3, 2 if
-// the game's bit 13's set); leaving the docks, 5 (4). The Council in
+// Causeway (82) opens it (state 1); Ormus (255) tells (594: state 3, 2 with
+// Lam Esen's game bit 13, word 0x11); leaving the docks, 5 (4). The Council in
 // Travincal (superuniques 26 / 27 / 29: Ismail, Geleb, Toorc) carry the
 // record (FUN_005a49b0 binds 0x13); each death (FUN_005bbc00): the first
 // drops Khalim's flail ("qf1 ") for each player in act 3 who needs one, the
@@ -599,11 +599,11 @@ struct BlackenedTempleQuest {
         if (quest::bit(quest_bits, kQuest, 3)) { log = 3; state = tome ? 4 : 5; }
         else if (quest::bit(quest_bits, kQuest, 2)) { log = 2; state = tome ? 2 : 3; }
     }
-    // A level change (LAB_005bb120).
-    void enter(const QuestBits& quest_bits, int from, int into, bool game_done) {
+    // A level change (LAB_005bb120); `tome_done`: Lam Esen's game bit 13 (word 0x11, 0x5bb1ce).
+    void enter(const QuestBits& quest_bits, int from, int into, bool tome_done) {
         if (into == kCauseway && open && state == 0) state = 1;
         if (from != kDocks || state < 2 || state > 3 || quest::bit(quest_bits, kQuest, 0) || quest::bit(quest_bits, kQuest, 4)) return;
-        state = game_done ? 4 : 5;   // LAB_005badc0 after it marks none: the state's past 2 / 3
+        state = tome_done ? 4 : 5;   // LAB_005badc0 after it marks none: the state's past 2 / 3
     }
     // A Council member died (FUN_005bbc00): the first's round drops a flail
     // for each player who needs one, the next's a Cube for each without
@@ -641,11 +641,11 @@ struct BlackenedTempleQuest {
         orb_broken = true;
         return true;
     }
-    // The player heard `string` (FUN_005bb210). Returns whether Khalim's
-    // parts go (Cain's, with his Will done).
-    bool said(QuestBits& quest_bits, QuestBits& game_bits, int npc, int string, bool game_done, int player) {
+    // The player heard `string` (FUN_005bb210; `tome_done`: Lam Esen's game bit 13, 0x5bb26f). Returns
+    // whether Khalim's parts go (Cain's, with his Will done).
+    bool said(QuestBits& quest_bits, QuestBits& game_bits, int npc, int string, bool tome_done, int player) {
         if (quest::bit(quest_bits, kQuest, 0)) return false;
-        if (npc == kOrmus && string == kTells) { state = game_done ? 2 : 3; return false; }
+        if (npc == kOrmus && string == kTells) { state = tome_done ? 2 : 3; return false; }
         if (npc != kCain || string != kDone || !quest::bit(quest_bits, kQuest, 4)) return false;
         const bool parts_go = quest::bit(quest_bits, KhalimQuest::kQuest, 0);
         if (quest::bit(quest_bits, kQuest, 13) && state != 7) { quest::set(game_bits, kQuest, 13); state = 7; }
@@ -690,7 +690,7 @@ struct BlackenedTempleQuest {
 // The Guardian (a3q6.cpp, record 0x14, word 0x16): opened by the Blackened
 // Temple's chain (+0xf0, LAB_005bcc60: state 1) or a level past 97 (the
 // temples and the Durance; FUN_005bc3c0); Ormus (255) tells (628: state 3, 2
-// with the game's bit 13; marks on the talk's close). Mephisto's death
+// with Lam Esen's game bit 13, word 0x11; marks on the talk's close). Mephisto's death
 // (World::mephisto_died: bits 13, 0, 0xb) and then any of the docks' NPCs'
 // report (657..663: block 5, greeting) clears bit 0xb (state 7 when done
 // here). A join with it done (bit 0, bit 0xb, or Act 4's word 0x17 bit 0)
@@ -732,9 +732,9 @@ struct GuardianQuest {
     }
     // The Blackened Temple done (its +0xf0 chain).
     void chain() { if (state == 0 && open) state = 1; }
-    // A level change (FUN_005bc3c0).
-    void enter(const QuestBits& quest_bits, int from, int into, bool game_done) {
-        const int later = game_done ? 4 : 5;
+    // A level change (FUN_005bc3c0); `tome_done`: Lam Esen's game bit 13 (word 0x11, 0x5bc45e).
+    void enter(const QuestBits& quest_bits, int from, int into, bool tome_done) {
+        const int later = tome_done ? 4 : 5;
         if (from == kDocks && state >= 2 && state <= 3 && !quest::bit(quest_bits, kQuest, 0) && !quest::bit(quest_bits, kQuest, 0xb)) state = later;
         if (into > 97 && open && state == 0) state = 1;
         if (into == kDuranceOfHate1 && state == 1) state = later;
@@ -742,10 +742,10 @@ struct GuardianQuest {
     }
     // Mephisto died (World::mephisto_died).
     void killed(int player) { dead = true; rewarded.add(player); }
-    // The player heard `string` from `npc` (FUN_005bc5a0).
-    void said(QuestBits& quest_bits, int npc, int string, bool game_done) {
+    // The player heard `string` from `npc` (FUN_005bc5a0; `tome_done`: Lam Esen's game bit 13, 0x5bc603).
+    void said(QuestBits& quest_bits, int npc, int string, bool tome_done) {
         if (!quest::bit(quest_bits, kQuest, 0xb) && quest::bit(quest_bits, kQuest, 0)) return;
-        if (npc == kOrmus && string == kTells) { state = game_done ? 2 : 3; return; }
+        if (npc == kOrmus && string == kTells) { state = tome_done ? 2 : 3; return; }
         if (string < kReportFirst || string > kReportLast || !quest::bit(quest_bits, kQuest, 0xb)) return;
         if (quest::bit(quest_bits, kQuest, 13)) state = 7;
         quest::set(quest_bits, kQuest, 0xb, false);

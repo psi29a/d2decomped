@@ -234,9 +234,10 @@ and log (`FUN_005bd850`: no done case) by the parts carried.
 
 ## The Blackened Temple (a3q5.cpp)
 
-State: 1 entering the Causeway (82), 3 Ormus told (594; 2 with the game's
-bit 13), 5 leaving the docks (4), 6 / 7 the Council dead (the orb whole /
-broken), 7 done. Data: +0xc the orb broken, +0xd / +0xe the flail / a Cube
+State: 1 entering the Causeway (82), 3 Ormus told (594; 2 with Lam Esen's
+game bit 13: `FUN_00544760(game, 0x11, 0xd)` at 0x5bb26f, not word 0x15's),
+5 leaving the docks (4, the same bit at 0x5bb1ce), 6 / 7 the Council dead
+(the orb whole / broken), 7 done. d2d: `tests/game/test_act3_tome_done.cpp`. Data: +0xc the orb broken, +0xd / +0xe the flail / a Cube
 dropped, +0x34 Council left, +0x38 the orb's hits, +0x3c / +0x40 players
 needing a flail / a Cube (`FUN_005bb7b0`).
 
@@ -288,8 +289,9 @@ needing a flail / a Cube (`FUN_005bb7b0`).
 ## The Guardian (a3q6.cpp)
 
 State: 1 opened (a3q5's chain, `LAB_005bcc60`, or a level past 97), 3 Ormus
-told (628; 2), then 5 (4 with the game's bit 13) leaving the docks, in the
-Durance 1 or 3; 7 the report taken. Talk `FUN_005bc270` (blocks 0x740ef8,
+told (628; 2), then 5 (4) leaving the docks, in the Durance 1 or 3; 7 the
+report taken. The 2 and 4 go by Lam Esen's game bit 13 (word 0x11: 0x5bc45e,
+0x5bc4fb, 0x5bc554, 0x5bc603), not word 0x16's. Talk `FUN_005bc270` (blocks 0x740ef8,
 state → 0x741518; bit 0xb → block 5: every docks NPC greets with the report,
 657..663, `FUN_005bc5a0` clears bit 0xb); "!" `FUN_005bbfe0` (Ormus while
 given out, everyone with bit 0xb); join `LAB_005bcc80` (bit 0, 0xb or word
