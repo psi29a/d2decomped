@@ -1069,7 +1069,7 @@ namespace {
 // all its seeds and picks take, and a cell it finds draws the camp's own
 // pick there (next_door_pick).
 // ponytail: the camp's tiles don't take the level's shares back (the
-// flags a share ORs in, a re-pick): the camp is laid once (lay_camp_picks).
+// flags a share ORs in, a re-pick): relevel lays the camp alone.
 // Any other level next door (act 3's Travincal on the Causeway): its rooms
 // up, laid as it laid them (its seeds, its order), in `level`'s tiles.
 // ponytail: a room here re-picking a shared tile of theirs would roll
@@ -1236,7 +1236,8 @@ std::vector<d2d::drlg::Area> areas_of(const d2d::drlg::BuiltRoom& room) {
 
 }  // namespace
 
-// Its rooms brought up again, `came_up` (Level::rooms indices) first in that
+// Its rooms brought up again, `came_up` (Level::rooms indices; the camp's:
+// room_rects indices, its rooms lay_camp_picks kept) first in that
 // order, the rest after in list order: picks, patches, the walk grid and
 // the room1 seeds as game.exe's rooms would have them, footprints stamped
 // again. game.exe's units and warps come out the same in any order
@@ -1248,9 +1249,11 @@ std::vector<d2d::drlg::Area> areas_of(const d2d::drlg::BuiltRoom& room) {
 // result (rooms laid later never change earlier ones), only slower; not a
 // fidelity gap. Lay one at a time (level_room_tiles' state kept) if it hitches.
 void relevel(Level& level, const std::vector<std::size_t>& came_up, const GameData* game_data, const Spawning* spawning) {
-    if (!level.assets) return;
-    auto outside = game_data && spawning ? camp_rooms(*game_data, *spawning, level) : std::vector<d2d::drlg::BuiltRoom>{};
-    const std::size_t count = level.rooms.size();
+    const bool camp = level.rooms.empty();               // the camp's 8x8 rooms (lay_camp_picks), room_rects indices
+    const auto& made = camp ? level.preset_split : level.rooms;
+    if (!level.assets || made.empty()) return;
+    auto outside = !camp && game_data && spawning ? camp_rooms(*game_data, *spawning, level) : std::vector<d2d::drlg::BuiltRoom>{};
+    const std::size_t count = made.size();
     std::vector<std::size_t> order;                      // list indices: the list is newest first
     std::vector<bool> taken(count);
     for (const auto room : came_up) if (room < count && !taken[count - 1 - room]) { order.push_back(count - 1 - room); taken[count - 1 - room] = true; }
@@ -1271,32 +1274,36 @@ void relevel(Level& level, const std::vector<std::size_t>& came_up, const GameDa
     const auto start_ms = d2d::log::ms();
     std::vector<std::string> notes;
     auto client_outside = client.empty() ? std::vector<d2d::drlg::BuiltRoom>{} : outside;   // the next door's rooms don't hang on this level's lay
-    const auto built = lay_tiles(level, level.rooms, order, notes, std::move(outside), up_count);
+    const auto built = lay_tiles(level, made, order, notes, std::move(outside), up_count);
     for (const auto& room : built)
-        if (room.seed) {
+        if (room.seed && !camp) {
             level.room1_seeds[std::size_t(room.seed - level.rooms.data())] = room.room1_seed;
             level.room_floors[std::size_t(room.seed - level.rooms.data())] = floors_of(room);   // FUN_005b2700's water spots
             level.room_areas[std::size_t(room.seed - level.rooms.data())] = areas_of(room);     // a Logicals room's walls take the near rooms up
         }
     // The units again: a door on a shared edge (FUN_0066d9e0) is the room's
-    // that came up to it first, and its rand(3) that room's seed.
-    level.units.clear();
-    level.unit_rooms.clear();
-    for (const auto& room : built)
-        for (const auto& unit : room.units) {
-            level.units.push_back({ unit.type, unit.id, unit.mode, unit.x + room.x * 5, unit.y + room.y * 5, unit.flags, unit.path, unit.actions });
-            level.unit_rooms.push_back(room.seed ? int(room.seed - level.rooms.data()) : -1);
-        }
+    // that came up to it first, and its rand(3) that room's seed. The camp's
+    // are its DS1's (load_town), whatever the order.
+    if (!camp) {
+        level.units.clear();
+        level.unit_rooms.clear();
+        for (const auto& room : built)
+            for (const auto& unit : room.units) {
+                level.units.push_back({ unit.type, unit.id, unit.mode, unit.x + room.x * 5, unit.y + room.y * 5, unit.flags, unit.path, unit.actions });
+                level.unit_rooms.push_back(room.seed ? int(room.seed - level.rooms.data()) : -1);
+            }
+    }
     finish_level(level);
     level.drawn.clear();
     if (!client.empty()) {                               // the client's picks, collision's untouched
         auto server_picks = std::move(level.picks);
         auto server_patches = std::move(level.patches);
         std::vector<std::string> client_notes;
-        lay_tiles(level, level.rooms, client, client_notes, std::move(client_outside), up_count);
+        lay_tiles(level, made, client, client_notes, std::move(client_outside), up_count);
         level.drawn = std::exchange(level.picks, std::move(server_picks));
         level.patches = std::move(server_patches);
     }
+    if (camp) level.room_tiles.clear();                  // the automap reads the camp's from preset_rooms, as lay_camp_picks leaves it
     level.drawn_laid = std::move(client);
     level.laid = std::move(order);
     ++level.lays;
@@ -1633,11 +1640,11 @@ std::optional<std::vector<std::uint32_t>> camp_room1_seeds(const GameData& game_
 // lays the walk grid on them. The camp's DT1s are load_town's, its list the preset's by Dt1Mask (kept when the
 // two lists differ, a missing file: the first match stays).
 // Laid in a given order, the tiles are game.exe's with its rooms up in that order (tools/emu camp_tiles_order.py).
-// ponytail: the game lays the picks once, at load, the rooms in list order. game.exe lays each camp room as it comes
-// up (FUN_0061b190), so a shared edge's re-pick rolls on whichever room came up later (keep_camp_seeds follows
-// that order for the room1 seeds, not for the picks), and a Blood Moor room up before a camp room shares its edge
-// tiles with it (FUN_0066e940): relevel doesn't run on the camp, and camp_rooms lays the camp beside the Blood
-// Moor, not the reverse.
+// At load the rooms are laid in list order; game.exe lays each camp room as it comes up (FUN_0061b190), so a
+// shared edge's re-pick rolls on whichever room came up later: relevel lays the camp again in Spawning order from
+// what this keeps (its rooms, DT1s and assets), as keep_camp_seeds takes the room1 seeds in that order.
+// ponytail: a Blood Moor room up before a camp room shares its edge tiles with it (FUN_0066e940): relevel lays
+// the camp alone, and camp_rooms lays the camp beside the Blood Moor, not the reverse.
 void lay_camp_picks(GameData& game_data, const d2d::drlg::OutdoorAssets& assets, const std::vector<std::size_t>& came_up) {
     auto& town = game_data.town;
     const auto heads = game_data.layouts.prest_automap_dt1s.find(town.id);
@@ -1651,18 +1658,21 @@ void lay_camp_picks(GameData& game_data, const d2d::drlg::OutdoorAssets& assets,
     if (list.size() != town.dt1s.size()) return;
     LevelDt1s dt1s{ heads->second, {} };
     for (std::size_t index = 0; index < list.size(); ++index) dt1s.archive[list[index]] = &town.dt1s[index];
-    town.assets = &assets;                                // lay_tiles reads these two; the camp keeps neither
+    town.assets = &assets;                                // lay_tiles reads these three, relevel again later
     town.tile_dt1s = std::move(dt1s);
-    const std::size_t count = made.size();
+    town.preset_split = std::move(made);
+    const std::size_t count = town.preset_split.size();
     std::vector<std::size_t> order;                       // list indices: the list is newest first
     std::vector<bool> taken(count);
     for (const auto room : came_up) if (room < count && !taken[count - 1 - room]) { order.push_back(count - 1 - room); taken[count - 1 - room] = true; }
     if (!order.empty()) for (std::size_t i = 0; i < count; ++i) if (!taken[i]) order.push_back(i);
     std::vector<std::string> notes;
-    lay_tiles(town, made, order, notes);
-    town.assets = nullptr;
-    town.tile_dt1s = {};
+    lay_tiles(town, town.preset_split, order, notes);
     town.room_tiles.clear();
+    town.drawn.clear();
+    town.drawn_laid.clear();
+    town.laid = std::move(order);
+    town.laid_up = 0;
     finish_level(town);
 }
 

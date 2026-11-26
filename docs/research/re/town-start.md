@@ -110,16 +110,16 @@ seed.
 The camp's tiles: each cell's tile is the rarity pick (FUN_0066d820) on its
 room's DRLG seed, the picks of `level_room_tiles` on the camp's preset (LvlPrest def 1,
 DT1 list by its Dt1Mask, the three always-lists after). d2d's `lay_camp_picks`
-(gamedata.cpp) lays them once, rooms in list order, into `GameData::town`'s
+(gamedata.cpp) lays them at load, rooms in list order, into `GameData::town`'s
 `Level::picks` through `lay_tiles` and re-runs `finish_level`, so drawing and the walk
 grid read the picked tiles where load_town's first match in the DT1s stood. Checked:
 `uv run python camp_tiles.py 1-8 --mutation-check` (every camp room brought up in game.exe
 against `drlg-dump ... 1 <dir> camptiles`, the tile sets equal). Laid with the rooms up in a given
 order (`lay_camp_picks`' `came_up`), they are game.exe's with its rooms brought up (FUN_0061b730) in
 that order: `uv run python camp_tiles_order.py 1-10 --mutation-check` (list, reverse and shuffled,
-against `ORDER=<kind> drlg-dump ... 1 <dir> camptiles`). Not done: the order the
-rooms come up in as a player walks (FUN_0061b190 lays each as it comes up, so a shared edge
-re-picks on the later room's seed, as `keep_camp_seeds` already follows for the room1 seeds;
-relevel doesn't run on the camp), nor a Blood Moor room up before a camp room, whose edge
+against `ORDER=<kind> drlg-dump ... 1 <dir> camptiles`). As a player walks, `relevel` lays the
+camp again with its rooms in the order they came up (Spawning order, as `keep_camp_seeds` takes
+the room1 seeds), from the rooms, DT1s and assets `lay_camp_picks` keeps, and stamps the objects'
+footprints back (`test_camp_picks_order`). Not done: a Blood Moor room up before a camp room, whose edge
 tiles that camp room then finds (FUN_0066e940): `camp_rooms` lays the camp beside the Blood
 Moor, never the reverse.
