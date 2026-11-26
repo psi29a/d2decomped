@@ -76,6 +76,16 @@ unit event 0x23), +0x18 the stand's mode.
   chains into `nSequenceQuestId = QUEST_BladeOfTheOldReligion` (a3q3
   below).
 
+- **The log send** (`FUN_005b7340`): as a3q3's, record 0xf, word 0x11. Its log
+  is +0xe8's, but +0xb gates two sends: out of the docks at state 2, not done,
+  log 1 unless it is (`LAB_005b7620`, 0x5b76af), and the stand's flag-0 log 1
+  (0x5b7b71). Flag 1 also: Alkor's 549 (0x5b77c6), the pickup and the drop
+  (0x5b79ab, 0x5b7a4f); his 564 logs 0xd with flag 0 (0x5b78c7). The last
+  carrier leaving (+0xc4, `LAB_005b7b80`: with one taken and state up to 3,
+  data +5 and log 8) and a joiner bringing the first back after it (+0xd8,
+  `LAB_005b7bc0`: log 2) aren't ported. The join (`FUN_005b7c10`): the tome
+  log 2, bit 3 or 2 log 1. d2d: `LamEsenQuest::log` / `news`.
+
 d2d: `rules::LamEsenQuest`; the pickup / drop are polled from what's
 carried. `tests/quests_d2d.py` plays it.
 
@@ -106,11 +116,14 @@ the altar's mode.
   → 0x7401b8), **log** (`FUN_005b8cc0`) and **join** (`FUN_005b9700`) as
   `rules::BladeQuest`.
 
-- **Completion notify** (`Q20_PlayerNotifyCompleted`, `FUN_005b8bf0`):
-  the broadcast callback passed to `QUEST_SetStateAndBroadcast`; sends
-  quest-update packet 0x11 to a player only when the quest is
-  Completed or FinishedInPreviousGame *and* a fresh JustCompleted or
-  CannotCompleteQuestInGame flag is pending.
+- **The log send** (`FUN_005b8bf0`): the per-player callback
+  `FUN_00544300` runs with flag 1; `FUN_00544190(record 0x11)` (the 0x5d)
+  unless word 0x13 bit 0 or 15 is set without 13 or 14
+  (`tools/emu/quest_log_sends.py`). Its sites: Hratli's talk's close
+  (`LAB_005b8c50`, put in +0xa8 at init: with data +1, log 2, 0x5b8c84) and the
+  Gidbinn's pickup with +9 (`FUN_005b9520`: log 4, 0x5b9581, then state 4 and
+  log 3, 0x5b95e9); Ormus's 587 logs 0xd with flag 0 (0x5b934b). The quests.md
+  act 3 table; d2d: `BladeQuest::news`.
 - **Locking a player out this game** (`Q20_PlayerCheckBladeQuestCannotComplete`,
   `FUN_005b9130`): per-player iterate callback; if the quest is below
   Step0x06/0x07/0x08 and the player no longer holds the Gidbinn
@@ -171,10 +184,10 @@ figurine due (both 1 at init), +4 its carrier, +0x10 items carried.
   3 (0x5ba721), log 3; `j34 ` log 1, state 1 (0x5ba76c), and bit 6 with
   unit event 0x48 the first time (0x5ba794). No +9 test.
 
-- **Completion notify** (`Q21_PlayerNotifyCompleted`, `FUN_005b9e70`):
-  same shape as a3q3's (above); packet 0x12, gated on Completed or
-  FinishedInPreviousGame with a pending JustCompleted or
-  CannotCompleteQuestInGame.
+- **The log send** (`FUN_005b9e70`): as a3q3's, record 0x12, word 0x14. Its
+  sites are the record log's above, each flag 1; the +0xc4 / +0xd8 resends
+  (`LAB_005ba9a0`: the last carrier leaves, log 6; `FUN_005ba9e0`: a joiner
+  brings one back, log 1 / 3) aren't ported. d2d: `GoldenBirdQuest::news`.
 - **The sequence filter** (`Q21_SequenceFilter`, `FUN_005ba7b0`): the
   chain pattern (`quests.md`); at state 5 or still before intro it
   chains through *both* `nSequenceQuestId` (`QUESTINT_SpokeToHratli`) and, in
@@ -211,7 +224,11 @@ and log (`FUN_005bd850`: no done case) by the parts carried.
   Dungeon 3 (91).
 - **Log-send filter** (`FUN_005b7f90`): reads the player's quest flags for
   the game's difficulty and sends quest 0x10 only when word 0x12 bits 0 and
-  15 are both clear. `tools/emu/quest_khalim_log.py` checks all four bit
+  15 are both clear (13 and 14 not read: `rules::quest_log_goes_to`,
+  `tools/emu/quest_log_sends.py`). Its only `FUN_00544300` site is Cain's
+  talk's close after 543 (`LAB_005b8020`, put in +0xa8 by 543 at 0x5b80d4,
+  cleared when it fires: data +1, log 1, flag 1, 0x5b804b); the pickups send
+  straight (`FUN_005b81c0`, below), so d2d keeps the View's change for a3q2. `tools/emu/quest_khalim_log.py` checks all four bit
   combinations in all three difficulties with lookup, bit tests and sender
   hooked; it does not check those helpers or d2d parity.
 - **The sewers' stairs** (366, InitFn 41 `FUN_005b8660`: the record's +8
@@ -270,9 +287,9 @@ needing a flail / a Cube (`FUN_005bb7b0`).
   Will's done; bit 0, bit 4 off; state 7.
 - Talk `FUN_005bafd0` (blocks 0x7408b8, state → 0x740ed8), "!"
   `FUN_005bad60`, join `FUN_005bb480`; no log function (+0xe8 0).
-- **Completion notify** (`Q22_PlayerNotifyCompleted`, `FUN_005baf70`):
-  same shape again; packet 0x13, same Completed-or-FinishedInPreviousGame
-  plus pending-JustCompleted-or-CannotComplete gate.
+- **The log send** (`FUN_005baf70`): as a3q3's, record 0x13, word 0x15; flag 1
+  at Ormus's talk's close, a Council member made and the last one's death
+  (below). d2d: `BlackenedTempleQuest::news`.
 - **The sequence filter** (`Q22_SequenceFilter`, `FUN_005bb410`): the
   chain pattern (`quests.md`); at state 7 (fully done) chains to
   `nSequenceQuestId = QUEST_TheGoldenBird`.
@@ -350,9 +367,8 @@ mode, +0x1c soulstones owed.
   (`FUN_00641530`), mode 0 → 1 (it rises, 28 frames) and the next 1 → 2,
   its footprint lifted (`FUN_00623830`: no HasCollision2). Mode 2 stops it.
 
-- **Completion notify** (`Q23_PlayerNotifyCompleted`, `FUN_005bc210`):
-  same shape as a3q3/a3q4/a3q5's; packet 0x14, same
-  Completed-or-FinishedInPreviousGame plus pending-notify gate.
+- **The log send** (`FUN_005bc210`): as a3q3's, record 0x14, word 0x16.
+  d2d: `GuardianQuest::news`, sent to each player it passes.
 - **Party credit** (`Q23_PartyMember_SetCompleted`, `FUN_005bc750`):
   run via `ExecuteFunctionForEveryPartyMember` on Mephisto's death; for
   each party member not already Completed who is physically in Act

@@ -765,7 +765,7 @@ flag 1, 18 pass 0 (`FUN_00587b00`, `FUN_0058fdd0`, `FUN_00590980`,
 callback is tested after the call (`CMP AL, 1` at 0x5442af); that branch isn't read.
 
 d2d sends a quest's log as an event (`ev::QuestNews`) where its record's
-flag-1 sites are ported (`news`: act 1's six, act 2's five but a2q2, a3q6, a4q2 .. a4q4, act 5's six); the client
+flag-1 sites are ported (`news`: act 1's six, act 2's five but a2q2, act 3's five but a3q2, a4q2 .. a4q4, act 5's six); the client
 doesn't also read a change in their View's log for a send
 (`rules::quest_log_sent_by_event`, `tests/test_quest_log_sends.cpp`). a1q5's
 sites, read in game.exe, all pass flag 1: the Moldy Tome's message heard
@@ -773,7 +773,7 @@ sites, read in game.exe, all pass flag 1: the Moldy Tome's message heard
 (`FUN_00595010`: into level 0x14 log 3 or 4, into 0x19 log 2) and the
 kill's timer (0x5954c0, state 5: log 0xd); the dead `FUN_00595160` isn't
 ported. Each goes to a player unless done (bit 0; bit 15 isn't read) without bit 13 / 14
-(`FUN_00594830`; `tools/emu/quest_log_sends.py`). a2q2, a3q1 .. a3q5 and a4q1 are still a change in the View's log state (none
+(`FUN_00594830`; `tools/emu/quest_log_sends.py`). a2q2, a3q2 and a4q1 are still a change in the View's log state (none
 for a repeat or a flag-0 move that changes it, none at a game's first View).
 
 Act 1's other records' `FUN_00544300` calls, read at each call site in game.exe (the flag is
@@ -857,7 +857,55 @@ order:
 
 Unlike act 1's, act 2's rewards (a2q1's, a2q5's and a2q6's log 0xd) are flag 1; a2q3's is flag 0.
 
-d2d takes a record's `news` at the end of the World's tick (`World::act1_update`, `World::act2_update`), so the
+Act 3's `FUN_00544300` calls, read the same way (a linear sweep of 0x5b6ed0 .. 0x5bde70, a3q0's first
+function to a3q2's last, finds these 34; `tests/game/test_quest_log_sends_act3.cpp`,
+`tests/game/test_guardian_log.cpp`). Each record's callback (a3q1 `FUN_005b7340`, a3q3 `FUN_005b8bf0`, a3q4
+`FUN_005b9e70`, a3q5 `FUN_005baf70`, a3q6 `FUN_005bc210`) sends to a player unless done or closed (bit 0 or 15)
+without bit 13 / 14, and hands `FUN_00544190` the record id (the word less two); a3q2's `FUN_005b7f90` sends
+unless bit 0 or 15, 13 and 14 not read. a3q2 stays on the View's change: its item pickup (`FUN_005b8210`, +0xb0)
+sends its own 0x5d to the one player (`FUN_005b81c0`: 0x5d, 0x10, the record's +0x14, the log the code picks).
+a3q1's, a3q3's and a3q4's logs are their +0xe8's (`FUN_005b7d70`, `FUN_005b8cc0`, `FUN_005ba170`; a3q4's last
+case reads +0xb); a3q5's and a3q6's the usual `quest_log` on +0xb. In call-site order:
+
+| call site | record | log | flag | when | d2d |
+|---|---|---|---|---|---|
+| 0x5b76af | a3q1 | 1 | 1 | out of the docks at state 2, not done, log not 1 (`LAB_005b7620`) | `LamEsenQuest::enter` |
+| 0x5b77c6 | a3q1 | 1 | 1 | Alkor's 549 (`FUN_005b7740`) | `LamEsenQuest::said` |
+| 0x5b78c7 | a3q1 | 0xd | 0 | Alkor's 564 | `LamEsenQuest::said` |
+| 0x5b79ab | a3q1 | 2 | 1 | the tome into an inventory, open (`FUN_005b7970`, event 4) | `LamEsenQuest::picked_up` |
+| 0x5b7a4f | a3q1 | 1 | 1 | the tome dropped, open (`LAB_005b7a00`, event 5) | `LamEsenQuest::dropped` |
+| 0x5b7b71 | a3q1 | 1 | 0 | the stand drops the tome, log not 1 (`FUN_005b7a60`) | `LamEsenQuest::take` |
+| 0x5b7bb1 | a3q1 | 8 | 1 | the last carrier leaves, one taken, state up to 3 (`LAB_005b7b80`, +0xc4; data +5) | not ported (d2d's log goes by what each player holds) |
+| 0x5b7c05 | a3q1 | 2 | 1 | a joiner brings the first tome back with data +5 (`LAB_005b7bc0`, +0xd8) | not ported (data +5 comes only from 0x5b7bb1) |
+| 0x5b804b | a3q2 | 1 | 1 | Cain's talk closes after 543 (`LAB_005b8020`, data +1) | not ported (a3q2 stays on the View's change) |
+| 0x5b8c84 | a3q3 | 2 | 1 | Hratli's talk closes after 571 (`LAB_005b8c50`, data +1) | `BladeQuest::talk_closed` |
+| 0x5b934b | a3q3 | 0xd | 0 | Ormus's 587 (`FUN_005b9240`) | `BladeQuest::said` |
+| 0x5b9581 | a3q3 | 4 | 1 | the Gidbinn into an inventory, open (`FUN_005b9520`) | `BladeQuest::picked_up` |
+| 0x5b95e9 | a3q3 | 3 | 1 | the same, after state 4 | `BladeQuest::picked_up` |
+| 0x5ba0e9 | a3q4 | 5 | 1 | Alkor's talk closes with data +8 (`LAB_005ba0b0`) | `GoldenBirdQuest::talk_closed` |
+| 0x5ba114 | a3q4 | 2 | 1 | Cain's with data +9 | `GoldenBirdQuest::talk_closed` |
+| 0x5ba134 | a3q4 | 4 | 1 | Cain's with data +0xa | `GoldenBirdQuest::talk_closed` |
+| 0x5ba15c | a3q4 | 3 | 1 | Meshif's with data +0xb | `GoldenBirdQuest::talk_closed` |
+| 0x5ba73d | a3q4 | 3 | 1 | the bird picked up, neither bit 0 nor 1 (`FUN_005ba6a0`) | `GoldenBirdQuest::picked_up` |
+| 0x5ba75d | a3q4 | 1 | 1 | the figurine picked up | `GoldenBirdQuest::picked_up`; a save's corpse's at the join not sent (whether the joiner is on the list then isn't traced) |
+| 0x5ba9d1 | a3q4 | 6 | 1 | the last carrier leaves, state under 4 (`LAB_005ba9a0`, +0xc4; data +0x15) | not ported (as a3q1's) |
+| 0x5baa5a | a3q4 | 1 / 3 | 1 | a joiner brings the first back with data +0x15 (`FUN_005ba9e0`, +0xd8) | not ported (as a3q1's) |
+| 0x5bac45 | a3q4 | 1 | 1 | its carrier's death at log 0 (`FUN_005bab60`) | `GoldenBirdQuest::killed` |
+| 0x5bb0ee | a3q5 | 2 | 1 | Ormus's talk closes after 594 (`LAB_005bb0c0`, data +4) | `BlackenedTempleQuest::talk_closed` |
+| 0x5bb1c0 | a3q5 | 2 | 0 | out of the docks told, log under 3 (`LAB_005bb120`) | `BlackenedTempleQuest::enter` |
+| 0x5bb35c | a3q5 | 0xd | 0 | Cain's 626 with bits 4 and 13, state not 7 (`FUN_005bb210`) | `BlackenedTempleQuest::said` |
+| 0x5bb5ec | a3q5 | 1 / 3 | 1 | a Council member made, log not that (`FUN_005bb550`) | `BlackenedTempleQuest::council_made_one` |
+| 0x5bbdb3 | a3q5 | 4 / 0xd | 1 | the last Council member's death (`FUN_005bbc00`) | `BlackenedTempleQuest::council_died` |
+| 0x5bc39e | a3q6 | 2 | 1 | Ormus's talk closes after 628 (`LAB_005bc370`, data +3) | `GuardianQuest::talk_closed` |
+| 0x5bc450 | a3q6 | 2 | 0 | out of the docks told, log under 3 (`FUN_005bc3c0`) | `GuardianQuest::enter` |
+| 0x5bc4e2 | a3q6 | 3 | 1 | into the Durance 1 at log 0 or 2 | `GuardianQuest::enter` |
+| 0x5bc53b | a3q6 | 4 | 1 | into the Durance 3, log not 4 | `GuardianQuest::enter` |
+| 0x5bc6b1 | a3q6 | 0xd | 0 | the report with bits 0xb and 13 (`FUN_005bc5a0`) | `GuardianQuest::said` |
+| 0x5bc73d | a3q6 | 4 | 1 | Mephisto's 12-tick timer, log not 4 (0x5bc720) | `GuardianQuest::quest_step` |
+| 0x5bcfc2 | a3q6 | 6 / 7, or the saved one | state past 0 | `FUN_005bcf60` | not ported (nothing calls it) |
+
+d2d takes a record's `news` at the end of the World's tick (`World::act1_update`, `World::act2_update`,
+`World::act3_update`), so the
 callback reads each player's bits then, not at the call (the Gibbet's credit passes,
 `FUN_00593130` / `LAB_005931c0`, come before `FUN_00593290`'s send in game.exe as in d2d;
 a bit set between a call and the tick's end elsewhere is not traced).

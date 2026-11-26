@@ -35,6 +35,7 @@ auto World::act3_log(d2d::rules::QuestLogStates& log, const d2d::rules::QuestBit
         log[d2d::rules::LamEsenQuest::kQuest] = std::uint8_t(lam_esen.log_state(bits, carries("bbb"), !fight.remote_monsters, d2d::rules::level_act(level->id) == 2));
     }
 
+// The player joins: each act 3 record's +0xd4 (FUN_005b7c10, LAB_005b8470, FUN_005b9700, FUN_005ba870, LAB_005bb480, LAB_005bcc80).
 auto World::act3_join() -> void {
         fight.spawning.orb_smashed = d2d::rules::quest::bit(quests(), 0x12, 0);   // a3q5's join (FUN_005bb480): Khalim's Will done
         // a3q7's join (LAB_005bd2c0): seen him (word 0x20 bit 0): the game's bit 13 (FUN_00544720) and no Dark Wanderer.
@@ -60,6 +61,8 @@ auto World::act3_join() -> void {
             for (const auto& item : corpse.items)
                 if (item.code == d2d::rules::GoldenBirdQuest::kFigurine || item.code == d2d::rules::GoldenBirdQuest::kBird) item_event(item.code, now, true);
         golden_bird.join(quests(), carries(d2d::rules::GoldenBirdQuest::kBird), carries(d2d::rules::GoldenBirdQuest::kFigurine));
+        // The corpse's pickups send (FUN_005ba6a0, flag 1); whether the joiner is on the game's list then isn't traced.
+        golden_bird.news = false;
     }
 
 // A level change: a3q5's and a3q6's states past the docks go by Lam Esen's game bit 13 (FUN_00544760(game,
@@ -234,15 +237,11 @@ auto World::act3_quest_step() -> void {
         guardian.quest_step();
     }
 
-// The act's per-tick work: the Guardian's chain and its log sends (FUN_00544300 flag 1 -> FUN_005bc210 for each
-// player), the bridge, a3q3's guardians and its pickup.
+// The act's per-tick work: the Guardian's chain, the bridge, a3q3's guardians and its pickup; then a log moved
+// with flag 1 (FUN_00544300) is sent (S->C 0x5d) to each player its record's callback passes (rules::quest_log_goes_to:
+// FUN_005b7340, FUN_005b8bf0, FUN_005b9e70, FUN_005baf70, FUN_005bc210), for act 3's records but a3q2's.
 auto World::act3_update(std::uint32_t now_ms) -> void {
         if (d2d::rules::quest::bit(quests(), d2d::rules::BlackenedTempleQuest::kQuest, 0)) guardian.chain();   // a3q5's +0xf0
-        if (std::exchange(guardian.news, false))   // FUN_00544300 flag 1 -> FUN_005bc210 for each player
-            for (auto& player : players) {
-                const auto difficulty = std::size_t(std::clamp(player->character.header.active_difficulty(), 0, 2));
-                if (d2d::rules::GuardianQuest::told(player->character.header.quests[difficulty])) player->events.push_back(ev::QuestNews{ d2d::rules::GuardianQuest::kQuest });
-            }
         mephisto_bridge(now_ms);
         // a3q3's timer (FUN_005b9a30): with a player in a room near the altar's
         // (FUN_00619da0 at its spot, its near list FUN_00619790), a unique
@@ -277,6 +276,16 @@ auto World::act3_update(std::uint32_t now_ms) -> void {
         if (const bool gidbinn = carries(d2d::rules::BladeQuest::kGidbinn); !hosted_quests) {
             if (gidbinn && !actor->had_gidbinn && blade.picked_up(quests())) d2d::log::info("The Blade of the Old Religion: the Gidbinn (FUN_00553380)");
             actor->had_gidbinn = gidbinn;
+        }
+        const std::pair<int, bool*> records[] = { { d2d::rules::LamEsenQuest::kQuest, &lam_esen.news }, { d2d::rules::BladeQuest::kQuest, &blade.news },
+                                                  { d2d::rules::GoldenBirdQuest::kQuest, &golden_bird.news }, { d2d::rules::BlackenedTempleQuest::kQuest, &temple.news },
+                                                  { d2d::rules::GuardianQuest::kQuest, &guardian.news } };
+        for (const auto& [quest, news] : records) {
+            if (!std::exchange(*news, false)) continue;
+            for (auto& player : players) {
+                const auto difficulty = std::size_t(std::clamp(player->character.header.active_difficulty(), 0, 2));
+                if (d2d::rules::quest_log_goes_to(player->character.header.quests[difficulty], quest)) player->events.push_back(ev::QuestNews{ quest });
+            }
         }
     }
 

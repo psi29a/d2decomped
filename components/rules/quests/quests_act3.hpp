@@ -43,7 +43,8 @@ struct HratliGreeting {
 // points (FUN_006272b0 stat 4) the moment Alkor takes it.
 // The first hand-in's share for the others is World::act3_said's
 // (hand_in_credit). The holders' count (data+8) is the game's: the tomes
-// out (the stand's, a joiner's) less those handed in.
+// out (the stand's, a joiner's) less those handed in. Its log (+0xb) is
+// FUN_005b7d70's own, but +0xb gates two of its sends.
 struct LamEsenQuest {
     static constexpr int kQuest = 0x11, kAlkor = monster_ids::kAlkor, kInit = 549, kSuccess = 564;
     static constexpr int kLowerKurast = 79, kDocks = 75, kStatPoints = 5;
@@ -55,25 +56,31 @@ struct LamEsenQuest {
     bool held = false;             // data+2: a tome was taken
     int holders = 0;               // data+8: tomes carried
     bool flourish = false;         // data+0xc: Alkor's thanks plays on the talk's close (LAB_005b76e0)
+    int log = 0;                   // +0xb: the last log FUN_00544300 stored
+    bool news = false;             // the log sent to each player (FUN_00544300 flag 1, FUN_005b7340) since the World last took it
     quest::Players rewarded;         // in the record's +0x1c list (FUN_005452c0): handed in this game
     quest::Players holders_list;     // data+0x1c: the players its item events saw take the tome (FUN_00545200 / 0x545240)
 
     // A later player joins (+0xd8, LAB_005b7bc0): a tome they carry is one
-    // more about; the first, with +9 and data +5, resends log 2 (d2d's log
-    // is each player's own: log_state).
+    // more about; the first, with +9 and data +5 (set only when the last
+    // carrier leaves, LAB_005b7b80: not ported), resends log 2 (0x5b7c05).
     void join_more(bool has_tome) { if (has_tome) ++holders; }
-    // The player joins (FUN_005b7c10).
+    // The player joins (FUN_005b7c10): the tome, log 2; bit 3 or 2, log 1.
     void join(QuestBits& quest_bits, QuestBits& game_bits, bool has_tome) {
         if (quest::bit(quest_bits, kQuest, 0)) { quest::set(game_bits, kQuest, 13); return; }
-        if (has_tome) { state = 4; ++holders; stand_taken = true; held = true; return; }
-        if (quest::bit(quest_bits, kQuest, 3)) state = 3;
-        else if (quest::bit(quest_bits, kQuest, 2)) state = 2;
+        if (has_tome) { state = 4; log = 2; ++holders; stand_taken = true; held = true; return; }
+        if (quest::bit(quest_bits, kQuest, 3)) { state = 3; log = 1; }
+        else if (quest::bit(quest_bits, kQuest, 2)) { state = 2; log = 1; }
     }
     // A level change (LAB_005b7620): into Lower Kurast opens it; out of the
-    // docks, told -> under way, the told bit for those not done.
+    // docks, told: log 1 unless it is (flag 1, 0x5b76af), under way, the told
+    // bit for those not done.
     void enter(QuestBits& quest_bits, int from, int into) {
         if (into == kLowerKurast && open && state == 0) state = 1;
-        if (from == kDocks && state == 2 && !quest::bit(quest_bits, kQuest, 0)) { state = 3; told(quest_bits); }
+        if (from != kDocks || state != 2 || quest::bit(quest_bits, kQuest, 0)) return;
+        if (log != 1) { log = 1; news = true; }
+        state = 3;
+        told(quest_bits);
     }
     // FUN_005b73a0: told, while it's told or under way.
     void told(QuestBits& quest_bits) const {
@@ -81,20 +88,22 @@ struct LamEsenQuest {
     }
     // The tome taken from its stand (OperateFn 28, FUN_005b7a60): none for
     // one done (the "done" flourish, unit event 0x23), else it drops there,
-    // the stand to mode 2; under way unless it was. Returns whether it drops.
+    // the stand to mode 2; under way unless it was; log 1 unless it is (flag
+    // 0, 0x5b7b71). Returns whether it drops.
     bool take(const QuestBits& quest_bits) {
         if (!open || stand_taken || quest::bit(quest_bits, kQuest, 0)) return false;
         stand_taken = held = true;
         ++holders;
         if (state != 3) state = 3;
+        if (log != 1) log = 1;
         return true;
     }
-    // The tome into a player's inventory (event 4, FUN_005b7970): with +9 only, state 4 and the player on
-    // the holders list; dropped (event 5, LAB_005b7a00): off the list always, with +9 state 3, whatever it
-    // was (tools/emu/quest_item_events.py). The record's +0x14 cleared and the log sends (2 / 1, through
-    // FUN_005b7340) aren't kept: d2d's log is each player's own (log_state).
-    void picked_up(int player) { if (!open) return; state = 4; holders_list.add(player); }
-    void dropped(int player) { holders_list.remove(player); if (open) state = 3; }
+    // The tome into a player's inventory (event 4, FUN_005b7970): with +9 only, log 2 (flag 1, 0x5b79ab),
+    // state 4 and the player on the holders list (tools/emu/quest_item_events.py).
+    void picked_up(int player) { if (!open) return; log = 2; news = true; state = 4; holders_list.add(player); }
+    // Dropped (event 5, LAB_005b7a00): off the list always; with +9 state 3 and log 1 (flag 1, 0x5b7a4f),
+    // whatever it was.
+    void dropped(int player) { holders_list.remove(player); if (open) { state = 3; log = 1; news = true; } }
     // What `npc` says (FUN_005b7400; blocks 0x73ecf0, state -> 0x73f188).
     struct E { int npc, string; bool greet; };
     static inline const std::vector<E> kBlocks[5] = {
@@ -121,16 +130,18 @@ struct LamEsenQuest {
         if (npc != kAlkor) return false;
         return (state == 1 && !quest::bit(quest_bits, kQuest, 0) && !quest::bit(quest_bits, kQuest, 15)) || has_tome;
     }
-    // The player heard `string` from `npc` (FUN_005b7740). Alkor's thanks
-    // with the tome: it's taken (`gives_tome`), and the first time everyone in
-    // act 3 not done gets bits 13, 0, 1, the reward (bit 1 -> 5 stat points),
-    // others bit 14; done here: the game's bit 13, state 5.
+    // The player heard `string` from `npc` (FUN_005b7740). Alkor's 549: told,
+    // log 1 (flag 1, 0x5b77c6). His thanks with the tome: it's taken
+    // (`gives_tome`), and the first time everyone in act 3 not done gets bits
+    // 13, 0, 1, the reward (bit 1 -> 5 stat points), others bit 14; log 0xd
+    // (flag 0, 0x5b78c7); done here: the game's bit 13, state 5.
     struct Heard { bool takes_tome = false; int stat_points = 0; bool first = false; };   // first: the others' share is due (hand_in_credit)
     Heard said(QuestBits& quest_bits, QuestBits& game_bits, int npc, int string, bool has_tome, bool in_act3, int player) {
         if (npc != kAlkor || quest::bit(quest_bits, kQuest, 0)) return {};
-        if (string == kInit) { state = 2; told(quest_bits); return {}; }
+        if (string == kInit) { state = 2; log = 1; news = true; told(quest_bits); return {}; }
         if (string != kSuccess) return {};
         Heard out;
+        log = 0xd;
         if (has_tome) { out.takes_tome = true; flourish = true; rewarded.add(player); if (holders > 0) --holders; }
         if (first) {
             first = false;
@@ -195,6 +206,7 @@ struct GoldenBirdQuest {
     bool cain_told = false;        // data+9: Cain's 527, log 2 on his talk's close
     bool cain_bird = false;        // data+0xa: Cain's 531, log 4 on his talk's close
     bool meshif_swapped = false;   // data+0xb: Meshif's bird made, log 3 on his talk's close
+    bool news = false;             // the log sent to each player (FUN_00544300 flag 1, FUN_005b9e70) since the World last took it
     quest::Players rewarded;         // +0x1c: given the potion this game
 
     // The player joins (FUN_005ba870).
@@ -216,7 +228,7 @@ struct GoldenBirdQuest {
         if (quest::bit(quest_bits, kQuest, 0)) return false;
         due = false;
         if (state == 0) state = 1;
-        if (log == 0) log = 1;
+        if (log == 0) { log = 1; news = true; }
         return true;
     }
     // A quest item picked up (FUN_005ba6a0): the bird, state 3 and log 3 (0x5ba73d); the figurine,
@@ -225,6 +237,7 @@ struct GoldenBirdQuest {
     bool picked_up(QuestBits& quest_bits, bool bird) {
         if (quest::bit(quest_bits, kQuest, 0) || quest::bit(quest_bits, kQuest, 1)) return false;
         state = log = bird ? 3 : 1;
+        news = true;
         if (bird || quest::bit(quest_bits, kQuest, 6)) return false;
         quest::set(quest_bits, kQuest, 6);
         return true;
@@ -294,13 +307,13 @@ struct GoldenBirdQuest {
     // then 4 (0x5ba134); Meshif's 3 (0x5ba15c).
     void talk_closed(int npc) {
         if (!closing) return;
-        if (npc == kAlkor) { if (std::exchange(alkor_took, false)) log = 5; return; }
+        if (npc == kAlkor) { if (std::exchange(alkor_took, false)) { log = 5; news = true; } return; }
         if (npc == kCain) {
-            if (std::exchange(cain_told, false)) log = 2;
-            if (std::exchange(cain_bird, false)) log = 4;
+            if (std::exchange(cain_told, false)) { log = 2; news = true; }
+            if (std::exchange(cain_bird, false)) { log = 4; news = true; }
             return;
         }
-        if (npc == kMeshif && std::exchange(meshif_swapped, false)) log = 3;
+        if (npc == kMeshif && std::exchange(meshif_swapped, false)) { log = 3; news = true; }
     }
     // The Potion of Life drunk (0x55e44e): bit 5 clears, +20 max life.
     static bool drink(QuestBits& quest_bits) {
@@ -347,6 +360,7 @@ struct BladeQuest {
     bool used = false;             // data+3: the altar used
     bool altar_done = false;       // data+0x2c 2: the altar's mode
     int guardian = -1;             // data+0x24: the unique's id
+    bool news = false;             // the log sent to each player (FUN_00544300 flag 1, FUN_005b8bf0) since the World last took it
     quest::Players rewarded;         // +0x1c
 
     // FUN_005b8b20: a player's bits as it stands.
@@ -397,10 +411,13 @@ struct BladeQuest {
         guardian = -1;
         return true;
     }
-    // The Gidbinn picked up (FUN_005b9520): state 4, bit 9's flourish once.
+    // The Gidbinn picked up (FUN_005b9520): log 4 (flag 1, 0x5b9581), state 4, log 3 (flag 1, 0x5b95e9),
+    // bit 9's flourish once.
     bool picked_up(QuestBits& quest_bits) {
         if (!open) return false;
         state = 4;
+        log = 3;
+        news = true;
         mark(quest_bits, true);
         if (quest::bit(quest_bits, kQuest, 9)) return false;
         quest::set(quest_bits, kQuest, 9);
@@ -455,6 +472,7 @@ struct BladeQuest {
         if (npc == kHratli && string == kHratliTells) { state = 2; told_pending = true; }
         if (npc == kOrmus && string == kOrmusTakes) {
             if (has_gidbinn && quest::bit(quest_bits, kQuest, 5) && !quest::bit(quest_bits, kQuest, 8)) { out.takes_gidbinn = true; quest::set(quest_bits, kQuest, 6); }
+            log = 0xd;   // flag 0 (0x5b934b)
             if (open) { quest::set(game_bits, kQuest, 13); state = 5; }
         }
         auto both = [&] { if (quest::bit(quest_bits, kQuest, 7) && quest::bit(quest_bits, kQuest, 8)) { quest::set(quest_bits, kQuest, 13); quest::set(quest_bits, kQuest, 0); rewarded.add(player); } };
@@ -462,9 +480,10 @@ struct BladeQuest {
         if (npc == kAsheara && string == kAshearaMerc && !quest::bit(quest_bits, kQuest, 7)) { quest::set(quest_bits, kQuest, 7); out.merc = true; both(); }
         return out;
     }
-    // The talk closed (LAB_005b8c50): Hratli's told marks.
+    // The talk closed (LAB_005b8c50, set at init: always armed): Hratli's after his 571, log 2 (flag 1,
+    // 0x5b8c84), the told marks.
     void talk_closed(QuestBits& quest_bits, int npc, bool has_gidbinn) {
-        if (npc == kHratli && told_pending) { told_pending = false; mark(quest_bits, has_gidbinn); }
+        if (npc == kHratli && told_pending) { told_pending = false; log = 2; news = true; mark(quest_bits, has_gidbinn); }
     }
     // Its log (FUN_005b8cc0).
     [[nodiscard]] int log_state(const QuestBits& quest_bits, bool has_gidbinn) const {
@@ -620,6 +639,7 @@ struct BlackenedTempleQuest {
     bool told_pending = false;     // data+4: Ormus's 594, log 2 on his talk's close
     bool council_seen = false;     // data+5: a Council member made (FUN_005bb550): bit 3 in the marks
     std::vector<int> council_made; // data+0x10 .. +0x30: their unit ids, at most 6
+    bool news = false;             // the log sent to each player (FUN_00544300 flag 1, FUN_005baf70) since the World last took it
     quest::Players rewarded;         // +0x1c
 
     // A player's bits (LAB_005badc0, over the players): told at state 2 / 3, bit 3 once the Council's made.
@@ -654,7 +674,7 @@ struct BlackenedTempleQuest {
         if (council_made.size() >= 6 || std::ranges::contains(council_made, unit_id)) return false;
         council_made.push_back(unit_id);
         const int shown = state <= 1 ? 1 : 3;
-        if (log != shown) log = shown;
+        if (log != shown) { log = shown; news = true; }
         state = tome_done ? 4 : 5;
         return true;
     }
@@ -664,6 +684,7 @@ struct BlackenedTempleQuest {
         if (!closing || npc != kOrmus || !told_pending) return false;
         told_pending = closing = false;
         log = 2;
+        news = true;
         return true;
     }
     // A Council member died (FUN_005bbc00): the first's round drops a flail
@@ -679,6 +700,7 @@ struct BlackenedTempleQuest {
         out.last = true;
         state = orb_broken ? 7 : 6;
         log = orb_broken ? 0xd : 4;   // flag 1 (0x5bbdb3)
+        news = true;
         quest::set(game_bits, kQuest, 13);
         return out;
     }

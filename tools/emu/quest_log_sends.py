@@ -6,7 +6,8 @@ Run: export D2_MPQ_DIR=/path/to/the/local/game/data
      .venv/bin/python quest_log_sends.py inc --out ../../tests/quest_log_sends_cases.inc
 
 FUN_00544300 with flag 1 runs its record's per-player callback (act 1's six,
-act 2's five: a2q2 has none) over the
+act 2's five: a2q2 has none; act 3's six: a3q2's FUN_005b7f90 reads no bit 13 or
+14) over the
 game's players (FUN_005537d0); the callback reads the player's quest bits and
 calls FUN_00544190 (the 0x5d send) or not. This runs each callback on a
 synthetic game and player over every combination of the bits it reads (0, 13,
@@ -25,7 +26,7 @@ import emu
 GAME_SHA256 = "631066c1649c4ea9ffe48bf97e24c00bca1f7a6759c21150f1a79982589adaaf"
 QUEST_LOG_SEND = 0x544190
 # quest word -> (its record's per-player send callback, the fn FUN_00544300 is passed; the record id the callback
-# hands FUN_00544190: act 1's are their words, act 2's one less, 0x731510's table)
+# hands FUN_00544190: act 1's are their words, act 2's one less, act 3's two less, 0x731510's table)
 CALLBACKS = {
     1: (0x58FBE0, 1),    # a1q1 Den of Evil
     2: (0x590830, 2),    # a1q2 Sisters' Burial Grounds
@@ -38,7 +39,14 @@ CALLBACKS = {
     12: (0x59AD50, 11),  # a2q4 The Arcane Sanctuary
     13: (0x59BCB0, 12),  # a2q5 The Summoner
     14: (0x59C650, 13),  # a2q6 The Seven Tombs
+    17: (0x5B7340, 15),  # a3q1 Lam Esen's Tome
+    18: (0x5B7F90, 16),  # a3q2 Khalim's Will
+    19: (0x5B8BF0, 17),  # a3q3 The Blade of the Old Religion
+    20: (0x5B9E70, 18),  # a3q4 The Golden Bird
+    21: (0x5BAF70, 19),  # a3q5 The Blackened Temple
+    22: (0x5BC210, 20),  # a3q6 The Guardian
 }
+KHALIM = 18
 BITS = (0, 13, 14, 15)
 
 
@@ -94,6 +102,10 @@ def model(quest, set_bits, mutation=None):
         return not bit(0) or bit(13) or bit(14)
     if mutation == "act2_no_13" and quest >= 9:
         return not shut or bit(14)
+    if quest == KHALIM and mutation != "khalim_13":
+        return not shut
+    if mutation == "act3_no_14" and quest >= 17:
+        return not shut or bit(13)
     return not shut or bit(13) or bit(14)
 
 
@@ -161,7 +173,7 @@ def main():
         return
     print(f"ok: {len(results)} quest-log send callback cases")
     if args.mutation_check:
-        for mutation in ("tower_bit15", "no_14", "no_bit15", "act2_no_13"):
+        for mutation in ("tower_bit15", "no_14", "no_bit15", "act2_no_13", "khalim_13", "act3_no_14"):
             _, caught = run(game, mutation)
             if not caught:
                 raise SystemExit(f"mutation {mutation}: NOT caught")
