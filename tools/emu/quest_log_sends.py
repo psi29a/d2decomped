@@ -25,7 +25,12 @@ GAME_SHA256 = "631066c1649c4ea9ffe48bf97e24c00bca1f7a6759c21150f1a79982589adaaf"
 QUEST_LOG_SEND = 0x544190
 # quest -> its record's per-player send callback (the fn FUN_00544300 is passed)
 CALLBACKS = {
+    1: 0x58FBE0,   # a1q1 Den of Evil
+    2: 0x590830,   # a1q2 Sisters' Burial Grounds
+    3: 0x5912E0,   # a1q3 Tools of the Trade
+    4: 0x5920D0,   # a1q4 The Search for Cain
     5: 0x594830,   # a1q5 The Forgotten Tower
+    6: 0x595B20,   # a1q6 Sisters to the Slaughter
 }
 BITS = (0, 13, 14, 15)
 
@@ -77,6 +82,8 @@ def model(quest, set_bits, mutation=None):
     shut = bit(0) or (bit(15) and (quest != 5 or mutation == "tower_bit15"))
     if mutation == "no_14":
         return not shut or bit(13)
+    if mutation == "no_bit15":
+        return not bit(0) or bit(13) or bit(14)
     return not shut or bit(13) or bit(14)
 
 
@@ -144,7 +151,7 @@ def main():
         return
     print(f"ok: {len(results)} quest-log send callback cases")
     if args.mutation_check:
-        for mutation in ("tower_bit15", "no_14"):
+        for mutation in ("tower_bit15", "no_14", "no_bit15"):
             _, caught = run(game, mutation)
             if not caught:
                 raise SystemExit(f"mutation {mutation}: NOT caught")

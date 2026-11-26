@@ -61,6 +61,7 @@ struct DenQuest {
     int state = 1;      // +0xc: 1 not given, 2 given, 3 in the Den, 4 cleared, 5 rewarded
     int log = 0;        // +0xb
     bool active = true; // +9: off when the player joins with it done or closed (FUN_00546270)
+    bool news = false;  // the log sent to each player (FUN_00544300 flag 1, FUN_0058fbe0) since the World last took it
 
     // A player's bits for the state (LAB_0058fc90).
     void mark(QuestBits& quest_bits) const {
@@ -122,6 +123,7 @@ struct BurialQuest {
     int state = 0;      // +0xc: 0 closed, 1 given out, 2 Kashya spoke, 3 Burial Grounds, 4 Blood Raven dead, 5 done
     int log = 0;        // +0xb
     int log_in = 0;     // quest steps to the kill's "return to Kashya" (timer 0xf, LAB_00590bf0), 0 not running
+    bool news = false;  // the log sent to each player (FUN_00544300 flag 1, FUN_00590830) since the World last took it
     bool pending = false;    // data+3: Kashya gave it, the log waits for the talk to close
     quest::Players rewarded;   // in the +0x1c list: took the reward, still in town
 
@@ -137,9 +139,9 @@ struct BurialQuest {
     bool chain();
     // The quest log's state (+0xd 4).
     [[nodiscard]] int log_state(const QuestBits& quest_bits) const { return quest_log(quest_bits, kQuest, state, log, 4); }
-    // A quest-clock step (QuestClock).
+    // A quest-clock step (QuestClock): the kill's timer (LAB_00590bf0) sends log 3 (flag 1).
     void tick() {
-        if (log_in > 0 && --log_in == 0) log = 3;
+        if (log_in > 0 && --log_in == 0) { log = 3; news = true; }
     }
     // What `npc` says about it (FUN_00590b10): blocks at 0x736ce8 by the
     // state (0x737180: -1, 0, 1, 2, 3, 4).
@@ -179,6 +181,7 @@ struct AndyQuest {
     quest::Players cain, akara, kashya;   // data +0x000 / +0x084 / +0x108: players with her death's news for them (FUN_00596260)
     quest::Players rewarded;              // rec+0x1c
     bool cain_pending = false;   // +0x195: Cain gave it, the log waits for the talk to close
+    bool news = false;           // the log sent to each player (FUN_00544300 flag 1, FUN_00595b20) since the World last took it
 
     // A player's bits for the state (0x595bd0).
     void mark(QuestBits& quest_bits) const {
@@ -700,6 +703,7 @@ struct CainQuest {
     bool rescued_flag = false;  // the game's flag (4, 13): Cain rescued game-wide
     bool spot_noted = false;    // +0x67: Cain's AI noted the spot (FUN_005944b0)
     int spot_x = 0, spot_y = 0; // +0x9c / +0xa0: it, in subtiles (FUN_005943b0 moves it on 3 and 3 when no room holds it)
+    bool news = false;          // the log sent to each player (FUN_00544300 flag 1, FUN_005920d0) since the World last took it
     quest::Players missed, thanked;   // lists A (+0xb4: missed the rescue) and B (+0x138: heard Cain's thanks)
     quest::Players rewarded;          // rec+0x1c
 
@@ -761,7 +765,7 @@ struct CainQuest {
         if (quest::bit(quest_bits, kQuest, 0) || quest::bit(quest_bits, kQuest, 1) || resolved || state >= 6) return;
         resolved = true;
         if (!camp_cain) camp_due = true;
-        state = 7; log = 5;
+        state = 7; log = 5; news = true;   // flag 1 (FUN_00596de0 0x596ff6, FUN_00597310 0x5973c4)
         rescued_flag = true;
         missed_it(quest_bits, player);
     }
@@ -915,6 +919,7 @@ struct ToolsQuest {
     bool game_returned = false;             // the game's flag 13 (FUN_00544720(3, 0xd))
     bool carried_in = false;                // data+0xa1: the player joined holding the malus
     int carriers = 0;                       // data+0x9c: the players who joined holding it
+    bool news = false;                      // the log sent to each player (FUN_00544300 flag 1, FUN_005912e0) since the World last took it
 
     // A player's bits for the state (0x591340).
     void mark(QuestBits& quest_bits) const {
@@ -1046,11 +1051,13 @@ inline constexpr std::array<std::array<std::uint16_t, 29>, 27> kQuestLogRecords 
 } };
 // Whether the World sends a quest's log state itself, at its record's own FUN_00544300 flag-1 sites (each one
 // FUN_00544190 -> S->C 0x5d, ev::QuestNews), so the client doesn't read a change in the View's log for one.
-// Those are a1q5 (5: TowerQuest), a3q6 (0x16: GuardianQuest), a4q2 .. a4q4 (0x19 Izual, 0x1a Terror's End, 0x1b Hellforge) and act 5's
-// 0x23 .. 0x28. The others (a1q1 .. a1q4, a1q6, act 2, a3q1 .. a3q5, a4q1's 0x18) keep the View's change for their sends.
+// Those are act 1's 1 .. 6, a3q6 (0x16: GuardianQuest), a4q2 .. a4q4 (0x19 Izual, 0x1a Terror's End, 0x1b Hellforge) and act 5's
+// 0x23 .. 0x28. The others (act 2, a3q1 .. a3q5, a4q1's 0x18) keep the View's change for their sends.
 [[nodiscard]] constexpr bool quest_log_sent_by_event(int quest) {
-    return quest == 0x5 || quest == 0x16 || (quest >= 0x19 && quest <= 0x1b) || (quest >= 0x23 && quest <= 0x28);
+    return (quest >= 0x1 && quest <= 0x6) || quest == 0x16 || (quest >= 0x19 && quest <= 0x1b) || (quest >= 0x23 && quest <= 0x28);
 }
+// Whether an act 1 record's log send (FUN_00544300 flag 1) reaches a player, by their bits: the record's per-player callback.
+[[nodiscard]] bool quest_log_goes_to(const QuestBits& quest_bits, int quest);
 // `state` is what the picker keeps as the quest's last shown state
 // (0x7bf380, -1 left as it was); `marks` when a change of it is news (+0x263:
 // the open log picks that quest, FUN_004a3220).
