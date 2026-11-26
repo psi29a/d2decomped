@@ -27,11 +27,15 @@ namespace d2d::rules {
 // FUN_00663cc0(.., 0, 0) itself (FUN_0055f900). d2d stamps the item at
 // each of those: wield_enters (FUN_0063d1d0 runs on the same moves) and
 // equip_from_bag.
-// ponytail: unequipping a set piece (FUN_0055c730 -> FUN_00663cc0(.., 1, 0),
-// a break FUN_0055f850 and FUN_0057f410 with (.., 1, 1)) frees the set's
-// whole list (FUN_006277e0, FUN_00626cd0) with no rebuild, so the pieces
-// still worn give no partial bonus until one goes on again; d2d keeps
-// them (set_props counts what's worn). Not checked in play.
+// Taking a set piece off (FUN_0055c730 -> FUN_00663cc0(.., 1, 0)) frees the
+// set's whole list (FUN_006277e0, FUN_00626cd0), but each server move then
+// runs the requirements pass (FUN_0055dbc0), whose last loop (0x55de23..
+// 0x55de99) builds it again from the pieces still worn, highest slot last.
+// ponytail: d2d skips that last loop (the list's piece is the last one put
+// on, not the highest slot's). A break (FUN_0055f850) frees the list after
+// its pass (0x55f8e3), and FUN_0057f410 (the corpse's FUN_0057f700) with
+// (.., 1, 1): the pieces still worn give no set bonus until a piece's stats
+// go on again; d2d keeps them (set_props counts what's worn).
 void stats_on(std::vector<d2d::d2s::Item>& items, d2d::d2s::Item& item) {
     std::uint32_t last = 0;
     for (const auto& each : items) last = std::max(last, each.set_stamp);

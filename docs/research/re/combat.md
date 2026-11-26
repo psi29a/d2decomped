@@ -490,8 +490,16 @@ too, `FUN_00560f00`, `FUN_00561220`, `FUN_00563d20`), the weapon switch
 (`FUN_005616a0`), a stack refill (`FUN_00562a30`), the corpse
 (`FUN_00562f30`), the requirements pass (`FUN_0055dbc0`); a mend calls it
 itself (`FUN_0055f900`). The off side: `FUN_0055c730` (.., 1, 0), a break
-`FUN_0055f850` and `FUN_0057f410` (.., 1, 1). So the list holds the piece
-put on last.
+`FUN_0055f850` and `FUN_0057f410` (.., 1, 1). The take-off moves
+(`FUN_00560cd0`, `FUN_00560420`, `FUN_0055fcc0`, ...) then run the
+requirements pass `FUN_0055dbc0`, whose last loop (0x55de23..0x55de99)
+walks body slots 1..10 and, for each quality 5 item neither broken (0x100)
+nor flagged 0x4000, calls `FUN_0055c730(.., 1, 1)` then `FUN_0055c2c0`
+(0x55de7c, 0x55de88): every worn set's list is built again, last with its
+piece in the highest slot. A break (`FUN_0055f850`) runs the pass first and
+`FUN_00663cc0(owner, item, 1, 1)` last (0x55f8e3), so the broken piece's set
+is left with no list until a piece's stats go on again (the next move's
+pass). So after any move the list holds the worn piece in the highest slot.
 
 Sets.txt's codes use Properties funcs 1, 3, 5, 6, 7, 8, 11, 15, 16, 17,
 21, 22 and 24 only, none of the ones that write the item (2 / 4's
@@ -506,9 +514,10 @@ d2d: `rules::stats_on` stamps an item where its stats go on
 (`wield_enters`, `equip_from_bag`), `rules::set_list_piece` takes the worn
 member with the highest stamp (the later in the save on a tie: a load puts
 them on in its order), `rules::set_list_rows` the rows, and `set_props`
-hands the piece to `apply_mod`. Not ported: the off side, which leaves the
-pieces still worn with no partial bonus until one goes on again (not
-checked in play; `set_list.cpp`'s ponytail).
+hands the piece to `apply_mod`. Not ported: the pass's last loop, and a
+break's or `FUN_0057f410`'s free, which leaves the pieces still worn with
+no set bonus until one goes on again (`set_list.cpp`'s ponytail). Taking a
+piece off does not: the pass rebuilds the list.
 Oracle: `tools/emu/set_list.py` runs `FUN_00663b40` and `FUN_00660120`
 over runs of pieces going on and off (the owner's lists a Python model,
 `FUN_0065fe10` logged): 0 of 19,383 lines differ from
