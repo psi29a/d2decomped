@@ -740,8 +740,11 @@ int melee_record_pct(const Fighter& fighter, const Target& target, const Swing& 
 // end + rand(the gap) on the missile's seed, the ends swapped when the min is the larger, none unless both are over
 // 0; then its % (0x5a8b09..0x5a8bde): stat 25, + 121 against a demon, + 122 against the undead (no floor of its own),
 // at least -90. SrcDamage 0 takes none of the unit's (0x64bcfe).
-// ponytail: the hit's MonProp stat 0xb4 % (FUN_0057a830), the row's +0x12e owner branch (0x64bd07) and the
-// halved SrcDamage of row flag 0x6ce280 (FUN_006289c0, 0x64bb09) aren't here. phys_lo / phys_hi carry stat 111
+// ponytail: the halved SrcDamage of row flag 0x6ce280 (FUN_006289c0, 0x64bb09) isn't here. Nor is the
+// attacker's stat 0xb4 % against a monster of its layer's MonType (FUN_005a89a0 0x5a8b8e..0x5a8bd4,
+// FUN_0057a830's MonType matrix; melee's FUN_0057b6a0 too; not MonProp): d2d keeps no MonType matrix. The row's
+// +0x12e (SrcMissDmg) branch (0x64bd07), the parent missile's damage, is only viper_poisjavcloud's (Missiles.txt
+// row 649, 128), which d2d never makes. phys_lo / phys_hi carry stat 111
 // and make_fighter's floors (at least a point; phys_pct at least -90 before the missile's terms join).
 MissilePhysical missile_physical(const Fighter& fighter, const Target& target, const Swing& swing) {
     MissilePhysical physical;
