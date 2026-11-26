@@ -544,7 +544,7 @@ auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
                     if (monsters[i].targetable() && std::hypot(monsters[i].unit.x - unit.x, monsters[i].unit.y - unit.y) <= 6.f) pet.target = int(i);
                 if (pet.target >= 0 && now_ms >= monster.next_act) {
                     const auto& target = monsters[std::size_t(pet.target)];
-                    face(unit, direction16(target.unit.x - unit.x, target.unit.y - unit.y));
+                    turn_to(unit, target.unit.x.subtile(), target.unit.y.subtile());   // a monster unit's turn (FUN_006485f0)
                     set_mode(*game_data, monster, game_data->npc_timing(monster.npc, "A1").directions ? "A1" : "NU", now_ms);
                     monster.struck = false;
                     monster.next_act = now_ms + std::uint32_t(std::max(game_data->monsters.types[std::size_t(monster.type)].diff[std::size_t(monster.difficulty)].aidel, 15)) * 40;
@@ -555,7 +555,7 @@ auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
                 const auto& target = monsters[std::size_t(pet.target)];
                 const float dx = target.unit.x - unit.x, dy = target.unit.y - unit.y;
                 if (std::hypot(dx, dy) <= (pet.ranged >= 0 ? 6.f : kMeleeReach)) {
-                    face(unit, direction16(dx, dy));
+                    turn_to(unit, target.unit.x.subtile(), target.unit.y.subtile());
                     unit.path.clear(); unit.walking = false;
                     set_mode(*game_data, monster, "A1", now_ms);
                     monster.struck = false;
@@ -735,7 +735,7 @@ auto Fight::necropet_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const C
             pet.to_owner = false;
         } else if (act.kind == Kind::swing && found >= 0) {
             pet.target = found;
-            face(unit, direction16(monsters[std::size_t(found)].unit.x - unit.x, monsters[std::size_t(found)].unit.y - unit.y));
+            turn_to(unit, monsters[std::size_t(found)].unit.x.subtile(), monsters[std::size_t(found)].unit.y.subtile());
             unit.path.clear(); unit.walking = false;
             set_mode(*game_data, monster, "A1", now_ms);
             monster.struck = false;
@@ -1192,7 +1192,7 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
             pet.target = target;
             pet.cast = act.kind == Kind::swing ? -1 : act.skill;
             pet.cast_x = centre(act.x); pet.cast_y = centre(act.y);
-            if (target >= 0) face(unit, direction16(monsters[std::size_t(target)].unit.x - unit.x, monsters[std::size_t(target)].unit.y - unit.y));
+            if (target >= 0) turn_to(unit, monsters[std::size_t(target)].unit.x.subtile(), monsters[std::size_t(target)].unit.y.subtile());
             unit.path.clear(); unit.walking = false;
             const std::string_view mode = act.kind == Kind::skill && act.mode < 16 && game_data->npc_timing(monster.npc, kMonsterModes[std::size_t(act.mode)]).directions
                                               ? kMonsterModes[std::size_t(act.mode)] : "A1";

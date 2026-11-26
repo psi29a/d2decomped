@@ -487,7 +487,7 @@ auto Fight::merc_turn(std::uint32_t now_ms, float /* elapsed: a turn is a frame 
                 if (const auto* started = game_data->skills.get(actor->merc_skill))   // its castoverlay (FUN_004c6140)
                     start_cast_overlay(*started, false, actor->merc->one_shots, now_ms);
                 const auto mode = attack.kind == AttackKind::swing || attack.mode < 0 || attack.mode >= 16 ? std::string_view("A1") : kMonsterModes[std::size_t(attack.mode)];
-                face(unit, direction16(target.unit.x - unit.x, target.unit.y - unit.y));
+                turn_to(unit, target.unit.x.subtile(), target.unit.y.subtile());   // a monster unit's turn (FUN_006485f0)
                 actor->merc_seq = nullptr;
                 if (attack.kind == AttackKind::skill && attack.mode == 14)   // SQ: the sequence its MonStats slot for the skill names
                     for (std::size_t slot = 0; slot < type_info->skill.size(); ++slot)

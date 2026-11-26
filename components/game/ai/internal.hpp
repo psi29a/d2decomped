@@ -152,7 +152,7 @@ struct ThinkCtx {
     void aim_kin() {
         if (act.unit != d2d::rules::ThinkUnit::kin) return;
         monster.skill_unit = kin;
-        if (kin >= 0) unit.dir = direction16(pack[std::size_t(kin)].unit.x - unit.x, pack[std::size_t(kin)].unit.y - unit.y);
+        if (kin >= 0) turn_to(unit, pack[std::size_t(kin)].unit.x.subtile(), pack[std::size_t(kin)].unit.y.subtile());
     }
 };
 

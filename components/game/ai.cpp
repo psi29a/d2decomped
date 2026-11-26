@@ -4,7 +4,6 @@
 #include "ai/units.hpp"
 
 #include "ai/internal.hpp"
-#include "game.hpp"
 #include "gamedata.hpp"
 #include "level.hpp"
 #include "log.hpp"
@@ -115,7 +114,10 @@ bool on_door(const Level& level, const UnitState& unit, bool moving) {
 // A monster's turn still going when the walk ends goes on in its later
 // frames (turn_frame: the client's FUN_00463390 -> FUN_00648640 each frame).
 // An NPC, a pet and the merc are monster units too: theirs goes on the same way.
-// ponytail: a facing set outside a walk is direction16's, at once (those facings aren't traced one by one).
+// An action's facing outside a walk turns the same way (turn_to: FUN_006485f0).
+// ponytail: the client's turn of a town NPC toward the local player within 7
+// (FUN_004b13a0's FUN_00649ef0 call) isn't ported; a player's facing is still
+// set at once (FUN_006485f0 turns a type-0 path too; its callers not traced).
 bool path_frame(const Level& level, UnitState& unit, std::span<const std::pair<int, int>> points, std::size_t& point, int velocity,
                 const Crowd& crowd, bool* hit = nullptr) {
     auto centre = [](int coord) { return (float(coord) + 0.5f) / 5; };
@@ -151,10 +153,8 @@ bool path_frame(const Level& level, UnitState& unit, std::span<const std::pair<i
 
 }  // namespace
 
-// A monster's frame off a walk: its turn on a step toward the goal (FUN_00648640), a dir set since taken at once.
-
-// A frame's turn off a walk (FUN_00648640 each client frame): on toward the
-// goal the walk left; a `dir` set since (direction16's) is taken at once.
+// A frame's turn off a walk (FUN_00648640 each client frame, FUN_004b13a0):
+// on toward the goal a walk or turn_to left; a `dir` set since (face) is taken at once.
 void turn_frame(UnitState& unit) {
     auto& facing = unit.facing;
     if (missile_direction(facing.now, 16) != unit.dir) {
@@ -165,12 +165,24 @@ void turn_frame(UnitState& unit) {
     unit.dir = missile_direction(facing.now, 16);
 }
 
-// Its 64-way facing set to the sector too, now and goal both, so a walk's turn
-// left pending doesn't carry on past it when the sector is the one it faced.
+// A facing taken at once (a unit as it's made), now and goal both as
+// FUN_006488a0 sets them: the sector in 64, so no pending turn carries on.
 void face(UnitState& unit, int dir) {
     unit.dir = dir;
     const auto sector = std::ranges::find(kDir16FromSector, dir) - std::begin(kDir16FromSector);
     unit.facing.now = unit.facing.goal = std::uint8_t(sector * 4 & 0x3f);
+}
+
+// FUN_00649ef0(path, x, y, 0): the 64-step aim from where it is at the
+// subtile's centre (FUN_0064fe10), handed to FUN_006485f0, which for a
+// player's or monster's path only sets the goal (+0x65) and the step (+0x66,
+// DIFFDIRECTIONS); turn_frame (FUN_00648640) turns it a step a frame.
+// The client's MonsterMessage (FUN_004aff60) does it for a mode at a unit
+// (FaceTarget FUN_00465bf0 with EDX 0: commands 5, 0xa, 0xd, 0xf, 0x10, 0x12,
+// 0x1b, 0x1d; not for FUN_00463860's 0xe7) or at a point (FUN_00621c00: 4,
+// 0xb, 0xc, 0xe, 0x11, 0x1a, 0x1c).
+void turn_to(UnitState& unit, int to_x, int to_y) {
+    unit.facing.aim(d2d::rules::aim_direction(unit.x.raw, unit.y.raw, (std::uint32_t(to_x) << 16) + 0x8000, (std::uint32_t(to_y) << 16) + 0x8000));
 }
 
 bool set_off(const Level& level, UnitState& unit, float goal_x, float goal_y, bool to_unit, const Crowd& crowd) {
@@ -446,18 +458,6 @@ std::vector<UnitState> npc_start(const Level& level) {
     return out;
 }
 
-namespace {
-
-// FUN_00648820's 64 directions (0 screen south, clockwise; rules::direction64)
-// as a 16-direction facing: a screen vector that way through direction16.
-int facing16(int dir64) {
-    const float angle = float(dir64) * (2 * 3.14159265f / 64);
-    const float screen_x = -std::sin(angle) / (kIsoW / 2), screen_y = std::cos(angle) / (kIsoH / 2);
-    return direction16((screen_x + screen_y) / 2, (screen_y - screen_x) / 2);
-}
-
-}  // namespace
-
 // A town NPC's first think, 2 frames after `now_ms`: game.exe files it as
 // the NPC's room comes into play (its first client, FUN_0053a8e0, or made
 // in one already in play, FUN_00554850) through FUN_00573780: mode NU,
@@ -521,7 +521,7 @@ void npc_patrol(const GameData& game_data, const Level& level, std::vector<UnitS
                        : npc.town_ai == TownAi::navi   ? d2d::rules::navi_think(state.brain, npc.seed, listed, visitor, visitor.present && busy[0] >= 0,
                                                                                 visitor.present && visitor.distance < 4, false)
                                                        : d2d::rules::npc_think(state.brain, npc.seed, points, x, y, npc.hc_idx, npc.modes, 1, visitor, npc.town_ai == TownAi::towner);
-        if (act.face >= 0) state.dir = facing16(act.face);
+        if (act.face >= 0) state.facing.aim(act.face);         // FUN_00648820 (FUN_006485f0's, with a range assert): a goal, turned a frame at a time
         state.greets = state.greets || act.greet;          // unit sound 0x12: the client's greeting (FUN_004e0590 kind 1)
         switch (act.kind) {
         case d2d::rules::NpcAct::Kind::stand:
@@ -1026,7 +1026,7 @@ Search search_target(const GameData& game_data, const Level& level, Monster& mon
 void charge_swing(const GameData& game_data, Monster& monster, const Foe& foe, int skill, std::uint32_t now_ms, d2d::rules::Rng& rng) {
     const bool second = monster.type == int(game_data.mon_bin[std::size_t(d2d::rules::monster_ids::kDuriel)]) || monster.type == int(game_data.mon_bin[0x49]);
     const std::string_view mode = second ? "A2" : "A1";
-    face(monster.unit, direction16(foe.x - monster.unit.x, foe.y - monster.unit.y));
+    turn_to(monster.unit, subtile(foe.x), subtile(foe.y));
     monster.skill = skill;                        // before set_mode: its length reads the skill's UseAttackRate
     set_mode(game_data, monster, mode, now_ms);
     monster.struck = false; monster.wandering = false; monster.seq_done = 0; monster.seq_once = false;
@@ -1127,7 +1127,7 @@ auto ThinkCtx::walk_to(int off_x, int off_y, bool running) -> bool {   // to a s
 
 auto ThinkCtx::use(std::string_view mode, int skill) -> void {     // FUN_005dead0 / FUN_005ddf90: against the target (mode ctx +8)
     monster.chase = targeted ? int(target - foes.data()) : -1;
-    face(unit, direction16(dx, dy));
+    turn_to(unit, target_x, target_y);
     monster.skill = skill;                        // before set_mode: its length reads the skill's UseAttackRate
     monster.skill_sound = skill;
     set_mode(game_data, monster, mode, now_ms);
@@ -1570,7 +1570,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         case MonAct::mode_at:                                      // FUN_005ddfc0: mode n at a point (the wisps' SC)
             ctx.use("SC", -1);
             monster.skill_x = act.x; monster.skill_y = act.y; monster.at_point = true;
-            face(unit, direction16(float(act.x - x), float(act.y - y)));
+            if (act.x != x || act.y != y) turn_to(unit, act.x, act.y);   // FUN_00621c00 only off its own subtile
             return true;
         case MonAct::move_to: ctx.walk_to(act.x - x, act.y - y, false); return true;   // FUN_005de490: to the point
         case MonAct::warp:                                         // FUN_00554ea0: at once to the free spot nearest the point
@@ -1626,7 +1626,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         case MonAct::point:                                        // FUN_005dead0(Sk1mode, Skill1, no unit, x, y)
             ctx.use(type_info.sk_mode[0], skill_id(game_data, type_info.skill[0]));
             monster.skill_x = act.x; monster.skill_y = act.y;
-            face(unit, direction16(float(act.x - x), float(act.y - y)));
+            if (act.x != x || act.y != y) turn_to(unit, act.x, act.y);   // FUN_00621c00 only off its own subtile
             return true;
         case MonAct::fly: ctx.walk_to(act.x - x, act.y - y, false); return true;   // FUN_005de440: to the point (mode n: the Vulture's S1)
         case MonAct::keep: {                                       // FUN_005de4e0: toward, or from, the target to keep x off
@@ -1684,7 +1684,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             // sequence at the target's spot as it is now (monster_update plays it).
             if (const auto* run_skill = game_data.skills.get(id); run_skill && run_skill->srvdofunc == d2d::rules::ServerDoFunction::kDiabRun) {
                 monster.chase = chase_of();
-                face(unit, direction16(dx, dy));
+                turn_to(unit, target_x, target_y);
                 set_mode(game_data, monster, "RN", now_ms);
                 monster.skill = id; monster.skill_x = target_x; monster.skill_y = target_y; monster.wandering = false;
                 monster.skill_sound = id;
@@ -1804,7 +1804,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             monster.skill_x = act.x || act.y ? target_x + act.x : x + type_info.spawn_x;
             monster.skill_y = act.x || act.y ? target_y + act.y : y + type_info.spawn_y;
             if (act.spot) { monster.skill_x = target_x; monster.skill_y = target_y; }   // at the target's spot (UberIzual's teleport)
-            if (monster.skill_unit >= 0) face(unit, direction16(pack[std::size_t(monster.skill_unit)].unit.x - unit.x, pack[std::size_t(monster.skill_unit)].unit.y - unit.y));
+            if (monster.skill_unit >= 0) turn_to(unit, pack[std::size_t(monster.skill_unit)].unit.x.subtile(), pack[std::size_t(monster.skill_unit)].unit.y.subtile());
             if (row && row->aim) row->aim(ctx);                    // its own aim (a point on the map, its find: ai/)
             return true;
         }
@@ -3018,7 +3018,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
         // The teleport mod (teleport_mod) for an AI think() doesn't run.
         if (now_ms >= monster.next_act && teleport_mod(game_data, level, monster, int(dist * 5), crowd, rooms_in_play, now_ms)) return false;
         if (dist <= kMeleeReach) {
-            face(unit, direction16(dx, dy));
+            turn_to(unit, subtile(foe.x), subtile(foe.y));
             if (now_ms >= monster.next_act) { set_mode(game_data, monster, "A1", now_ms); monster.struck = false; attack_starts(game_data, monster, "A1", rng); }
             else if (monster.mode != "NU") set_mode(game_data, monster, "NU", now_ms);
             return false;
@@ -3028,7 +3028,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
         if (miss != game_data.missiles.end() && dist < 7 && now_ms >= monster.next_act) {
             monster.next_act = now_ms + std::uint32_t(type_info.diff[std::size_t(monster.difficulty)].aidel) * 40;
             if (rng(100) < std::max(type_info.diff[std::size_t(monster.difficulty)].aip[1], 1)) {
-                face(unit, direction16(dx, dy));
+                turn_to(unit, subtile(foe.x), subtile(foe.y));
                 set_mode(game_data, monster, "A2", now_ms);
                 monster.struck = false;
                 attack_starts(game_data, monster, "A2", rng);
