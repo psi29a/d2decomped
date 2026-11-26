@@ -684,13 +684,14 @@ std::vector<std::pair<const Level*, std::size_t>> player_moved(const GameData& g
 // cursor (+0x460; the head when that room left status 2) and makes the
 // first room without a room1 (FUN_0061b190, which counts +0x98); the walk
 // stops once +0x98 is 1, so with one made already only the cursor's room is
-// tried. The cursor stays on the room after the last one looked at.
+// tried. The cursor stays on the room after the last one looked at (past
+// the tail: the list's own node at act +0x278, which walks as the head).
 void step_client_ring(const GameData& game_data, Spawning& spawning) {
     if (spawning.client_made >= 2) { spawning.client_made = 0; return; }
     if (--spawning.client_ring_countdown != 0) return;
     spawning.client_ring_countdown = 5;
     auto& list = spawning.client_ring;
-    if (list.empty()) return;
+    if (list.empty()) { spawning.client_made = 0; return; }   // the walk meets only the list's own node (act +0x278)
     std::size_t start = 0;
     if (spawning.client_ring_cursor)
         if (const auto found = std::ranges::find(list, *spawning.client_ring_cursor); found != list.end()) start = std::size_t(found - list.begin());

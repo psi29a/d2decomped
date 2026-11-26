@@ -1499,7 +1499,10 @@ status, links +0x1c / +0xe8; FUN_0061b210 moves it).
   at and `+0x98` goes to 0 (`0x61b9c0..0x61b9fa`). After an arrival's
   room1s the first status-2 room comes up on the 6th client frame, then
   one each 5 (d2d: `player_moved` fills `Spawning::client_ring`,
-  `step_client_ring` each frame, `test_client_ring`). The server never does: its room1s
+  `step_client_ring` each frame, `test_client_ring`; an empty list still
+  clears `+0x98`, as the walk meets only the list's own node at act
+  `+0x278`; `tools/emu/client_ring.py --mutation-check` runs FUN_0061b920
+  on made-up lists against a copy of `step_client_ring`). The server never does: its room1s
   come only from depth 1 (and a warp's landing room, FUN_0052d0f0).
 - **Freeing** (FUN_0052d240, every 12th server frame from FUN_0052d870):
   for each act's room1 (list +0x10, next +0x7c), FUN_0061a790 resets the
