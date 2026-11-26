@@ -402,7 +402,9 @@ auto AndyQuest::talk_closed(int npc) -> void {
     if (npc == kCain && cain_pending) { log = 1; cain_pending = false; }
 }
 
-// The player went from level `from` to `dest` (FUN_00596010).
+// The player went from level `from` to `dest` (FUN_00596010). Into
+// Catacombs 4 (0x25) under log 2: log 2 (0x596058, flag 1); into another
+// Catacombs level (0x22..0x24) with log 0: log 1 (0x596087, flag 0).
 auto AndyQuest::enter(QuestBits& quest_bits, int from, int dest) -> void {
     if (dest < 34 || dest > 37) {
         if (state == 4 && dest == level_ids::kLutGholein) state = 5;
@@ -410,7 +412,8 @@ auto AndyQuest::enter(QuestBits& quest_bits, int from, int dest) -> void {
         return;
     }
     if (state <= 2) state = 3;
-    if (dest == level_ids::kCatacombsLevel4 && log < 2) log = 1;
+    if (dest == level_ids::kCatacombsLevel4) { if (log < 2) log = 2; }
+    else if (log == 0) log = 1;
     mark(quest_bits);
 }
 

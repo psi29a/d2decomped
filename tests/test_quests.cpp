@@ -91,6 +91,16 @@ int main() try {
     andy.enter(andy_bits, 1, 2);
     assert(andy.state == 3 && quest::bit(andy_bits, 6, 3) && andy.talk(andy_bits, AndyQuest::kWarriv, 1)[0].string == 177);
     andy.enter(andy_bits, 36, d2d::rules::level_ids::kCatacombsLevel4);
+    assert(andy.log == 2 && quest::bit(andy_bits, 6, 4));                     // Catacombs 4 under log 2: log 2 (0x596058), bit 4
+    {   // Another Catacombs level with log 0: log 1 (0x596087), bit 3; then Catacombs 4: log 2.
+        QuestBits early_bits{};
+        AndyQuest early;
+        early.state = 2;
+        early.enter(early_bits, 33, 34);
+        assert(early.state == 3 && early.log == 1 && quest::bit(early_bits, 6, 3));
+        early.enter(early_bits, 34, d2d::rules::level_ids::kCatacombsLevel4);
+        assert(early.log == 2);
+    }
     andy.in_lair(andy_bits, 1);
     assert(andy.killed(andy_bits) && andy.state == 4 && quest::bit(andy_bits, 6, 1) && quest::bit(andy_bits, 6, 13) && andy.cain.has(1) && !andy.cain.has(2));
     assert(!andy.killed(andy_bits));                                            // no second drop
