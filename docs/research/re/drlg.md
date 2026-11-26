@@ -609,6 +609,13 @@ gets its cell's +0x18 alone (FUN_0067d540's sixth argument, `0067521a`):
 a contact span's slot on the level's edge, 0x30000, the table values.
 Run on game.exe (`room_vis.py`, rooms as generated, before they come up):
 d2d's `Level::room_flags` agree on every room of LEVELS for map seeds 1-3.
+The near list (FUN_0066c370) walks every slot those flags hold, a walk
+across as a warp: FUN_0066c220 takes the slot's level's rooms holding a
+slot of theirs naming this level, and for a walk only those under 6 tiles
+away (FUN_0066be80); a close room without the bit isn't taken. d2d:
+`near_list` (`test_room_near_flags`; `near_rooms.py` against
+`test_room_near --near` on acts 1-5's outdoor levels, map seeds 0x1234
+and 77, every list the same).
 
 ### Act 2's desert (FUN_0067f980, LevelType 16, levels 41–46)
 

@@ -325,11 +325,11 @@ void sort_near(std::vector<NearRoom>& list) {
 // this slot's rank among this level's slots to that level, else the first
 // j that finds one (FUN_0066be10 links it). Each append sorts the list
 // again (FUN_0066bda0). tools/emu/near_rooms.py (test_room_near --near).
-// ponytail: a walk across is by closeness to a level whose Vis or this
-// one's names the other (Warp -1), not by the rooms' walk slot flags
-// (walk_slot_flags) as FUN_0066c220 takes them. A level with no flags (the
-// camp, a level not generated) takes every close room of its next-door
-// levels, and its warps by the warp back's room.
+// The flags are every preset room's walk slots (walk_slot_flags), its walls'
+// slots, and a plain room's cell's contact slots (FUN_00675770).
+// ponytail: the camp keeps no room flags (no room list): a level with none
+// takes every close room of its next-door levels, and its warps by the warp
+// back's room; game.exe tests the camp's rooms' flags as any level's.
 std::vector<NearRoom> near_list(const GameData& game_data, const Level& level, int room) {
     const auto rects = room_rects(level);
     const auto& self = rects[std::size_t(room)];
@@ -341,9 +341,9 @@ std::vector<NearRoom> near_list(const GameData& game_data, const Level& level, i
     const auto flags = flagged(level) ? level.room_flags[std::size_t(room)] : 0;
     if (flagged(level) && level.id != 0x85)
         for (std::size_t slot = 0; slot < 8; ++slot) {
-            // A warp's level is built here as game.exe does (FUN_006424a0).
+            // The slot's level is built here as game.exe does (FUN_006424a0).
             const bool warp = level.vis_warp[slot] != -1;
-            if (!warp || !(flags & (0x10u << slot)) || level.vis[slot] <= 0) continue;
+            if (!(flags & (0x10u << slot)) || level.vis[slot] <= 0) continue;
             const Level* other = game_data.level(level.vis[slot]);
             if (!other || !flagged(*other)) continue;
             const auto other_rects = room_rects(*other);
@@ -369,13 +369,9 @@ std::vector<NearRoom> near_list(const GameData& game_data, const Level& level, i
             for (std::size_t back = 0; back < 8 && !done; ++back)
                 if (other->vis[back] == level.id) done = take(back);
         }
-    const auto walks_to = [](const Level& from, int id) {
-        for (std::size_t slot = 0; slot < 8; ++slot) if (from.vis[slot] == id && from.vis_warp[slot] == -1) return true;
-        return false;
-    };
     for (const auto& neighbour : level.nearby) {
-        // A link is added both ways (FUN_00642920), so either side's Vis naming the other holds.
-        if (flagged(level) && flagged(*neighbour.level) && !walks_to(level, neighbour.level->id) && !walks_to(*neighbour.level, level.id)) continue;
+        // Two levels with flags: the slots' (above), a walk across too.
+        if (flagged(level) && flagged(*neighbour.level)) continue;
         const auto other = room_rects(*neighbour.level);
         for (std::size_t i = other.size(); i-- > 0;)
             if (close(self, other[i])) { list.push_back({ neighbour.level, int(i), other[i] }); sort_near(list); }
