@@ -1313,9 +1313,11 @@ static d2d::drlg::RoomDt1s preset_dt1s(const GameData& game_data, const Level& l
 }
 
 // The camp's split (room_rects, made order) laid as camp_rooms lays it for
-// the level next door, here in the preset level's own tiles.
-// ponytail: no DT1s or tile seeds (as camp_rooms): every word the walk
-// takes is listed, where game.exe lists only those it finds a tile for.
+// the level next door, here in the preset level's own tiles. Every word the
+// walk takes gets a tile, as game.exe's: FUN_0066e620 adds whatever
+// FUN_0066d820 picks, (10, 0, 0) when the word has none.
+// ponytail: the picks roll on seed 0, not the rooms' DRLG seeds (seed_made),
+// so a key with several rarities may take another tile than game.exe's.
 std::vector<d2d::drlg::BuiltRoom> preset_rooms(const GameData& game_data, const Level& level, const d2d::drlg::OutdoorAssets& assets) {
     auto made = preset_made(game_data, level, assets);
     if (made.empty()) return {};
