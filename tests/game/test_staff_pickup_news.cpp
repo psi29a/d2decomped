@@ -15,6 +15,7 @@
 #include <world.hpp>
 
 #include <algorithm>
+#include <cstddef>
 #include <cstdio>
 #include <cstdlib>
 #include <exception>
@@ -61,9 +62,9 @@ int main() try {
         });
     };
     int failures = 0;
-    const auto expect = [&](std::string_view what, long got, long want) {
+    const auto expect = [&](std::string_view what, std::ptrdiff_t got, std::ptrdiff_t want) {
         if (got == want) return;
-        std::printf("FAIL: %.*s: %ld news, want %ld\n", int(what.size()), what.data(), got, want);
+        std::printf("FAIL: %.*s: %td news, want %td\n", int(what.size()), what.data(), got, want);
         ++failures;
     };
 
