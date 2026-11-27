@@ -23,6 +23,7 @@
 #include <memory>
 #include <span>
 #include <string>
+#include <utility>
 
 using namespace d2d::game;
 
@@ -64,7 +65,7 @@ int main() try {
     builder->objects = table("Id\tInitFn\n543\t71\n");
     builder->obj_row["543"] = 0;
     builder->levels = table("Id\tThemes\tWarpDist\tPosition\n1\t0\t2025\t0\n2\t0\t2025\t0\n");
-    data.builder = builder;
+    data.builder = std::move(builder);
 
     // Level 1 (act tiles 100..107) walled everywhere; level 2 (92..99) west of it, its free area
     // (walk) only its five east columns, its collision (tile_walk) open only in the last two
@@ -92,7 +93,7 @@ int main() try {
     marker.type = d2d::rules::unit_type::kObject;
     marker.id = 543;
     marker.x = 1; marker.y = 20;                                   // a subtile in from level 1's west edge
-    here.units.push_back(marker);
+    here.units.push_back(std::move(marker));
     here.unit_rooms.push_back(0);
 
     Spawning spawning;
