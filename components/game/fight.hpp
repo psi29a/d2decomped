@@ -817,7 +817,12 @@ struct Fight {
     void missile_tick(std::uint32_t now_ms);
     // An element in 256ths a frame on monster i (a burner's): less its resistance, gathered until whole points
     // come off (no hit recovery: its record has result flag 1 alone).
+    // The element is the record's (FUN_005a8910: min + rand(max - min), none unless both are over 0): on the
+    // missile's own seed, then its damage function's soft hit (soft_hit), as FUN_005adf10 makes them; the
+    // first form rolls on the fight's rng with `soft` given.
+    void burn(std::size_t monster_index, const d2d::rules::MissileDamage& damage, std::uint32_t now_ms, Missile& missile);
     void burn(std::size_t monster_index, const d2d::rules::MissileDamage& damage, std::uint32_t now_ms, bool soft = false);
+    void burn_roll(std::size_t monster_index, int etype, int roll, std::uint32_t now_ms, bool soft);
     [[nodiscard]] std::array<int, 4> pierce() const;
     // A skill's missile reaching monster i.
     bool skill_missile_hits(Missile& missile, std::size_t monster_index, std::uint32_t now_ms);

@@ -955,7 +955,7 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
                 // hostile to the owner (or any side with CollideFriend). Every stock do-5 row has
                 // CollideFriend clear. The first accepted footprint in FUN_00641cb0's walk burns.
                 if (const auto order = d2d::rules::room_order(units, rooms); !order.empty())
-                    burn(std::size_t(order.front()), damage, now_ms, soft_hit(missile, rng));
+                    burn(std::size_t(order.front()), damage, now_ms, missile);
             }
             // 13 (FUN_005aeda0, Bone Wall's maker): while it has pieces left and the first piece
             // (FUN_00552f60 on its id) stands, one at its own subtile on a frame it entered a new one
@@ -1033,14 +1033,29 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
 // it 0x4000 (FUN_0057cee0's monster branch: the last command 0x13,
 // FUN_005734c0, and the mods' event 4, FUN_005a43a0: Lightning
 // Enchanted's bolts); without it a burn sets off neither.
+// FUN_005adf10: the record first (0x5ae150, FUN_005a89a0 -> FUN_005a8910 on the missile, ESI), then
+// FUN_005adcd0 -> FUN_005ad730, whose damage function makes the soft hit (FUN_005ad220).
+auto Fight::burn(std::size_t monster_index, const d2d::rules::MissileDamage& damage, std::uint32_t now_ms, Missile& missile) -> void {
+        auto& own = missile.seed ? *missile.seed : rng;
+        const int low = std::min(damage.elo, damage.ehi), high = std::max(damage.elo, damage.ehi);
+        const int roll = low > 0 ? low + own(high - low) : 0;
+        const bool soft = soft_hit(missile, rng);
+        burn_roll(monster_index, damage.ehi > 0 ? damage.etype : -1, roll, now_ms, soft);
+    }
+
 auto Fight::burn(std::size_t monster_index, const d2d::rules::MissileDamage& damage, std::uint32_t now_ms, bool soft) -> void {
+        const int low = std::min(damage.elo, damage.ehi), high = std::max(damage.elo, damage.ehi);
+        burn_roll(monster_index, damage.ehi > 0 ? damage.etype : -1, low > 0 ? low + rng(high - low) : 0, now_ms, soft);
+    }
+
+auto Fight::burn_roll(std::size_t monster_index, int etype, int roll, std::uint32_t now_ms, bool soft) -> void {
         static constexpr int kRes[5] = { 2, 3, 4, 5, 1 };
-        if (damage.etype < 0 || damage.etype > 4 || damage.ehi <= 0) return;
+        if (etype < 0 || etype > 4) return;
         auto& monster = monsters[monster_index];
         const auto target = target_of(monster_index);
-        int res = target.res[std::size_t(kRes[damage.etype])];
-        if (damage.etype < 4 && res < 100) res = std::max(res - pierce()[std::size_t(damage.etype)], -100);
-        monster.dot_acc += double(d2d::rules::resisted(rng.range(damage.elo, damage.ehi), res)) / 256;
+        int res = target.res[std::size_t(kRes[etype])];
+        if (etype < 4 && res < 100) res = std::max(res - pierce()[std::size_t(etype)], -100);
+        monster.dot_acc += double(d2d::rules::resisted(roll, res)) / 256;
         if (soft) { monster.left_mode = "hit"; monster.struck_event = monster.struck_event || monster.mode != "GH"; }   // event 4 tests mode 3 at the hit
         const int whole = int(monster.dot_acc);
         if (whole <= 0) return;
