@@ -79,8 +79,8 @@ int skill_class(const d2d::rules::Skill& skill) {
 // stop a falling rate (0x5a695c). A rate of 0 ends the event; life stays 0..max, and at 0 the pet dies. Under a point
 // of life the poison takes nothing in a town or out of a room (`town`: FUN_0061ab00, tools/emu/pet_poison_town.py).
 // ponytail: which runs first in a frame, a pet's hits or its event 3, isn't traced: here the hits (tick.cpp).
-// ponytail: preventheal and open wounds (state 0x34 by stat 117, 0x3e by stat 135) come only from a player's hits
-// (FUN_0057d810, FUN_005bfe60), and no player strikes a pet in d2d (no enemy players): the pet keeps neither.
+// Preventheal and open wounds (state 0x34 by stat 117, 0x3e by stat 135) come only from a player's hits
+// (FUN_0057d810, FUN_005bfe60), and a pet's foes in d2d's games are monsters (no hostile players): it keeps neither.
 void pet_regen(const GameData& game_data, Monster& monster, bool town, std::uint32_t now_ms) {
     if (monster.regen_from == 0 || now_ms < monster.regen_from || !monster.alive()) return;
     const bool poisoned = now_ms < monster.poison_until && monster.poison_rate > 0;
@@ -97,7 +97,7 @@ void pet_regen(const GameData& game_data, Monster& monster, bool town, std::uint
 // with it (FUN_005a2d10: FUN_0058f380 -> FUN_005a2cc0, then FUN_005a7e60 mode 0, no credit). The first piece's owner is
 // the Necromancer, not a monster, so it falls alone (FUN_0058f380 walks a monster owner's list only); so does a later
 // one whose first is gone (FUN_00552f60 finds no owner by its id).
-// ponytail: a piece that ends by its time (pets_turn) dies after this frame's check, so the rest fall a frame later.
+// A piece that ends by its time dies before the check (pets_turn), so the rest fall the same frame.
 void prison_falls(std::vector<Fight::Pet>& pets, const GameData& game_data, std::uint32_t now_ms) {
     for (auto& pet : pets) {
         if (pet.monster.alive() || pet.monster.party_owner < 0) continue;
@@ -409,6 +409,9 @@ auto Fight::pet_skill_damage(Pet& pet) -> void {
 // FUN_005e0400) only stand (pet.idle).
 auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -> void {
         for (auto& pet : actor->pets) (void)golem_blast(pet, now_ms);
+        // A pet whose time is up dies now (mode 0), so a Bone Prison piece's partydead takes the rest this frame.
+        for (auto& pet : actor->pets)
+            if (pet.until && now_ms >= pet.until && pet.monster.alive()) { pet.monster.hit_points = 0; set_mode(*game_data, pet.monster, "DT", now_ms); }
         prison_falls(actor->pets, *game_data, now_ms);
         std::erase_if(actor->pets, [&](const Pet& pet) { return !pet.monster.alive() && pet.monster.mode == "DT" && now_ms >= pet.monster.mode_until && !blast_due(pet.monster); });
         const auto save_class = std::size_t(std::max(actor->character.character_class, 0));

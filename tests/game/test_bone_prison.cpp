@@ -145,7 +145,12 @@ int main(int argc, char** argv) try {
     now += 40;
     world.tick({}, now, now - 40);
     assert(standing() == 11);
-    std::puts("OK: a cast's twelve pieces face the point; a later one broken takes them all, the first falls alone (FUN_005a2d10)");
+    cast();
+    actor.pets[5].until = now + 40;                                    // a later piece's time up on the next tick
+    now += 40;
+    world.tick({}, now, now - 40);
+    assert(standing() == 0);                                           // the rest fall the same tick, not the next
+    std::puts("OK: a cast's twelve pieces face the point; a later one broken or ended takes them all, the first falls alone (FUN_005a2d10)");
 
     // A zombie on the first spot: that piece lands within 4 of it instead (FUN_0056d940's radius 4), facing the point.
     const float point_x = std::floor(actor.player.x) + 6.5f, point_y = std::floor(actor.player.y) + 0.5f;
