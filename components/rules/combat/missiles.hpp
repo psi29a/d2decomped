@@ -15,6 +15,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <optional>
 #include <span>
 #include <utility>
 #include <vector>
@@ -121,6 +122,24 @@ struct Facing {
 
 // Royal Strike's third release: one missile's aim, in subtiles, off the target.
 std::pair<int, int> release_spread_offset(Rng& seed);
+// Armageddon's pulse (FUN_005c8520): the caster's seed set to {`word`, 666}, rand(1000000) on it the next `word`; then up
+// to five spots (from_x, from_y) + rand(2r + 1) - r on each axis, x first, in subtiles: the first `usable` passes (a
+// clear line from the caster, mask 0x805, a room, a free subtile), none after five.
+template <class Usable>
+std::optional<std::pair<int, int>> armageddon_spot(Rng& caster, std::uint32_t& word, int radius, int from_x, int from_y, Usable&& usable) {
+    caster = Rng{ word };
+    word = std::uint32_t(caster(1000000));
+    for (int tries = 0; tries < 5; ++tries) {
+        const int spot_x = from_x + caster(2 * radius + 1) - radius;
+        const int spot_y = from_y + caster(2 * radius + 1) - radius;
+        if (usable(spot_x, spot_y)) return std::pair{ spot_x, spot_y };
+    }
+    return std::nullopt;
+}
+
+// A Volcano's throw (missile do 28, FUN_005afb80): the missile's seed set to {`data`, 666}, rand(2r + 1) - r on each
+// axis, x first, in subtiles; `data` (its data +0x28) takes the seed's low word, the next throw's.
+std::pair<int, int> volcano_throw(Rng& missile_seed, std::uint32_t& data, int radius);
 
 // A charge-up's scatter release.
 std::pair<int, int> release_scatter_offset(Rng& seed, int radius);

@@ -1018,9 +1018,9 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
                 const int radius = std::max(missile_info.param2 > 0 ? missile_info.param2 : calc(*skill, skill->aurarange, missile.level), 1);
                 // Its seed set to {data +0x28, 666} (0x5afcb7), rand(2r + 1) - r on each axis, x first; the low word
                 // kept as the next throw's (FUN_0064a710).
-                auto& thrown = missile.seed.emplace(missile.data);
-                const float offset_x = float(int(thrown(2 * radius + 1)) - radius) / 5, offset_y = float(int(thrown(2 * radius + 1)) - radius) / 5;
-                missile.data = thrown.low;
+                auto& thrown = missile.seed.emplace();
+                const auto [throw_x, throw_y] = d2d::rules::volcano_throw(thrown, missile.data, radius);
+                const float offset_x = float(throw_x) / 5, offset_y = float(throw_y) / 5;
                 launch(sub->second, *skill, missile.level, missile.x, missile.y, offset_x, offset_y, land_range(sub->second, offset_x, offset_y), now_ms);
             }
         }

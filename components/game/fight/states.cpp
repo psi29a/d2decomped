@@ -401,18 +401,12 @@ auto Fight::buff_tick(std::uint32_t now_ms) -> void {
             // 0x805), a room and a free subtile (FUN_0064cb30 mask 1) taking the row; none, none.
             if (const auto found = game_data->missiles.find(skill->srvmissilea); found != game_data->missiles.end()) {
                 const int radius = std::max(calc(*skill, skill->aurarange, armageddon->level), 1);
-                actor->seed = d2d::rules::Rng{ actor->armageddon_word };
-                actor->armageddon_word = std::uint32_t(actor->seed(1000000));
                 const int from_x = int(std::floor(actor->player.x * 5)), from_y = int(std::floor(actor->player.y * 5));
                 const auto wall = [&](int line_x, int line_y) { return level->blocked((float(line_x) + 0.5f) / 5, (float(line_y) + 0.5f) / 5, 0x805); };
-                for (int tries = 0; tries < 5; ++tries) {
-                    const int spot_x = from_x + int(actor->seed(2 * radius + 1)) - radius;
-                    const int spot_y = from_y + int(actor->seed(2 * radius + 1)) - radius;
-                    if (d2d::rules::sight_blocked(from_x, from_y, 0, spot_x, spot_y, 0, wall)) continue;
-                    if (level->blocked((float(spot_x) + 0.5f) / 5, (float(spot_y) + 0.5f) / 5, 0x01)) continue;
-                    launch(found->second, *skill, armageddon->level, (float(spot_x) + 0.5f) / 5, (float(spot_y) + 0.5f) / 5, 0, 0, found->second.range, now_ms);
-                    break;
-                }
+                const auto spot = d2d::rules::armageddon_spot(actor->seed, actor->armageddon_word, radius, from_x, from_y, [&](int spot_x, int spot_y) {
+                    return !d2d::rules::sight_blocked(from_x, from_y, 0, spot_x, spot_y, 0, wall) && !level->blocked((float(spot_x) + 0.5f) / 5, (float(spot_y) + 0.5f) / 5, 0x01);
+                });
+                if (spot) launch(found->second, *skill, armageddon->level, (float(spot->first) + 0.5f) / 5, (float(spot->second) + 0.5f) / 5, 0, 0, found->second.range, now_ms);
             }
         }
         if (const auto* state = state_of("hurricane"); state && now_ms >= actor->hurricane_next) {
