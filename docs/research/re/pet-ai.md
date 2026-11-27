@@ -603,14 +603,19 @@ a null pet counts as -1):
 more byte to +0xb; a 0 last argument one more to +9, and 1 steps the
 owner's seed into +0xf / +0x10 instead. Rows 0 and 1 of 0x741940 are all
 zero; row 2 is 0, 1, 0, 0, 0, 0, 0, 0, 1 (read from game.exe's bytes,
-`tools/emu`). What the monster-data bytes draw (which component), state
-0x61 and stats 0x15e / 0x15f were not followed.
+`tools/emu`). The bytes are the pet's look (monster data +4 is the first
+of its 16 component picks, MonStats2 HD .. S8): +4..+8 HD, TR, LG, RA, LA,
++9 RH, +0xb SH, +0xc / +0xd S1 / S2, +0xf / +0x10 S4 / S5 (a mage's
+element parts pos, cld, fir, lht), written over what its stat init rolled.
+State 0x61 is skel_mastery (Skeleton Mastery's passivestate), stats 0x15e /
+0x15f its list's modifierlist_skill / modifierlist_level: the row index is
+Skeleton Mastery's level, so the skeletons wear more as it grows.
 
-d2d (`Fight::summon_one`) rolls `rng(4)` for every pet's variant and
-uses it only for a mage's missile (deviations.md approximation 18); it
-has no state 0x61 index and doesn't make a skeleton's Param1 roll, which
-steps the owner's seed in game.exe at a skill level above 2. Not
-compared: the look bytes, until what they draw is traced.
+d2d: `rules::raised_look` (`Fight::summon`), on the player's own seed
+(`Hero::seed`); a mage's element is its `Pet::variant`.
+`tools/emu/raised_look.py` runs FUN_005c4430 for real (4000 cases: both
+kinds, mastery 0..40, levels 1..35, Param1 0..100) against
+`test_raised_look`: the look and the owner's seed after.
 
 Re-check: `python3 tools/ghidra/fn.py 005c4430 005c4300 005c43d0 005c4180`,
 `uv run --project tools/emu python tools/emu/disasm.py 5c4430` (and

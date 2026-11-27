@@ -155,9 +155,7 @@ auto Fight::skill_named(std::string_view name) const -> const d2d::rules::Skill*
 // The missile row a pet's skill shoots: its srvmissile, else
 // srvmissilea — NecromageMissile's do 149 (FUN_005ce0b0) adds the mage's
 // variant (+0xf of its monster data) to it: necromage1..4, rolled at
-// the raise (FUN_005c4180: the caster's seed & 3).
-// d2d's rng(4) is that step on Fight::rng (summon_one): deviations.md
-// approximation 18.
+// the raise (FUN_005c4180: the caster's seed & 3, rules::raised_look).
 auto Fight::pet_missile(const d2d::rules::Skill& skill, int variant ) const -> const GameData::MissileInfo* {
         std::string name = skill.srvmissile.empty() ? skill.srvmissilea : skill.srvmissile;
         if (skill.srvdofunc == ServerDoFunction::kVariantMissile && !name.empty() && name.back() == '1') name.back() = char('1' + std::clamp(variant, 0, 3));
@@ -287,8 +285,6 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
         monster.npc = game_data->mon_npc[std::size_t(type)];
         monster.unit.shape = monster.npc.shape.owned();   // a pet: +0xc4 bit 31 (FUN_0056d8d0)
         const auto& type_info = game_data->monsters.types[std::size_t(type)];
-        for (std::size_t layer = 0; layer < 16; ++layer)
-            if (!type_info.parts[layer].empty()) monster.npc.comp[layer] = type_info.parts[layer].front();
         monster.difficulty = std::clamp(actor->character.header.active_difficulty(), 0, 2);
         monster.row_align = type_info.align; monster.classic = !game_expansion;   // a revived one swings as a classic game's (summons are Align 1)
         // Revive (do 58, FUN_005c56c0) raises the corpse itself (FUN_00553540: the unit cast at), so it keeps
@@ -301,18 +297,30 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
             monster.props = body.props;
             monster.seed = body.seed;
             monster.sighted = body.sighted;                       // the corpse's own AI control: its flag 8 stays (the unit is raised, not made)
+            monster.npc.comp = body.npc.comp;                     // and its look
+            pet.variant = std::max(body.variant, 0);
         } else {
             // A made one's unit seed (+0x20): {a game seed step, 666} (FUN_00555230 -> FUN_00552df0 ->
             // FUN_00650e40), as every unit but a player's gets as it's made (drops.md "the unit seed").
             monster.seed = d2d::rules::Rng{ spawning.game.next() };
-            // Valkyrie's MonStats2 TotalPieces is 2, so FUN_005739d0 takes the no-region path. Its sixteen variant
-            // counts (+0x15) are zero: the bound-zero calls draw nothing. FUN_00573cb0 then rolls life on the unit
-            // seed, and FUN_005c4470's MonEquip walk sees that earlier draw.
-            if (skill.srvdofunc == ServerDoFunction::kValkyrie) {
-                const auto look = d2d::rules::monster_look(nullptr, type_info.choices, monster.seed);
-                for (std::size_t layer = 0; layer < look.size(); ++layer)
-                    if (look[layer] < type_info.parts[layer].size()) monster.npc.comp[layer] = type_info.parts[layer][look[layer]];
+            // Made as any monster (FUN_00555230 type 1 -> FUN_00574250): its look off the level's region
+            // (FUN_00547bc0: a skeleton, a mage, the wolves and the bear join it, TotalPieces over 2), else
+            // each layer with a choice rolled (a one-part layer too; the Valkyrie's has none), on the unit
+            // seed; then FUN_00573cb0 rolls life on it, and FUN_005c4470's MonEquip walk sees both.
+            auto* region = level ? spawning.region(level->id) : nullptr;
+            const auto* sets = region ? d2d::rules::region_sets(*region, game_data->monsters, type, monster.seed) : nullptr;
+            auto look = d2d::rules::monster_look(sets, type_info.choices, monster.seed);
+            // A raised skeleton's or mage's look and a mage's element (its S4 / S5, FUN_005ce0b0's +0xf: pos,
+            // cld, fir, lht) after that: Raise's FUN_005c4430, on the owner's seed (rules::raised_look).
+            if (skill.srvdofunc == ServerDoFunction::kRaiseSkeleton && (type == 0x16b || type == 0x16c)) {
+                const auto* mastery = skill_named("Skeleton Mastery");
+                const auto raise_look = d2d::rules::raised_look(look, type == 0x16c, mastery && skill_level ? skill_level(mastery->id) : 0, lvl, skill.par[0], actor->seed);
+                look = raise_look.look;
+                pet.variant = raise_look.element;
             }
+            monster.look = look;
+            for (std::size_t layer = 0; layer < look.size(); ++layer)
+                if (look[layer] < type_info.parts[layer].size()) monster.npc.comp[layer] = type_info.parts[layer][look[layer]];
             monster.stats = d2d::rules::monster_stats(game_data->monsters, type, monster.difficulty, monster.seed);
         }
         // Its life and damage straight from MonStats' columns (a Raise
@@ -488,7 +496,6 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
         pet.skill = skill.id;
         pet.level = lvl;
         pet.where = level;
-        pet.variant = int(rng(4));
         switch (skill.srvdofunc) {
             case ServerDoFunction::kRevive: pet.until = now_ms + std::uint32_t(std::max(calc(skill, skill.calc[1], lvl), 1)) * 40; break;   // Revive: calc2 frames
             case ServerDoFunction::kHydra:   // Hydra: FUN_004e6ca0's Param1 + (lvl - 1) x Param2 frames (Param2 0), it stands
