@@ -242,7 +242,9 @@ enum StatId { kStr = 0, kEne = 1, kDex = 2, kVit = 3, kStatPts = 4, kSkillPts = 
               kGoldFind = 79, kMagicFind = 80,      // item_goldbonus, item_magicbonus
               kKnockback = 81, kAddExperience = 85, kReducedPrices = 87, kLightRadius = 89,
               kRequirementPercent = 91, kLevelRequirement = 92,   // item_req_percent, item_levelreq
-              kFasterAttackRate = 93, kFasterMoveVelocity = 96, kFasterGetHitRate = 99, kFasterBlockRate = 102,
+              kFasterAttackRate = 93, kFasterMoveVelocity = 96, kFasterGetHitRate = 99,
+              kPoisonOverrideLength = 101,          // skill_poison_override_length: Venom replaces poison length
+              kFasterBlockRate = 102,
               kFasterCastRate = 105,
               kSingleSkill = 107,                   // item_singleskill: +n to one skill (param)
               kPoisonLengthReduction = 110,         // item_poisonlengthresist

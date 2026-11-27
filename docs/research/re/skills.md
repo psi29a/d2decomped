@@ -922,6 +922,36 @@ runs from the local do (`client_skill_guard`); startmana's state inferno is `Her
   the throw masteries for thrown weapons, Summon Resist for summons,
   Increased Stamina (no stamina yet), the +0x80 state check.
 
+### Self-state aurastats and Venom
+
+`FUN_005c6cc0` takes the unit in ECX and its state stat list in EDX, with
+the Skills row (or null), skill id and level following. A null unit or list
+returns. With no explicit row, an id outside the Skills table returns;
+otherwise the function walks all six `aurastat` words at row `+0x54` with
+their calc dwords at `+0x68`. A stat id must be nonnegative, below the
+ItemStatCost row count and name a non-null row. The function evaluates it
+with `FUN_00646ca0(unit, calc, skill, level)` and adds a nonzero result to
+layer 0 with `FUN_006270b0`. Stat 68 (`attackrate`) also sets stat 69
+(`other_animrate`) to the same value with `FUN_00627150`. Every accepted
+call ends by refreshing the unit through `FUN_00623f50`; the six-slot walk,
+guards, writes and final call are checked by
+`tools/emu/skills_combat_helpers.py --mutation-check`.
+
+The resulting list is part of the unit's ordinary stat total. In the melee
+record builder `FUN_0057b7d0`, poison min/max are stats 57/58. Once their
+roll is nonzero, stat 101 (`skill_poison_override_length`) is read first: a
+positive value becomes record `+0x2c`, while only a nonpositive value falls
+back to stat 59 (`poisonlength`, divided by stat 326 when that count exceeds
+one). Venom (Skills id 278) supplies stats 57, 58 and 101, so its state
+changes both the poison damage and the duration of the player's melee hit.
+`Fight::player_fighter` now substitutes positive stat 101 for stat 59 in the
+copy handed to `make_fighter`, while leaving the actual summed stats intact.
+`tools/emu/venom_length.py --mutation-check` checks the original branch and
+record write; `test_venom_state` checks the loaded Venom row through d2d.
+
+Not traced here: the consumers of the implicit stat 69, Fade's stat 109
+(`curse_resistance`) and stat 162 (`skill_staminapercent`).
+
 ### Shots and ammo
 - **The plain attack** (do 1, `FUN_0056f070`): with a bow or crossbow
   (the unit's weapon class 1 / 7, `FUN_0064f460`) it fires the weapon's
