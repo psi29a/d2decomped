@@ -241,14 +241,23 @@ auto Fight::summon(const d2d::rules::Skill& skill, int lvl, float x, float y, st
             }
             return;
         }
-        // Hydra (do 144, FUN_005ca910): three at once, each through FUN_0056d940 ->
-        // FUN_005b2f20 at radius -1: the cast's subtile alone, else that one isn't made.
+        // Hydra (do 144, FUN_005ca910): three heads round the point (rules::hydra), hydra1..3, each through
+        // FUN_0056d940: spawn_spot at radius -1, then at 4; none in a town.
         if (skill.srvdofunc == ServerDoFunction::kHydra) {
-            Crowd others;
-            crowd(others);
-            for (int head = 0; head < 3; ++head)
-                if (int at_x = 0, at_y = 0; spawn_spot(*game_data, *level, others, &spawning.levels[level], type, int(std::floor(x * 5)), int(std::floor(y * 5)), -1, room_of(*level, x, y), at_x, at_y))
-                    summon_one(skill, type, lvl, env, (float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, now_ms);
+            const auto centre = [](int subtile) { return (float(subtile) + 0.5f) / 5; };
+            const auto make = [&](int head, int spot_x, int spot_y) -> std::optional<std::pair<int, int>> {
+                Crowd others;
+                crowd_around(others, centre(spot_x), centre(spot_y));
+                int at_x = 0, at_y = 0;
+                const int room = room_of(*level, centre(spot_x), centre(spot_y));
+                if (!spawn_spot(*game_data, *level, others, &spawning.levels[level], type + head, spot_x, spot_y, -1, room, at_x, at_y)
+                    && !spawn_spot(*game_data, *level, others, &spawning.levels[level], type + head, spot_x, spot_y, 4, room, at_x, at_y))
+                    return std::nullopt;
+                summon_one(skill, type + head, lvl, env, centre(at_x), centre(at_y), now_ms);
+                return std::pair{ at_x, at_y };
+            };
+            // A d2d level is a town or not as a whole (FUN_0061ab00 asks the point's room).
+            (void)d2d::rules::hydra(int(std::floor(x * 5)), int(std::floor(y * 5)), d2d::rules::level_ids::is_town(level->id), make);
             return;
         }
         summon_one(skill, type, lvl, env, x, y, now_ms, corpse);
@@ -482,7 +491,7 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
         pet.variant = int(rng(4));
         switch (skill.srvdofunc) {
             case ServerDoFunction::kRevive: pet.until = now_ms + std::uint32_t(std::max(calc(skill, skill.calc[1], lvl), 1)) * 40; break;   // Revive: calc2 frames
-            case ServerDoFunction::kHydra:                                                                                   // Hydra: Param1 frames, it stands
+            case ServerDoFunction::kHydra:   // Hydra: FUN_004e6ca0's Param1 + (lvl - 1) x Param2 frames (Param2 0), it stands
                 pet.until = now_ms + std::uint32_t(std::max(skill.par[0], 1)) * 40;
                 if (const auto* hydra = skill_named("HydraMissile")) { pet.ranged = hydra->id; pet.ranged_level = lvl; }
                 break;
