@@ -626,6 +626,7 @@ struct Missile {
     // A player's or merc's that takes the weapon's damage: its record's crit (+0 flag 2), rolled on the
     // caster's seed as it is made (FUN_0064b860 -> FUN_0064a850: Fight::seed_made).
     std::optional<bool> crit;
+    std::uint32_t data = 0;                   // its data +0x28 (FUN_0064a710 / FUN_0064a730): a Volcano's throw seed
     int skill = -1;                           // the player's: the skill whose damage it carries
     // A shrine's thrown potion: its Missiles.txt row damage, bursting over
     // `burst` subtiles where it lands (sHitPar1).

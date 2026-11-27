@@ -419,9 +419,9 @@ auto Fight::blast_reaches(const Monster& monster, const Foe& foe, int radius) co
 // Fire Enchanted's death blast (uniques.hpp fire_blast): physical and
 // fire, each a 64th of the roll in 256ths, on everyone within
 // difficulty + 4 subtiles; the corpse's guts (monstercorpseexplode).
-auto Fight::fire_blast(const Monster& monster, std::span<Foe> foes, std::uint32_t now_ms) -> void {
+auto Fight::fire_blast(Monster& monster, std::span<Foe> foes, std::uint32_t now_ms) -> void {
         const auto [low, high] = d2d::rules::fire_blast(monster.stats.hit_points, monster.difficulty);
-        const int pts = (low + rng(std::max(high - low, 1))) * 64 / 256;
+        const int pts = (low + monster.seed(high - low)) * 64 / 256;   // FUN_005a2620: rand(high - low) on its seed (0x5a27d6)
         for (auto& foe : foes) {
             if (!blast_reaches(monster, foe, monster.difficulty + 4)) continue;
             d2d::rules::Taken taken;

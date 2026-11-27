@@ -720,11 +720,14 @@ auto Fight::fire(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
         } else if (skill.srvdofunc == ServerDoFunction::kGrimWard) {                      // Grim Ward: its start row at the point
             launch(missile_info, skill, lvl, caster.to_x, caster.to_y, 0, 0, missile_info.range, now_ms);
         } else if (skill.srvdofunc == ServerDoFunction::kVolcano) {                     // Volcano (FUN_005c8080): at the target point
-            launch(missile_info, skill, lvl, caster.to_x, caster.to_y, 0, 0, range, now_ms);
+            // rand(0x100) on the caster's seed (0x5c8100) as its data +0x28, the seed of its throws.
+            const auto throws = std::uint32_t(caster_seed(caster)(0x100));
+            launch(missile_info, skill, lvl, caster.to_x, caster.to_y, 0, 0, range, now_ms).data = throws;
         } else if (skill.srvdofunc == ServerDoFunction::kShockField) {                      // Shock Web (FUN_005d5d70 -> FUN_005d5bf0): scattered round the target
             const int count = std::max(calc(skill, skill.prgcalc[0], lvl), 1), radius = std::max(calc(skill, skill.aurarange, lvl), 1);
+            auto& seed = caster_seed(caster);                                             // FUN_005d5bf0: EDI the caster (0x5d5c86)
             for (int k = 0; k < count; ++k) {
-                const float target_x = caster.to_x + float(int(rng(2 * radius + 1)) - radius) / 5, target_y = caster.to_y + float(int(rng(2 * radius + 1)) - radius) / 5;
+                const float target_x = caster.to_x + float(int(seed(2 * radius + 1)) - radius) / 5, target_y = caster.to_y + float(int(seed(2 * radius + 1)) - radius) / 5;
                 send(target_x - caster.x, target_y - caster.y, land_range(missile_info, target_x - caster.x, target_y - caster.y));
             }
         } else {
@@ -915,9 +918,11 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
             if ((missile_info.srv_do == 10 || missile_info.srv_do == 25) && sub != game_data->missiles.end()) {
                 const int every = std::max(calc(*skill, skill->calc[1], missile.level), 1), radius = std::max(calc(*skill, skill->calc[0], missile.level), 1);
                 if (age % every == 0) {
-                    // FUN_005a9820: rand(2r) - r with r = radius - 1 on each axis, x first: -r..r-1 subtiles.
+                    // FUN_005a9820: rand(2r) - r with r = radius - 1 on each axis, x first: -r..r-1 subtiles,
+                    // on the missile's seed set to {its subtile x + its age, 666} (FUN_0045adf0 + FUN_0064a3b0, 0x5a9877).
                     const int reach = radius - 1;
-                    const float offset_x = float(int(rng(2 * reach)) - reach) / 5, offset_y = float(int(rng(2 * reach)) - reach) / 5;
+                    auto& drop = missile.seed.emplace(std::uint32_t(level->world_x * 5 + int(std::floor(missile.x * 5)) + age));
+                    const float offset_x = float(int(drop(2 * reach)) - reach) / 5, offset_y = float(int(drop(2 * reach)) - reach) / 5;
                     launch(sub->second, *skill, missile.level, missile.x + offset_x, missile.y + offset_y, 0, 0, sub->second.range, now_ms);
                 }
             }
@@ -1011,7 +1016,11 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
             if (missile_info.srv_do == 28 && sub != game_data->missiles.end() && age > missile_info.param3 && age < missile_info.param4
                 && age % std::max(missile_info.param1 > 0 ? missile_info.param1 : calc(*skill, skill->calc[3], missile.level), 1) == 0) {
                 const int radius = std::max(missile_info.param2 > 0 ? missile_info.param2 : calc(*skill, skill->aurarange, missile.level), 1);
-                const float offset_x = float(int(rng(2 * radius + 1)) - radius) / 5, offset_y = float(int(rng(2 * radius + 1)) - radius) / 5;
+                // Its seed set to {data +0x28, 666} (0x5afcb7), rand(2r + 1) - r on each axis, x first; the low word
+                // kept as the next throw's (FUN_0064a710).
+                auto& thrown = missile.seed.emplace(missile.data);
+                const float offset_x = float(int(thrown(2 * radius + 1)) - radius) / 5, offset_y = float(int(thrown(2 * radius + 1)) - radius) / 5;
+                missile.data = thrown.low;
                 launch(sub->second, *skill, missile.level, missile.x, missile.y, offset_x, offset_y, land_range(sub->second, offset_x, offset_y), now_ms);
             }
         }
@@ -1603,11 +1612,13 @@ auto Fight::enemy_pulse(const d2d::rules::Skill& skill, int lvl, const d2d::rule
         const auto origin_x = subtile(x), origin_y = subtile(y);
         // Holy Freeze's callback (FUN_005d07c0) then rolls shatter (state 107) itself on
         // each one's seed, rand % 100 < 20, deadCol or not (the chill's roll came first).
+        // Its element is FUN_0056e0c0's on the aura's owner's seed (FUN_005d0920: the caster's).
+        auto& seed = striker == merc_foe_id() && actor->merc ? actor->merc->seed : actor->seed;
         for (std::size_t i = 0; i < monsters.size(); ++i) {
             const auto& unit = monsters[i].unit;
             const auto offset_x = subtile(unit.x) - origin_x, offset_y = subtile(unit.y) - origin_y;
             if (offset_x * offset_x + offset_y * offset_y <= radius * radius && aura_takes(skill, monsters[i], x, y)) {
-                land(i, d2d::rules::missile_blow(damage, target_of(i), pierce, rng), true, now_ms, striker);
+                land(i, d2d::rules::missile_blow(damage, target_of(i), pierce, seed), true, now_ms, striker);
                 if (skill.srvdofunc == ServerDoFunction::kHolyFreeze) monsters[i].shatter = monsters[i].seed.next() % 100 < 20;
             }
         }

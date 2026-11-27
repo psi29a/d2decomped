@@ -216,7 +216,7 @@ auto Fight::pet_aura(Pet& pet, std::uint32_t now_ms) -> void {
                                                    .ehi = d2d::rules::elem_damage(game_data->skills, *skill, calc_env(), pet.aura_level, true) };
         for (std::size_t i = 0; i < monsters.size(); ++i)
             if (monsters[i].targetable() && std::hypot(monsters[i].unit.x - pet.monster.unit.x, monsters[i].unit.y - pet.monster.unit.y) * 5 <= float(radius))
-                land(i, d2d::rules::missile_blow(damage, target_of(i), {}, rng), false, now_ms, pet.monster.id);
+                land(i, d2d::rules::missile_blow(damage, target_of(i), {}, pet.monster.seed), false, now_ms, pet.monster.id);   // the aura's owner's seed
     }
 
 // The Fire Golem's death blast (MonUMod 31 goboom, FUN_005a2840) and a
@@ -1402,7 +1402,7 @@ auto Fight::shadow_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd, int 
             const auto frozen = freeze_on(std::size_t(target), target_view, blow, swing.freeze_len);
             pet_strike(pet, std::size_t(target), blow, now_ms);
             stand(std::size_t(target), frozen, now_ms);
-            release(pet.charges, std::size_t(target), now_ms, false);
+            release(pet.charges, std::size_t(target), now_ms, false, pet.monster.seed);
             return;
         }
         if (target < 0 || (skill->id != 0 && skill_kind(*skill, missile_weapon(*game_data, gfx())) != 1)) return;
@@ -1424,7 +1424,7 @@ auto Fight::shadow_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd, int 
         pet_strike(pet, std::size_t(target), blow, now_ms);
         stand(std::size_t(target), frozen, now_ms);
         if (blow.hit && skill->srvstfunc == ServerStartFunction::kChargeUp) charge(pet.charges, *skill, lvl, now_ms, unit_key(kSoundOnMonster, pet.monster.id), pet.monster.unit.x, pet.monster.unit.y);
-        if (blow.hit && finishing) release(pet.charges, std::size_t(target), now_ms, false);
+        if (blow.hit && finishing) release(pet.charges, std::size_t(target), now_ms, false, pet.monster.seed);
     }
 
 auto Fight::pet_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd) -> void {

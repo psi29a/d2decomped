@@ -1267,8 +1267,20 @@ auto Fight::player_caster(int skill) const -> Caster {
         return { actor->player.x, actor->player.y, skill_level ? skill_level(skill) : 1, actor->attack_mon, actor->cast_x, actor->cast_y, false };
     }
 
+auto Fight::caster_seed(const Caster& caster) -> d2d::rules::Rng& {
+        if (caster.merc && actor->merc) return actor->merc->seed;
+        if (caster.pet)
+            for (auto& pet : actor->pets)
+                if (pet.monster.id == caster.unit_id) return pet.monster.seed;
+        return actor->seed;
+    }
+
+// A spot skill's own damage is its record (FUN_0057e240: FUN_0056e170's physical and
+// FUN_0056e0c0's element, each min + rand(max - min) on the caster's seed), as are its
+// other rolls here (a knockback, Mind Blast's conversion).
 auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Caster& caster) -> void {
         const int lvl = caster.level;
+        auto& seed = caster_seed(caster);
         const auto env = calc_env();
         const auto damage = d2d::rules::missile_damage(game_data->skills, skill, env, lvl);
         auto within = [&](float x, float y, int radius, auto&& each) {
@@ -1279,8 +1291,8 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
             case ServerDoFunction::kPsychicHammer:
                 if (caster.target >= 0 && monsters[std::size_t(caster.target)].alive()) {
                     const auto monster_index = std::size_t(caster.target);
-                    auto blow = d2d::rules::missile_blow(damage, target_of(monster_index), pierce(), rng);
-                    blow.knockback = int(rng(100)) < calc(skill, skill.calc[0], lvl);
+                    auto blow = d2d::rules::missile_blow(damage, target_of(monster_index), pierce(), seed);   // FUN_005d3140: the record, then
+                    blow.knockback = int(seed(100)) < calc(skill, skill.calc[0], lvl);                          // the knockback (0x5d327d)
                     land(monster_index, blow, true, now_ms, striker_of(caster));
                 }
                 break;
@@ -1288,7 +1300,7 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
                 // FUN_005d76e0 -> FUN_005d7680 on each unit of the walk: first
                 // FUN_005d7430's conversion. A monster no one owns, not a
                 // hireling, evil (FUN_006259b0) and one swaps_ai lets (FUN_0056e2f0
-                // EDX 0xb) turns when rand(100) on the caster's seed (the fight's rng here) is at most
+                // EDX 0xb) turns when rand(100) on the caster's seed (0x5d745a) is at most
                 // dm(Param5, Param6) (FUN_00645c10: 15..40; FUN_005d72b0's
                 // SETLE), for Param3 + rand(Param4) frames (150 + rand(100),
                 // 0x5d7457); a 0x35 already on it only takes the new end
@@ -1302,14 +1314,14 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
                     if (caster.pet && pet.monster.id == caster.unit_id) caster_level = pet.monster.stats.level;
                 within(caster.to_x, caster.to_y, calc(skill, skill.aurarange, lvl), [&](std::size_t monster_index) {
                     auto& struck = monsters[monster_index];
-                    if (conversion != game_data->skills.by_name.end() && struck.align == 0 && swaps_ai(*game_data, struck) && int(rng(100)) <= chance) {
-                        const auto until = now_ms + std::uint32_t(std::max(skill.par[2] + int(rng(std::uint32_t(std::max(skill.par[3], 1)))), 1)) * 40;
+                    if (conversion != game_data->skills.by_name.end() && struck.align == 0 && swaps_ai(*game_data, struck) && int(seed(100)) <= chance) {
+                        const auto until = now_ms + std::uint32_t(std::max(skill.par[2] + int(seed(std::max(skill.par[3], 1))), 1)) * 40;
                         if (auto held = std::ranges::find(struck.states, conversion->second, &Monster::SkillState::skill); held != struck.states.end()) held->until = until;
                         else struck.states.push_back({ conversion->second, lvl, until });
                         turn_good(struck, caster_level);
                         return;
                     }
-                    land(monster_index, d2d::rules::missile_blow(damage, target_of(monster_index), pierce(), rng), true, now_ms, striker_of(caster));
+                    land(monster_index, d2d::rules::missile_blow(damage, target_of(monster_index), pierce(), seed), true, now_ms, striker_of(caster));
                 });
                 break;
             }
@@ -1431,10 +1443,13 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
                 if (skill.srvdofunc == ServerDoFunction::kDragonFlight && (flight_part & 2) && tgt >= 0) dragon_kick();   // with no sequence: both at once
                 break;
             }
-            case ServerDoFunction::kTelekinesis:                                         // Telekinesis (do 21): its damage and a knockback on the monster
+            // Telekinesis (do 21, FUN_005c98f0): the knockback first, seed % 100 < Param2 (FUN_004efc20),
+            // then the record, on the monster.
+            case ServerDoFunction::kTelekinesis:
                 if (actor->attack_mon >= 0 && monsters[std::size_t(actor->attack_mon)].alive()) {
-                    auto blow = d2d::rules::missile_blow(damage, target_of(std::size_t(actor->attack_mon)), pierce(), rng);
-                    blow.knockback = true;
+                    const bool knockback = int(seed(100)) < skill.par[1];
+                    auto blow = d2d::rules::missile_blow(damage, target_of(std::size_t(actor->attack_mon)), pierce(), seed);
+                    blow.knockback = knockback;
                     land(std::size_t(actor->attack_mon), blow, true, now_ms, striker_of(caster));
                 }
                 break;

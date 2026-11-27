@@ -179,6 +179,8 @@ auto Fight::start_state(const d2d::rules::Skill& skill, int lvl, std::uint32_t n
         // Armageddon / Hurricane's first strike: Param4 frames on (FUN_005c8190 -> FUN_004efc80).
         if (skill.srvdofunc == ServerDoFunction::kStormAroundCaster)
             (skill.aurastate == "armageddon" ? actor->armageddon_next : actor->hurricane_next) = now_ms + std::uint32_t(skill.par[3]) * 40;
+        // Armageddon's: rand(0x10000) on the caster's seed into the skill record's +0x18 (0x5c8225, FUN_00644560).
+        if (skill.srvdofunc == ServerDoFunction::kStormAroundCaster && skill.aurastate == "armageddon") actor->armageddon_word = std::uint32_t(actor->seed(0x10000));
         for (std::size_t k = 0; k < skill.aurastat.size(); ++k)
             if (skill.aurastat[k] == d2d::d2s::kBoneArmor) actor->absorb_pool = calc(skill, skill.aura_calc[k], lvl) >> 8, actor->absorb_frac = std::max(calc(skill, skill.aura_calc[k], lvl), 0) & 255, actor->absorb_skill = skill.id;
         if (skill.aurastate == "cloak_of_shadows") cloaks.push_back(len);   // its client setfunc 2 (FUN_004d87e0): the dip
@@ -300,7 +302,8 @@ auto Fight::buff_events(Foe& foe, std::uint32_t now_ms) -> void {
             const auto monster_index = std::size_t(found);
             if (const auto* shiver_armor = state_of("shiverarmor")) {
                 const auto* skill = game_data->skills.get(shiver_armor->skill);
-                land(monster_index, d2d::rules::missile_blow(d2d::rules::missile_damage(game_data->skills, *skill, calc_env(), shiver_armor->level), target_of(monster_index), pierce(), rng),
+                land(monster_index, d2d::rules::missile_blow(d2d::rules::missile_damage(game_data->skills, *skill, calc_env(), shiver_armor->level), target_of(monster_index), pierce(),
+                                                             actor->seed),   // FUN_0056e0c0 on the caster's seed
                      true, now_ms, player_foe_id());
             }
         }
@@ -392,10 +395,24 @@ auto Fight::buff_tick(std::uint32_t now_ms) -> void {
         if (const auto* armageddon = state_of("armageddon"); armageddon && now_ms >= actor->armageddon_next) {
             const auto* skill = game_data->skills.get(armageddon->skill);
             actor->armageddon_next = now_ms + std::uint32_t(std::max(skill->par[3], 1)) * 40;
+            // FUN_005c8520: the caster's own seed set to {the record's +0x18, 666} (0x5c8688), rand(1000000) on it
+            // the next +0x18; then up to five spots rand(2r + 1) - r off the caster's subtile on each axis, x
+            // first (0x5c86c1, 0x5c86d9), the first with a clear line from the caster (FUN_00645950, mask
+            // 0x805), a room and a free subtile (FUN_0064cb30 mask 1) taking the row; none, none.
             if (const auto found = game_data->missiles.find(skill->srvmissilea); found != game_data->missiles.end()) {
                 const int radius = std::max(calc(*skill, skill->aurarange, armageddon->level), 1);
-                launch(found->second, *skill, armageddon->level, actor->player.x + float(int(rng(2 * radius + 1)) - radius) / 5, actor->player.y + float(int(rng(2 * radius + 1)) - radius) / 5,
-                       0, 0, found->second.range, now_ms);
+                actor->seed = d2d::rules::Rng{ actor->armageddon_word };
+                actor->armageddon_word = std::uint32_t(actor->seed(1000000));
+                const int from_x = int(std::floor(actor->player.x * 5)), from_y = int(std::floor(actor->player.y * 5));
+                const auto wall = [&](int line_x, int line_y) { return level->blocked((float(line_x) + 0.5f) / 5, (float(line_y) + 0.5f) / 5, 0x805); };
+                for (int tries = 0; tries < 5; ++tries) {
+                    const int spot_x = from_x + int(actor->seed(2 * radius + 1)) - radius;
+                    const int spot_y = from_y + int(actor->seed(2 * radius + 1)) - radius;
+                    if (d2d::rules::sight_blocked(from_x, from_y, 0, spot_x, spot_y, 0, wall)) continue;
+                    if (level->blocked((float(spot_x) + 0.5f) / 5, (float(spot_y) + 0.5f) / 5, 0x01)) continue;
+                    launch(found->second, *skill, armageddon->level, (float(spot_x) + 0.5f) / 5, (float(spot_y) + 0.5f) / 5, 0, 0, found->second.range, now_ms);
+                    break;
+                }
             }
         }
         if (const auto* state = state_of("hurricane"); state && now_ms >= actor->hurricane_next) {
@@ -405,7 +422,7 @@ auto Fight::buff_tick(std::uint32_t now_ms) -> void {
             const int radius = std::max(calc(*skill, skill->aurarange, state->level), 1);
             for (std::size_t j = 0; j < monsters.size(); ++j)
                 if (monsters[j].targetable() && std::hypot(monsters[j].unit.x - actor->player.x, monsters[j].unit.y - actor->player.y) * 5 <= float(radius))
-                    land(j, d2d::rules::missile_blow(damage, target_of(j), pierce(), rng), true, now_ms, player_foe_id());
+                    land(j, d2d::rules::missile_blow(damage, target_of(j), pierce(), actor->seed), true, now_ms, player_foe_id());   // FUN_005c8380's record, the caster's seed
         }
         if (const auto* state = state_of("bladeshield"); state && now_ms >= actor->blade_next) {
             const auto* skill = game_data->skills.get(state->skill);
@@ -430,9 +447,12 @@ auto Fight::buff_tick(std::uint32_t now_ms) -> void {
             }
             if (best < 0) best = lowest;
             if (best >= 0) { actor->storm_last = monsters[std::size_t(best)].id; actor->storm_struck = true; }
-            if (best >= 0)
+            if (best >= 0) {
+                // The bolt is a missile (srvmissilea): its unit seed a game seed step as it's made, its damage on that (FUN_005a89a0).
+                d2d::rules::Rng bolt{ spawning.game.next() };
                 land(std::size_t(best), d2d::rules::missile_blow(d2d::rules::missile_damage(game_data->skills, *skill, calc_env(), thunderstorm->level),
-                                                                 target_of(std::size_t(best)), pierce(), rng), true, now_ms, player_foe_id());
+                                                                 target_of(std::size_t(best)), pierce(), bolt), true, now_ms, player_foe_id());
+            }
         }
     }
 
@@ -584,7 +604,7 @@ auto Fight::row_damage(const GameData::MissileInfo& missile_info, int lvl, const
         return damage;
     }
 
-auto Fight::release(std::vector<Charge>& held, std::size_t monster_index, std::uint32_t now_ms, bool player_levels) -> void {
+auto Fight::release(std::vector<Charge>& held, std::size_t monster_index, std::uint32_t now_ms, bool player_levels, d2d::rules::Rng& seed) -> void {
         const float target_x = monsters[monster_index].unit.x, target_y = monsters[monster_index].unit.y;
         const auto released = held;
         held.clear();
@@ -593,11 +613,11 @@ auto Fight::release(std::vector<Charge>& held, std::size_t monster_index, std::u
             if (!skill) continue;
             const int lvl = std::max(charge.level, player_levels && skill_level ? skill_level(skill->id) : 0);
             const int count = std::clamp(charge.count, 1, 3);
-            for (int k = skill->prgstack ? 1 : count; k <= count; ++k) prg(*skill, skill->prgfunc[std::size_t(k - 1)], k, lvl, target_x, target_y, now_ms);
+            for (int k = skill->prgstack ? 1 : count; k <= count; ++k) prg(*skill, skill->prgfunc[std::size_t(k - 1)], k, lvl, target_x, target_y, now_ms, seed);
         }
     }
 
-auto Fight::prg(const d2d::rules::Skill& skill, ServerDoFunction func, int count, int lvl, float target_x, float target_y, std::uint32_t now_ms) -> void {
+auto Fight::prg(const d2d::rules::Skill& skill, ServerDoFunction func, int count, int lvl, float target_x, float target_y, std::uint32_t now_ms, d2d::rules::Rng& seed) -> void {
         if (int(func) <= 0) return;
         const auto env = calc_env();
         const auto& mname = count <= 1 ? skill.srvmissilea : count == 2 ? skill.srvmissileb : skill.srvmissilec;
@@ -611,11 +631,11 @@ auto Fight::prg(const d2d::rules::Skill& skill, ServerDoFunction func, int count
             const std::array<int, 4> pierce{ int(actor->psum[d2d::d2s::kPassiveFirePierce]), int(actor->psum[d2d::d2s::kPassiveLightningPierce]), int(actor->psum[d2d::d2s::kPassiveColdPierce]), int(actor->psum[d2d::d2s::kPassivePoisonPierce]) };
             for (std::size_t i = 0; i < monsters.size(); ++i)
                 if (monsters[i].targetable() && std::hypot(monsters[i].unit.x - target_x, monsters[i].unit.y - target_y) * 5 <= float(std::max(radius, 1)))
-                    land(i, d2d::rules::missile_blow(damage, target_of(i), pierce, rng), true, now_ms, player_foe_id());
+                    land(i, d2d::rules::missile_blow(damage, target_of(i), pierce, seed), true, now_ms, player_foe_id());   // FUN_005d3e80's record on the caster's seed
             return;
         }
         // Do 39 (FUN_005d3f90) steps the caster's seed first thing and draws its tries on {that low, 666}.
-        d2d::rules::Rng scatter{ func == ServerDoFunction::kReleaseScatter ? actor->seed.next() : 0 };
+        d2d::rules::Rng scatter{ func == ServerDoFunction::kReleaseScatter ? seed.next() : 0 };
         if ((func == ServerDoFunction::kReleaseNova || func == ServerDoFunction::kReleaseScatter) && missile_info) {
             auto put = [&](float x, float y, float velocity_x, float velocity_y, int range) {
                 Missile missile{ missile_info, x, y, velocity_x, velocity_y, missile_heading(velocity_x, velocity_y), now_ms, now_ms + std::uint32_t(std::max(range, 1)) * 40, {} };
@@ -659,8 +679,10 @@ auto Fight::prg(const d2d::rules::Skill& skill, ServerDoFunction func, int count
         if (!missile_info) return;
         if (func == ServerDoFunction::kReleaseAtTarget) { launch(*missile_info, skill, lvl, target_x, target_y, 0, 0, missile_info->range, now_ms); return; }
         if (func == ServerDoFunction::kReleaseSpread) {
+            // FUN_005d5080 steps the caster's seed (EDX, 0x5d508a) and draws on {that low, 666} (0x5d50ae).
+            d2d::rules::Rng spread{ seed.next() };
             for (int k = 0; k < std::max(radius, 1); ++k) {
-                const auto [offset_x, offset_y] = d2d::rules::release_spread_offset(rng);
+                const auto [offset_x, offset_y] = d2d::rules::release_spread_offset(spread);
                 launch(*missile_info, skill, lvl, target_x, target_y, float(offset_x) / 5, float(offset_y) / 5, missile_info->range + missile_info->lev_range * lvl, now_ms);
             }
             return;

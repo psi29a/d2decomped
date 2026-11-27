@@ -283,6 +283,7 @@ struct Fight {
         int storm_last = -1;                            // the unit id Thunder Storm struck last (FUN_00644560)
         std::uint32_t blade_next = 0;                  // Blade Shield's next strike
         std::uint32_t armageddon_next = 0, hurricane_next = 0;   // their timer events (type 5) next
+        std::uint32_t armageddon_word = 0;     // its skill record's +0x18: each pulse's seed (FUN_005c8190, FUN_005c8520)
         std::int64_t bo_life = 0, bo_mana = 0;         // Battle Orders' life and mana on the maxima (256ths)
         // What worn items (and passives) put on the maxima (256ths): the
         // character's own, as a save keeps them, are the maxima less these.
@@ -590,6 +591,8 @@ struct Fight {
     struct Caster { float x = 0, y = 0; int level = 1, target = -1; float to_x = 0, to_y = 0; bool merc = false, pet = false; int unit_id = -1; };
     [[nodiscard]] int striker_of(const Caster& caster) const { return caster.unit_id >= 0 ? caster.unit_id : caster.merc ? merc_foe_id() : player_foe_id(); }
     [[nodiscard]] Caster player_caster(int skill) const;
+    // The caster's unit seed: the merc's, the summon's (Caster::unit_id) or the player's.
+    d2d::rules::Rng& caster_seed(const Caster& caster);
     bool casting_merc = false;             // launch() marks what's fired as the merc's
     int flight_part = 3;                   // spot's Dragon Flight: 1 the flight, 2 the kick (one event's, FUN_005d7850), 3 both
     int casting_unit = -1;                 // ... and as a summon's (Missile::striker)
@@ -655,9 +658,13 @@ struct Fight {
     //   40 / 41 (FUN_005d5010 / FUN_005d5080, Royal Strike's first and
     //      third) and 37 / 143 (FUN_005d4e70 / FUN_005d4f40): prg's notes.
     // The count's missile (FUN_005d3cf0): 1 srvmissilea, 2 b, 3 c.
-    void release(std::size_t monster_index, std::uint32_t now_ms) { release(actor->charges, monster_index, now_ms, true); }
-    void release(std::vector<Charge>& held, std::size_t monster_index, std::uint32_t now_ms, bool player_levels);
-    void prg(const d2d::rules::Skill& skill, ServerDoFunction func, int count, int lvl, float target_x, float target_y, std::uint32_t now_ms);
+    void release(std::size_t monster_index, std::uint32_t now_ms) { release(actor->charges, monster_index, now_ms, true, actor->seed); }
+    // `seed`: the releasing unit's (the player's, a Shadow's): the prg's rolls are on it.
+    void release(std::vector<Charge>& held, std::size_t monster_index, std::uint32_t now_ms, bool player_levels, d2d::rules::Rng& seed);
+    void prg(const d2d::rules::Skill& skill, ServerDoFunction func, int count, int lvl, float target_x, float target_y, std::uint32_t now_ms, d2d::rules::Rng& seed);
+    void prg(const d2d::rules::Skill& skill, ServerDoFunction func, int count, int lvl, float target_x, float target_y, std::uint32_t now_ms) {
+        prg(skill, func, count, lvl, target_x, target_y, now_ms, actor->seed);
+    }
     // Dragon Tail's kick hit.
     void dragon_tail(const d2d::rules::Skill& skill, std::size_t target, int phys, std::uint32_t now_ms);
 
@@ -667,7 +674,7 @@ struct Fight {
     void boss_missile(const Monster& monster, const char* name, float dx, float dy, const std::shared_ptr<std::vector<int>>& ring, std::uint32_t now_ms, int missile_level = -1);
     // Fire Enchanted's death blast (uniques.hpp fire_blast): physical and fire, each a 64th of the roll in
     // 256ths, on everyone within difficulty + 4 subtiles; the corpse's guts (monstercorpseexplode).
-    void fire_blast(const Monster& monster, std::span<Foe> foes, std::uint32_t now_ms);
+    void fire_blast(Monster& monster, std::span<Foe> foes, std::uint32_t now_ms);
     // Umod 33's (a suicide minion's) death blast: its A1 roll as physical
     // and its aip1's element, within its aip4 (fight/).
     void suicide_blast(Monster& monster, std::span<Foe> foes, std::uint32_t now_ms);

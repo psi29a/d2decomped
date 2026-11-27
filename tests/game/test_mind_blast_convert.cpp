@@ -4,7 +4,7 @@
 // each unit of the walk turns when rand(100) is at most dm(Param5, Param6)
 // (FUN_005d72b0's SETLE), for Param3 + rand(Param4) frames, and takes no
 // blow then; one above the caster's level comes down to it. The rolls are
-// replayed on a copy of the fight's rng, cast by cast.
+// replayed on a copy of the caster's seed (the player's, 0x5d745a), cast by cast.
 
 #include <ai.hpp>
 #include <ai/units.hpp>
@@ -74,7 +74,7 @@ int main() try {
         const int chance = d2d::rules::calc_dm(15, 40, lvl);
         world.fight.monsters.clear();
         world.fight.add_monster(Monster(made));
-        auto replay = world.fight.rng;
+        auto replay = world.actor->seed;
         const int roll = int(replay(100));
         const Fight::Caster caster{ .x = made.unit.x, .y = made.unit.y, .level = lvl, .target = 0, .to_x = made.unit.x, .to_y = made.unit.y };
         world.fight.spot(*blast, kNow, caster);

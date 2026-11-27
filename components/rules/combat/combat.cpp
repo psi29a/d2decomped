@@ -705,7 +705,10 @@ Blow missile_blow(const MissileDamage& damage, const Target& target, const std::
         // FUN_005a89a0 rolls the physical in 256ths and FUN_0057bf80 resists that fine
         // value, the life stat takes it as is: keep the part under a point in Blow::frac
         // as the element below does.
-        const int roll = shared && shared->phys >= 0 ? shared->phys : rng.range(damage.phys_lo, damage.phys_hi);
+        // The lower end + rand(the gap): the top is never rolled (FUN_005a89a0 0x5a89e8..0x5a89fd, a skill's
+        // own FUN_0056e170 0x56e1c1).
+        const int phys_low = std::min(damage.phys_lo, damage.phys_hi), phys_high = std::max(damage.phys_lo, damage.phys_hi);
+        const int roll = shared && shared->phys >= 0 ? shared->phys : phys_low + rng(phys_high - phys_low);
         if (shared) shared->phys = roll;
         blow.phys += roll >> 8;
         // FUN_0057be00 floors a monster's resistance at -100 (no upper cap but the immunity at 100).
