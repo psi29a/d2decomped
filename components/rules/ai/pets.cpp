@@ -2,13 +2,17 @@
 // The bodies of pets.hpp's functions; the older ones' notes are in the header, newer ones' above their definitions.
 #include "pets.hpp"
 
+#include "monsters.hpp"
 #include "montypes.hpp"
 #include "points.hpp"
 #include "uniques.hpp"
 
 #include <algorithm>
 #include <array>
+#include <cstddef>
 #include <cstdint>
+#include <functional>
+#include <optional>
 #include <string_view>
 #include <utility>
 
@@ -128,6 +132,24 @@ BoneWallMakers bone_wall_makers(int caster_x, int caster_y, int piece_x, int pie
     const int down = caster_y - piece_y;
     if (across == 0 && down == 0) across = 1;
     return { count, { std::pair{ piece_x - down, piece_y + across }, std::pair{ piece_x + down, piece_y - across } } };
+}
+
+// FUN_005c5d00 (do 62): twelve times FUN_005c5bc0 at the point plus the tables at 0x6e304c (x) / 0x6e307c (y); it
+// skips a spot in a town room (FUN_00620bb0 -> FUN_00463740 -> FUN_0061ab00) before the spawn (FUN_0056d940: radius
+// -1, then radius 4, its request having no flag 4, 0x56d9bb); a made piece faces the point from the subtile it got
+// (FUN_006488c0 / FUN_00648900 on its path, FUN_0064fdc0, FUN_006488a0). tools/emu/bone_prison.py runs it.
+std::array<PrisonPiece, 12> bone_prison(int point_x, int point_y, const std::function<bool(int, int)>& town,
+                                        const std::function<std::optional<std::pair<int, int>>(int, int)>& make) {
+    static constexpr std::array<int, 12> kSpotX{ -1, 1, 3, 4, 4, 3, -1, 1, -3, -4, -4, -3 };
+    static constexpr std::array<int, 12> kSpotY{ -4, -4, -3, -1, 1, 3, 4, 4, 3, -1, 1, -3 };
+    std::array<PrisonPiece, 12> pieces{};
+    for (std::size_t k = 0; k < pieces.size(); ++k) {
+        const int spot_x = point_x + kSpotX[k], spot_y = point_y + kSpotY[k];
+        if (town(spot_x, spot_y)) continue;
+        if (const auto landed = make(spot_x, spot_y))
+            pieces[k] = { true, landed->first, landed->second, direction64(landed->first, landed->second, point_x, point_y) };
+    }
+    return pieces;
 }
 
 bool traced_pet_ai(std::string_view ai_name) {

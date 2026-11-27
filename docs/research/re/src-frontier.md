@@ -66,7 +66,7 @@ digit in a string is a colour change.
 | `FUN_004fdb00` | `editbox_set_26c` | Kind 1: `+0x26c` = the value. Same family of callers | not compared |
 | `FUN_004fdc70` | `editbox_has_selection` | `EAX` kind 1: 0 when `+0x54` is -1 or equals `+0x58`, else 1. Callers `FUN_004fd9d0`, `FUN_004ffe50` | not compared |
 | `FUN_004fdd50` | `editbox_set_48` | Kind 1: `+0x48` = the value | not compared |
-| `FUN_004fdd90` | `editbox_text` | Kind 1: its text at `+0x5c`. Callers the name checks (`d2d_character_name_character_name_allows`, `FUN_00430620`) and nine screens | matches: d2d's name check reads the typed name (components/d2s/character_name.hpp:8) |
+| `FUN_004fdd90` | `editbox_text` | Kind 1: its text at `+0x5c`. Callers the name checks (`d2d_character_name_character_name_allows`, `FUN_00430620`) and nine screens | no counterpart: d2d has no edit box object; its name check takes the typed name as an argument (components/d2s/character_name.hpp) |
 | `FUN_004fe710` | `editbox_click_at` | `*arg` kind 1: `FUN_004fe3b0` with the mouse (`DAT_007d55a4`, `DAT_007d55a8`) less the box's corner and padding. Callers `FUN_004ff620`, `FUN_005001d0` | not compared |
 | `FUN_004ffbf0` | `editbox_mouse` | An event on a visible, enabled (`+8` bits 2 and 0) kind-1 box: outside it, dragging scrolls the caret by one; inside, a click within 300 ms of the last on the same box (`DAT_00841b78`) is a double click (`FUN_004fdd00`); else the caret goes to the character under the mouse and, without Shift, the selection starts there; 0x201 (left down) starts a drag. Then the box's callback `+0x34`. Callers `FUN_004ffe50`, `FUN_005001d0` | not compared |
 | `FUN_004ffe10` | `editbox_set_narrow` | A narrow string widened (0x100 characters) and set as the text (`FUN_004ff5a0`). Callers the TCP/IP, character and chat screens | not compared |
@@ -191,9 +191,9 @@ clipped one takes the left and right edges). "Blend" is
 | `FUN_00604c20` | `tile_get_20` | A tile record's `+0x20` (null asserts). `FUN_0066d440` walks frames by it; `FUN_0066d820` sums it as pick weights | not compared: d2d reads the DT1's rarity (components/drlg/room_tiles.hpp:656) |
 | `FUN_00604cb0` | `tile_get_8` | A tile record's `+8`. Only caller the automap `FUN_004dd7c0` | not compared |
 | `FUN_00604ce0` | `tile_get_28_ptr` | The tile record + 0x28. Only caller `FUN_0064c4c0` | not compared |
-| `FUN_00606d10` | `dc6_skip_rows` | Fastcall (rows data, n): skips n rows | matches: d2d decodes the same tokens (components/dc6/dc6.hpp:123) |
-| `FUN_00606d40` | `dc6_rows_copy` | Opaque copy of `param_3` rows, pitch `param_4` | matches (as `dc6_skip_rows`) |
-| `FUN_00606da0` | `dc6_rows_copy_clip` | As `dc6_rows_copy`, only columns between the two edges | matches (as `dc6_skip_rows`) |
+| `FUN_00606d10` | `dc6_skip_rows` | Fastcall (rows data, n): skips n rows | no counterpart: d2d decodes the whole frame (`decode_rle`, components/dc6/dc6.hpp) and skips no rows |
+| `FUN_00606d40` | `dc6_rows_copy` | Opaque copy of `param_3` rows, pitch `param_4` | matches: the same tokens as d2d's `decode_rle` (0x80 ends a row, bit 7 skips the low 7 bits, else that many bytes) |
+| `FUN_00606da0` | `dc6_rows_copy_clip` | As `dc6_rows_copy`, only columns between the two edges | matches (as `dc6_rows_copy`) |
 | `FUN_00606e40` | `dc6_rows_blend_map` | Blend after a colour map: `blend[dst × 256 + map[src]]` | differs: d2d blends in RGB, not through the tables (todo.md 30) |
 | `FUN_00607060` | `dc6_rows_blend_map_clip` | Clipped `dc6_rows_blend_map` | differs (todo.md 30) |
 | `FUN_006072f0` | `dc6_rows_map2` | Two colour maps: `map_a[map_b[src]]` | not compared |

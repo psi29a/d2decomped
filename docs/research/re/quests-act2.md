@@ -28,7 +28,7 @@ the log to each player the record's callback passes) is listed with its
 log, flag and d2d function in quests.md (the act 2 call-site table). d2d
 raises each record's `news` at the flag-1 ones and `World::act2_update`
 sends it (`tests/test_quest_log_sends_act2.cpp`); a2q2 has none (its log
-goes out from the item pickup, `FUN_00599a30`). Not ported: Radament's
+goes out from the item pickup, `FUN_00599a30`, an event too: below). Not ported: Radament's
 think's `FUN_00599420` (state 3, log 2, flag 1 only the first time) and
 the Tainted Sun's join's darkness send.
 
@@ -247,16 +247,20 @@ read (or any part shown), 4 / 5 / 6 the amulet / shaft / Cube shown,
   staff: unless all three parts are carried, the missing ones' shown bits
   (5 shaft, 6 Cube, 4 amulet) clear.
 - **+0xac** (`LAB_00599a00`): leaving 40, off the rewarded list.
-- **Item pickup** (`Q10_Callback04_ItemPickedUp`, `FUN_00599a30`): on
-  picking up `tr1` / `vip` / `box` / `msf` (not `hst` itself, handled
-  above), records which part in `nStateFlagPrev` (the scroll (`tr1`) →
-  1 unless bit 3 already set, else no change; the amulet (`vip`), the
-  Cube (`box`), and the staff piece (`msf`) all take the same bit-3
-  split → 6 when bit 3 is clear, 2 when set) and, while the player is
-  physically in this quest's act, refreshes the log through
-  `Q10_CheckHoradricStaffState` /
-  `Q10_NotifyHoradricStaffActive` (quest-update packet 9). Reads bit 3
-  only; no `SetQuestState`.
+- **Item pickup** (event 4 to record 9, `FUN_00599a30`; Items.txt quest 10
+  binds `tr1`, `vip`, `box`, `msf` and `hst`, `FUN_00555d20`; `FUN_005439a0`
+  runs it while record +0xa is 1: `FUN_0059eb00` sets it, `FUN_00544410`
+  clears it). +0x14 = 0; the scroll with bit 3 clear → +0xb 1; the amulet,
+  Cube or shaft → +0xb 2 with bit 3, else 6; then for those four the log
+  goes to the picker (`FUN_00544190(game, player, 9)` at 0x599acb, the
+  shaft's through `FUN_00599570`) when `FUN_00599510` passes (bits 0 and
+  15 clear, or 13 or 14: `rules::quest_log_goes_to`). A read scroll and the
+  staff send nothing. The act test is `FUN_00544190`'s (the player's level's
+  act against the record's); the `FUN_00599510` call at 0x599a96, under the
+  record's act, has its result unused. These are record 9's only
+  `FUN_00544190` calls. d2d: `World::item_event` raises `ev::QuestNews{10}`
+  (not for a corpse's event: not traced), and the client reads no View change
+  for quest 10 (`ClientSession::take_view`); `tests/game/test_staff_pickup_news.cpp`.
 - **The chests** (objects.txt 355 / 356 / 354; InitFns 32 / 33 / 31 do
   nothing): OperateFns 40 `FUN_00599c10` (Sewers 3), 41 `FUN_00599cf0`
   (Maggot Lair 3), 39 `FUN_00599df0` (Halls of the Dead 3). Once

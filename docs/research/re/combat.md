@@ -597,6 +597,16 @@ Not needed: monster AR's `dex × 5` (MonStats monsters have no dexterity).
 class)` on result flag 4 (the hit landed) unless the unit has state 21
 (stunned: a sure get-hit), for a player at 0x57d37a (mode 4 through
 `FUN_005809d0`) and a monster at 0x57d0c8 (mode 3 through `FUN_005a7e60`).
+A monster's record (not in mode 0 or 0xc, no state 0x36) takes the first of
+flags 2, 8, 0x10, 4, 0x4000 it has: only 4 reaches the test. A record with
+0x4000 and no 4 (Static Field's 0x4001, written at 0x5c97d2 in
+`FUN_005c96a0`; Thorns' 0x4021 from `FUN_005bf670`) only refreshes the unit
+(`FUN_0064c040`, +0xc4 |= 0x8000) and raises event 4 (`FUN_005a43a0`):
+no get-hit, stunned or not. d2d: `record_gets_hit`, `hurt`'s
+`rolls_get_hit` (Thorns and Iron Maiden's records in the monster's swing, and
+Iron Maiden's on a player's blow in `Fight::hurt_side`),
+`tests/game/test_soft_hit_no_get_hit.cpp`, oracle `tools/emu/soft_hit.py`.
+Static Field's own blow (`Fight::spot`) does not pass it yet.
 It returns 1 (too small) for a frozen unit (state 1, `FUN_00639df0`), a
 record whose poison [10] equals its total [0x13], or a total under 0x100;
 else the divisor d comes from the hit class through the jump table at

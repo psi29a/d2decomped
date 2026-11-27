@@ -99,8 +99,9 @@ family). Read from the decompile; the two row getters also ran in
 | `FUN_00467e90` | `cursor_row_length` | The same asserts (lines 0x9a, 0x9b); returns the row's `+8` (its frames) shifted left 8, the length in the 8.8 frames the position `0x7a6ae0` counts. Callers `FUN_004681c0`, `FUN_004682c0` and the mouse move `FUN_00468840` (ohand backward from its length less 0x100) | matches: `row_length`, the same oracle and test |
 | `FUN_004f59f0` | `os_cursor_hide` | One argument. Only when `DAT_007c8cb4` is set (fullscreen: `d2d_renderer_set_windowed` stores `windowed == 0` there) and the video mode `DAT_007c8cb0` isn't 4, 5 or 6 (Glide, OpenGL, Direct3D: bugs.md 106): a non-zero argument hides the Windows cursor (`FUN_004f5510`: `ShowCursor(0)` until its count is below 0), zero shows it (`FUN_004f5540`). The mouse move `FUN_00468840` calls it with 1, after the 3D driver's window clamp (`FUN_00407ff0`, runtime-support.md) | no counterpart: d2d draws the hand itself and hides or shows the OS cursor through SDL (`Window::show_cursor` / `hide_cursor`, window.hpp), by its own rules |
 
-The other callers of `FUN_004f59f0` (`FUN_00467ef0`, and `FUN_004fa4c0`,
-`FUN_004fa4f0`, `FUN_004fa6b0` in `.\Src\D2WinMain.cpp`) were not read.
+The other callers of `FUN_004f59f0`: `FUN_00467ef0` (not read), and the
+D2Win window's mouse handlers `FUN_004fa6b0` (1), `FUN_004fa4c0` and
+`FUN_004fa4f0` (0), in `.\Src\D2WinMain.cpp` (d2win-messages.md).
 
 Re-check:
 

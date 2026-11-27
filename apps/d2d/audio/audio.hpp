@@ -60,7 +60,7 @@ static_assert(next_block({ 100, 200, -1 }, 50) == 100 && next_block({ 100, 200, 
 
 // A sound not placed in the world (UI, voice, ambience, music) through
 // FUN_004dfc20's chain on its 0..255 volume, each a whole percent with the
-// product truncated: Music Vol rows x music / 100 (0x4dfc84), x master / 100
+// product truncated: Music Vol rows x music / 100 (FUN_00514cf0 at 0x4dfc84), x master / 100
 // (0x4dfca1), then the menu and Solo ducks (0x4dfcb2 / 0x4dfd0b).
 [[nodiscard]] constexpr int unplaced_volume(int volume, bool music_row, int music_percent, int master_percent, int row,
                                             bool solo_row, int menu_percent, int solo_percent) {

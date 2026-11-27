@@ -887,6 +887,9 @@ struct Fight {
     // The player crossed from `from` to `to` (shifted by dx, dy): the pets
     // with them come along, traps stay where they were set.
     void pets_cross(const Level* from, const Level* destination, float dx, float dy);
+    // Walking over an edge into `destination` (shifted by dx, dy): the monsters
+    // near the players come along, as game.exe's walk from room to room does.
+    void monsters_cross(const Level* destination, float dx, float dy);
     // A pet's enemy aura (Fire Golem's Holy Fire: srvdofunc 66) pulses
     // round the pet, as the player's does round the player (aura_pulse).
     void pet_aura(Pet& pet, std::uint32_t now_ms);

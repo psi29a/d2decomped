@@ -57,9 +57,12 @@ auto Fight::start_cast_overlay(const d2d::rules::Skill& skill, bool from_item, d
         if (d2d::rules::cast_overlay_starts(row, shown, now_ms, rows[std::size_t(row)]->rate, rows[std::size_t(row)]->frames)) d2d::rules::add_one_shot(shown, row, now_ms);
     }
 
+// One that came back over an edge is in the list twice (monsters_cross):
+// the copy it left going is `gone`, so the one still here comes first.
 auto Fight::monster_index(int id) const -> int {
         if (id < 0) return -1;
-        const auto found = std::ranges::find(monsters, id, &Monster::id);
+        auto found = std::ranges::find_if(monsters, [&](const Monster& monster) { return monster.id == id && !monster.gone; });
+        if (found == monsters.end()) found = std::ranges::find(monsters, id, &Monster::id);
         return found == monsters.end() ? -1 : int(found - monsters.begin());
     }
 
@@ -74,6 +77,61 @@ auto Fight::add_monster(Monster monster, const Level* where) -> int {
         auto& list = where == mon_level || !where ? monsters : kept[where];
         list.push_back(std::move(monster));
         return int(list.size()) - 1;
+    }
+
+// game.exe has no level test as a unit walks from room to room: a step
+// (FUN_00554ca0, from the mode actions as FUN_005a7670) that changes the
+// path's room takes the next room if it's one of the act's rooms in play
+// (FUN_005545c0: the list at game +0xbc + act * 4, any level), then
+// FUN_00554670 tells the clients that see the old and the new room. So a
+// chase goes on over an outdoor edge. d2d runs one level's monsters, those
+// within 30 of a player (near_players): those of the level left come
+// along into the next one's list, moved by the offset as pets_cross moves
+// pets. Each leaves a `gone` copy, so the indices of the level left (its
+// leaders, its spawn_slots) still hold; its leader, bound partner and skill
+// target (skill_unit) are remapped, -1 if left behind (a living bound pair
+// crosses together). Its spawn area goes, as FUN_00554670 clears monster
+// data +0x50 on a room change. Only from the level the player walks out
+// of: after a town portal `monsters` is still the wild level left (enter).
+// ponytail: only the walk over an edge with one screen (World::cross_level):
+// stage 9's split levels keep each level's own monsters.
+auto Fight::monsters_cross(const Level* destination, float dx, float dy) -> void {
+        if (remote_monsters || !mon_level || mon_level != level || destination == mon_level || in_town(mon_level) || in_town(destination)) return;
+        std::vector<bool> carried(monsters.size(), false);
+        for (std::size_t index = 0; index < monsters.size(); ++index) {
+            const auto& monster = monsters[index];
+            if (!monster.alive() || !near_players(float(monster.unit.x) - dx, float(monster.unit.y) - dy)) continue;
+            carried[index] = true;
+            if (monster.bound >= 0 && std::size_t(monster.bound) < monsters.size() && monsters[std::size_t(monster.bound)].alive()) carried[std::size_t(monster.bound)] = true;
+        }
+        auto& into = kept[destination];
+        std::vector<int> moved_to(monsters.size(), -1);
+        for (std::size_t index = 0, next = into.size(); index < monsters.size(); ++index)
+            if (carried[index]) moved_to[index] = int(next++);
+        const auto remap = [&](int old_index) { return old_index >= 0 && std::size_t(old_index) < moved_to.size() ? moved_to[std::size_t(old_index)] : -1; };
+        const auto shift = [&](UnitState& unit) {
+            unit.x -= dx; unit.y -= dy;
+            unit.goal_x -= dx; unit.goal_y -= dy;
+            for (auto& [step_x, step_y] : unit.path) { step_x -= dx; step_y -= dy; }
+        };
+        const int sub_dx = int(std::lround(dx * 5)), sub_dy = int(std::lround(dy * 5));
+        for (std::size_t index = 0; index < monsters.size(); ++index) {
+            if (!carried[index]) continue;
+            Monster monster = monsters[index];
+            monsters[index].gone = true;
+            shift(monster.unit);
+            shift(monster.landing_mark);
+            monster.home_x -= dx; monster.home_y -= dy;
+            for (auto& [step_x, step_y] : monster.steps) { step_x -= sub_dx; step_y -= sub_dy; }
+            monster.end_x -= sub_dx; monster.end_y -= sub_dy;
+            monster.skill_x -= sub_dx; monster.skill_y -= sub_dy;
+            monster.leap_from_x -= dx; monster.leap_from_y -= dy; monster.leap_to_x -= dx; monster.leap_to_y -= dy;
+            monster.leader = remap(monster.leader);
+            monster.bound = remap(monster.bound);
+            monster.skill_unit = remap(monster.skill_unit);
+            monster.area = -1;
+            into.push_back(std::move(monster));
+        }
     }
 
 auto Fight::own_stats() const -> d2d::d2s::Stats {
