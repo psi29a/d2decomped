@@ -814,6 +814,7 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             return;
         }
         if (const auto* socket = std::get_if<cmd::Socket>(&command)) {        // FUN_00562660
+            // FUN_005491b0: the target is the player's own, stored or worn (mode 0 or 1).
             const auto target = std::ranges::find(actor->character.items, socket->item, &d2d::d2s::Item::id);
             if (actor->held && target != actor->character.items.end() && (target->location == d2d::d2s::item_location::kStored || target->location == d2d::d2s::item_location::kEquipped)
                 && d2d::rules::takes_socket(tables, *actor->held, *target)) {
