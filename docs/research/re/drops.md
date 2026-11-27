@@ -319,7 +319,13 @@ its ten item slots at `+0x5c`, 8 bytes each: the item code, loc (a body
 location, 0 none) at `+4` and count at `+5`. FUN_00534d60 makes each of
 the count:
 
-- FUN_00534c70 makes it (FUN_00559ce0: normal, ilvl from FUN_00558200).
+- FUN_00534c70 makes it (FUN_00559ce0: normal, ilvl from FUN_00558200),
+  its two stack 1s (`0x534c95`, `0x534c97`) setting the create record's
+  +0x80 bits 8 and 2 (`0x559d50..0x559d66`): no sockets (FUN_00556b60
+  still draws its rand(100), then stops) and no ethereal (FUN_00556ca0
+  tests the bit before its draw). The new player's join FUN_00569f80 runs
+  it after its join init (the player's seed step), so each item's two game
+  seed steps follow that one.
   The first slot's item also gets stat 0x6b (item_singleskill) set to the
   row's StartSkill (`+0xac`, when it's a skill). Then a stackable item
   (Items `+0x132`, FUN_006289f0) gets stat 0x46 (quantity) set to
@@ -338,7 +344,9 @@ the count:
 
 d2d: `new_character` (components/game/character/character_store.hpp) gives
 a stackable start item its maxstack and a `bowq` 250 / 100, after
-`generate_item`'s roll, and each item of the first slot item_singleskill
+`generate_item`'s roll; `World::start_items` makes them again in the first
+game, on the game seed with those two record bits
+(`tests/game/test_start_items.cpp`); and each item of the first slot item_singleskill
 at 1 with the start skill as its param: FUN_00534c70 calls FUN_00627150
 (the item's stat list, 0x6b, 1, the skill) once per item it makes, so a
 first slot with a count of 2 gives both. In 1.14d's data only two classes
@@ -670,8 +678,8 @@ Evidence: `python3 tools/ghidra/fn.py 00556b60`, `python3 tools/ghidra/fn.py 006
 `python3 tools/ghidra/fn.py 0062bc20`, `python3 tools/ghidra/fn.py 0062bcb0`.
 d2d: reads the same, cited from the decompile, no oracle run, for version 100+ (`generate_item`'s `finish`: `rng(100) < 33`, `start % capped + 1`,
 the 3 / 4 / 6 caps, `!stackable`), and the version-0 branch with its row 3 / row 0x25 tests
-(`roll_sockets`, `tests/test_classic_items.cpp`). Not ported: the record flags (the forced picks
-the `ponytail:` there lists). FUN_00557450's tail calls it for quality 1..3 (`iVar7 - 1U < 3`),
+(`roll_sockets`, `tests/test_classic_items.cpp`). The record's +0x80 bits 2 and 8 are ported (`record_flags`, a new character's
+start items); not the other flags (the forced picks the `ponytail:` there lists). FUN_00557450's tail calls it for quality 1..3 (`iVar7 - 1U < 3`),
 so with its own `quality >= 2` test only normal and superior items roll. Cited from the
 decompile, no oracle run.
 

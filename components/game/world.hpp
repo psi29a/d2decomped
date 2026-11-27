@@ -816,6 +816,7 @@ struct World {
     // laid as the player comes in (FUN_005394a0): by the act town's start,
     // corpse_spot round it, the units there blocking (combat.md "Saving").
     void lay_save_corpse(const Character& entering);
+    void start_items();   // a fresh character's start items made in this game (FUN_00534f10)
 
     void new_game();
 

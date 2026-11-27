@@ -17,6 +17,7 @@
 #include "npc.hpp"
 
 #include <d2s_items.hpp>
+#include <item_gen.hpp>
 #include <level_ids.hpp>
 #include <light.hpp>
 #include <monster_ids.hpp>
@@ -443,12 +444,38 @@ auto World::enter(const Character& entering) -> void {
         spawn_merc(true);
         lay_save_corpse(entering);                    // by the town's start, the player standing there
         new_game();
-        fight.player_joins(saved_records(entering.items) + saved_records(entering.corpse), saved_records(entering.merc_items));
+        if (entering.fresh) {                          // FUN_00569f80: the player's seed (join init), then its start items
+            fight.player_joins(0, 0);
+            start_items();
+        } else fight.player_joins(saved_records(entering.items) + saved_records(entering.corpse), saved_records(entering.merc_items));
         act5_hide();                                  // a5q3's join: Anya home, Nihlathak gone (Anya's state grown in)
         grow_states(npc_states, *level);
         for (std::size_t i = 0; i < level->npcs.size() && i < npc_states.size(); ++i)
             if (level->npcs[i].quest == d2d::rules::CainQuest::kQuest) npc_states[i].hidden = !cain.camp_cain;
         show_palace();                                // a save left in act 2 starts in Lut Gholein
+    }
+
+// A fresh character's items are made in its first game, after its seed (FUN_00569f80 -> FUN_00534f10, in
+// CharStats slot order): each by FUN_00534c70 through FUN_00559ce0, the maker a drop's is (FUN_00558d90: its
+// two game seed steps, unit seed and own), normal at ilvl 1 (FUN_00558200, a level 1 player's), its record's
+// +0x80 bits 8 (no sockets: FUN_00556b60 still draws) and 2 (no ethereal: FUN_00556ca0 draws nothing) set by
+// its two 1s (0x534c95 / 0x534c97). Then the first slot's StartSkill stat, the stack full and the durability
+// at its max (FUN_00534d60), as new_character set them, and its place (new_character's).
+auto World::start_items() -> void {
+        auto& game_seed = fight.spawning.game;
+        for (auto& item : actor->character.items) {
+            d2d::rules::Rng unit_seed{ game_seed.next() }, own_seed{ game_seed.next() };
+            auto made = d2d::rules::generate_item(game_data->rules, item.code, 1, 2, own_seed, &unit_seed, nullptr, false, actor->character.header.active_difficulty(), 0,
+                                                  !actor->character.expansion, d2d::rules::kNoEthereal | d2d::rules::kNoSockets);
+            for (const auto& prop : item.props)
+                if (prop.stat == d2d::d2s::kSingleSkill) made.props.push_back(prop);
+            made.location = item.location; made.slot = item.slot; made.column = item.column; made.row = item.row; made.panel = item.panel;
+            if (item.quantity >= 0) made.quantity = item.quantity;
+            if (made.max_durability > 0) made.durability = made.max_durability;
+            made.id = -1;
+            item = std::move(made);
+        }
+        for (auto& item : actor->character.items) d2d::rules::replenish_arm(game_data->rules, item);
     }
 
 auto World::new_game() -> void {
