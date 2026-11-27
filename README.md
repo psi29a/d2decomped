@@ -88,6 +88,13 @@ a mouse's extra buttons.
 **Planned:** let original game clients join a d2d host, run a dedicated
 server, and support high-DPI displays. These features are not implemented yet.
 
+## Linux
+
+Download `d2d-<version>-x86_64.AppImage` from the
+[latest release](https://github.com/psi29a/d2decomped/releases/latest), make it
+executable (`chmod +x d2d-*.AppImage`) and run it: it opens the launcher. It
+needs glibc 2.41 or newer (Debian 13 and Void Linux have it), and no FUSE 2.
+
 ## Steam Deck
 
 Steam Deck support is experimental: there is no Flathub listing yet. The
