@@ -812,6 +812,10 @@ jobs:
     runs-on: ubuntu-24.04
     container: debian:13
     timeout-minutes: 90
+    # A container's steps run in sh, Debian's dash: the cache key's ${key:0:16} needs bash.
+    defaults:
+      run:
+        shell: bash
     env:
       APPIMAGETOOL_VERSION: "1.9.1"
       APPIMAGETOOL_SHA256: ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0
