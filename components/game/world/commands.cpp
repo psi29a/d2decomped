@@ -749,7 +749,7 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             return;
         }
         if (const auto* drop = std::get_if<cmd::Drop>(&command)) {           // FUN_0054ab40: the item in hand, not while dead
-            if (actor->held && actor->held->id == drop->item && !fight.dead()) {
+            if (actor->held && actor->held->id == drop->item && !fight.dead()) {   // FUN_005490e0: the cursor item of that id
                 loot.enter(level);
                 const std::string dropped_code = actor->held->code;
                 loot.place(std::move(*actor->held), actor->player.x, actor->player.y, now_ms);
