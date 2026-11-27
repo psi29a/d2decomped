@@ -471,7 +471,9 @@ auto Fight::auras_at(float x, float y, bool enemy, const Monster* taker) const -
         // higher stored level and only extending an equal one. So of two sources of one aura (the player's and the merc's
         // Holy Freeze) one's stats count, the higher level's; each caster's pulse still hits (aura_pulse).
         // At an equal level game.exe keeps the first list but each pulse rewrites its stats (FUN_00627150, 0x5cef1e); here the first
-        // listed (the player's). ponytail: that differs only for a caster-dependent value at one level (no Act 2 merc aura has one).
+        // listed (the player's). The two can differ only by a caster-dependent value at one level, and none of the Act 2
+        // mercs' auras (Hireling.txt: Prayer, Defiance, Blessed Aim, Thorns, Holy Freeze, Might) has one: their aurastats
+        // are ln34 / dm34 and Prayer's edns with no EDmgSymPerCalc, its level's alone.
         std::vector<AuraOn> one_each;
         const auto state = [](const AuraOn& aura) -> const std::string& { return !aura.skill->auratarget.empty() ? aura.skill->auratarget : aura.skill->aurastate; };
         for (auto& aura : out) {
