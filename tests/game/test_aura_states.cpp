@@ -26,6 +26,7 @@
 #include <exception>
 #include <initializer_list>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 using namespace d2d::game;
@@ -142,6 +143,14 @@ int main() try {
     assert(walked(0) < bare);
     actor.curses[1].until = 500;                              // spent, not yet dropped
     assert(walked(0) == bare);
+    // In town a frame of the fight drops the spent curse, so the merc's stats (its sheet) lose it: here
+    // its attack rating, which the live curse took 100 off.
+    slow.aurastat[1] = d2d::d2s::kToHit;
+    slow.aura_calc[1].code = { { d2d::rules::Calc::Const, -100 } };
+    const int clean_rating = [&] { const auto held = std::exchange(actor.curses[1], {}); const int rating = fight.merc_fighter().attack_rating; actor.curses[1] = held; return rating; }();
+    assert(fight.merc_fighter().attack_rating < clean_rating);   // still held
+    fight.world(false, 1000, 0.04f, Crowd{});                  // in town: merc_foe doesn't run
+    assert(actor.curses[1].skill < 0 && fight.merc_fighter().attack_rating == clean_rating);
     std::puts("OK: the merc shows its own aura and the player's Might; the player its own and the totem's target state; over the wire too; Vigor speeds its walk, a live curse slows it");
     return 0;
 } catch (const std::exception& error) {

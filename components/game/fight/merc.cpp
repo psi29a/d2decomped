@@ -70,13 +70,13 @@ auto Fight::merc_fighter() const -> d2d::rules::Fighter {
         }
         sum[kToHit] += actor->merc_st.attack_rating;
         // A monster's curse on it (Amplify Damage, Weaken): its stats (curse_stats)
-        // join its stats (merc_foe drops a spent one).
+        // join its stats (Fight::world drops a spent one each frame, in town too).
         if (actor->curses[1].skill >= 0) {
             const d2d::rules::CalcEnv env{ [](int) { return 0; }, [](int) { return 0; }, [](int) { return 0; }, actor->merc_st.level, nullptr };
             for (const auto& [id, value] : curse_stats(actor->curses[1], env))
                 if (id >= 0 && std::size_t(id) < sum.size()) sum[std::size_t(id)] += value;
         }
-        for (const auto& state : actor->merc_potion_states)              // an antidote's / thawing's (merc_foe drops a spent one)
+        for (const auto& state : actor->merc_potion_states)              // an antidote's / thawing's (Fight::world drops a spent one)
             if (state.until != 0)
                 for (const auto& [id, value] : state.stats) if (id >= 0 && std::size_t(id) < sum.size()) sum[std::size_t(id)] += value;
         // Friendly auras on it (FUN_005cf010): its own, the player's, a

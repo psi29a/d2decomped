@@ -479,6 +479,10 @@ auto Fight::restamp() -> void {
 auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd& crowd) -> void {
         Hero& acting = *actor;
         if (now_ms >= acting.curses[0].until) acting.curses[0] = {};   // its state's end, in town too (blood_mana asks for it gone)
+        // The merc's curse and potion states end in town too: merc_fighter (its sheet, its walk) reads one
+        // still held, and merc_foe, which drops them out of town, doesn't run there.
+        if (now_ms >= acting.curses[1].until) acting.curses[1] = {};
+        for (auto& state : acting.merc_potion_states) if (now_ms >= state.until) state = {};
         // Monsters think while a player is near (D2 runs the rooms around
         // each player); what they hit comes off that player's life, and a hit
         // of a twelfth of max life or more makes them flinch (GH).
