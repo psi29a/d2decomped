@@ -59,7 +59,11 @@ std::vector<std::uint8_t> encode_view(const GameData& game_data, const View& vie
         std::string merc_type;
         if (view.merc) for (const auto& [merc_key, merc] : game_data.mercs) if (&merc.npc == view.merc->npc) merc_type = std::to_string(merc_key);
         chunk.u8(view.merc && !merc_type.empty());
-        if (view.merc && !merc_type.empty()) { chunk.str(merc_type).str(view.merc->mode); wire::unit(chunk, view.merc->unit); chunk.i32(view.merc->fhr); wire::one_shots(chunk, view.merc->one_shots); }
+        if (view.merc && !merc_type.empty()) {
+            chunk.str(merc_type).str(view.merc->mode); wire::unit(chunk, view.merc->unit); chunk.i32(view.merc->fhr); wire::one_shots(chunk, view.merc->one_shots);
+            chunk.u16(int(view.merc->states.size()));
+            for (const auto state : view.merc->states) chunk.str(state);
+        }
         chunk.u8(view.merc_sheet.has_value());             // the Hireling screen's numbers
         if (const auto& sheet = view.merc_sheet) {
             chunk.i32(sheet->level).i32(sheet->str).i32(sheet->dex).i32(sheet->min).i32(sheet->max).i32(sheet->defense).i32(sheet->life).i32(sheet->max_life).i32(sheet->cls);
@@ -90,6 +94,8 @@ std::vector<std::uint8_t> encode_view(const GameData& game_data, const View& vie
         chunk.u16(int(view.effects.size()));
         for (const auto& effect : view.effects)
             chunk.u8(effect.kind).i32(effect.code).u32(std::uint32_t(effect.instance)).u32(std::uint32_t(effect.instance >> 32)).u32(effect.remaining_ms).u8(effect.dismissible);
+        chunk.u16(int(view.aura_states.size()));
+        for (const auto state : view.aura_states) chunk.str(state);
         wire::section(out, enc.section[0], std::move(chunk.bytes));
     }
     // 1: pets and the other players, 2: missiles.
@@ -297,7 +303,10 @@ bool apply_view(const GameData& game_data, std::span<const std::uint8_t> bytes, 
             const auto unit = wire::unit(input);
             const int fhr = i32();   // its faster hit recovery: its get-hit's drawn frames (session/view.cpp)
             auto shots = wire::one_shots(input);
-            if (const auto found = game_data.mercs.find(std::atoi(type.c_str())); found != game_data.mercs.end()) view.merc = View::Merc{ unit, &found->second.npc, mode, fhr, std::move(shots) };
+            std::vector<std::string_view> states;
+            for (int count = u16(); count > 0 && input.ok; --count) states.push_back(wire::intern(input.str()));
+            if (const auto found = game_data.mercs.find(std::atoi(type.c_str())); found != game_data.mercs.end())
+                view.merc = View::Merc{ unit, &found->second.npc, mode, fhr, std::move(shots), std::move(states) };
         }
         view.merc_sheet.reset();
         if (byte()) {
@@ -341,6 +350,8 @@ bool apply_view(const GameData& game_data, std::span<const std::uint8_t> bytes, 
             if (kind > 1 || dismissible > 1) { input.ok = false; break; }
             view.effects.push_back({ kind, code, low | (high << 32), remaining, dismissible != 0 });
         }
+        view.aura_states.clear();
+        for (int count = u16(); count > 0 && input.ok; --count) view.aura_states.push_back(wire::intern(input.str()));
     });
     body([&] {
         for (auto* pets : { &view.pets, &view.party_pets }) {

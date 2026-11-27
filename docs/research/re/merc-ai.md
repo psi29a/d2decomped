@@ -278,7 +278,10 @@ perdelay frames. Its Holy Freeze (do 81) is an enemy aura as the
 player's: its aurastats (velocitypercent, attackrate / other_animrate at
 -dm34) on the monsters within its range, its cold on them each perdelay
 (struck by the merc). d2d: `Fight::friendly_auras`, `enemy_auras`,
-`prayer_pulse`, `enemy_pulse`.
+`prayer_pulse`, `enemy_pulse`. Vigor's velocitypercent (stat 0x43) adds
+to its walk % beside its gear's FRW, as a curse's (Decrepify) does
+(`merc_turn`). Its attack speed takes no stat yet: neither its gear's IAS
+nor Fanaticism's attackrate (not traced: a monster unit's attack rate).
 
 ## Not built yet
 
