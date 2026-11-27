@@ -219,6 +219,10 @@ void view_units(const Scene& scene, const View& view, float camera_x, float came
                         view.merc->mode == "DT" ? nullptr : merc_label, view.merc->unit.mode_ms, -2 });
         out.back().hold = view.merc->mode == "DT";
         if (view.merc->mode == "GH") out.back().get_hit_rate = std::uint16_t(d2d::rules::get_hit_rate(int(out.back().anim->speed ? out.back().anim->speed : out.back().anim->cof_speed), view.merc->fhr));
+        // Its aura states' overlays (its own aura, the player's): its StateClock key below every
+        // other's (the player -1, the others -2 - a 24-bit id, monsters their ids).
+        constexpr int kMercStateKey = -0x2000000;
+        dress(scene, out.back(), kMercStateKey, view.merc->states, clk);
         flash(scene, out.back(), view.merc->one_shots);
     }
     // A party member's merc (party_pets, "hireable") gets hit at its own FHR, as ours.
