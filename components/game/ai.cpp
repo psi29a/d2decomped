@@ -1767,9 +1767,9 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
                     ? steps * 40
                     : steps * game_data.npc_timing(monster.npc, played).ms_per_frame() * 100 / std::uint32_t(100 + anim_rate_pct(game_data, monster, "SQ")));
             }
-            // The leap's flight: Leap's at once, Leap Attack's by row 11 (do 78
-            // on the takeoff and landing events), the strike on the next
-            // (FUN_005da660).
+            // The leap's flight: from its takeoff row to its landing row (do 77
+            // / 78 on the sequence's event-1 rows), Leap Attack's strike on the
+            // next (FUN_005da660).
             // The flight is a line: the takeoff (FUN_005d9f70) lays path type 9
             // (FUN_00679f70, table 0x6eb6d8: one point, the landing) with collision
             // type and mask 0, so nothing blocks it; FUN_005d9d50's FUN_0064ea90 only
@@ -1781,9 +1781,9 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             // held marks (Fight::crowd), so no other unit steps or lands there meanwhile, those that
             // think later this frame included.
             // The wait at the landing for a unit not there yet (FUN_005da120 -> FUN_006212c0): `leap_hold`.
-            // ponytail: Leap's (sandleaper) landing row isn't traced, so only Leap Attack waits; the takeoff row's start of the flight isn't either.
             if (landing) {
                 monster.leaping = true;
+                monster.leap_takeoff = 0; monster.leap_until = 0;
                 monster.leap_from_x = unit.x; monster.leap_from_y = unit.y;
                 monster.leap_to_x = (float(landing->first) + 0.5f) / 5; monster.leap_to_y = (float(landing->second) + 0.5f) / 5;
                 monster.landing_mark = {};
@@ -1791,8 +1791,18 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
                 monster.landing_mark.shape = UnitShape{ 1, 1, unit.shape.mask };   // its centre subtile alone (pattern 1's point)
                 monster.leap_pace = leap_cells_per_frame(type_info.run);
             }
-            if (const auto* leap = game_data.skills.get(id); landing && leap && leap->srvstfunc == d2d::rules::ServerStartFunction::kLeapAttack) {
-                monster.leap_until = unit.mode_ms + 11 * game_data.npc_timing(monster.npc, played).ms_per_frame() * 100 / std::uint32_t(100 + anim_rate_pct(game_data, monster, "SQ"));
+            // The do (77 Leap, 78 Leap Attack) runs on the sequence's event-1 rows: the first the takeoff (FUN_005d9f70),
+            // the second the landing (FUN_005da120): seq_leaperleap's 1 and 9, seq_ancientleap's 5 and 11.
+            if (landing && seq) {
+                const auto row_ms = game_data.npc_timing(monster.npc, played).ms_per_frame() * 100 / std::uint32_t(100 + anim_rate_pct(game_data, monster, "SQ"));
+                int takeoff = -1, lands = -1;
+                for (std::size_t seq_row = 0; seq_row < seq->size(); ++seq_row)
+                    if ((*seq)[seq_row].event == 1) { if (takeoff < 0) takeoff = int(seq_row); else if (lands < 0) lands = int(seq_row); }
+                if (lands >= 0) {
+                    monster.leap_takeoff = unit.mode_ms + std::uint32_t(takeoff) * row_ms;
+                    monster.leap_until = unit.mode_ms + std::uint32_t(lands) * row_ms;
+                }
+                monster.leap_target = target ? target->id : -1;
             }
             // Whirlwind (srvstfunc 38, FUN_005d8f50; Talic's seq_ancientwhirlwind):
             // in reach a plain attack (FUN_0056e230); else a path to its point
@@ -2972,9 +2982,10 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 }
             }
         }
-        if (monster.leaping) {                                          // Leap's flight (do 77, FUN_005d9f70): along the sequence to its landing
+        if (monster.leaping) {                                          // Leap's flight (do 77, FUN_005d9f70): from its takeoff to its landing
             const std::uint32_t lands = monster.leap_until ? monster.leap_until : monster.mode_until;
-            const float done = leap_done(monster, now_ms - unit.mode_ms, std::max<std::uint32_t>(lands - unit.mode_ms, 1));
+            const std::uint32_t off = std::max(unit.mode_ms, monster.leap_takeoff);
+            const float done = now_ms < off ? 0.f : leap_done(monster, now_ms - off, std::max<std::uint32_t>(lands > off ? lands - off : 1, 1));
             unit.x = monster.leap_from_x + (monster.leap_to_x - monster.leap_from_x) * done;
             unit.y = monster.leap_from_y + (monster.leap_to_y - monster.leap_from_y) * done;
         }
@@ -2990,6 +3001,15 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
             // On it (FUN_005da120's landing branch): any monster but sandleaper1 (0x4e, FUN_005da020's own landing)
             // cuts a row off what's left of its sequence (+0x48 & ~0xff, less 0x100), so it ends a row sooner.
             if (type_info.base != 0x4e && monster.mode_until > now_ms) monster.mode_until -= std::min(leap_step, monster.mode_until - now_ms);
+            // sandleaper1's (FUN_005da020): with the unit it leapt at still there (FUN_00552f60 on its id), the
+            // sequence goes to row 12 (FUN_006212c0) and its length to that many rows and one more (+0x48: its
+            // whole rows + 0x100), so rows 10 and 11 (11's event) are passed by; its type 8 path from there is
+            // to the landing it stands on.
+            if (type_info.base == 0x4e && std::ranges::any_of(foes, [&](const Foe& other) { return other.id == monster.leap_target && other.alive; })) {
+                const auto rows = std::uint32_t(std::max<std::size_t>(skill_seq(game_data, type_info, monster.skill) ? skill_seq(game_data, type_info, monster.skill)->size() : 0, 13));
+                monster.seq_shift_ms = int(now_ms - unit.mode_ms) - 12 * int(leap_step);
+                monster.mode_until = now_ms + (rows + 1 - 12) * leap_step;
+            }
         }
         if (mode_over()) {
             if (monster.leaping) { monster.leaping = false; monster.leap_until = 0; unit.x = monster.leap_to_x; unit.y = monster.leap_to_y; }

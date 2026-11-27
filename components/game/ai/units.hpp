@@ -395,7 +395,9 @@ struct Monster {
     // the Dark Wanderer, the compelling orb. No one targets or hits it.
     bool killable = true;
     float leap_from_x = 0, leap_from_y = 0, leap_to_x = 0, leap_to_y = 0;
-    std::uint32_t leap_until = 0;             // Leap Attack's landing (its sequence's row 11), else the mode's end
+    std::uint32_t leap_until = 0;             // a leap's landing (its sequence's second event-1 row), else the mode's end
+    std::uint32_t leap_takeoff = 0;           // its takeoff (the first event-1 row): the flight starts there
+    int leap_target = -1;                     // the foe it leapt at (the skill record's +0x24): FUN_005da020 asks for it
     // The wait at the landing (FUN_005da120 with the unit not there yet): the sequence row it shows while it waits (-1 none),
     // and the ms its rows run behind the mode's start once it has landed (Leap Attack's, `leap_hold`).
     int leap_hold_row = -1;
