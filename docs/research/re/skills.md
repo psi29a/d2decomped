@@ -1356,8 +1356,10 @@ hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
   Assassin's traps), 49 (Shadow Warrior / Master).
 - **FUN_0056d940** spawns the row at the target (FUN_005b2f20, flags
   0x42, radius -1: the target's subtile alone, three draws of the room's
-  seed, else none; the push at 0x56d9a3, the radius slot as FUN_005e0160's
-  `push 2`), marks it a pet (+0xc4 |= 0x20000) and ties it to its owner.
+  seed; the push at 0x56d9a3, the radius slot as FUN_005e0160's `push 2`;
+  none there and the request's flag 4 clear (0x56d9bb), again at radius 4,
+  0x56d9cb; else none), marks it a pet (+0xc4 |= 0x20000) and ties it to
+  its owner.
   Hydra's three (hydra1..3 are SizeX 0) share the subtile.
 - **FUN_005c49e0**(game, owner; pet, forced, bonus): the pet's level
   (stat 12) = a forced level above 0 as it is, else min(max(owner's × 3 /
