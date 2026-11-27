@@ -81,7 +81,8 @@ Calc compile_calc(std::string_view src, const CalcNames& names, std::string* err
         }
     };
     // FUN_006119f0: {id, is a constant} or {-1, _} when unknown, by the
-    // function whose "(" is on top of the pending stack.
+    // function whose "(" is on top of the pending stack. An operand matches
+    // the name's first four characters, padded with spaces (FUN_00611760).
     auto lookup = [&](std::string_view name) -> std::pair<int, bool> {
         const int function = !pending.empty() && pending.back().kind == 1 ? pending.back().value : -1;
         if (function == kCalcSkill || function == kCalcSkillLevel) {
