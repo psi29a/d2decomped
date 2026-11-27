@@ -249,6 +249,14 @@ use (stubs.md).
 | `FUN_0041b080` | (6 words; `ret 0x18`): `FUN_0041aad0(a0, a1, a2, a3, a4, 0, a5)` |
 | `FUN_0041ba30` | (3 words; `ret 0xc`): `FUN_0041b280(a0, a1, a2, 0, 0x7fffffff, 0x7fffffff, 0)` |
 
+## SCOMP.CPP: the compressed-sector unpacker
+
+`FUN_0041e340` is a thiscall forwarder to the unpacker core `FUN_0041e250`. The core is a real, complex function (security check, dereferences `ESI`), so the forwarder is traced on its own and the core is treated as a callee. Its only in-image reference is a data pointer in the SCOMP.CPP dispatch table at `0x6cfee0`; `FUN_0041e720` walks that table.
+
+| Function | What |
+|---|---|
+| `FUN_0041e340` | (thiscall, edx, a0, a1, a2; `ret 0xc`): a thiscall forwarder to the compressed-sector unpacker core `FUN_0041e250`. Reorders the args before the call: this = a0, esi = edx, arg0 = original this, arg1 = a1 (the core pops those two, `RET 8`). The forwarder's third stack arg `a2` is not read, only popped. Propagates the core's return unchanged. 24 bytes. No in-image CALL (data ref in the SCOMP.CPP dispatch table at `0x6cfee0`); `FUN_0041e720` walks that table (`0x6cfec8`..`0x6cfee4`) |
+
 ## PKWARE implode and explode (`0x6b01b0..0x6b1290`)
 
 The library behind `FUN_00415240`'s sector decompression above: its
