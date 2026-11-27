@@ -119,7 +119,7 @@ inline std::vector<Entry> build(const txt::Table& itemtypes, const txt::Table& w
     table[1].code = "lit"; table[2].code = "med"; table[3].code = "hvy";
     int cursor = 4;
     auto reserved = [](int index) { return index < int(kReservedType.size()) ? int(kReservedType[std::size_t(index)]) : 0; };
-    for (const txt::Table* source_table : { &weapons, &armor, &misc }) {
+    for (const txt::Table* source_table : { &weapons, &armor, &misc }) {   // FUN_00504570's order, one table
         const auto c_code = source_table->col("code"), c_alt = source_table->col("alternategfx"),
                    c_type = source_table->col("type"), c_wc = source_table->col("wclass"),
                    c_wc2 = source_table->col("2handedwclass");

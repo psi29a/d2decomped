@@ -206,7 +206,7 @@ void GameMenu::changed(Audio& audio, int row) {
     else if (name == "Gamma" || name == "Contrast") {
         const int steps = kMenus[menu].rows[std::size_t(row)].count;
         const int position = value[std::size_t(menu)][std::size_t(row)];
-        if (name == "Gamma")
+        if (name == "Gamma")                     // FUN_0047d230 -> FUN_004776c0 (0x47d29c): the renderer's gamma
             d2d::palette::Palette::set_ramp(d2d::palette::slider_value(steps, d2d::palette::kGammaMin, d2d::palette::kGammaMax, position), d2d::palette::Palette::contrast());
         else
             d2d::palette::Palette::set_ramp(d2d::palette::Palette::gamma(), d2d::palette::slider_value(steps, d2d::palette::kContrastMin, d2d::palette::kContrastMax, position));

@@ -191,7 +191,8 @@ auto Fight::summon(const d2d::rules::Skill& skill, int lvl, float x, float y, st
         // makers (srvmissilea, missile do 13: missile_tick) fly across the
         // caster's line from it, each laying up to calc2 / 2 more
         // (rules::bone_wall_makers). Bone Wall can't be cast in town (InTown).
-        // Bone Prison (62, FUN_005c5d00): twelve round the point at 0x6e304c / 0x6e307c.
+        // Bone Prison (62, FUN_005c5d00): twelve round the point (rules::bone_prison), each through FUN_0056d940:
+        // spawn_spot at radius -1, then at 4 (0x56d9bb); none in a town; each facing the point from where it got.
         if (skill.srvdofunc == ServerDoFunction::kBoneWall) {
             const int first = summon_one(skill, type, lvl, env, x, y, now_ms);
             const int piece_x = int(std::floor(x * 5)), piece_y = int(std::floor(y * 5));
@@ -210,9 +211,34 @@ auto Fight::summon(const d2d::rules::Skill& skill, int lvl, float x, float y, st
             return;
         }
         if (skill.srvdofunc == ServerDoFunction::kBonePrison) {
-            static constexpr int kRingX[12] = { -1, 1, 3, 4, 4, 3, -1, 1, -3, -4, -4, -3 };
-            static constexpr int kRingY[12] = { -4, -4, -3, -1, 1, 3, 4, 4, 3, -1, 1, -3 };
-            for (std::size_t k = 0; k < 12; ++k) summon_one(skill, type, lvl, env, x + float(kRingX[k]) / 5, y + float(kRingY[k]) / 5, now_ms);
+            // A d2d level is a town or not as a whole (FUN_0061ab00 asks the spot's room).
+            const bool town = d2d::rules::level_ids::is_town(level->id);
+            const auto centre = [](int subtile) { return (float(subtile) + 0.5f) / 5; };
+            int first = -1;
+            std::vector<int> ids;
+            const auto make = [&](int spot_x, int spot_y) -> std::optional<std::pair<int, int>> {
+                Crowd others;
+                crowd_around(others, centre(spot_x), centre(spot_y));   // the pieces made so far stand in the way too
+                int at_x = 0, at_y = 0;
+                const int room = room_of(*level, centre(spot_x), centre(spot_y));
+                if (!spawn_spot(*game_data, *level, others, &spawning.levels[level], type, spot_x, spot_y, -1, room, at_x, at_y)
+                    && !spawn_spot(*game_data, *level, others, &spawning.levels[level], type, spot_x, spot_y, 4, room, at_x, at_y))
+                    return std::nullopt;
+                const int id = summon_one(skill, type, lvl, env, centre(at_x), centre(at_y), now_ms);
+                if (first < 0) first = id;                       // the first's group is its owner's (FUN_0058f030)
+                else actor->pets.back().monster.party_owner = first;   // the rest join the first's (FUN_0058f030 / FUN_0058f100)
+                ids.push_back(id);
+                return std::pair{ at_x, at_y };
+            };
+            std::size_t next = 0;
+            for (const auto& piece : d2d::rules::bone_prison(int(std::floor(x * 5)), int(std::floor(y * 5)), [&](int, int) { return town; }, make)) {
+                if (!piece.made) continue;
+                const auto made = std::ranges::find(actor->pets, ids[next++], [](const Pet& pet) { return pet.monster.id; });
+                if (made == actor->pets.end()) continue;
+                auto& unit = made->monster.unit;                 // FUN_006488a0: the 64ths' direction at once
+                unit.facing.now = unit.facing.goal = std::uint8_t(piece.dir);
+                unit.dir = missile_direction(piece.dir, 16);
+            }
             return;
         }
         // Hydra (do 144, FUN_005ca910): three at once, each through FUN_0056d940 ->

@@ -1360,7 +1360,8 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
         if (screen == Screen::Video && prev_screen == Screen::InGame) audio.pause_world(true);
         // Frontend music (FUN_00516250's music thread + FUN_00514990): on
         // the menus, whenever nothing plays, the next track of the 8-track
-        // list (the LoD one at 0x72f8b8; classic uses 0x72f878's), played
+        // list (FUN_00514710: the LoD one at 0x72f8b8, as d2d needs d2exp.mpq;
+        // a classic install's is 0x72f878's), played
         // by path at full volume (frontend_track picks it). Entering a game
         // stops it (FUN_00514930); back on the menus it starts over.
         if (screen == Screen::InGame) frontend_restart = true;

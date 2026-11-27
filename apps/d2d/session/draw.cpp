@@ -900,7 +900,7 @@ auto ClientSession::draw_portraits(std::vector<std::uint8_t>& framebuffer, bool 
         int first_class = first ? first->npc.hc_idx : -1, first_life = first ? first->life : -1;
         if (net_game) {
             const auto row = int(&type - game_data.pet_types.data());
-            for (const auto& pet : net_game->pets) {
+            for (const auto& pet : net_game->pets) {                 // FUN_00478ee0: the nodes of this row and owner
                 if (pet.owner != net_game->self_id || pet.pettype != row) continue;
                 if (count++ == 0) { first_class = pet.cls; first_life = pet.life == 0 ? -1 : std::min(pet.life, 100); }
             }
