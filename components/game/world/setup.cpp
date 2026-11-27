@@ -348,11 +348,20 @@ auto World::lay_save_corpse(const Character& entering) -> void {
 
 // The quests hear of them through their +0xd8s (join_more), not the
 // +0xd4s the game's first player ran (FUN_00546270).
+// The item records a save holds: its list's, the corpse's and the merc's, a socketed item each a record.
+static std::size_t saved_records(const Character& entering) {
+    std::size_t records = 0;
+    for (const auto* list : { &entering.items, &entering.corpse, &entering.merc_items })
+        for (const auto& item : *list) records += 1 + item.socketed_items.size();
+    return records;
+}
+
 auto World::join(const Character& entering) -> Player& {
         Player& was = *actor;
         Player& player = add_player();
         act_as(player);
         take_character(entering);
+        fight.player_joins(saved_records(entering));
         // They play the game's difficulty (the first player's), in its act.
         auto& difficulty = player.character.header.difficulty;
         const auto game_difficulty = std::size_t(std::clamp(lead().character.header.active_difficulty(), 0, 2));
@@ -435,6 +444,7 @@ auto World::enter(const Character& entering) -> void {
         spawn_merc();
         lay_save_corpse(entering);                    // by the town's start, the player standing there
         new_game();
+        fight.player_joins(saved_records(entering));
         act5_hide();                                  // a5q3's join: Anya home, Nihlathak gone (Anya's state grown in)
         grow_states(npc_states, *level);
         for (std::size_t i = 0; i < level->npcs.size() && i < npc_states.size(); ++i)

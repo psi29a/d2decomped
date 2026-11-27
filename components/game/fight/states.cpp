@@ -614,6 +614,8 @@ auto Fight::prg(const d2d::rules::Skill& skill, ServerDoFunction func, int count
                     land(i, d2d::rules::missile_blow(damage, target_of(i), pierce, rng), true, now_ms, player_foe_id());
             return;
         }
+        // Do 39 (FUN_005d3f90) steps the caster's seed first thing and draws its tries on {that low, 666}.
+        d2d::rules::Rng scatter{ func == ServerDoFunction::kReleaseScatter ? actor->seed.next() : 0 };
         if ((func == ServerDoFunction::kReleaseNova || func == ServerDoFunction::kReleaseScatter) && missile_info) {
             auto put = [&](float x, float y, float velocity_x, float velocity_y, int range) {
                 Missile missile{ missile_info, x, y, velocity_x, velocity_y, missile_heading(velocity_x, velocity_y), now_ms, now_ms + std::uint32_t(std::max(range, 1)) * 40, {} };
@@ -634,7 +636,7 @@ auto Fight::prg(const d2d::rules::Skill& skill, ServerDoFunction func, int count
                 }
             } else {
                 for (int k = 0; k < radius * radius; ++k) {
-                    const auto [offset_x, offset_y] = d2d::rules::release_scatter_offset(rng, radius);   // rng: deviations.md approximation 18
+                    const auto [offset_x, offset_y] = d2d::rules::release_scatter_offset(scatter, radius);
                     if (offset_x * offset_x + offset_y * offset_y > radius * radius) continue;
                     const float x = target_x + float(offset_x) / 5, y = target_y + float(offset_y) / 5;
                     if (!level->blocked(x, y, 0x04)) put(x, y, 0, 0, missile_info->range + missile_info->lev_range * lvl);

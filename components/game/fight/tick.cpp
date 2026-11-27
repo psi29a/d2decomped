@@ -1048,8 +1048,8 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
         // is refused. A hit inside a get-hit or block starts no new one,
         // stunned or not (FUN_0057edd0 refuses mode 4 from modes 4 and 9).
         // Else the size test per landed blow (rules::struck_big).
-        // The rolls are the fight's rng, not the player's own seed (deviations.md approximation 18).
-        const bool big = d2d::rules::struck_big(foe.blows, actor->character.stats.get(kMaxLife), rng);
+        // The rolls are on the player's own seed (FUN_0057cb00: the struck unit's +0x20, 0x57cbb8).
+        const bool big = d2d::rules::struck_big(foe.blows, actor->character.stats.get(kMaxLife), actor->seed);
         // A real get-hit refuses another (FUN_0057edd0: GH from GH); a knockback slide is drawn as GH but is game.exe's
         // mode 0x13, which allows it (0x57ee0b), and the get-hit then ends the slide. A swing or cast is cut only if its skill allows it (FUN_0057eec0).
         const bool get_hit_running = actor->pmode == kModeGH && !actor->knock;

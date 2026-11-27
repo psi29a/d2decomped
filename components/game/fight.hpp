@@ -98,6 +98,7 @@ struct Fight {
     // World's Player adds the rest of their state; `actor` is the one acting.
     struct Hero {
         int id = 0;                        // the player's unit id in the game (World::join): 1, 2 ...
+        d2d::rules::Rng seed;              // its unit seed (+0x20): the rolls game.exe makes on the player's own (player_joins)
         // Where the player is walking to: its path's target (+0x10, SP1); the target the
         // path was last worked out to (+0x18, SP3, FUN_00649970) is player.goal_x / goal_y.
         float target_x = 0, target_y = 0;
@@ -435,6 +436,10 @@ struct Fight {
     void new_game(int difficulty);
     // The save's merc joins: its fighting stats at its experience.
     void merc_joins();
+    // The player joins with `saved_items` item records in its save (its list, corpse and merc lists,
+    // socketed ones each a record): its unit seed is a game seed step, then each record made a unit
+    // takes two.
+    void player_joins(std::size_t saved_items);
     // A player coming near the merc: its client is given it (FUN_00571f90),
     // SetStat(0x148, (x + y) & 0xffff); one gone off forgets it (merc_given).
     void merc_gives();
@@ -645,9 +650,8 @@ struct Fight {
     //      (FUN_0056d400), its range + calc1;
     //   39 (FUN_005d3f90): prgcalc n squared tries at points within that
     //      many subtiles (rules::release_scatter_offset), each a missile of
-    //      the count's (fire, ice cubes). game.exe draws them on a stepped
-    //      copy of the caster's seed, d2d on its rng (deviations.md
-    //      approximation 18);
+    //      the count's (fire, ice cubes), drawn on {a step of the caster's
+    //      seed, 666};
     //   40 / 41 (FUN_005d5010 / FUN_005d5080, Royal Strike's first and
     //      third) and 37 / 143 (FUN_005d4e70 / FUN_005d4f40): prg's notes.
     // The count's missile (FUN_005d3cf0): 1 srvmissilea, 2 b, 3 c.

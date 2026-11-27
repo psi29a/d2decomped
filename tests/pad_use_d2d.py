@@ -9,7 +9,7 @@ town portal cast in the Blood Moor back to camp, A opens the camp's
 waypoint, the d-pad steps its rows from the first (the cursor lands
 there) and A travels to the Cold Plains. Skips without the MPQs.
 """
-import atexit, os, struct, subprocess, sys, tempfile, time
+import atexit, math, os, struct, subprocess, sys, tempfile, time
 
 import devctl_client
 
@@ -756,6 +756,14 @@ if skill_buttons:
     # Holding Attack/Use must finish walking to a drop, not replace the
     # queued pickup with an attack (FUN_00462930's held-unit gate).
     cmd("debug kill"); frames(5)
+    # The killed drop their loot, and the pad takes the nearest drop it faces: the rune goes where
+    # none lies within six cells (which pack stands by the waypoint is the game seed's).
+    loot = [(float(r[5]), float(r[6])) for line in cmd("ground").splitlines() if len(r := line.split("\t")) == 7]
+    here_x, here_y = (float(v) for v in state()["cam"].split(","))
+    spots = ((here_x + dx, here_y + dy) for reach in range(0, 24, 2) for dx in range(-reach, reach + 1, 2) for dy in (-reach, reach))
+    clear = next((x, y) for x, y in spots
+                 if all(math.hypot(x - lx, y - ly) >= 6 for lx, ly in loot) and cmd(f"debug blocked {x} {y}").split()[1] == "0")
+    cmd(f"debug warp {clear[0]} {clear[1]}"); frames(5)
     before = int(state()["items"])
     rune_id = cmd("debug give r01").split()[1]
     frames(5)

@@ -173,6 +173,18 @@ auto Fight::new_game(int difficulty) -> void {
         actor->struck_class = actor->shown_class = 0;   // a new game's unit: no hit class yet
     }
 
+// player_join_init (FUN_00569f20) seeds the player's unit off the game seed
+// (FUN_00552df0 with EDX game +0xd0, 0x569f4b) as its save's header is read
+// (FUN_0056a090); its save's items follow, each a unit FUN_00558cb0 makes
+// through FUN_00555230 type 4: FUN_00552df0 then FUN_00552e90, two game seed
+// steps whatever the record (its own seed comes from its fingerprint after,
+// FUN_0062cbe0). A socketed item is a record of its own (FUN_005335e0's
+// inner loop), as are the corpse's and the merc's lists'.
+auto Fight::player_joins(std::size_t saved_items) -> void {
+        actor->seed = d2d::rules::Rng{ spawning.game.next() };
+        for (std::size_t record = 0; record < saved_items; ++record) { spawning.game.next(); spawning.game.next(); }
+    }
+
 auto Fight::merc_joins() -> void {
         const auto& header = actor->character.header;
         actor->merc_target = -1; actor->merc_chase = false;
@@ -232,9 +244,8 @@ auto Fight::revive(std::uint32_t now_ms) -> void {
 // what's left of the last one; a rejuvenation its percentages at once
 // (FUN_005beac0, no bonus).
 
-// The doubling rolls on the drinker's seed (unit +0x20) in game.exe,
-// on d2d's rng here (rules::potion_amount): deviations.md
-// approximation 18.
+// The doubling rolls on the drinker's seed (unit +0x20, Hero::seed;
+// rules::potion_amount).
 auto Fight::drink(int col, std::uint32_t now_ms) -> void {
         if (!dead()) potion(d2d::rules::drink_belt(game_data->rules, actor->character.items, col), now_ms);
     }
@@ -318,7 +329,7 @@ auto Fight::potion(const std::string& code, std::uint32_t now_ms) -> void {
         } else {                                       // FUN_005be3f0: into the healthpot / manapot state, with what's left of it
             const bool life = potion.life > 0;
             const int stat = int(actor->character.stats.get(life ? kVit : kEne) + actor->character.panel.bonus[life ? kVit : kEne]);
-            const int amount = d2d::rules::potion_amount(life ? potion.life : potion.mana, actor->character.character_class, life, stat, rng);
+            const int amount = d2d::rules::potion_amount(life ? potion.life : potion.mana, actor->character.character_class, life, stat, actor->seed);
             auto state = std::ranges::find_if(actor->regen, [&](const Regen& regen_entry) { return !regen_entry.poison && (life ? regen_entry.life > 0 : regen_entry.mana > 0); });
             if (state == actor->regen.end()) state = actor->regen.insert(actor->regen.end(), Regen{});
             const int left = state->until > now_ms ? int((state->until - now_ms) / 40) : 0;

@@ -263,7 +263,7 @@ auto Fight::wear(std::size_t index, std::uint32_t now_ms) -> void {
         const bool armor = d2d::rules::type_is(tables, info->second.type, "armo"), weapon = d2d::rules::type_is(tables, info->second.type, "weap");
         if ((!armor && !weapon) || item.max_durability <= 0 || d2d::rules::indestructible(game_data->rules, item) || d2d::rules::broken(item)) return;
         const int chance = armor || throwable(*game_data, item.code) ? 10 : 4;
-        if (int(rng(100)) >= chance) return;
+        if (int(actor->seed(100)) >= chance) return;
         if (item.durability - 1 >= 1) {
             item.durability = std::min(item.durability - 1, d2d::rules::max_durability(item));
             d2d::rules::replenish_arm(tables, item, d2d::rules::kReplenishDurability);   // 0x559ef4
@@ -293,9 +293,8 @@ auto Fight::wear(std::size_t index, std::uint32_t now_ms) -> void {
 // weapon when the player hits, one worn armour when the player is hit —
 // picked by weight (0x732b90: head 3, torso 5, either arm 4, belt / feet
 // / gloves 2) among the slots holding armour.
-// The slot and weight draws (FUN_0045c3e0 twice) and FUN_00559e30's
-// % 100 step the unit's seed (+0x20) in game.exe, d2d's rng here:
-// deviations.md approximation 18.
+// The slot and weight draws (FUN_0045c3e0 twice, 0x57d48c / 0x57d497)
+// and FUN_00559e30's % 100 (0x559e98) step the player's seed (+0x20).
 auto Fight::wear_weapon(std::uint32_t now_ms) -> void {
         using namespace d2d::d2s;
         for (std::size_t i = 0; i < actor->character.items.size(); ++i)
@@ -316,8 +315,8 @@ auto Fight::wear_armor(std::uint32_t now_ms) -> void {
                     && d2d::rules::type_is(game_data->rules, game_data->rules.item_info.at(item.code).type, "armo")) { worn[slot_index] = int(i); total += kSlots[slot_index].second; }
         }
         if (total <= 0) return;
-        auto slot_index = std::size_t(rng(int(kSlots.size())));
-        int pick = rng(total);
+        auto slot_index = std::size_t(actor->seed(int(kSlots.size())));
+        int pick = actor->seed(total);
         for (;; slot_index = (slot_index + 1) % kSlots.size()) {
             if (worn[slot_index] < 0) continue;
             if (pick < kSlots[slot_index].second) { wear(std::size_t(worn[slot_index]), now_ms); return; }
@@ -327,25 +326,30 @@ auto Fight::wear_armor(std::uint32_t now_ms) -> void {
 
 // Impale's price (FUN_005daa40): calc2 % of the time the weapon loses
 // calc3 durability (stat 72); a throwing weapon (FUN_006289f0) one of
-// its quantity (stat 70, FUN_0056c3f0) instead.
+// its quantity (stat 70, FUN_0056c3f0) instead. The roll, `% 100` on the
+// player's own seed (ESI +0x20, 0x5daa70 / 0x5daabc), comes only for a
+// throwing weapon with some quantity or another with durability.
 
 // At 0 durability the weapon breaks (FUN_0055f850).
 auto Fight::impale_wear(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
         const int lvl = skill_level ? skill_level(skill.id) : 1;
         const auto env = calc_env();
-        if (int(rng(100)) >= d2d::rules::eval_calc(game_data->skills, skill.calc[1], env, skill.id, lvl)) return;
+        const int chance = d2d::rules::eval_calc(game_data->skills, skill.calc[1], env, skill.id, lvl);
         for (std::size_t i = 0; i < actor->character.items.size(); ++i)
             if (auto& item = actor->character.items[i]; item.location == d2d::d2s::item_location::kEquipped && (item.slot == d2d::d2s::body_location::kRightArm || item.slot == d2d::d2s::body_location::kLeftArm)
                 && game_data->rules.item_info.contains(item.code) && game_data->rules.item_info.at(item.code).kind == 2) {
                 const auto found = game_data->rules.item_base.find(item.code);
-                if (found != game_data->rules.item_base.end() && found->second.stackable) {
+                const bool thrown = found != game_data->rules.item_base.end() && found->second.stackable;
+                if (thrown ? item.quantity <= 0 : item.max_durability <= 0 || d2d::rules::indestructible(game_data->rules, item)) return;
+                if (int(actor->seed.next() % 100) >= chance) return;
+                if (thrown) {
                     const auto shot = d2d::rules::shot_spent(item.quantity, d2d::rules::max_durability(item));   // FUN_0056c310
                     item.quantity = shot.quantity;
                     d2d::rules::replenish_arm(game_data->rules, item, d2d::rules::kReplenishQuantity);   // FUN_0056c310 -> FUN_00558580
                     item.durability = shot.durability;                                                   // 0x56c39f
                     if (item.quantity <= 0) out_of_ammo(i);
                 }
-                else if (item.max_durability > 0 && !d2d::rules::indestructible(game_data->rules, item)) {
+                else {
                     item.durability -= d2d::rules::eval_calc(game_data->skills, skill.calc[2], env, skill.id, lvl);
                     if (item.durability <= 0) {
                         d2d::rules::wield_leaves(game_data->rules, actor->character.items, item);
