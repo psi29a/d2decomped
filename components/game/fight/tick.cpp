@@ -429,8 +429,17 @@ auto Fight::plain_missile_hits(Missile& missile, std::size_t monster_index, std:
         // as its swing's blow (merc_strike): its gear's elements, leech, Crushing Blow (halved), Open Wounds, item_slow,
         // which a record with SrcDamage carries into the owner's event 6 (record flag 0x20, 0x5ad893).
         // Its row's own physical (rogue1's MinDamage / MaxDamage 1, Fight::merc_shot) goes in the roll with the weapon's.
-        // ponytail: explodingarrow's blast (hit function 4) isn't run on this path. Off the merc's RogueMissile it
-        // takes RogueMissile's damage, none (Fight::damage_skill), so only the empty hit's other effects are missing.
+        // FUN_005adf10 runs hit function 4 (FUN_005b07a0) before the arrow's record: the merc's explodingarrow
+        // makes explodingarrowexp2 with RogueMissile as its skill. That skill has no damage, but the sub-missile's
+        // other hit effects still run when it lands.
+        if (missile.by_merc && missile.info && missile.info->hit_func == 4) {
+            const auto rogue_skill = game_data->skills.by_name.find("RogueMissile");
+            if (rogue_skill != game_data->skills.by_name.end()) {
+                Missile hit = missile;
+                hit.skill = rogue_skill->second;
+                burst(hit, now_ms, int(monster_index));
+            }
+        }
         d2d::rules::Swing flight{ .srcdam = missile.info ? missile.info->src_damage : 128 };
         flight.missile = true;
         if (missile.by_merc && missile.info) {

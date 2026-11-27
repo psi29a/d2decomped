@@ -35,7 +35,9 @@
 using namespace d2d::game;
 namespace fs = std::filesystem;
 
-int main() try {
+// Check the loaded rows through the real fight paths; --oracle prints the
+// FUN_005b07a0 result compared by tools/emu/merc_exploding_hit.py.
+int main(int argc, char** argv) try {
     const char* mpq_dir = std::getenv("D2_MPQ_DIR");
     if (!mpq_dir || !fs::exists(fs::path(mpq_dir) / "d2data.mpq")) { std::puts("SKIP: no d2data.mpq (D2_MPQ_DIR)"); return D2D_TEST_SKIPPED; }
     const char* patch = std::getenv("D2_PATCH_INSTALLER");
@@ -111,6 +113,29 @@ int main() try {
     for (int tries = 0; tries < 20 && fight.monsters[0].hit_points == 100000; ++tries) fight.strike(blast, 0, 1000 * kTickMs, 0, nullptr);
     std::printf("the blast off Attack at level 7: %d off\n", 100000 - fight.monsters[0].hit_points);
     assert(fight.monsters[0].hit_points < 100000);
+
+    // FUN_005adf10 -> FUN_005b07a0: the merc's plain explodingarrow hit also makes
+    // explodingarrowexp2, carrying RogueMissile and its level. The old plain path made none.
+    fight.pending.clear();
+    Missile merc_arrow;
+    merc_arrow.info = &data->missiles.at("explodingarrow");
+    merc_arrow.x = fight.monsters[0].unit.x;
+    merc_arrow.y = fight.monsters[0].unit.y;
+    merc_arrow.level = 7;
+    merc_arrow.min = merc_arrow.max = 1;
+    merc_arrow.attack_rating = 100000;
+    merc_arrow.friendly = merc_arrow.by_merc = true;
+    merc_arrow.caster = actor->id;
+    const bool spent = fight.plain_missile_hits(merc_arrow, 0, 1001 * kTickMs);
+    const auto* rogue_missile = data->skills.get(data->skills.by_name.at("RogueMissile"));
+    assert(spent && rogue_missile && fight.pending.size() == 1 && fight.pending[0].info);
+    assert(fight.pending[0].info->name == "explodingarrowexp2");
+    assert(fight.pending[0].skill == rogue_missile->id && fight.pending[0].level == 7);
+    if (argc == 2 && std::string_view(argv[1]) == "--oracle") {
+        std::printf("3 %d %d %d\n", fight.pending[0].info->id, fight.pending[0].skill, fight.pending[0].level);
+        return 0;
+    }
+    std::puts("OK: a merc exploding arrow makes its RogueMissile blast (FUN_005b07a0)");
     return 0;
 } catch (const std::exception& error) {
     std::printf("test_exploding_arrow: %s\n", error.what());

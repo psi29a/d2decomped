@@ -1144,7 +1144,16 @@ Not traced here: the consumers of the implicit stat 69, Fade's stat 109
   player's Attack arrow (skill 0, at stat 158's level: FUN_0056f070 →
   FUN_00645f00) bursts with Exploding Arrow's damage, a merc's (RogueMissile,
   336: FUN_005ce1b0 → FUN_0056ecb0) with RogueMissile's, none
-  (`Fight::damage_skill`).
+  (`Fight::damage_skill`). `FUN_005b07a0` validates the parent missile row,
+  copies its owner, missile, skill and level into a zeroed creation request,
+  and walks all four HitSubMissile words at +0x24..+0x2a. Each positive row
+  is made through `FUN_0059fa30`; when sHitPar1 (+0x4c) is positive, the new
+  missile is also handed to `FUN_005adf10(game, new, struck, 1)`. The 1.14d
+  explodingarrow row has only HitSubMissile1, explodingarrowexp2 (row 656),
+  and sHitPar1 0, so a merc hit makes that one sub-missile without immediately
+  applying it to the struck unit. d2d's plain merc-arrow path does the same;
+  `tools/emu/merc_exploding_hit.py` compares its row, skill and level with the
+  stock call.
 - Elemental damage with flag 1 (FUN_00644c90): + the element's mastery %
   of the damage after the synergy: fire 329, lightning 330, cold (and
   freeze) 331, poison 332; none for magic.
