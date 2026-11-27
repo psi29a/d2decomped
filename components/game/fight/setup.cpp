@@ -27,6 +27,7 @@
 #include <quests_act5.hpp>
 #include <rules.hpp>
 #include <sequences.hpp>
+#include <shrines.hpp>
 #include <skills.hpp>
 #include <sound_ids.hpp>
 #include <state_death.hpp>
@@ -743,6 +744,8 @@ auto Fight::do_sounds(std::uint32_t now_ms) -> void {
 
 auto Fight::dead() const -> bool { return actor->pmode == kModeDT || actor->pmode == kModeDD; }
 
+// FUN_0057f330 -> FUN_00639fb0: start the player's death and prune the modeled
+// player states without touching the living merc's independent state bitmap.
 auto Fight::die(std::uint32_t now_ms) -> void {
     actor->character.stats.values[d2d::d2s::kLife] = 0;
     actor->killer = std::exchange(actor->struck_by, {});
@@ -750,24 +753,71 @@ auto Fight::die(std::uint32_t now_ms) -> void {
     actor->attack_mon = -1;
     actor->smove = {};           // a Whirlwind / Charge / Leap cut short isn't resumed by the next attack mode
     actor->kicks_left = 0;
-    // FUN_0057f330 -> FUN_00639fb0 (a player, boss 0): a state States.txt doesn't mark plrstaydeath leaves the
-    // unit's state bitmap, so the skill states it came from end with the death.
-    // ponytail: only self_states; potions, curses, charges and the merc's states are not run through it.
+    // FUN_0057f330 -> FUN_00639fb0 (a player, boss 0): each covered state whose States.txt row does not mark
+    // plrstaydeath leaves the player's bitmap. The merc is a separate, living unit and is not passed to this call.
     std::vector<std::uint32_t> held_bits((game_data->state_names.size() + 31) / 32), parked_bits(held_bits.size()), stay_mask(held_bits.size());
-    for (const auto& [name, info] : game_data->states)
+    for (const auto& [state_name, info] : game_data->states)
         if (info.plr_stay_death && info.row >= 0) stay_mask[std::size_t(info.row) / 32] |= 1u << (info.row % 32);
-    const auto state_row = [&](const SelfState& state) {
-        const auto* skill = game_data->skills.get(state.skill);
-        const auto info = skill ? game_data->states.find(skill->aurastate) : game_data->states.end();
-        return info != game_data->states.end() ? info->second.row : -1;
+    const auto add_state = [&](std::string_view state_name) {
+        const auto info = game_data->states.find(std::string(state_name));
+        if (info != game_data->states.end() && info->second.row >= 0)
+            held_bits[std::size_t(info->second.row) / 32] |= 1u << (info->second.row % 32);
     };
-    for (const auto& state : actor->self_states)
-        if (const int row = state_row(state); row >= 0) held_bits[std::size_t(row) / 32] |= 1u << (row % 32);
+    const auto skill_state = [&](int skill_id, bool target) -> std::string_view {
+        const auto* skill = game_data->skills.get(skill_id);
+        return !skill ? std::string_view{} : target ? std::string_view(skill->auratarget) : std::string_view(skill->aurastate);
+    };
+    for (const auto& state : actor->self_states) add_state(skill_state(state.skill, false));
+    for (const auto& charge : actor->charges) add_state(skill_state(charge.skill, false));
+    add_state(skill_state(actor->aura, false));
+    add_state(skill_state(actor->curses[0].skill, true));
+    add_state(skill_state(actor->marks[0].skill, true));
+    for (const auto& regen : actor->regen) {
+        if (regen.poison) add_state("poison");
+        else {
+            if (regen.life != 0) add_state("healthpot");
+            if (regen.mana != 0) add_state("manapot");
+        }
+    }
+    if (actor->potion_states[0].until != 0) add_state("antidote");
+    if (actor->potion_states[1].until != 0) add_state("thawing");
+    if (actor->stamina_pot.until != 0) add_state("staminapot");
+    if (actor->chilled != 0) add_state("cold");
+    if (actor->burning != 0) add_state("inferno");
+    if (actor->stunned != 0) add_state("stunned");
+    if (actor->no_mana_regen) add_state("nomanaregen");
+    if (actor->skill_delay != 0) add_state("skilldelay");
+    if (const int shrine_row = actor->boost.shrine; actor->boost.until != 0 && shrine_row > 0 && std::size_t(shrine_row) < game_data->shrines.size())
+        add_state(d2d::rules::shrine_state(game_data->shrines[std::size_t(shrine_row)].code));
     d2d::rules::states_leave_on_death(held_bits, parked_bits, stay_mask);
+    const auto state_kept = [&](std::string_view state_name) {
+        const auto info = game_data->states.find(std::string(state_name));
+        const int row = info != game_data->states.end() ? info->second.row : -1;
+        return row < 0 || (held_bits[std::size_t(row) / 32] >> (row % 32) & 1u) != 0;
+    };
     std::erase_if(actor->self_states, [&](const SelfState& state) {
-        const int row = state_row(state);
-        return row >= 0 && !(held_bits[std::size_t(row) / 32] >> (row % 32) & 1u);
+        return !state_kept(skill_state(state.skill, false));
     });
+    std::erase_if(actor->charges, [&](const Charge& charge) {
+        return !state_kept(skill_state(charge.skill, false));
+    });
+    if (!state_kept(skill_state(actor->aura, false))) actor->aura = 0;
+    if (!state_kept(skill_state(actor->curses[0].skill, true))) actor->curses[0] = {};
+    if (!state_kept(skill_state(actor->marks[0].skill, true))) actor->marks[0] = {};
+    std::erase_if(actor->regen, [&](const Regen& regen) {
+        if (regen.poison) return !state_kept("poison");
+        return (regen.life != 0 && !state_kept("healthpot")) || (regen.mana != 0 && !state_kept("manapot"));
+    });
+    if (!state_kept("antidote")) actor->potion_states[0] = {};
+    if (!state_kept("thawing")) actor->potion_states[1] = {};
+    if (!state_kept("staminapot")) actor->stamina_pot = {};
+    if (!state_kept("cold")) actor->chilled = 0;
+    if (!state_kept("inferno")) actor->burning = 0;
+    if (!state_kept("stunned")) actor->stunned = 0;
+    if (!state_kept("nomanaregen")) actor->no_mana_regen = false;
+    if (!state_kept("skilldelay")) actor->skill_delay = 0;
+    if (const int shrine_row = actor->boost.shrine; shrine_row > 0 && std::size_t(shrine_row) < game_data->shrines.size()
+        && !state_kept(d2d::rules::shrine_state(game_data->shrines[std::size_t(shrine_row)].code))) actor->boost = {};
     d2d::log::info("the player died");
 }
 

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // test-links: game
-// A player's death (FUN_0057f330 -> FUN_00639fb0) takes off the skill states States.txt does not mark
-// plrstaydeath, through the REAL Fight::die: every skill with an aurastate is started, the player dies,
-// and its state is still on exactly when plrstaydeath is 1. Needs the 1.14d data (else SKIP).
+// A player's death (FUN_0057f330 -> FUN_00639fb0) takes modeled player states off when States.txt does
+// not mark them plrstaydeath: skill/self, aura and charge-up states; curse and mark; scalar combat states;
+// and potion and shrine states. The independently living merc keeps its states. Needs 1.14d data (else SKIP).
 
 #include <character.hpp>
 #include <character_store.hpp>
@@ -13,6 +13,7 @@
 #include <level.hpp>
 #include <level_ids.hpp>
 #include <rules.hpp>
+#include <shrines.hpp>
 #include <skills.hpp>
 #include <world.hpp>
 
@@ -24,6 +25,7 @@
 #include <exception>
 #include <filesystem>
 #include <memory>
+#include <string_view>
 #include <vector>
 
 using namespace d2d::game;
@@ -69,6 +71,8 @@ struct Rig {
 
 }  // namespace
 
+// Replay the skill-state rows and the separately modeled player-state containers
+// through Fight::die (FUN_0057f330 -> FUN_00639fb0), with the merc as a control.
 int main() try {
     const char* mpq_dir = std::getenv("D2_MPQ_DIR");
     const char* home = std::getenv("HOME");
@@ -95,6 +99,55 @@ int main() try {
         }
         (still_on ? stayed : dropped)++;
     }
+    const auto state_drops = [&](std::string_view name) {
+        const auto found = data->states.find(std::string(name));
+        assert(found != data->states.end() && found->second.row >= 0);
+        return !found->second.plr_stay_death;
+    };
+    for (const std::string_view name : { "healthpot", "manapot", "shrine_stamina", "antidote", "thawing", "staminapot",
+                                         "cold", "inferno", "stunned", "nomanaregen", "skilldelay" })
+        assert(state_drops(name));
+
+    const auto curse_skill = std::ranges::find_if(data->skills.rows, [&](const d2d::rules::Skill& skill) {
+        const auto state = data->states.find(skill.auratarget);
+        return state != data->states.end() && state->second.curse && !state->second.plr_stay_death;
+    });
+    const auto charge_skill = std::ranges::find_if(data->skills.rows, [&](const d2d::rules::Skill& skill) {
+        const auto state = data->states.find(skill.aurastate);
+        return skill.progressive && state != data->states.end() && !state->second.plr_stay_death;
+    });
+    const auto aura_skill = std::ranges::find_if(data->skills.rows, [&](const d2d::rules::Skill& skill) {
+        const auto state = data->states.find(skill.aurastate);
+        return skill.aura && state != data->states.end() && !state->second.plr_stay_death;
+    });
+    assert(curse_skill != data->skills.rows.end() && charge_skill != data->skills.rows.end() && aura_skill != data->skills.rows.end());
+    auto& hero = *rig.world->actor;
+    hero.aura = aura_skill->id;
+    hero.curses[0] = { curse_skill->id, 1, rig.now + 10000 };
+    hero.marks[0] = { curse_skill->id, 1, rig.now + 10000 };
+    hero.charges.push_back({ charge_skill->id, 1, 3, rig.now + 10000 });
+    hero.regen = { { 1, 0, rig.now + 10000, false }, { 0, 1, rig.now + 10000, false } };
+    hero.potion_states[0] = { { { d2d::d2s::kPoisonResist, 50 } }, rig.now + 10000 };
+    hero.potion_states[1] = { { { d2d::d2s::kColdResist, 50 } }, rig.now + 10000 };
+    hero.stamina_pot = { 100, rig.now + 10000 };
+    hero.chilled = hero.burning = hero.stunned = hero.skill_delay = rig.now + 10000;
+    hero.no_mana_regen = true;
+    const auto stamina_shrine = std::ranges::find(data->shrines, 14, &d2d::rules::ShrineRow::code);
+    assert(stamina_shrine != data->shrines.end());
+    hero.boost = Fight::Hero::Boost{ int(stamina_shrine - data->shrines.begin()), {}, rig.now + 10000, 1 };
+    hero.merc.emplace();
+    hero.merc->hit_points = 100;
+    hero.curses[1] = { curse_skill->id, 1, rig.now + 10000 };
+    hero.merc_potion_states[0] = { { { d2d::d2s::kPoisonResist, 50 } }, rig.now + 10000 };
+    hero.merc_buff = { charge_skill->id, 1, rig.now + 10000 };
+    hero.merc_cry = { charge_skill->id, 1, rig.now + 10000 };
+
+    rig.world->fight.die(rig.now);
+    assert(hero.curses[0].skill < 0 && hero.marks[0].skill < 0 && hero.charges.empty() && hero.regen.empty());
+    assert(hero.potion_states[0].until == 0 && hero.potion_states[1].until == 0 && hero.stamina_pot.until == 0 && hero.boost.until == 0);
+    assert(hero.aura == 0 && hero.chilled == 0 && hero.burning == 0 && hero.stunned == 0 && hero.skill_delay == 0 && !hero.no_mana_regen);
+    assert(hero.merc && hero.merc->hit_points == 100 && hero.curses[1].skill == curse_skill->id && hero.merc_potion_states[0].until > rig.now);
+    assert(hero.merc_buff.skill == charge_skill->id && hero.merc_cry.skill == charge_skill->id);
     std::printf("test_death_states: ok (%d states ended with the death, %d stayed)\n", dropped, stayed);
     assert(dropped > 0);
     return 0;

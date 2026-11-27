@@ -156,13 +156,37 @@ bit of the data tables each is built from was not traced (names.tsv, the use in
 `FUN_0063a4a0`: `+0x100`, `+0x104` for a unit of type 1). The player's call has the
 boss flag 0 at `0x57f330`'s `FUN_00639fb0(unit, 0)`.
 
+`FUN_0057f330` has no branches. In order it sets life stat 6 to zero
+(`FUN_00627260`), walks the unit's stat lists and removes ordinary lists whose
+state is already absent (`FUN_00627540`), runs the bitmap move above, obtains the
+player's client (`FUN_005531c0`, return unused), clears that client's recorded
+unit (`FUN_00538260` with a null unit: client `+0x3d4` loses bit 2), stamps the
+dead unit's 3 x 3 corpse footprint with collision bit `0x8000`
+(`FUN_00649f70(unit, 1)`), removes unit events 8 and 9 (`FUN_00540e60`), then
+removes events 0 and 1 (`FUN_00553990`). `game-calls.tsv` lists the initial
+player-death path `FUN_00580ec0` and the death-animation completion
+`FUN_0057fca0`; both pass their dying player implicitly in ESI. No call is made
+on that player's hireling.
+
 d2d: `rules::states_leave_on_death` (state_death.hpp), the States.txt columns in
-`GameData::StateInfo`, and `Fight::die` runs the player's skill states
-(`self_states`) through it, so a state not marked plrstaydeath ends with the death
-(`tests/game/test_death_states.cpp`, game data). Not done: potion states, curses,
-charges and the merc's states (separate containers in d2d), and the monsters'
-side (`monstaydeath`, `bossstaydeath`: d2d's monsters keep no state bitmap), so
-`FUN_005a6520`'s call is not ported. Oracle: `tools/emu/state_death.py`
-(`--mutation-check`), against `tests/test_state_death.cpp`. `FUN_00627540`, which
-then drops the stat lists of the states gone, is a separate claim
+`GameData::StateInfo`, and `Fight::die` run the player containers covered by this
+port through the player keep mask: skill states (`self_states`),
+charge-ups (their skill's `aurastate`), a monster's curse and missile mark (their
+skill's `auratargetstate`), regeneration entries (`poison`, `healthpot`,
+`manapot`), antidote / thawing, `staminapot`, a shrine boost's state, `cold`,
+`inferno`, `stunned`, `nomanaregen`, `skilldelay`, and the selected aura's
+`aurastate`. In the 1.14d States.txt, cold 11, inferno 12, stunned 21,
+nomanaregen 85, healthpot 100, manapot 106, skilldelay 121, shrine_stamina 136,
+antidote 178, thawing 179 and staminapot 180 each have `plrstaydeath` clear. d2d's
+`stamina_blue` / game.exe's client `stambarblue` is display state derived from
+staminapot or shrine_stamina, not its own States.txt row. A player's death does
+not kill its mercenary, so the merc's curse, potion states and self buff remain
+independent.
+
+`tests/game/test_death_states.cpp` checks the real `Fight::die` over the skill
+state and these separate player containers, including that the merc's containers
+stay. Oracle: `tools/emu/state_death.py` (`--mutation-check`), against
+`tests/test_state_death.cpp`. Not done: the monsters' side (`monstaydeath`,
+`bossstaydeath`: d2d's monsters keep no state bitmap), so `FUN_005a6520`'s call is
+not ported. `FUN_00627540`, which drops stat lists, is a separate claim
 (frontier-ring.md).
