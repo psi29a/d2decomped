@@ -414,6 +414,8 @@ inline bool desc_line(Builder& out, const d2d::rules::SkillTables& skill_tables,
             if (low != 0 || high != 0) element_range(text_a.empty() ? string_id(game_data, element_label(missile1->etype)) : text_a, low, high);
             break;
         }
+        // FUN_004e7930 (51) / FUN_004ecc80 (66): text a formatted with calc a. Without a text
+        // 66 writes nothing and 51 a blank line (0xf9e), but every 1.14d kind-51 line has one.
         case 51: case 66: if (!text_a.empty()) { out.add(d2_format(text_a, { std::int64_t(calc_a) })); out.newline(); } break;
         case 53: case 54: case 55: case 56:                   // FUN_004ed3f0: the scroll / tome count, drawn on its own
             // FUN_004a9a90..: its search for the item ends in XOR EAX,EAX, so the count is always 0 (bugs.md).
