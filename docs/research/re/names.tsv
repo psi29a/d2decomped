@@ -1911,6 +1911,7 @@ address	name	evidence
 005fd7b0	monster_skill_from_row	Fastcall (monster, 0): its MonStats row's skill (+0x10c) as its skill node; the row's +0x10b (under 16). Only caller FUN_005ccb10 (unnamed-frontier.md)
 005fd9c0	skill_corpse_target	FUN_00553540(ECX, EDX); a corpse from the search FUN_0056e390(stack 1, stack 2): none returns 0; else FUN_00620c10(EDX, corpse) and, when the out pointers (stack 3, ... (frontier-ring.md)
 005fde10	lru_cache_end	When DAT_0088cb14: a nonzero argument runs FUN_006093e0; zeroes 0x88cae0 (0x34 bytes) and DAT_0088cb18 (frontier-ring.md)
+005fdf80	dt1_header_prefix_size	ECX file name: reads the 0x114-byte header and returns 0x114 + its +0x10c tile count * 0x60; open failure returns 0, failed or short read is fatal (dt1.md)
 005fe060	clear_88cb0c	0x88cb10, 0x88cb0c = 0. Only caller FUN_00477c00 (unnamed-frontier.md)
 005fe070	client_end_6093e0	FUN_006093e0() (frontier-ring.md)
 005fe120	lru_cache_start	DAT_0088cb18 = stack 2; zeroes 0x88cae0 and sets up the LRU cache (lru_init) with limit stack 2, the evict callback LAB_005fde50 and 0x1000 entries; DAT_0088cb14 = 1 (frontier-ring.md)
