@@ -14,6 +14,7 @@
 #include <world.hpp>
 
 #include <cassert>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <exception>
@@ -59,6 +60,24 @@ int main() try {
     assert(joined.seed.low == second && joined.seed.high == 666);
     assert(world.fight.spawning.game.low == expected.low && world.fight.spawning.game.high == expected.high);
     std::printf("OK: a joining player's seed, then two game seed steps for each of its %zu item records\n", records);
+
+    // With a hired merc and one item in its list: its unit made after the player's lists (FUN_005774f0: a
+    // step, which its stat init's draws follow on its own seed), then its list's two steps. The save's merc
+    // seed is the hire record's, not the unit's.
+    assert(!data->mercs.empty());
+    Character with_merc = character;
+    with_merc.header.merc_type = std::uint16_t(data->mercs.begin()->first);
+    with_merc.header.merc_seed = 0x1234;
+    with_merc.merc_items = { character.items.back() };
+    auto merc_expected = world.fight.spawning.game;
+    merc_expected.next();                                                     // the player
+    for (std::size_t record = 0; record < records; ++record) { merc_expected.next(); merc_expected.next(); }
+    merc_expected.next();                                                     // the merc unit
+    merc_expected.next(); merc_expected.next();                               // its one record
+    auto& hired = world.join(with_merc);
+    assert(hired.merc && world.fight.spawning.game.low == merc_expected.low && world.fight.spawning.game.high == merc_expected.high);
+    assert(hired.merc->seed.low != 0x1234);
+    std::printf("OK: a saved merc's unit seed a game seed step between the player's lists and its own\n");
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_player_join_seed: %s\n", error.what());

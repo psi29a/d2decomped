@@ -820,7 +820,7 @@ struct World {
     void new_game();
 
     // The character's merc (cc.header) next to the player, if alive.
-    void spawn_merc();
+    void spawn_merc(bool from_save = false);   // `from_save`: the save's, its unit seed made in the join's order
 
     // Back in camp after dying: at the town start with full life. Monsters
     // stay as they are.

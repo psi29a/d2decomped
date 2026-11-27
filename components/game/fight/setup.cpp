@@ -180,13 +180,31 @@ auto Fight::new_game(int difficulty) -> void {
 // steps whatever the record (its own seed comes from its fingerprint after,
 // FUN_0062cbe0). A socketed item is a record of its own (FUN_005335e0's
 // inner loop), as are the corpse's and the merc's lists'.
-auto Fight::player_joins(std::size_t saved_items) -> void {
+// The save's merc (FUN_00533c70 -> FUN_005774f0) is made after the player's lists, its own list
+// (FUN_005337f0) after it.
+auto Fight::player_joins(std::size_t own_records, std::size_t merc_records) -> void {
         actor->seed = d2d::rules::Rng{ spawning.game.next() };
-        for (std::size_t record = 0; record < saved_items; ++record) { spawning.game.next(); spawning.game.next(); }
+        for (std::size_t record = 0; record < own_records; ++record) { spawning.game.next(); spawning.game.next(); }
+        if (actor->merc) merc_seed();
+        for (std::size_t record = 0; record < merc_records; ++record) { spawning.game.next(); spawning.game.next(); }
     }
 
-auto Fight::merc_joins() -> void {
-        const auto& header = actor->character.header;
+// FUN_005774f0 makes the merc unit (FUN_00555230(0, 0, game, 0, 1, ...): type 1, FUN_00574250's
+// init) and FUN_00573270 sets it up as a hireling; nothing reseeds it: the save's merc seed (+0xb3)
+// is the hire record's, not the unit's.
+auto Fight::merc_seed() -> void {
+        if (!actor->merc) return;
+        d2d::rules::Rng unit{ spawning.game.next() };
+        if (actor->merc->type >= 0) {
+            d2d::rules::Rng unused;
+            const auto made = make_monster(*game_data, actor->merc->type, actor->merc->unit.x, actor->merc->unit.y, unused, actor->merc->difficulty, true, 1,
+                                           level ? level->id : -1, unit, level ? spawning.region(level->id) : nullptr);
+            unit = made.seed;
+        }
+        actor->merc->seed = unit;
+    }
+
+auto Fight::merc_joins(bool from_save) -> void {
         actor->merc_target = -1; actor->merc_chase = false;
         actor->merc_hurt = 0; actor->merc_poison_rate = actor->merc_poison_acc = 0; actor->merc_poison_until = 0; actor->merc_heal_rate = actor->merc_heal_acc = 0; actor->merc_heal_until = 0; actor->merc_potion_states = {};
         actor->merc_growth = 0; actor->merc_aura = -1; actor->merc_skill = -1; actor->merc_seq = nullptr; actor->merc_buff = {}; actor->merc_cry = {}; actor->leap.reset(); actor->knock.reset();
@@ -194,8 +212,8 @@ auto Fight::merc_joins() -> void {
         if (!actor->merc) return;
         actor->merc->hit_points = merc_max_life();
         actor->merc->mode = "NU"; actor->merc->next_act = 0; actor->merc->move_pct = 0;
-        actor->merc->seed = d2d::rules::Rng(header.merc_seed);
         actor->merc->type = actor->merc_npc ? game_data->monsters.row(actor->merc_npc->id) : -1;
+        if (!from_save) merc_seed();
         // Given to the client (FUN_00571f90, a monster): SetStat(0x148, (x + y) & 0xffff), its subtile spot (FUN_00620870).
         const auto& joined = actor->merc->unit;
         actor->merc_pierce_idx = std::uint32_t(int(std::floor(joined.x * 5)) + int(std::floor(joined.y * 5))) & 0xffffu;

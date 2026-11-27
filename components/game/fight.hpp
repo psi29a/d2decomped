@@ -435,12 +435,16 @@ struct Fight {
 
     // A fresh game at `difficulty`: its monsters, nothing in flight.
     void new_game(int difficulty);
-    // The save's merc joins: its fighting stats at its experience.
-    void merc_joins();
-    // The player joins with `saved_items` item records in its save (its list, corpse and merc lists,
-    // socketed ones each a record): its unit seed is a game seed step, then each record made a unit
-    // takes two.
-    void player_joins(std::size_t saved_items);
+    // The save's merc joins: its fighting stats at its experience. Its unit seed is made now (merc_seed)
+    // unless it comes with the save (`from_save`: player_joins makes it in the load's order).
+    void merc_joins(bool from_save = false);
+    // A merc unit's seed as FUN_005774f0 makes it (FUN_00555230 type 1): a game seed step, then its stat
+    // init's draws on it (make_monster: its look off the level's region, its life, MonProp, MonEquip).
+    void merc_seed();
+    // The player joins with `own_records` item records in its save (its list and its corpse's, a socketed
+    // item each a record) and `merc_records` in its merc's list: its unit seed is a game seed step, then
+    // each record made a unit takes two; its saved merc is made between the two lists (merc_seed).
+    void player_joins(std::size_t own_records, std::size_t merc_records = 0);
     // A player coming near the merc: its client is given it (FUN_00571f90),
     // SetStat(0x148, (x + y) & 0xffff); one gone off forgets it (merc_given).
     void merc_gives();
