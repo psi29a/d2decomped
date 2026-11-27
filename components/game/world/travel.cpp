@@ -98,6 +98,7 @@ auto World::cross_level() -> void {
                 player.events.push_back(ev::LevelChanged{ level, true });
                 player.interact_npc = -1;
             });
+            fight.monsters_cross(neighbour.level, dx, dy);   // before enter: they join the next level's list
             const Level* from = level;
             level = neighbour.level;
             fight.enter(level);
