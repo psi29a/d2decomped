@@ -1226,7 +1226,8 @@ auto Fight::strike(const Missile& missile, std::size_t monster_index, std::uint3
             if (!roll) d2d::rules::row_into_record(damage, swing);   // one roll with the weapon's (FUN_0064b860, 0x64bdf7)
             blow = d2d::rules::player_blow(fighter, target, clvl, rng, swing);
         } else if (missile.info->to_hit) {
-            blow.hit = int(rng(100)) < d2d::rules::hit_chance(fighter.attack_rating, target.armor_class, clvl, target.level);
+            const auto [attack_rating, defense] = d2d::rules::player_to_hit(fighter, target, 0);
+            blow.hit = int(rng(100)) < d2d::rules::hit_chance(attack_rating, defense, clvl, target.level);
             blow.prevent_heal = blow.hit && fighter.prevent_heal;
         }
         if (blow.hit) blow = d2d::rules::missile_blow(damage, target, pierce(), rng, blow, roll);

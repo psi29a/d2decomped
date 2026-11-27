@@ -338,8 +338,10 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
             room_positions.reserve(players.size());
             for (const auto& player : players)
                 room_positions.push_back({ level_of(*player), player->player.x, player->player.y });
-            for ([[maybe_unused]] const auto frame_at : day_frames)
+            for ([[maybe_unused]] const auto frame_at : day_frames) {
                 sweep_idle_rooms(*game_data, fight.spawning, room_positions);
+                step_client_ring(*game_data, fight.spawning);   // the client's frame (FUN_0044c790 -> FUN_0061b920)
+            }
         };
         first_turn = true;
         if (!split_levels) {

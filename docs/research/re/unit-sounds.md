@@ -234,8 +234,9 @@ weaponsnd.
     state inferno (0xc) not on the unit (`FUN_00639df0`), the prgoverlay
     (+0x10c) on the unit (`FUN_00470390`, mode 2) and the prgsound (+0x10e)
     unplaced (`FUN_004b9a00`, EDX 0). Then it looks for the state's stat list
-    on the unit (`FUN_006256b0`): found (the server's, made by its own state
-    packet, counts), it sets the unit's sequence frame 8, its frame count
+    on the unit (`FUN_006256b0`): found (only ever the client's own: States.txt
+    inferno is nosend, which `FUN_005711d0` tests at 0x5712f0, so no state
+    packet brings the server's 0xc to the client), it sets the unit's sequence frame 8, its frame count
     (+0x48) 0x500 and the list's timeout 7 (`FUN_006260b0`: flag 2, +0x18) and
     returns 1; not found, it makes the client's own (`FUN_006251f0(0, 2, 0x15,
     unit type, id)`: flags 2, timeout +0x18 = 0x15), attaches it (`FUN_00626e10`),
@@ -248,11 +249,11 @@ weaponsnd.
     frames; one 0x15 frames after the first (or 7 after the last) plays the
     prgsound again. Only Arctic Blast has a prgsound (druid_windcast, not a
     loop). d2d: `Fight::set_pmode` at the start, `Hero::inferno_list` the
-    client's list's end (the server's `Hero::burning` the other list),
-    placed at the caster; `tests/game/test_inferno_list.cpp`. Not ported: the
-    overlay, the sequence frame and frame count, and the server's list as
-    a list (a start with only it on sets d2d's list 7 frames, game.exe's
-    timeout on the server's). Read in game.exe, not run: no oracle.
+    client's list's end, placed at the caster;
+    `tests/game/test_inferno_list.cpp`. Not ported: the overlay, the sequence
+    frame and frame count. The server's `Hero::burning` doesn't count:
+    `tools/emu/state_nosend.py` runs `FUN_005711d0` over every state (on and
+    off), and inferno is never sent. The cltstfunc itself is read, not run.
   - cltstfunc 46 (`FUN_004f0160`, Baal Taunt): quests-act5.md.
   - cltdofunc 78 (`FUN_004f0cd0`, 'mon death sentry'): after its cltmissile
     (+0xea, corpseexplosion) is made at the skill's target spot

@@ -422,7 +422,9 @@ dropped, otherwise the cel decides.
   `camp_rooms` lays the camp beside the Blood Moor). Each tile is picked
   from the preset's Dt1Mask files (`GameData::prest_automap_dt1s`, the
   level's LvlTypes row, loaded with the act's tables) by `pick_tile`, as
-  `FUN_0066d820`, and the automap reads the picked tile's header. In
+  `FUN_0066d820`, on the room's DRLG seed (`generate_preset`, as the camp
+  draws: `test_preset_room_seeds`), and the automap reads the picked
+  tile's header. In
   1.14d every floor and wall word of the camp has a tile of its own, so
   none falls back to (10, 0, 0) (`test_preset_room_picks`).
   `automap_whole` brings the Rogue Encampment and the Kurast Docks in

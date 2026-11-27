@@ -493,6 +493,9 @@ struct Monster {
                                   crush_divisor(game_data), type_info.undead, type_info.demon, life_fine(),
                                   game_data.life_steal_divisor[std::size_t(difficulty)], game_data.mana_steal_divisor[std::size_t(difficulty)] };
         built.special = boss != d2d::rules::Boss::none && boss != d2d::rules::Boss::minion;
+        built.boss = type_info.boss_column;
+        built.superunique = boss == d2d::rules::Boss::superunique;
+        built.hireling = type == 0x10f || type == 0x152 || type == 0x167 || type == 0x230 || type == 0x231;
         return built;
     }
     // Crushing Blow's life divisor on it (FUN_005bffc0): 10 for a hireling

@@ -155,8 +155,10 @@ bool edge_shared(const Placed& first, const Placed& second);
 // A level's Vis0..7 / Warp0..7 as its level record holds them once the act
 // is made (FUN_0066c040's): Levels.txt's, and each chain link adds the pair
 // both ways in the first free slot (vis 0, warp -1; FUN_006772c0 ->
-// FUN_00642920). {vis, warp}.
-std::pair<std::array<int, 8>, std::array<int, 8>> level_vis(const d2d::txt::Table& levels, const std::vector<Placed>& layout, int id);
+// FUN_00642920). {vis, warp}. `neighbours_pass`: as FUN_00677680 reads it
+// while it makes the act's outdoor neighbours (the Frigid Highlands not yet
+// linked to the Bloody Foothills).
+std::pair<std::array<int, 8>, std::array<int, 8>> level_vis(const d2d::txt::Table& levels, const std::vector<Placed>& layout, int id, bool neighbours_pass = false);
 
 // A placed outdoor level's generator input: its Vis (level_vis); the
 // walkable ones (warp -1) that were placed are its neighbours.

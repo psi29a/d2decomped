@@ -5,6 +5,7 @@
 
 #include "ai.hpp"
 #include "character.hpp"
+#include "effect_policy.hpp"
 #include "fight.hpp"
 #include "gamedata.hpp"
 #include "internal.hpp"
@@ -185,6 +186,14 @@ auto World::view() const -> View {
             keys_of(*neighbour.level);
         }
         if (now < actor->boost.until) { view.boost = actor->boost.stats; view.boost_code = shrine_code(actor->boost.shrine); }
+        if (now < actor->boost.until)
+            view.effects.push_back({ 1, shrine_code(actor->boost.shrine), actor->boost.instance, actor->boost.until - now, dismiss_effects && actor->boost.instance != 0 && dismissible_shrine_effect(shrine_code(actor->boost.shrine), actor->boost.stats) });
+        for (const auto& state : actor->self_states) {
+            if (now >= state.until) continue;
+            const auto* skill = game_data->skills.get(state.skill);
+            view.effects.push_back({ 0, state.skill, state.instance, state.until - now,
+                                     dismiss_effects && state.instance != 0 && skill && dismissible_self_effect(skill->name) });
+        }
         view.aura = actor->aura;
         view.gold_lost = int(actor->gold_lost);
         view.hand_status = actor->hand_status;
