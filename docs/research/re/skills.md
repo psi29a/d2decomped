@@ -1418,7 +1418,8 @@ hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
   none there and the request's flag 4 clear (0x56d9bb), again at radius 4,
   0x56d9cb; else none), marks it a pet (+0xc4 |= 0x20000) and ties it to
   its owner.
-  Hydra's three (hydra1..3 are SizeX 0) share the subtile.
+  Hydra's three (hydra1..3) stand a subtile apart round the target
+  (FUN_005ca910: 0x6e312c / 0x6e3120).
 - **FUN_005c49e0**(game, owner; pet, forced, bonus): the pet's level
   (stat 12) = a forced level above 0 as it is, else min(max(owner's × 3 /
   4 + bonus, 1), owner's level). Raise, the golems, the Decoy and the
@@ -1682,8 +1683,13 @@ repeat skill.
   for a row with no A1 damage; SkillDamage itself isn't loaded.
 - Do 149 (**FUN_005ce0b0**, NecromageMissile): srvmissilea + the mage's
   byte +0xf (necromage1..4: poison, cold, fire, lightning).
-- Do 144 (**FUN_005ca910**, Hydra): three at the target, sumskills at
-  level (HydraMissile, whose row 'hydra' carries the Hydra skill).
+- Do 144 (**FUN_005ca910**, Hydra): none when the target's room is a town's
+  (FUN_00463740 -> FUN_0061ab00); else three, head k of the summon row plus
+  k (hydra1..3) at the target plus 0x6e312c[k] (x: -1, 0, 1) / 0x6e3120[k]
+  (y: -1, 0, -1), each through FUN_0056d940 with request kind 1 (radius -1,
+  then 4), sumskills at level (HydraMissile, whose row 'hydra' carries the
+  Hydra skill). d2d: `rules::hydra`; tools/emu/hydra.py runs FUN_005ca910
+  (0 of 20,024 differ on each of seeds 1 and 2, 2026-11-27).
 - The corpse tests (`tools/emu/corpse_tests.py`, `rules::raise_takes`,
   `blast_takes`, `revive_takes`; d2d's `Fight::corpse_near` by the skill's
   srvstfunc). Raise Skeleton / Skeletal Mage (st 15, LAB_005c3070) and
