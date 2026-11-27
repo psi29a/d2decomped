@@ -98,7 +98,12 @@ unit +0xc6 bit 0); or the unit has **state 0x5c** (`FUN_00639df0(unit,
 `FUN_00625d10` (stat 7), written by `FUN_00627260(unit, 6, new, 0)`; the
 return is `max - cur` when capped, else `points`. State 0x5c is set by
 `FUN_005a6920` (the life regen / drain tick, stat 0x4a) when it takes life
-to 0 in a unit that has state 0x36, and cleared by `FUN_005544b0` (state 0x36 off).
+to 0 in a unit that has state 0x36, by `FUN_0057cee0` when a hit's kill flag (record +4 & 2)
+lands on a unit under 0x36 (the call at its end), and cleared by `FUN_005544b0` (state 0x36 off).
+The merc's own leech heals through it (strike.cpp `land`), and d2d's merc never has
+0x36 (`Monster::uninterruptable`: a whirl, a leap, a nest), so the merc is never under
+0x5c there. `FUN_0057aa00`, the mana half, does the same on stat 8 up to `FUN_00625d60`
+(no dying or 0x5c test); d2d keeps no merc mana (not traced: what reads a merc's stat 8).
 It is not preventheal: that is state 0x34 (`FUN_0057d810`), which the
 regen `FUN_005a6920` and the teleport mod's heal `FUN_005b11f0` test
 themselves and this function does not. d2d: `ai.cpp` `heal` caps at max
@@ -592,6 +597,16 @@ Not needed: monster AR's `dex × 5` (MonStats monsters have no dexterity).
 class)` on result flag 4 (the hit landed) unless the unit has state 21
 (stunned: a sure get-hit), for a player at 0x57d37a (mode 4 through
 `FUN_005809d0`) and a monster at 0x57d0c8 (mode 3 through `FUN_005a7e60`).
+A monster's record (not in mode 0 or 0xc, no state 0x36) takes the first of
+flags 2, 8, 0x10, 4, 0x4000 it has: only 4 reaches the test. A record with
+0x4000 and no 4 (Static Field's 0x4001, written at 0x5c97d2 in
+`FUN_005c96a0`; Thorns' 0x4021 from `FUN_005bf670`) only refreshes the unit
+(`FUN_0064c040`, +0xc4 |= 0x8000) and raises event 4 (`FUN_005a43a0`):
+no get-hit, stunned or not. d2d: `record_gets_hit`, `hurt`'s
+`rolls_get_hit` (Thorns and Iron Maiden's records in the monster's swing, and
+Iron Maiden's on a player's blow in `Fight::hurt_side`),
+`tests/game/test_soft_hit_no_get_hit.cpp`, oracle `tools/emu/soft_hit.py`.
+Static Field's own blow (`Fight::spot`) does not pass it yet.
 It returns 1 (too small) for a frozen unit (state 1, `FUN_00639df0`), a
 record whose poison [10] equals its total [0x13], or a total under 0x100;
 else the divisor d comes from the hit class through the jump table at
@@ -672,6 +687,15 @@ for seeds 1 and 7. It has no reduction and no resistance on the defender
   `rules::monster_regen`, `rules::regen_frame`, `pet_regen` (fight/pets.cpp);
   tools/emu/pet_regen.py runs `FUN_00573cb0`'s formula and `FUN_005a6920`
   (0 of 20,011 differ, seeds 1 and 2, 2026-11-24).
+  The event under its states (`rules::regen_event`, `pet_regen`): `FUN_0063a750`
+  is a state of data tables +0x14c, the States.txt loader's (`FUN_00618100`)
+  flag bit 0x20, its column `life` (the string 0x6e7b2c): poison 2,
+  preventheal 0x34 and openwounds 0x3e have it. Under one, the unit's own stat
+  0x4a (`FUN_006253b0`) comes off the total. A negative rate on a life of 0xff
+  or less does nothing when the unit has no room (`FUN_00620bb0`) or a town's
+  (`FUN_0061ab00` -> `FUN_006426a0`), the event still filed: a summon
+  poisoned under a point in town lives. `tools/emu/pet_poison_town.py` runs
+  `FUN_005a6920` whole on 3000 cases (`tests/pet_poison_town_cases.inc`).
 - Not in yet: skills (skills.md), the weapon swap, champions/uniques.
 
 ## Hit recovery: the length (SUnit.cpp)

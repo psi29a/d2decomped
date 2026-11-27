@@ -128,8 +128,8 @@ eight caught negative controls. The rows go in call order.
 | `FUN_004ba9d0` | `sounds_stop_72_201` | As `sounds_stop_52_71` for ids 0x48..0xc9. Only caller `FUN_004e42e0` | not compared |
 | `FUN_004bbbb0` | `editbox_ctor` | `EditBoxImplementation`: the slider `DATA\GLOBAL\ui\menu\textslid`, two text buffers of (max + 1) words (lines 0x5d, 0x5e), position, width (else 10 digits' width × (max + 2) / 10), lines (else 1, one-line mode). Only caller `FUN_004bbd80` | not compared |
 | `FUN_004c0100` | `ui_cels_free_7c5494` | `FUN_004c0090` when `DAT_007c5474`; frees the DC6s at `0x7c5494`, `0x7c5498`. Only caller `FUN_00456d80` | no counterpart (as `ui_cels_free_7beeec`) |
-| `FUN_004eca00` | `skilldesc_line_40` | SkillDesc line kind 0x40 (`d2d_skill_text_desc_line`): unless string 0x1506, three strings, `FUN_004e73e0`'s value, a string, the level (`%d`), three more. Returns 1 | matches: run inside `tools/emu/skill_tips.py`, every SkillDesc line, against `test_game --skill-tips` (components/game/skill_text.hpp:155) |
-| `FUN_004ecb10` | `skilldesc_line_41` | Kind 0x41: unless either string is 0x1506, five strings | matches (as `skilldesc_line_40`) |
-| `FUN_004ecb80` | `skilldesc_line_45` | Kind 0x45: `FUN_004e73e0`'s value, five strings, one more when the third argument is set, then one | matches (as `skilldesc_line_40`) |
-| `FUN_004ecc80` | `skilldesc_line_42` | Kind 0x42: a string formatted (`FUN_005269d0`, 0x100 characters) with the argument, then two | matches (as `skilldesc_line_40`) |
-| `FUN_004ed0d0` | `skilldesc_line_2d` | Kind 0x2d: for a value above 1, `FUN_004e7c30(0x10d5, 0)` and two strings; 1 | matches (as `skilldesc_line_40`) |
+| `FUN_004eca00` | `skilldesc_line_40` | SkillDesc line kind 0x40 (`d2d_skill_text_desc_line`): unless string 0x1506, three strings, `FUN_004e73e0`'s value, a string, the level (`%d`), three more. Returns 1 | no counterpart: no 1.14d SkillDesc line uses kind 0x40 (64), so `tools/emu/skill_tips.py` never runs it and d2d's line returns false (components/game/skill_text.hpp `default`) |
+| `FUN_004ecb10` | `skilldesc_line_41` | Kind 0x41: unless either string is 0x1506, five strings | no counterpart (as `skilldesc_line_40`: kind 65) |
+| `FUN_004ecb80` | `skilldesc_line_45` | Kind 0x45: `FUN_004e73e0`'s value, five strings, one more when the third argument is set, then one | no counterpart (as `skilldesc_line_40`: kind 69) |
+| `FUN_004ecc80` | `skilldesc_line_42` | Kind 0x42: a string formatted (`FUN_005269d0`, 0x100 characters) with the argument, then two | matches: d2d's case 66 (components/game/skill_text.hpp) |
+| `FUN_004ed0d0` | `skilldesc_line_2d` | Kind 0x2d: for a value above 1, `FUN_004e7c30(0x10d5, 0)` and two strings; 1 | no counterpart (as `skilldesc_line_40`: kind 45) |

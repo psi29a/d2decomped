@@ -245,9 +245,13 @@ enum StatId { kStr = 0, kEne = 1, kDex = 2, kVit = 3, kStatPts = 4, kSkillPts = 
               kFasterCastRate = 105,
               kSingleSkill = 107,                   // item_singleskill: +n to one skill (param)
               kPoisonLengthReduction = 110,         // item_poisonlengthresist
-              kNormalDamage = 111, kStupidity = 113, kPreventHeal = 117, kHalfFreezeDuration = 118, kToHitPercent = 119,
+              kNormalDamage = 111, kStupidity = 113,
+              kIgnoreTargetDefense = 115,           // item_ignoretargetac
+              kTargetDefensePercent = 116,          // item_fractionaltargetac: -n% target defense
+              kPreventHeal = 117, kHalfFreezeDuration = 118, kToHitPercent = 119,
               kDemonDamagePercent = 121,            // item_demondamage_percent
               kUndeadDamagePercent = 122,           // item_undeaddamage_percent
+              kDemonToHit = 123, kUndeadToHit = 124,   // item_demon_tohit, item_undead_tohit
               kAllSkills = 127, kAttackerTakesLightningDamage = 128, kThornsPercent = 131,
               kBoneArmor = 132,
               kOpenWounds = 135, kCrushingBlow = 136, kKickDamage = 137, kDeadlyStrike = 141,

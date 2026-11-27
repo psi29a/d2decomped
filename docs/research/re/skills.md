@@ -1356,8 +1356,10 @@ hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
   Assassin's traps), 49 (Shadow Warrior / Master).
 - **FUN_0056d940** spawns the row at the target (FUN_005b2f20, flags
   0x42, radius -1: the target's subtile alone, three draws of the room's
-  seed, else none; the push at 0x56d9a3, the radius slot as FUN_005e0160's
-  `push 2`), marks it a pet (+0xc4 |= 0x20000) and ties it to its owner.
+  seed; the push at 0x56d9a3, the radius slot as FUN_005e0160's `push 2`;
+  none there and the request's flag 4 clear (0x56d9bb), again at radius 4,
+  0x56d9cb; else none), marks it a pet (+0xc4 |= 0x20000) and ties it to
+  its owner.
   Hydra's three (hydra1..3 are SizeX 0) share the subtile.
 - **FUN_005c49e0**(game, owner; pet, forced, bonus): the pet's level
   (stat 12) = a forced level above 0 as it is, else min(max(owner's × 3 /
@@ -1782,7 +1784,13 @@ repeat skill.
   FUN_005c96a0, Static Field): calc1 % of life within aurarange; its walk
   (FUN_0056b7e0 from 0x005c98dd: the caster in EDX, x = y = 0) takes
   Skills.txt +0x50 (0x8783), so a monster behind a wall (0x200, mask 4)
-  or in town isn't struck (`Fight::spot`, `filter_takes`). **55**
+  or in town isn't struck (`Fight::spot`, `filter_takes`). The record it
+  hands FUN_0057c6c0 / FUN_0057cee0 has result flags 0x4001 (0x5c97d2;
+  hit class +0x60 |= 0xd at 0x5c97be, +0x64 = 1): no knockback (8) and no
+  get-hit (4), so a monster goes through FUN_0057cee0's 0x4000 path
+  (FUN_0064c040, unit flag 0x8000, FUN_005734c0, event 4 FUN_005a43a0) and
+  never into GH or KB; d2d's `hurt` still rolls a get-hit (strike.cpp's
+  ponytail). **55**
   (FUN_005c4df0, Corpse Explosion): the corpse's average life at its level
   ((min + max) << 7 of FUN_006538a0's range) x calc1..calc2 %, each through
   FUN_00483360 with the % as the value and the life as the times
@@ -2085,8 +2093,11 @@ repeat skill.
     first player, else 0. It hooks event 0xd on other directly
     (FUN_005c0ad0, not through the table) with FUN_005c07a0, node +0xc =
     the key's low 16 bits (the MonStats row to raise), +0x10 and key the
-    player's id (+0xc), owner kind 0 (0x5c0a5c..0x5c0a74). Where event 0xd
-    fires was not traced. FUN_005c07a0 (read in the decompile only) makes
+    player's id (+0xc), owner kind 0 (0x5c0a5c..0x5c0a74). Event 0xd fires
+    as the death ends: mode 0's end (0x5a72b0, no Ghidra function; table
+    0x6e2260 row 0 +8) puts the unit in mode 12 (FUN_00553570), then
+    FUN_005c0c30(ECX game, EDX 0xd, the corpse, 0, 0) at 0x5a72cd. Other
+    sites firing 0xd not traced. FUN_005c07a0 (read in the decompile only) makes
     that row at the corpse's spot (FUN_005b2f20(x, y, row, 1, -1, 0x4a)),
     gives it the player as owner (FUN_0058f030), state 96 (revive) and 118
     (corpse_noselect), an event 7 at frame +1500 (FUN_005417d0), and puts
@@ -2197,7 +2208,22 @@ repeat skill.
   `Fight::missile_tick`'s do 13 (`test_bone_wall_lay`).
   **62** (FUN_005c5d00, Bone Prison): twelve round the point (0x6e304c /
   0x6e307c: (-1,-4) (1,-4) (3,-3) (4,-1) (4,1) (3,3) (-1,4) (1,4) (-3,3)
-  (-4,-1) (-4,1) (-3,-3)).
+  (-4,-1) (-4,1) (-3,-3)), each by FUN_005c5bc0: none on a spot in a town
+  room (FUN_00620bb0 -> FUN_00463740 -> FUN_0061ab00), then FUN_0056d940
+  (radius -1, then 4: the spot, else within 4, else none), its stats
+  FUN_005c4470, MonUMod 15
+  (FUN_005a4850), FUN_005b1990(.., 0, 9). The first made joins the owner's
+  AI group (FUN_0058f030), the rest the first's (FUN_0058f030 /
+  FUN_0058f100); each made piece faces the point (FUN_0064fdc0 from the
+  subtile it got, FUN_006488a0). d2d: `rules::bone_prison`; tools/emu/bone_prison.py
+  runs FUN_005c5d00 (0 of 20,028 differ, seeds 1 and 2, 2026-11-26).
+  MonUMod 15 (partydead) hook 1, FUN_005a2d10, as a piece dies: its group's
+  owner (FUN_0058f0d0); FUN_0058f380 walks that owner's minions only when
+  the owner is a monster, each leaving the group and dying (FUN_005a2cc0:
+  FUN_005a7e60 mode 0, no credit), then the owner dies too. So a later
+  piece broken takes the whole prison down, and the first (its owner the
+  Necromancer) falls alone. d2d: `prison_falls` (fight/pets.cpp), cited
+  from the read, `test_bone_prison`.
 - Do **115** (FUN_005c6a80, the vines): the summon at level calc2, state
   0x96. **116** (FUN_005c6ec0, Werewolf / Werebear): the aurastate for
   auralen frames (1000 + Shape Shifting), a second cast shifts back:

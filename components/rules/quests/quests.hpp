@@ -1063,11 +1063,12 @@ inline constexpr std::array<std::array<std::uint16_t, 29>, 27> kQuestLogRecords 
 } };
 // Whether the World sends a quest's log state itself, at its record's own FUN_00544300 flag-1 sites (each one
 // FUN_00544190 -> S->C 0x5d, ev::QuestNews), so the client doesn't read a change in the View's log for one.
-// Those are act 1's 1 .. 6, act 2's 9 and 11 .. 14 (not a2q2's 10: it has no FUN_00544300 site), act 3's 0x11 and
+// Since 9817e18b, a2q2's pickup-only FUN_00599a30 send is an event too. The rest are act 1's 1 .. 6, act 2's 9
+// and 11 .. 14, act 3's 0x11 and
 // 0x13 .. 0x16 (not a3q2's 0x12: its pickups send straight, FUN_005b81c0), a4q2 .. a4q4 (0x19 Izual, 0x1a Terror's End,
-// 0x1b Hellforge) and act 5's 0x23 .. 0x28. The others (a2q2, a3q2, a4q1's 0x18) keep the View's change for their sends.
+// 0x1b Hellforge) and act 5's 0x23 .. 0x28. The others (a3q2 and a4q1's 0x18) keep the View's change for their sends.
 [[nodiscard]] constexpr bool quest_log_sent_by_event(int quest) {
-    return (quest >= 0x1 && quest <= 0x6) || quest == 0x9 || (quest >= 0xb && quest <= 0xe) || quest == 0x11 || (quest >= 0x13 && quest <= 0x16)
+    return (quest >= 0x1 && quest <= 0x6) || (quest >= 0x9 && quest <= 0xe) || quest == 0x11 || (quest >= 0x13 && quest <= 0x16)
         || (quest >= 0x19 && quest <= 0x1b) || (quest >= 0x23 && quest <= 0x28);
 }
 // Whether an act 1 .. 5 record's log send (FUN_00544300 flag 1) reaches a player, by their bits: the record's per-player callback.

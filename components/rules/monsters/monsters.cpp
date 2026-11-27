@@ -235,6 +235,24 @@ RegenFrame regen_frame(int life, int max_life, int regen) {
     return after > max_life ? RegenFrame{ max_life, false } : RegenFrame{ int(after), true };
 }
 
+// FUN_005a6920 whole, one frame (tools/emu/pet_poison_town.py runs it):
+// - a state of the life group (FUN_0063a750: data tables +0x14c, States.txt `life`, bit 0x20 of the loader
+//   FUN_00618100's flags: poison 2, preventheal 0x34, openwounds 0x3e) takes the unit's own stat 0x4a off
+//   (FUN_006253b0), leaving its lists' (a poison's or a bleed's minus);
+// - under state 0x34 (preventheal) a rate of 0 or more ends the event before it files itself again (0x5a695c);
+// - it files itself for the next frame (FUN_005417d0), and a rate of 0 removes it (FUN_00540e60);
+// - a negative rate on a life of a point or less (stat 6 <= 0xff) does nothing when the unit has no room
+//   (FUN_00620bb0) or its room is a town's (FUN_0061ab00 -> FUN_006426a0);
+// - else life += rate, the max and the event removed past the max life, 0 under 1 (the kill is the caller's).
+RegenFrame regen_event(int life, int max_life, int total, int base, bool life_group, bool prevent_heal, bool spared) {
+    const std::int64_t rate = std::int64_t(total) - (life_group ? base : 0);
+    if ((prevent_heal && rate >= 0) || rate == 0) return { life, false };
+    if (rate < 0 && life <= 0xff && spared) return { life, true };
+    const std::int64_t after = std::int64_t(life) + rate;
+    if (after > max_life) return { max_life, false };
+    return { int(std::max<std::int64_t>(after, 0)), true };
+}
+
 MonStats monster_stats(const Monsters& monsters, int type, int difficulty, Rng& rng, int level_add, int players, int area_level) {
     MonStats stats;
     if (type < 0 || std::size_t(type) >= monsters.types.size()) return stats;

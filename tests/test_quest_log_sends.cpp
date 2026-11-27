@@ -31,17 +31,17 @@ int main() {
     }
     // The records whose `news` the World turns into an event (world/quests/act1.cpp, act2.cpp, act3.cpp, act4.cpp, act5.cpp).
     for (const int quest : { DenQuest::kQuest, BurialQuest::kQuest, ToolsQuest::kQuest, CainQuest::kQuest, TowerQuest::kQuest, AndyQuest::kQuest,
-                             RadamentQuest::kQuest, TaintedSunQuest::kQuest, ArcaneQuest::kQuest, SummonerQuest::kQuest, SevenTombsQuest::kQuest,
+                             RadamentQuest::kQuest, HoradricStaffQuest::kQuest, TaintedSunQuest::kQuest, ArcaneQuest::kQuest, SummonerQuest::kQuest, SevenTombsQuest::kQuest,
                              LamEsenQuest::kQuest, BladeQuest::kQuest, GoldenBirdQuest::kQuest, BlackenedTempleQuest::kQuest,
                              GuardianQuest::kQuest, IzualQuest::kQuest, HellforgeQuest::kQuest, TerrorQuest::kQuest, SiegeQuest::kQuest, RescueQuest::kQuest,
                              PrisonQuest::kQuest, BetrayalQuest::kQuest, EveQuest::kQuest, RiteQuest::kQuest })
         assert(quest_log_sent_by_event(quest));
     int count = 0;
     for (int quest = 0; quest < 0x30; ++quest) count += quest_log_sent_by_event(quest) ? 1 : 0;
-    assert(count == 25);
-    // a2q2 (10: no FUN_00544300 site), a3q2 (its pickups send straight, FUN_005b81c0) and a4q1's 0x18 still read the
-    // View's change, as do the words with no shown slot.
-    for (const int quest : { 7, 8, HoradricStaffQuest::kQuest, 0xf, 0x10, KhalimQuest::kQuest }) assert(!quest_log_sent_by_event(quest));
+    assert(count == 26);
+    // Since 9817e18b, a2q2's pickup-only send is an event. a3q2 (its pickups send straight, FUN_005b81c0) and
+    // a4q1's 0x18 still read the View's change, as do the words with no shown slot.
+    for (const int quest : { 7, 8, 0xf, 0x10, KhalimQuest::kQuest }) assert(!quest_log_sent_by_event(quest));
     assert(!quest_log_sent_by_event(0) && !quest_log_sent_by_event(0x17) && !quest_log_sent_by_event(0x18));
     {   // The Forgotten Tower's flag-1 sites (FUN_00594960, FUN_00595010, Q05_TimerNotifyCompletion) raise news; its join doesn't.
         QuestBits bits{};

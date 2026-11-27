@@ -289,6 +289,10 @@ int monster_regen(int life, int damage_regen);
 // stays filed.
 struct RegenFrame { int life = 0; bool filed = false; };
 RegenFrame regen_frame(int life, int max_life, int regen);
+// One frame of a monster's unit event 3 under its states (FUN_005a6920): `total` is its stat 0x4a with every list,
+// `base` the unit's own; `life_group` a state of States.txt's life group (poison, preventheal, open wounds), and
+// `spared` no room or a town room for the unit. Life in 256ths; filed: whether the event goes on.
+RegenFrame regen_event(int life, int max_life, int total, int base, bool life_group, bool prevent_heal, bool spared);
 
 // The AI's distance to a unit, subtiles: half of the smaller delta plus twice the larger.
 int ai_distance(int dx, int dy);

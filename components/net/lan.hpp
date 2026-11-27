@@ -30,7 +30,7 @@ using Bytes = std::vector<std::uint8_t>;
 // 11: the View carries Rescue on Mount Arreat's count.
 // 12: monster state includes its optional fixed-point attack pose.
 // 13: the View carries the player's path target (SP1).
-inline constexpr std::uint32_t kProtocolVersion = 14;   // another player's hostile byte; UseSkill's target unit type
+inline constexpr std::uint32_t kProtocolVersion = 15;   // effect-instance views and optional dismissal command
 inline constexpr std::uint16_t kDefaultPort = 6113;      // game.exe hosts on 4000; this is a different protocol
 inline constexpr std::size_t kMaxPayload = 8u << 20;     // a View or a save is far smaller
 inline constexpr int kMaxClients = 3;                    // the host plays too: four players

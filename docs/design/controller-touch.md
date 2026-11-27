@@ -8,7 +8,7 @@ controls, not claims that stock game.exe supports touch or these bindings.
 | Game | Source and observed design | Decision here |
 |---|---|---|
 | Diablo II: Resurrected | Blizzard's [console design article](https://news.blizzard.com/en-us/article/23722094/bringing-the-original-diablo-ii-experience-to-console) describes direct skill buttons, an LT bank of six additional skills, a directional targeting cone, and corpse selection appropriate to the ability. It also discusses the difficulty of choosing one drop among many. | Keep direct buttons and LT. Resolve the displayed Attack/Use action once for its press. A held attack does not become pickup when an enemy dies. Corpse abilities seek eligible corpses, not live enemies. |
-| Diablo Immortal | The [original Blizzard announcement](https://investor.activision.com/node/32001/pdf) describes dragging a skill to aim and releasing to use it. Blizzard's [accessibility article](https://news.blizzard.com/en-us/article/23805083/making-a-game-for-everyonediablo-immortals-accessibility-features) documents controller remapping, a free UI cursor, and repositionable mobile skill buttons. | Independent movement and skill fingers; tap or drag/release. Lift on a valid preview casts; OS Cancel or a lift outside the 800x600 band aborts. Keep assignment identities independent of controller positions. The prototype has fixed positions; configurable positions remain outside this change. |
+| Diablo Immortal | The [original Blizzard announcement](https://investor.activision.com/node/32001/pdf) describes dragging a skill to aim and releasing to use it. Blizzard's [accessibility article](https://news.blizzard.com/en-us/article/23805083/making-a-game-for-everyonediablo-immortals-accessibility-features) documents controller remapping, a free UI cursor, and repositionable mobile skill buttons. | Independent movement and skill fingers; tap or drag/release. Lift on a valid preview casts; OS Cancel or a lift outside the logical viewport aborts. Keep assignment identities independent of controller positions. The prototype has fixed positions; configurable positions remain outside this change. |
 | Grim Dawn | First-hand reports on the developer-hosted forum describe enabling extra buttons in [Options > Controller](https://forums.crateentertainment.com/t/on-a-controller-how-do-i-assign-more-skills/114059). The [first-hand skill-panel assignment reports](https://www.reddit.com/r/Grimdawn/comments/1m2mysp/) about its radial are community evidence, not a developer specification of exact current glyphs. | Put a visible Assign action in the skill panel. Show actual configured destinations and their occupants. Do not assume every player uses the default controller layout. |
 | Path of Exile 2 | GGG's [0.2.0 patch notes](https://www.pathofexile.com/forum/view-thread/3740562) document per-skill controller targeting, corpse-targeting fixes, panel improvements, and pickup interaction fixes. | Auras/self-casts, enemy attacks, corpse abilities and ground placement have different targeting policies. A generic nearest-enemy policy must not cause buffs to walk. |
 
@@ -57,11 +57,15 @@ follow the game's existing logical viewport. Use landscape for this prototype.
   top-left; Done and Map stacked top-right). Letterbox gutters pull chrome
   toward the physical bezels on wide phones. Field controls sit in the bottom
   corners; the center stays clear.
-  On the field, compact life/mana bars sit under the 2x2 chip block with a gap
-  of about 0.35 of chip height; the Belt chip opens the four-column 2x2 under Map; a compact
+  On the field, native life/mana globes with angel/demon frames sit near the bottom;
+  stamina and XP remain below the corner chips. Tap and release the stamina
+  bar to toggle run; a cancelled or dragged-out press does nothing. The idle
+  movement stick is hidden, while its thumb region remains available; the Belt chip opens the four-column 2x2 under Map; a compact
   quest tracker on the left opens the full log on tap. The classic bottom bar, belt
   strip and mini menu row are hidden (`--toggle touch_classic_hud=on` brings
-  them back) while a finger or Pencil is the last device. A real key, non-touch
+  them back) while a finger or Pencil is the last device. Corner controls use the full logical viewport and both safe-area insets;
+  inventory, tree, item sheets and loot lists remain centered with explicit
+  coordinate conversion. A real key, non-touch
   mouse, or gamepad hides the Immortal HUD and restores classic or pad input;
   the next finger brings the HUD back. `--touch-controls` stays on. Map is a dim overlay: field move/skill/belt chrome stays up.
   Open panels hide the stick, skill rings, I/II, potion pair and belt grid; Inv / Skl / Stats / Quest / Bind
@@ -80,7 +84,7 @@ follow the game's existing logical viewport. Use landscape for this prototype.
   line and nearest-free-subtile constraints. Corpse skills preview usable
   corpses and can change their selection by dragging. Auras and self-casts
   stay on the caster. The active aura is labelled on either page.
-- Interrupt the skill finger (OS Cancel) or lift outside the 800x600 band to
+- Interrupt the skill finger (OS Cancel) or lift outside the logical viewport to
   cancel. There is no on-screen cancel strip. Panels and focus loss invalidate
   pending gestures. Only a valid lift commits a cast, including stationary taps,
   so cancellation spends no mana.
@@ -391,3 +395,32 @@ Re-check with `test_loot_chooser`, `test_loot_radial`, `test_touch_vendor`,
 on release, a cancelled drag, drag buying, selling and panel cancellation;
 it needs local game data. These are optional input UX choices, not claims of
 original-game touch/controller parity. Device play testing remains required.
+
+## Touch completion batch
+
+- Inventory, Skills and Stats chips toggle their panels on a second tap.
+  Back has a circular target and pictogram; the contextual interaction chip
+  uses a hand or dialogue bubble. Vendor screens hide the left chip block
+  and its hit targets so they cannot intercept stock interactions.
+- The touch binding picker includes the controller action shortcuts and Clear,
+  with explicit Previous/Next paging. Touch assignments are independent of the
+  controller wheel. Saving succeeds before the active sheet changes; failed
+  writes preserve the previous binding and show a rejection. A portal binding
+  prefers a charged inventory tome, then a loose inventory scroll.
+- Accepted menu, page, binding, map, belt, run and Back actions reuse the native
+  menu click sound only for touch. Repeated clicks for the same destination are
+  throttled; casts and movement do not produce these menu clicks.
+- Hold Get to show ordinary ground labels and open the existing multi-item list.
+  A short Get tap still directly picks one item or opens the list for several.
+  Item IDs and pickup reach are rechecked by the existing chooser and host rules.
+- Timed self buffs and shrine effects appear in a paged list beside the quest
+  card. Hold an entry for its name, description and remaining time. With the
+  host's `--toggle dismiss_effects=on` (off by default), double tap an eligible
+  effect, then release the confirming finger inside Confirm to remove it.
+  Replaced or expired instances, curses and non-allowlisted effects cannot be
+  dismissed. Changing level, character, input device or panel cancels the modal.
+  Co-op partners retain their own input. This protocol extension applies to
+  native d2d LAN only; D2GS does not implement effect dismissal.
+
+These are optional d2d input/UI decisions, not original-game parity claims.
+The iOS port and engine movement-skill changes are outside this batch.

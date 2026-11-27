@@ -235,8 +235,8 @@ auto Fight::frenzy(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void
         const auto found = std::ranges::find(actor->self_states, skill.id, &SelfState::skill);
         const int frenzy_charges = std::min(found == actor->self_states.end() ? 1 : found->level + 1, lvl);
         const auto until = now_ms + std::uint32_t(std::max(d2d::rules::eval_calc(game_data->skills, skill.auralen, env, skill.id, lvl), 1)) * 40;
-        if (found == actor->self_states.end()) actor->self_states.push_back({ skill.id, frenzy_charges, until });
-        else *found = { skill.id, frenzy_charges, until };
+        if (found == actor->self_states.end()) actor->self_states.push_back({ skill.id, frenzy_charges, until, actor->next_effect_instance() });
+        else *found = { skill.id, frenzy_charges, until, found->instance };
     }
 
 auto Fight::next_target() -> bool {
@@ -828,6 +828,8 @@ auto Fight::cancel_swing() -> void {
         actor->item_charge = {};
     }
 
+// Resolves one side's queued blows on the player and its allies, with the hits sent back (Iron Maiden's
+// record, FUN_005c5f50) and their get-hit gate (FUN_0057cee0).
 auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
         side[1].damage += std::exchange(actor->merc_hurt, 0);      // its swings' thorns (merc_strike), its poison (apply_regen)
         if (side[1].poison > 0 && side[1].poison_ticks > 0) {       // one at a time: a new one at least as strong replaces it (FUN_0057ac50)
@@ -979,7 +981,7 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
             if (const auto back = d2d::rules::iron_maiden_fine(true, false, false, physical, striker.reflect_pct, 0, 0)) {
                 const int fine = d2d::rules::resisted_fine(*back, std::max(striker.target(*game_data).res[0], -100));
                 const bool out_of_gh = striker.mode != "GH";
-                if (hurt(*game_data, striker, fine >> 8, now_ms, fine & 255, maiden->hit_class)) { killed(std::size_t(index), now_ms); continue; }   // the player's record (FUN_005c5f50's B)
+                if (hurt(*game_data, striker, fine >> 8, now_ms, fine & 255, maiden->hit_class, false, 0, record_gets_hit(maiden->result_flags | 0x20))) { killed(std::size_t(index), now_ms); continue; }   // FUN_005c5f50's record: ResultFlags | 0x20, a GH only with flag 4 (FUN_0057cee0)
                 if (out_of_gh) striker.struck_event = true;   // 0x4021: FUN_0057cee0's 0x4000 branch raises event 4
             }
         }

@@ -176,7 +176,7 @@ struct Fight {
         // A trap (do 45) shoots instead: its skill (a monster skill whose
         // missile carries the player's), at its level, `shots` times.
         struct Charge { int skill = 0, level = 0, count = 0; std::uint32_t until = 0; };   // see `charges`
-        struct SelfState { int skill = 0, level = 0; std::uint32_t until = 0; };
+        struct SelfState { int skill = 0, level = 0; std::uint32_t until = 0; std::uint64_t instance = 0; };
         struct Pet {
             Monster monster; int skill = 0, level = 0; int target = -1; int shot_skill = -1, shot_level = 0, shots = 0;   // level: its skill's at the cast
             int listed = 0;                     // Hero::list_serial when it entered the player's list
@@ -269,6 +269,8 @@ struct Fight {
         // swing does (made with no length; its removal isn't traced), Berserk's
         // calc2 ticks (FUN_005d97f0, 10 when that's 0).
         std::vector<SelfState> self_states;
+        std::uint64_t effect_serial = 0;
+        std::uint64_t next_effect_instance() { return effect_serial == UINT64_MAX ? 0 : ++effect_serial; }
         // The blows a do-2 skill's swings built as they started (the record FUN_0057dbf0 builds, with
         // the swing's freeze length), by the monster each is against, till its do lands it (unit +0xac).
         struct BuiltBlow { d2d::rules::Blow blow; int freeze_len = 0; };
@@ -340,7 +342,7 @@ struct Fight {
         std::vector<Regen> regen;
         // A shrine's boost (Shrines.txt booster: its stats, FUN_00583b30), one
         // at a time, until when.
-        struct Boost { int shrine = 0; std::vector<std::pair<int, int>> stats; std::uint32_t until = 0; } boost;
+        struct Boost { int shrine = 0; std::vector<std::pair<int, int>> stats; std::uint32_t until = 0; std::uint64_t instance = 0; } boost;
         double merc_heal_rate = 0, merc_heal_acc = 0;  // the merc's healthpot: life per ms, its fraction
         std::uint32_t merc_heal_until = 0;
         double merc_poison_rate = 0, merc_poison_acc = 0;  // the merc's poison (FUN_0057ac50, as the player's): life per ms, its fraction
@@ -885,6 +887,9 @@ struct Fight {
     // The player crossed from `from` to `to` (shifted by dx, dy): the pets
     // with them come along, traps stay where they were set.
     void pets_cross(const Level* from, const Level* destination, float dx, float dy);
+    // Walking over an edge into `destination` (shifted by dx, dy): the monsters
+    // near the players come along, as game.exe's walk from room to room does.
+    void monsters_cross(const Level* destination, float dx, float dy);
     // A pet's enemy aura (Fire Golem's Holy Fire: srvdofunc 66) pulses
     // round the pet, as the player's does round the player (aura_pulse).
     void pet_aura(Pet& pet, std::uint32_t now_ms);

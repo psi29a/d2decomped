@@ -3,6 +3,11 @@
 #include "input/touch/trade.hpp"
 #include <cstdint>
 namespace d2d::client::touch {
+TradeDropPreview trade_drop_preview(Box legacy_box, float pointer_x, float pointer_y) {
+    const bool dropping = legacy_box.width > 0.f && legacy_box.height > 0.f;
+    return { translate_legacy_box(legacy_box), dropping, dropping && legacy_box.contains(pointer_x, pointer_y) };
+}
+
 BagDrop bag_drop(Box inventory, Box vendor, float x, float y) {
     if (inventory.contains(x, y)) return BagDrop::Inventory;
     if (vendor.contains(x, y)) return BagDrop::Sell;

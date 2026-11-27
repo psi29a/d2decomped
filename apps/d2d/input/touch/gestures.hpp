@@ -42,4 +42,7 @@ struct SkillHold : HoldGesture {
     void clear() { *this = {}; }
 };
 
+// A modal may consume another finger's release: discard all pending field gestures.
+void cancel_modal_gestures(bool modal, Input& input, HoldGesture& pickup, SkillHold& skill, std::int64_t& ground_finger);
+
 } // namespace d2d::client::touch
