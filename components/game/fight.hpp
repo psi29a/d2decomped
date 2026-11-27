@@ -696,6 +696,9 @@ struct Fight {
     // subtiles of its holder, at the holder's level and calc env.
     struct AuraOn { const d2d::rules::Skill* skill = nullptr; int level = 0; d2d::rules::CalcEnv env; };
     [[nodiscard]] std::vector<AuraOn> friendly_auras(float x, float y) const;
+    // The aura states on a unit at (x, y) whose own aura is `own_aura` (0 none), by
+    // States.txt name, for its look: its own aura's, then the friendly auras it stands in.
+    [[nodiscard]] std::vector<std::string_view> aura_states_on(float x, float y, int own_aura) const;
     // Concentration's share at (x, y) of a skill with that Param1, %: Blessed Hammer's.
     [[nodiscard]] int concentration_share(float x, float y, int param1) const;
     // The enemy auras (do 66, Holy Freeze's 81) over the monster the same way.

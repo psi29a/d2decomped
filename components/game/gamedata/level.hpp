@@ -401,7 +401,7 @@ LevelDt1s load_level_dt1s(Level& level, d2d::mpq::Stack& mpqs, d2d::drlg::Outdoo
 std::size_t set_level_tiles(Level& level, const d2d::drlg::OutdoorAssets& assets, const LevelDt1s& dt1s,
                             const std::vector<d2d::drlg::Outdoor::RoomSeed>& made, const std::vector<d2d::drlg::PlainRoom>& plain,
                             std::vector<std::string>& notes);
-void relevel(Level& level, const std::vector<std::size_t>& came_up, const GameData* game_data = nullptr, const Spawning* spawning = nullptr);
+void relevel(Level& level, const std::vector<std::size_t>& came_up, const GameData* game_data = nullptr, Spawning* spawning = nullptr);
 
 // The near list of the room holding (x, y) cells: each (level, room index) in game.exe's order; empty outside
 // every room.

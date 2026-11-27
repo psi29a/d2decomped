@@ -89,6 +89,11 @@ struct BuiltRoom {
     // up (FUN_0064c860).
     struct Share { int owner, tile; std::uint32_t word; const Dt1File* old_file; int old_index; const Dt1File* file; int index; };
     std::vector<Share> shares;
+    // The tile picker state after this room came up. A room from a level
+    // next door can own a shared tile which a later room re-picks
+    // (FUN_0066e740 -> FUN_0066d820), on this seed and DT1 list.
+    d2d::rules::Rng tile_seed;
+    std::vector<const Dt1File*> tile_dt1s;
     std::uint32_t vis = 0;                              // FUN_00667970: 0x10 << slot, a preset's slot wall (orientation 10/11, style < 8, sequence 0 / 4 or hidden)
     // FUN_00667970's tile infos of type 0xb (orientation 10/11, style 30..33 ->
     // sequence, sequence + 5, 10, 11; level +0x2c): level-relative tiles, the
@@ -316,6 +321,7 @@ inline void merge_areas(std::vector<BuiltRoom>& rooms, std::size_t self, std::si
 std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSeed>& made, const std::vector<PlainRoom>& plain,
                                                const OutdoorData& data, const RoomDt1s& dt1s, int level,
                                                const std::array<WarpSlot, 8>& slots, std::vector<std::string>& notes,
-                                               const std::vector<std::size_t>& order = {}, std::vector<BuiltRoom> outside = {}, std::size_t up_count = SIZE_MAX);
+                                               const std::vector<std::size_t>& order = {}, std::vector<BuiltRoom> outside = {}, std::size_t up_count = SIZE_MAX,
+                                               const std::vector<std::size_t>& come_up_steps = {});
 
 }  // namespace d2d::drlg

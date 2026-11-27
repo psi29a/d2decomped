@@ -1262,10 +1262,17 @@ hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
   `aura_pulse` (Prayer's hitpoints heal; 66 / 81 strike monsters in
   range), `target_of` (the target state's resistances / defense while in
   range and taken by the aurafilter, as Holy Freeze's slow in
-  `monster_states`: `enemy_auras`), thorns_percent (131) on melee hits. Not yet: perdelay's reader
-  (taken as ticks), the merc in the aura, Sanctuary / Redemption's callbacks, Holy Freeze's
+  `monster_states`: `enemy_auras`), thorns_percent (131) on melee hits;
+  the merc's aurastats from the auras it stands in (`friendly_auras` in
+  its fighter, merc-ai.md "Its auras"). Not yet: perdelay's reader
+  (taken as ticks), Sanctuary / Redemption's callbacks, Holy Freeze's
   slow (its cold chills), Sanctuary's mana and its state 0x55
-  (FUN_005cf3a0), the aura overlays.
+  (FUN_005cf3a0), the aura states on the other players and their mercs.
+  The states shown (`Fight::aura_states_on`, `View::aura_states`,
+  `View::Merc::states`): a unit's own aura's aurastate, then the target
+  state (aurastate when none) of each friendly aura it stands in, so the
+  merc in the player's Might wears Might's overlays and the player in a
+  totem's range oaksage (not the totem's oaksagecontrol).
 - **aurafilter** (+0x50): dos 65, 66 and 81 pass it to FUN_0056b7e0
   (SkilPal.cpp lines 0x1f6, 0x2ba, 0x6ba), which runs the callback only on
   a unit within range that FUN_0056b3e0 takes (a filter of 0 is 0x583).

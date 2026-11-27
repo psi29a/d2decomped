@@ -158,7 +158,8 @@ struct View {
     std::uint32_t seq_frame_ms = 40;
     bool seq_loop = false;
     GameData::Appearance gfx{};               // what the character wears
-    struct Merc { UnitState unit; const Npc* npc = nullptr; std::string_view mode; int fhr = 0; d2d::rules::OneShots one_shots; };   // fhr: its faster hit recovery (merc_fighter), for its get-hit's drawn frame
+    // fhr: its faster hit recovery (merc_fighter), for its get-hit's drawn frame; states: its aura states (Fight::aura_states_on)
+    struct Merc { UnitState unit; const Npc* npc = nullptr; std::string_view mode; int fhr = 0; d2d::rules::OneShots one_shots; std::vector<std::string_view> states; };
     std::optional<Merc> merc;
     // The Hireling screen's numbers (FUN_0048a990): level, experience and the
     // next level's, strength, dexterity, damage, defense, the resistances
@@ -216,6 +217,7 @@ struct View {
     std::vector<Effect> effects;
     int boost_code = 0;                    // ... its Shrines.txt Code (its state: rules::shrine_state)
     int aura = 0;                          // the aura that's on
+    std::vector<std::string_view> aura_states;   // the player's aura states: its own aura's, then those it stands in (Fight::aura_states_on)
     int gold_lost = 0;                     // goldlost (175) of the last death: the death screen's line
     std::array<int, 2> hand_status{};      // the left / right skill's status (Player::hand_status)
     std::vector<int> buffs;                // skills whose state is on the player (their aurastate: Frozen Armor, Shout ...)
