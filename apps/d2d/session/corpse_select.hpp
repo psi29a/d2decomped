@@ -12,8 +12,8 @@ struct Skill;
 
 namespace d2d::client {
 
-// Whether either active hand's SelectProc, or the ordinary corpse flags when
-// neither has one, lets the cursor take this corpse.
+// Whether either active hand's Skills.txt SelectProc lets the cursor take this
+// corpse; with neither passing, it doesn't.
 bool corpse_cursor_takes(const d2d::rules::Skill* left, const d2d::rules::Skill* right,
                          const d2d::game::Monster& corpse,
                          const d2d::rules::MonType& type, bool town);

@@ -37,8 +37,9 @@ For player skills the effects are: Corpse / Poison Explosion require a DD,
 non-hidden `corpseSel` corpse; Raise Skeleton / Skeletal Mage additionally
 require nonzero MonStats `Velocity`; Revive additionally requires a walking,
 SwitchAI, non-MonStats-boss class and no champion/unique/superunique bits.
-`client::corpse_cursor_takes` applies the stock row mapping and these gates to
-`near_pick`. Procs 4 and 6 also require MonStats2 `soft`; d2d's `MonType`
+`client::corpse_cursor_takes` applies each hand's Skills.txt `SelectProc` and
+these gates to `near_pick`; a corpse no proc passes isn't taken (its +0xc4
+bit 1 is clear). Procs 4 and 6 also require MonStats2 `soft`; d2d's `MonType`
 does not retain that field, so that final gate remains unported.
 `tools/emu/skill_select_proc.py` runs the native runner and every callback on
 73 synthetic cases and catches four mutations.

@@ -8,29 +8,16 @@
 
 namespace d2d::client {
 
-// FUN_00464310 runs the left then right skill's SelectProc through
-// FUN_004642b0. Stock Skills rows select the proc by id below. A zero proc
-// uses the unit's ordinary corpse flags, represented by usable_corpse.
+// FUN_00464310 runs the left then right skill's SelectProc (Skills.txt, record
+// +0x15) through FUN_004642b0; a proc of 0 passes nothing. FUN_00466870 then
+// takes a unit whose +0xc4 bit 1 (targetable) is set, which a corpse's isn't,
+// so a corpse needs a passing proc and its corpse flags (usable_corpse).
 bool corpse_cursor_takes(const d2d::rules::Skill* left, const d2d::rules::Skill* right,
                          const d2d::game::Monster& corpse,
                          const d2d::rules::MonType& type, bool town) {
     if (!corpse.usable_corpse()) return false;
-    const auto select_proc = [](const d2d::rules::Skill* skill) {
-        if (!skill) return 0;
-        switch (skill->id) {
-            case 70: return 2;   // Raise Skeleton
-            case 74: return 1;   // Corpse Explosion
-            case 80: return 2;   // Raise Skeletal Mage
-            case 83: return 1;   // Poison Explosion
-            case 95: return 3;   // Revive
-            case 131: return 4;
-            case 142: return 5;
-            case 150: return 6;
-            case 351: return 1;
-            default: return 0;
-        }
-    };
-    const auto proc_takes = [&](int proc) {
+    const auto proc_takes = [&](const d2d::rules::Skill* skill) {
+        const int proc = skill ? skill->select_proc : 0;
         const bool corpse_sel = !town && type.corpse_sel;
         if (proc == 1 || proc == 5) return corpse_sel;
         if (proc == 2) return corpse_sel && type.velocity != 0;
@@ -45,10 +32,7 @@ bool corpse_cursor_takes(const d2d::rules::Skill* left, const d2d::rules::Skill*
         if (proc == 4 || proc == 6) return corpse_sel;
         return false;
     };
-    const int left_proc = select_proc(left);
-    const int right_proc = select_proc(right);
-    if (left_proc == 0 && right_proc == 0) return true;
-    return proc_takes(left_proc) || proc_takes(right_proc);
+    return proc_takes(left) || proc_takes(right);
 }
 
 }  // namespace d2d::client

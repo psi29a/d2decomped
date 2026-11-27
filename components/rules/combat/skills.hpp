@@ -330,6 +330,7 @@ struct Skill {
     bool target_ally = false;             // TargetAlly (flag bit 0x1a, record +7 & 4): FUN_00554d20
     bool target_corpse = false;            // TargetCorpse: raised from a corpse
     bool target_pet = false;               // TargetPet (flag bit 0x19, record +7 & 2): FUN_005542c0
+    int select_proc = 0;                   // SelectProc (record +0x15): the cursor's corpse test, FUN_004642b0
     bool targetable_only = false;          // TargetableOnly (flag bit 0x14, record +6 & 0x10)
     bool search_enemy_xy = false;          // SearchEnemyXY (flag bit 0x15, record +6 & 0x20): a shift-click's pick, FUN_00467660
     bool search_enemy_near = false;        // SearchEnemyNear (flag bit 0x16, record +6 & 0x40): the unit nearest the click, FUN_00467490

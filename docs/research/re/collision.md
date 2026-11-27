@@ -3599,10 +3599,12 @@ Callers: `FUN_00464310` (`SKILL_CheckActiveSkillSelectProc`, cited) twice,
 at `00464337` and `0046435f`; it passes the skill id from `FUN_00643ce0`
 in EAX and its own unit on the stack.
 
-d2d: `client::corpse_cursor_takes` applies the stock row-to-proc mapping and
-the traced gates to `ClientSession::near_pick`; procs 4 and 6 lack only their
-MonStats2 `soft` gate because d2d's `MonType` does not retain that field. The
-other TargetCorpse skills use ordinary corpse flags. `tools/emu/skill_select_proc.py` runs `FUN_00464310`,
+d2d: `client::corpse_cursor_takes` reads each hand's `Skill::select_proc`
+(Skills.txt `SelectProc`) and applies the traced gates in
+`ClientSession::near_pick`; procs 4 and 6 lack only their MonStats2 `soft`
+gate because d2d's `MonType` does not retain that field. With no proc passing,
+`FUN_00466870` falls back to unit flag bit 1 (targetable), which a corpse lacks,
+so the corpse isn't taken. `tools/emu/skill_select_proc.py` runs `FUN_00464310`,
 `FUN_004642b0` and all six callbacks on synthetic records (73 cases, four
 mutation checks).
 
