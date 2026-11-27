@@ -1277,8 +1277,14 @@ auto Fight::strike(Missile& missile, std::size_t monster_index, std::uint32_t no
             swing.ar_pct = missile.ar_pct;
             swing.missile = true;
             swing.crit = missile.crit;
-            // ponytail: a burst's one roll (`roll`) keeps the skill's physical apart, shared; the weapon's share rolls per unit.
-            if (!roll) d2d::rules::row_into_record(damage, swing);   // one roll with the weapon's (FUN_0064b860, 0x64bdf7)
+            // One roll with the weapon's (FUN_0064b860, 0x64bdf7); a burst rolls that record once (FUN_005a8c70) and each
+            // unit it takes in gets a copy: its first unit's draw (roll->phys) for the rest.
+            d2d::rules::row_into_record(damage, swing);
+            if (roll && roll->phys < 0) {                            // drawn as the record is, before any unit's to-hit
+                const auto physical = d2d::rules::missile_physical(fighter, target, swing);
+                roll->phys = int(physical.high > physical.low ? physical.low + own_seed(int(physical.high - physical.low)) : physical.low);
+            }
+            if (roll) swing.rolled = roll->phys;
             blow = d2d::rules::player_blow(fighter, target, clvl, owner, swing, &own_seed, &monsters[monster_index].seed);
         } else if (missile.info->to_hit) {
             const auto [attack_rating, defense] = d2d::rules::player_to_hit(fighter, target, 0);

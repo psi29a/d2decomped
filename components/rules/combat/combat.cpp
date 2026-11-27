@@ -926,7 +926,8 @@ Blow player_blow(const Fighter& attacker, const Target& target, int clvl, Rng& r
         high = fighter.phys_hi + fighter.phys_hi * physical_pct / 100;
     }
     Rng& physical_rng = damage_rng ? *damage_rng : rng;
-    std::int64_t damage = high > low ? low + physical_rng(int(high - low)) : low;
+    std::int64_t damage = swing.rolled ? *swing.rolled : high > low ? low + physical_rng(int(high - low)) : low;
+    blow.rolled = damage;
     if (swing.missile) damage = missile_scaled(damage, missile_pct);
     const int rolled = int(damage >> 8);                       // before crit: what Vengeance's elements are a share of
     // The mastery crit, critical strike and deadly strike are separate

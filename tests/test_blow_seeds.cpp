@@ -85,6 +85,13 @@ int main() try {
     assert(steps(shot_before, player_seed) == 1);                     // only the to-hit
     assert(steps(missile_before, missile_seed) == 1);                 // the physical
     std::printf("OK: a player's missile: the to-hit on the owner's seed, the physical on its own, its crit as made\n");
+    // A burst's other units: the record's draw handed on (Swing::rolled), the missile's seed not stepped again.
+    swing.rolled = blow.rolled;
+    const Rng shared_before = missile_seed;
+    player_seed = Rng{ 47 };
+    const auto again = d2d::rules::player_blow(player, target, 30, player_seed, swing, &missile_seed, &monster);
+    assert(again.hit && again.rolled == blow.rolled && steps(shared_before, missile_seed) == 0);
+    std::printf("OK: a burst's later unit takes the first's physical draw\n");
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "%s\n", error.what());

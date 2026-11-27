@@ -366,6 +366,7 @@ struct Blow {
     int damage = 0, poison = 0, poison_ticks = 0, chill_ticks = 0;
     int life = 0, mana = 0;              // leeched life and mana in 256ths (FUN_0057c420), what the attacker gains
     int phys = 0;                        // the physical rolled, before resistance (Dragon Tail's fire is a share of it)
+    std::int64_t rolled = -1;            // the physical's draw itself (256ths, before any %): what a burst hands its other units
     int phys_fine = 0;                   // the physical after resistance, in 256ths (the record's +8 field)
     int crush_fine = 0;                  // the Crushing Blow's share of `damage` and `frac`, 256ths: not in the record's total (+0x4c), so not in the get-hit's size
     int frac = 0;                        // 256ths of a point the physical (a blow's fine value after resistance) and a missile's element dealt beyond `damage`; may pass 255 (game.exe keeps life in 256ths)
@@ -495,6 +496,7 @@ struct Swing {
     bool missile = false;
     bool half_2h_src = false;             // the missile row's Half2HSrc: srcdam halved from a two-hander (missile_physical)
     std::optional<bool> crit;             // a missile's crit, rolled as it was made (missile_crit), not at the hit
+    std::optional<std::int64_t> rolled;   // a burst's physical as its first unit drew it (Blow::rolled): no draw
 };
 
 // A missile's record's crit (FUN_0064b860 -> FUN_0064a850), rolled as it is made on the caster's seed:
