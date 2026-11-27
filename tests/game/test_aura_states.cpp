@@ -132,7 +132,17 @@ int main() try {
     };
     const float bare = walked(0), quick = walked(kVigor);
     assert(bare > 0 && quick > bare);
-    std::puts("OK: the merc shows its own aura and the player's Might; the player its own and the totem's target state; over the wire too; Vigor speeds its walk");
+    // A curse's velocitypercent (a Decrepify) slows it while it lasts; one past its end, still held
+    // in town (merc_foe drops it only out of town), doesn't.
+    constexpr int kSlowCurse = 87;
+    auto& slow = test.skill(kSlowCurse, "Decrepify");
+    slow.aurastat[0] = d2d::d2s::kVelocityPercent;
+    slow.aura_calc[0].code = { { d2d::rules::Calc::Const, -50 } };
+    actor.curses[1] = { kSlowCurse, 1, 2000 };                // on till 2000 ms; the walk's frame is at 1000
+    assert(walked(0) < bare);
+    actor.curses[1].until = 500;                              // spent, not yet dropped
+    assert(walked(0) == bare);
+    std::puts("OK: the merc shows its own aura and the player's Might; the player its own and the totem's target state; over the wire too; Vigor speeds its walk, a live curse slows it");
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_aura_states: %s\n", error.what());

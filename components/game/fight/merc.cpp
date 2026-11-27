@@ -372,7 +372,7 @@ auto Fight::merc_turn(std::uint32_t now_ms, float /* elapsed: a turn is a frame 
                 for (std::size_t k = 0; k < aura.skill->aurastat.size(); ++k)
                     if (aura.skill->aurastat[k] == d2d::d2s::kVelocityPercent)
                         states_pct += d2d::rules::eval_calc(game_data->skills, aura.skill->aura_calc[k], aura.env, aura.skill->id, aura.level);
-            if (actor->curses[1].skill >= 0) {
+            if (actor->curses[1].skill >= 0 && now_ms < actor->curses[1].until) {   // in town merc_foe doesn't drop a spent one
                 const d2d::rules::CalcEnv curse_env{ [](int) { return 0; }, [](int) { return 0; }, [](int) { return 0; }, actor->merc_st.level, nullptr };
                 for (const auto& [id, value] : curse_stats(actor->curses[1], curse_env)) if (id == d2d::d2s::kVelocityPercent) states_pct += value;
             }
