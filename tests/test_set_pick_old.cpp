@@ -13,6 +13,7 @@
 #include <exception>
 #include <sstream>
 #include <string>
+#include <utility>
 #include <vector>
 
 using namespace d2d::rules;
@@ -40,7 +41,7 @@ void load(Tables& tables, const std::string& text) {
         const auto colon = row.find(':');
         SetBonus bonus;
         bonus.version = std::atoi(row.substr(0, colon).c_str());
-        tables.set_bonuses.push_back(bonus);
+        tables.set_bonuses.push_back(std::move(bonus));
         std::stringstream members(row.substr(colon + 1));
         std::string code;
         while (std::getline(members, code, ',')) {
@@ -48,7 +49,7 @@ void load(Tables& tables, const std::string& text) {
             member.code = code;
             member.set = set;
             member.member = 0;
-            tables.sets.push_back(member);
+            tables.sets.push_back(std::move(member));
         }
         ++set;
     }
@@ -82,7 +83,7 @@ int main() try {
     member.code = "cap";
     member.set = 0;
     member.member = 0;
-    tables.sets.push_back(member);
+    tables.sets.push_back(std::move(member));
     Rng unit_seed{ 7919 }, item_seed{ 1 }, normal_seed{ 1 }, normal_unit{ 7919 };
     const auto set_item = generate_item(tables, "cap", 5, 5, item_seed, &unit_seed, nullptr, false, 0, 0, true);
     const auto normal = generate_item(tables, "cap", 5, 2, normal_seed, &normal_unit, nullptr, false, 0, 0, true);

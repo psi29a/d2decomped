@@ -43,7 +43,7 @@ int main() try {
     std::vector<Missile> missiles;
     Missile made{ &control, 20.f, 20.f, 0, 0, 0, 0, 275 * 40, {} };
     made.visual_only = true; made.level = 1;
-    missiles.push_back(made);
+    missiles.push_back(std::move(made));
     d2d::rules::Rng rng{ 7 };
     std::array<Foe, 1> nobody{};
     int makers = 0, rocks = 0, fires = 0;
@@ -63,14 +63,14 @@ int main() try {
     // +0x28 (rand(5) from do 26) small rocks, each aimed 1..n subtiles off (n cHitPar1, 20), flying that way.
     GameData::MissileInfo small;
     small.name = "mephistoflyingrockssmall"; small.range = 5; small.vel = 12; small.max_vel = 12;
-    GameData::MissileInfo big = rock;
+    GameData::MissileInfo big = std::move(rock);
     big.always_explode = true; big.clt_hit = 33; big.clt_hit_pars = { 20, 0, 0 }; big.clt_hit_subs[0] = &small; big.max_vel = 12;
     int shards = 0, owed = 0;
     for (int count = 0; count < 5; ++count) {
         missiles.clear();
         Missile flying{ &big, 20.f, 20.f, missile_speed(big, 1), 0, 0, 0, 10 * 40, {} };
         flying.visual_only = true; flying.level = 1; flying.clt_count[0] = count;
-        missiles.push_back(flying);
+        missiles.push_back(std::move(flying));
         owed += count;
         for (std::uint32_t now = 40; now <= 12 * 40; now += 40) {
             missiles_update(open, missiles, std::span<Foe>(nobody.data(), 0), rng, now, [](float, float) { return std::vector<std::array<int, 4>>{}; },
@@ -94,7 +94,7 @@ int main() try {
     alone.visual_only = true; alone.level = 1;
     alone.aim_at = std::pair{ 24.f, 20.f };
     alone.way_x = 20; alone.subtile_x = 100; alone.subtile_y = 100;
-    missiles.push_back(alone);
+    missiles.push_back(std::move(alone));
     float turned = 0;
     for (std::uint32_t now = 40; now <= 48 * 40; now += 40) {
         missiles_update(open, missiles, std::span<Foe>(nobody.data(), 0), rng, now, [](float, float) { return std::vector<std::array<int, 4>>{}; },

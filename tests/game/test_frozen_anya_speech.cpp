@@ -16,6 +16,7 @@
 #include <cassert>
 #include <cstdio>
 #include <exception>
+#include <utility>
 #include <variant>
 
 using namespace d2d::game;
@@ -45,7 +46,7 @@ int main() try {
     d2d::d2s::Item potion;
     potion.code = PrisonQuest::kPotionCode;
     potion.id = 7;
-    world.actor->character.items.push_back(potion);
+    world.actor->character.items.push_back(std::move(potion));
     world.prison.potions = 1;
     assert(world.act5_operate(0, 2000));
     assert(!spoke());
