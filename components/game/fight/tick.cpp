@@ -542,8 +542,10 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
             // The monsters' missiles fly with these foes too (missiles_update).
             // A monster's poison reaches a monster foe through take_blows, and
             // monster_blow uses that foe's block chance as it does a player's.
-            // ponytail: monsters keep no mana for Mana Burn; a poison kill has
-            // no state owner, so its experience is still the first player's.
+            // A monster has no mana (FUN_00573cb0 sets no stat 8), so a Mana Burn
+            // on one takes nothing, as here.
+            // ponytail: a poison kill has no state owner, so its experience is
+            // still the first player's.
             const std::size_t allies = foes.size();
             // `for_missiles`: a monster's CollideFriend missile in flight (FUN_005a8730) strikes its owner's
             // friends, so the monsters are foes then too, aligned or not.
