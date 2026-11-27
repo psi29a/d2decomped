@@ -83,11 +83,11 @@ int main(int argc, char** argv) try {
     std::puts("OK: stat 0x4a from the roll and DamageRegen, a frame of it up to the max life (FUN_00573cb0, FUN_005a6920)");
 
     const char* mpq_dir = std::getenv("D2_MPQ_DIR");
-    if (!mpq_dir || !fs::exists(fs::path(mpq_dir) / "d2data.mpq")) { std::puts("SKIP: no d2data.mpq (D2_MPQ_DIR)"); return D2D_TEST_SKIPPED; }
+    if (!mpq_dir || !fs::exists(fs::path(mpq_dir) / "d2data.mpq")) { std::puts("SKIP: the game part: no d2data.mpq (D2_MPQ_DIR)"); return 0; }
     const char* patch = std::getenv("D2_PATCH_INSTALLER");
     auto data = load_game_data(mpq_dir, patch ? fs::path(patch) : fs::path{}, 0x1234);
     if (!data) { std::puts("FAIL: load_game_data failed"); return 1; }
-    if (!data->patched) { std::puts("SKIP: needs the 1.14d data (D2_PATCH_INSTALLER)"); return D2D_TEST_SKIPPED; }
+    if (!data->patched) { std::puts("SKIP: the game part: needs the 1.14d data (D2_PATCH_INSTALLER)"); return 0; }
     d2d::rules::Rng rng{ 7 };
     auto made = new_character(*data, d2d::d2s::kNecromancer, "Bones", false, true, rng);
     Character character;

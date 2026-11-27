@@ -117,11 +117,11 @@ int main(int argc, char** argv) try {
     const bool oracle = argc > 1 && std::string_view(argv[1]) == "--merc-shot";
     if (!oracle) row_point_checks();
     const char* mpq_dir = std::getenv("D2_MPQ_DIR");
-    if (!mpq_dir || !fs::exists(fs::path(mpq_dir) / "d2data.mpq")) { std::puts("SKIP: no d2data.mpq (D2_MPQ_DIR)"); return D2D_TEST_SKIPPED; }
+    if (!mpq_dir || !fs::exists(fs::path(mpq_dir) / "d2data.mpq")) { std::puts("SKIP: the game part: no d2data.mpq (D2_MPQ_DIR)"); return oracle ? D2D_TEST_SKIPPED : 0; }
     const char* patch = std::getenv("D2_PATCH_INSTALLER");
     auto data = load_game_data(mpq_dir, patch ? fs::path(patch) : fs::path{}, 0x1234);
     if (!data) { std::puts("FAIL: load_game_data failed"); return 1; }
-    if (!data->patched) { std::puts("SKIP: needs the 1.14d data (D2_PATCH_INSTALLER)"); return D2D_TEST_SKIPPED; }
+    if (!data->patched) { std::puts("SKIP: the game part: needs the 1.14d data (D2_PATCH_INSTALLER)"); return oracle ? D2D_TEST_SKIPPED : 0; }
     d2d::rules::Rng rng(7);
     auto made = new_character(*data, 0, "Archer", false, true, rng);
     Character character;
