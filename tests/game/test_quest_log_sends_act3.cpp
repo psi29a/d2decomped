@@ -18,6 +18,7 @@
 #include <cstdio>
 #include <exception>
 #include <memory>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -122,7 +123,7 @@ int main() try {
         assert(world->temple.log == 2 && world->temple.state == 5 && sent(*world).empty());
         Monster ismail;
         ismail.id = 30; ismail.type = 1; ismail.super = 26;
-        world->fight.monsters.push_back(ismail);
+        world->fight.monsters.push_back(std::move(ismail));
         world->fight.made_bosses.push_back({ 30, 1, level_ids::kTravincal });
         world->act3_bind_new_bosses();
         assert(world->temple.log == 3 && sent(*world) == std::vector{ BlackenedTempleQuest::kQuest });

@@ -71,7 +71,7 @@ void burial() {
     QuestBits bits{};
     BurialQuest burial;
     burial.join(bits);
-    burial.chain();
+    assert(!burial.chain());                    // opened, not passed on yet (state 1)
     assert(!burial.said(bits, BurialQuest::kKashya, 81, 1) && !burial.news);
     burial.talk_closed(bits, BurialQuest::kKashya);
     assert(burial.log == 1 && took(burial.news));

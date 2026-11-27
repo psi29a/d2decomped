@@ -13,21 +13,22 @@
 #include <cstdio>
 #include <exception>
 #include <unordered_map>
+#include <utility>
 
 int main() try {
     std::unordered_map<std::uint32_t, d2d::d2s::Item> worn;
     d2d::d2s::Item boots;
     boots.slot = 9;
     boots.props = { { .stat = d2d::d2s::kFasterMoveVelocity, .value = 30 }, { .stat = d2d::d2s::kFasterAttackRate, .value = 20 } };
-    worn[7] = boots;
+    worn[7] = std::move(boots);
     d2d::d2s::Item ring;
     ring.slot = 6;
     ring.props = { { .stat = d2d::d2s::kFasterMoveVelocity, .value = 10 } };
-    worn[8] = ring;
+    worn[8] = std::move(ring);
     d2d::d2s::Item switched;                                         // the other weapon set: not active
     switched.slot = 0xb;
     switched.props = { { .stat = d2d::d2s::kFasterMoveVelocity, .value = 40 } };
-    worn[9] = switched;
+    worn[9] = std::move(switched);
     assert(d2d::client::worn_frw(worn, 0) == 40);
     assert(d2d::client::worn_frw(worn, 15) == 55);                   // a state's own FRW
     assert(d2d::client::worn_frw({}, 0) == 0);
