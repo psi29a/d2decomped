@@ -7,15 +7,18 @@ stdcall wrappers between the cited `SBigFromBinary` (`FUN_00423850`),
 [source-frontier.md](source-frontier.md). Each takes numbers made by
 `SBigNew`, puts the first in `ESI` or `EDI` and calls an internal
 routine; the result goes to the first number. Read from the disassembly;
-each row is run by `tools/emu/sbig_api.py` (its `gaps-runs` line) on
-random values up to 320 bits against Python's integers, with
-`--mutation-check`. Re-check with `tools/ghidra/fn.py <address>`. The
+each row except `FUN_00422120` is run by `tools/emu/sbig_api.py` (its
+`gaps-runs` line) on random values up to 320 bits against Python's
+integers, with `--mutation-check`. `FUN_00422120` (`sbig_set_reserved`)
+is a thiscall helper next to `sbig_reserve` and is run by
+`tools/emu/sbig_helpers.py` with `--mutation-check`. Re-check with
+`tools/ghidra/fn.py <address>`. The
 **d2d** column is as in [game-frontier.md](game-frontier.md): d2d has no
 SRP or Warden big numbers, so no row has a counterpart.
 
 | Address | Name | Reading | d2d |
 |---|---|---|---|
-| `FUN_00422120` | `sbig_set_reserved` | `ECX` number, n (`RET 4`): `+0x10` = n; if n != 0, `FUN_00421fe0` (sbig_reserve) with `0xFFFFFFFF` | no counterpart (as `sbig_pow_mod`) |
+| `FUN_00422120` | `sbig_set_reserved` | `ECX` number, n (`RET 4`): `+0x10` = n; if n != 0, `FUN_00421fe0` (sbig_reserve) with `0xFFFFFFFF`. Run by `tools/emu/sbig_helpers.py` | no counterpart (as `sbig_pow_mod`) |
 | `FUN_00422780` | `sbig_is_zero_fast` | `ESI` number (`RET 0`): normalizes (`FUN_00422140`), then 1 when the number is 0, else 0; the fastcall internal behind `sbig_is_zero` | no counterpart (as `sbig_pow_mod`) |
 | `FUN_00423790` | `sbig_add` | dst, a, b (`RET 0xc`): `ESI` = dst, then `FUN_00422300(a, b)`; dst = a + b | no counterpart (as `sbig_pow_mod`) |
 | `FUN_004237b0` | `sbig_and` | dst, a, b (`RET 0xc`): `ESI` = dst, then `FUN_00422440(a, b)`; dst = a AND b | no counterpart (as `sbig_pow_mod`) |
