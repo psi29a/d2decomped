@@ -348,7 +348,7 @@ bool monster_step(const Level& level, Monster& monster, float target_x, float ta
 // them within 16), walk up and attack (A1: the hit lands on AnimData's event frame, MonStats A1TH vs the foe's
 // defense, then block, damage reduction, resistances), wait aidel ticks between attacks; otherwise wander near
 // home (Levels.txt MonWndr): stand 2-5 s, walk to a random spot within 3 cells.
-void attack_starts(const GameData& game_data, Monster& monster, std::string_view mode, d2d::rules::Rng& rng);
+void attack_starts(const GameData& game_data, Monster& monster, std::string_view mode);
 
 // Returns true when the foe's thorns killed it.
 // The traced MonAI types think their own way instead: see

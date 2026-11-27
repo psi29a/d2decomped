@@ -348,7 +348,11 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
                 if (!foe.alive || !hostile(missile, foe) || !standing_struck(missile, foe.x, foe.y, foe.size) || std::ranges::contains(*missile.struck, key)) continue;
                 missile.struck->push_back(key);
                 const auto& row = *missile.row;
-                const int burn = d2d::rules::resisted_fine(rng.range(row.elo, row.ehi) - d2d::rules::frame_rate_flat(foe.fighter.mdr, missile.info->damage_rate),
+                // The record's element (FUN_005a8910): min + rand(max - min) on the missile's own seed, none unless both are over 0.
+                auto& own = missile.seed ? *missile.seed : rng;
+                const int row_low = std::min(row.elo, row.ehi), row_high = std::max(row.elo, row.ehi);
+                const int rolled = row_low > 0 ? row_low + own(row_high - row_low) : 0;
+                const int burn = d2d::rules::resisted_fine(rolled - d2d::rules::frame_rate_flat(foe.fighter.mdr, missile.info->damage_rate),
                                                            foe.fighter.res[std::size_t(std::clamp(row.etype, 0, 2))]);
                 const int dealt = burn >> 8;
                 foe.damage += dealt; foe.elemental += dealt; foe.frac += burn & 255;

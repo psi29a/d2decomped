@@ -1027,7 +1027,7 @@ Search search_target(const GameData& game_data, const Level& level, Monster& mon
 // Charge's swing (FUN_005cf6b0 in melee, FUN_005cf900 at the charge's end):
 // A2 for Duriel and class 0x49, else A1, with the skill (its hit:
 // skill_hit).
-void charge_swing(const GameData& game_data, Monster& monster, const Foe& foe, int skill, std::uint32_t now_ms, d2d::rules::Rng& rng) {
+void charge_swing(const GameData& game_data, Monster& monster, const Foe& foe, int skill, std::uint32_t now_ms) {
     const bool second = monster.type == int(game_data.mon_bin[std::size_t(d2d::rules::monster_ids::kDuriel)]) || monster.type == int(game_data.mon_bin[0x49]);
     const std::string_view mode = second ? "A2" : "A1";
     turn_to(monster.unit, subtile(foe.x), subtile(foe.y));
@@ -1035,7 +1035,7 @@ void charge_swing(const GameData& game_data, Monster& monster, const Foe& foe, i
     set_mode(game_data, monster, mode, now_ms);
     monster.struck = false; monster.wandering = false; monster.seq_done = 0; monster.seq_once = false;
     monster.skill_frame = 0; monster.skill_x = subtile(foe.x); monster.skill_y = subtile(foe.y);
-    attack_starts(game_data, monster, mode, rng);
+    attack_starts(game_data, monster, mode);
 }
 
 // Teleportation (mod 26: MonTeleport, AI flag 0x20; FUN_005b11f0, the
@@ -1137,7 +1137,7 @@ auto ThinkCtx::use(std::string_view mode, int skill) -> void {     // FUN_005dea
     set_mode(game_data, monster, mode, now_ms);
     monster.struck = false; monster.wandering = false; monster.seq_done = 0; monster.seq_once = false;
     monster.skill_frame = 0; monster.skill_x = target_x; monster.skill_y = target_y; monster.at_point = false;
-    attack_starts(game_data, monster, mode, rng);
+    attack_starts(game_data, monster, mode);
     // srvst 59 (FUN_005d1280, Imp Inferno): its end calc1 frames from the start (the roll on its seed now), state 0xc on.
     if (const auto* fire = game_data.skills.get(skill); fire && fire->srvstfunc == d2d::rules::ServerStartFunction::kImpInferno) {
         d2d::rules::CalcEnv env;
@@ -1214,7 +1214,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
         // A charge's end (srvdofunc 67, FUN_005cf900): at its target it
         // swings with the skill (charge_swing).
         if (const int with = std::exchange(monster.charging, -1); with >= 0 && chased && std::hypot(chased->x - unit.x, chased->y - unit.y) <= kMeleeReach + 0.3f) {
-            charge_swing(game_data, monster, *chased, with, now_ms, rng);
+            charge_swing(game_data, monster, *chased, with, now_ms);
             return true;
         }
     }
@@ -1704,7 +1704,7 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
             if (seq && seq->front().mode == "WL") {
                 const auto* start = game_data.skills.get(id);
                 if (start && start->srvstfunc == d2d::rules::ServerStartFunction::kCharge) {
-                    if (input.in_melee) { charge_swing(game_data, monster, *target, id, now_ms, rng); monster.skill_sound = id; return true; }
+                    if (input.in_melee) { charge_swing(game_data, monster, *target, id, now_ms); monster.skill_sound = id; return true; }
                     if (ctx.set_off(true, target, false, 0x14)) { monster.chase = chase_of(); monster.charging = id; monster.skill_sound = id; return true; }
                 }
                 ctx.idle(0);
@@ -2587,19 +2587,26 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     if (monster.skill_unit >= 0 && std::size_t(monster.skill_unit) < pack.size() && !pack[std::size_t(monster.skill_unit)].corpse_used) {
                         auto& corpse = pack[std::size_t(monster.skill_unit)];
                         corpse.corpse_used = true;
-                        const int low = d2d::rules::eval_calc(game_data.skills, cast->calc[0], {}, monster.skill, lvl);
-                        const int high = std::max(d2d::rules::eval_calc(game_data.skills, cast->calc[1], {}, monster.skill, lvl), low);
-                        const int dmg = int(std::int64_t(corpse.stats.hit_points) * rng.range(low, high) / 100);
-                        const int radius = std::max(d2d::rules::eval_calc(game_data.skills, cast->aurarange, {}, monster.skill, lvl) / 2, 1);
-                        auto stats = monster.stats;
-                        stats.a1_min = stats.a1_max = dmg / 2;
-                        for (auto& element : stats.elements) element = {};
-                        stats.elements[0] = { 1, 100, dmg - dmg / 2, dmg - dmg / 2, 0, "A1" };   // fire
-                        for (auto& near_foe : foes)
-                            if (near_foe.alive && std::hypot(near_foe.x - corpse.unit.x, near_foe.y - corpse.unit.y) * 5 <= float(radius)) {
-                                const auto taken = d2d::rules::monster_blow(near_foe.fighter, near_foe.level, near_foe.motion(), stats, false, monster.seed, false, true, true);   // FUN_005c4d10: the record straight to FUN_0057c6c0 (not FUN_0057b420's roll)
-                                near_foe.take(taken, monster.id);
-                            }
+                        // FUN_005c4df0, as the player's (Fight::corpse_blast): the corpse's life x calc1..calc2 % on the
+                        // corpse's own seed (0x5c4f65, ESI the corpse), MulDiv'd down when it's above the caster's level;
+                        // calc3 % of it to the EType, the rest physical, which reaches half as far.
+                        const auto calc_of = [&](const d2d::rules::Calc& expr) { return d2d::rules::eval_calc(game_data.skills, expr, {}, monster.skill, lvl); };
+                        const int life_fine = d2d::rules::corpse_life_fine(game_data.monsters, corpse.type, corpse.difficulty, corpse.stats.level);
+                        const int whole = d2d::rules::corpse_blast_fine(life_fine, calc_of(cast->calc[0]), calc_of(cast->calc[1]), corpse.seed, corpse.stats.level, monster.stats.level);
+                        const auto [phys_fine, fire_fine] = d2d::rules::corpse_blast_split(whole, calc_of(cast->calc[2]), cast->etype == 0);
+                        const auto [walk, phys_reach] = d2d::rules::corpse_blast_reach(calc_of(cast->aurarange));
+                        const int dmg = (phys_fine + fire_fine) >> 8;
+                        const int corpse_x = subtile(corpse.unit.x), corpse_y = subtile(corpse.unit.y);
+                        for (auto& near_foe : foes) {
+                            const int apart = (subtile(near_foe.x) - corpse_x) * (subtile(near_foe.x) - corpse_x) + (subtile(near_foe.y) - corpse_y) * (subtile(near_foe.y) - corpse_y);
+                            if (!near_foe.alive || apart > walk * walk) continue;
+                            auto stats = monster.stats;
+                            stats.a1_min = stats.a1_max = apart <= phys_reach * phys_reach ? phys_fine >> 8 : 0;
+                            for (auto& element : stats.elements) element = {};
+                            stats.elements[0] = { 1, 100, fire_fine >> 8, fire_fine >> 8, 0, "A1" };   // fire
+                            const auto taken = d2d::rules::monster_blow(near_foe.fighter, near_foe.level, near_foe.motion(), stats, false, monster.seed, false, true, true);   // FUN_005c4d10: the record straight to FUN_0057c6c0
+                            near_foe.take(taken, monster.id);
+                        }
                         d2d::log::info("{} explodes a corpse ({} damage)", monster.npc.name, dmg);
                     }
                 } else if (cast->srvdofunc == ServerDoFunction::kBaalCorpseExplode) {
@@ -3045,7 +3052,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
         if (now_ms >= monster.next_act && teleport_mod(game_data, level, monster, int(dist * 5), crowd, rooms_in_play, now_ms)) return false;
         if (dist <= kMeleeReach) {
             turn_to(unit, subtile(foe.x), subtile(foe.y));
-            if (now_ms >= monster.next_act) { set_mode(game_data, monster, "A1", now_ms); monster.struck = false; attack_starts(game_data, monster, "A1", rng); }
+            if (now_ms >= monster.next_act) { set_mode(game_data, monster, "A1", now_ms); monster.struck = false; attack_starts(game_data, monster, "A1"); }
             else if (monster.mode != "NU") set_mode(game_data, monster, "NU", now_ms);
             return false;
         }
@@ -3057,7 +3064,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 turn_to(unit, subtile(foe.x), subtile(foe.y));
                 set_mode(game_data, monster, "A2", now_ms);
                 monster.struck = false;
-                attack_starts(game_data, monster, "A2", rng);
+                attack_starts(game_data, monster, "A2");
                 return false;
             }
         }
@@ -3516,13 +3523,13 @@ void block_anim(const GameData& game_data, Monster& monster, std::uint32_t now_m
 // town NPCs, pets and quest NPCs think elsewhere.
 // A unique's attack starting (the mode-change hook, event 0): Spectral Hit
 // picks this attack's element (uniques.hpp kSpectralElement), in el[2].
-void attack_starts(const GameData& game_data, Monster& monster, std::string_view mode, d2d::rules::Rng& rng) {
+void attack_starts(const GameData& game_data, Monster& monster, std::string_view mode) {
     using d2d::rules::Boss;
     if ((monster.boss != Boss::unique && monster.boss != Boss::superunique) || !std::ranges::contains(monster.mods, d2d::rules::umod::spectralhit)
         || game_data.monsters.lvl.empty()) return;
     const auto& level_row = game_data.monsters.lvl[std::min<std::size_t>(std::size_t(monster.stats.level), game_data.monsters.lvl.size() - 1)];
     const int damage_pct = level_row.damage[std::size_t(monster.difficulty)];
-    const int element = d2d::rules::kSpectralElement[std::size_t(rng(5))];
+    const int element = d2d::rules::kSpectralElement[std::size_t(monster.seed(5))];   // FUN_005a3040: the unit's seed (0x5a304c)
     const int low = damage_pct * game_data.umods.constants[28] / 100;
     monster.stats.elements[2] = { element, 100, low, std::max(damage_pct * game_data.umods.constants[31] / 100, low), element == 2 || element == 3 ? 40 : 0, mode };
     monster.element_on[2] = true;   // set_mode rolled the slot's last element; this one is the swing's, 100 %
