@@ -5,6 +5,36 @@ to screen coordinates when drawing. d2d's `y_shift = max(0, -min(block.y))`
 is therefore an **internal pixel-buffer packing rule**, not an offset computed
 by game.exe.
 
+## Tile-project cache
+
+### Name lookup
+
+`FUN_00600710` is the lookup for the process-wide DT1 cache headed by
+`DAT_008adbb4`. Its ESI argument is a NUL-terminated file name. Each cache node
+stores its name at offset `+0x00`, the loaded DT1 at `+0x104`, the tile-search
+index at `+0x108`, and the next node at `+0x10c`.
+
+The function walks that link and compares the query directly with the name at
+the start of each node. The comparison is an inlined `strcmp`: it compares two
+bytes per iteration but stops at the first unequal byte or the shared NUL. It
+therefore requires an exact, case-sensitive, whole-string match; there is no
+hash or path normalisation. A match returns the node and exhausting the list
+returns 0. `FUN_00600790` uses the result to return the cached fields at
+`+0x104` and `+0x108`; `FUN_00600760` is the other wrapper and returns only
+`+0x108` (or 0 on a miss).
+
+This lookup is reached in retail play: `FUN_0061fae0` loads each LvlTypes DT1
+through `FUN_00604a40` and `FUN_00600790`, and `FUN_0066f240` repeats that path
+when a room acquires its DT1 set. d2d's `load_room_dt1s` and `load_level_dt1s`
+instead own parsed DT1 records with the level and map those records directly;
+they do not expose the stock cache node, its traversal order, or its identity.
+Repeated names can consequently cause extra reads and parsed copies in d2d,
+but no tile-selection or gameplay result depends on those cache details. There
+is no behaviour to port for this lookup.
+
+Re-check the body and its call paths with
+`python3 tools/ghidra/fn.py 00600710 00600760 00600790 00604a40 0061fae0 0066f240`.
+
 ## Loading and block fixup
 
 - `FUN_00600790` caches a DT1 and calls `FUN_0060a390` to validate its header.
