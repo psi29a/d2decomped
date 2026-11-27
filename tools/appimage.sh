@@ -32,10 +32,16 @@ repo=$(cd "$(dirname "$0")/.." && pwd)
 # The newest version of `prefix` (GLIBC_ / GLIBCXX_) any ELF under $1 needs,
 # each file over the limit printed; returns 1 when one is.
 too_new() {
-    local dir=$1 prefix=$2 limit=$3 bad=0 file need
+    local dir=$1 prefix=$2 limit=$3 bad=0 file need symbols
     while IFS= read -r -d '' file; do
         head -c 4 "$file" 2>/dev/null | grep -q $'^\x7fELF' || continue
-        need=$(objdump -T "$file" 2>/dev/null | grep -oE "\b${prefix}_[0-9][0-9.]*\b" \
+        # An ELF objdump can't read fails the check rather than passing unread.
+        if ! symbols=$(objdump -T "$file" 2>&1); then
+            echo "${file#"$dir"/}: objdump can't read its symbols: ${symbols##*$'\n'}" >&2
+            bad=1
+            continue
+        fi
+        need=$(grep -oE "\b${prefix}_[0-9][0-9.]*\b" <<<"$symbols" \
             | sed "s/^${prefix}_//" | sort -V | tail -n 1)
         [[ -n "$need" ]] || continue
         if [[ "$(printf '%s\n%s\n' "$need" "$limit" | sort -V | tail -n 1)" != "$limit" ]]; then
@@ -45,6 +51,8 @@ too_new() {
     done < <(find "$dir" -type f -print0)
     return "$bad"
 }
+
+command -v objdump >/dev/null || { echo "appimage: objdump (binutils) is needed for the glibc check" >&2; exit 1; }
 
 appdir=$(mktemp -d "${TMPDIR:-/tmp}/d2d-appdir.XXXXXX")
 trap 'rm -rf "$appdir"' EXIT
@@ -61,7 +69,7 @@ status=0
 too_new "$appdir" GLIBC "$max_glibc" || status=1
 too_new "$appdir" GLIBCXX "$max_glibcxx" || status=1
 if [[ $status -ne 0 ]]; then
-    echo "appimage: a binary needs a newer glibc / libstdc++ than the targets have; build on an older base" >&2
+    echo "appimage: a binary needs a newer glibc / libstdc++ than the targets have (build on an older base), or objdump could not read it" >&2
     exit 1
 fi
 echo "appimage: every ELF needs at most GLIBC_$max_glibc and GLIBCXX_$max_glibcxx"
