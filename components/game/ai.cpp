@@ -1820,9 +1820,15 @@ bool think(const GameData& game_data, const Level& level, Monster& monster, std:
     } }();
     // ElementalBeast's in-melee branch (FUN_005f6b70) starts S1, then files
     // its type-0 action event through FUN_005417d0 for the next game frame.
-    // That explicit event lands before S1's animation action frame.
-    if (acted && strike_delay > 0 && monster.mode == "S1")
+    // That explicit event lands before S1's animation action frame. The pose
+    // then plays from this frame (as set_mode's Council start), not a stale clock.
+    if (acted && strike_delay > 0 && monster.mode == "S1") {
         monster.scheduled_action_ms = now_ms + std::uint32_t(strike_delay) * 40;
+        if (!monster.scheduled_anim_position) {
+            monster.scheduled_anim_position = 0;
+            monster.scheduled_anim_ms = now_ms;
+        }
+    }
     file_think();
     return acted;
 }

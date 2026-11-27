@@ -73,6 +73,7 @@ int main() try {
     assert(beast.mode == "S1" && beast.ai_state == 2);
     assert(beast.scheduled_action_ms == kStart + std::uint32_t(kStrikeDelayFrames) * 40);
     assert(foes[0].hits == 0);
+    assert(beast.scheduled_anim_position == 0u && beast.scheduled_anim_ms == kStart);  // S1's pose starts now
 
     const auto strike_at = *beast.scheduled_action_ms;
     monster_update(data, arena, beast, foes, rng, strike_at, 0.04f, crowd, missiles, pack);
