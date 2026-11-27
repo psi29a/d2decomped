@@ -214,6 +214,7 @@ auto Fight::summon(const d2d::rules::Skill& skill, int lvl, float x, float y, st
             // A d2d level is a town or not as a whole (FUN_0061ab00 asks the spot's room).
             const bool town = d2d::rules::level_ids::is_town(level->id);
             const auto centre = [](int subtile) { return (float(subtile) + 0.5f) / 5; };
+            int first = -1;
             std::vector<int> ids;
             const auto make = [&](int spot_x, int spot_y) -> std::optional<std::pair<int, int>> {
                 Crowd others;
@@ -224,6 +225,8 @@ auto Fight::summon(const d2d::rules::Skill& skill, int lvl, float x, float y, st
                     && !spawn_spot(*game_data, *level, others, &spawning.levels[level], type, spot_x, spot_y, 4, room, at_x, at_y))
                     return std::nullopt;
                 const int id = summon_one(skill, type, lvl, env, centre(at_x), centre(at_y), now_ms);
+                if (first < 0) first = id;                       // the first's group is its owner's (FUN_0058f030)
+                else actor->pets.back().monster.party_owner = first;   // the rest join the first's (FUN_0058f030 / FUN_0058f100)
                 ids.push_back(id);
                 return std::pair{ at_x, at_y };
             };

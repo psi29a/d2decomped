@@ -91,6 +91,25 @@ void pet_regen(const GameData& game_data, Monster& monster, std::uint32_t now_ms
     if (monster.hit_points <= 0 && monster.life_frac <= 0) { monster.hit_points = 0; monster.life_frac = 0; set_mode(game_data, monster, "DT", now_ms); }
 }
 
+// Bone Prison's pieces carry MonUMod 15, partydead (FUN_005c5bc0 -> FUN_005a4850): one that dies with a monster for
+// its group's owner (FUN_0058f0d0; the later pieces', the first) takes every piece of that owner's group and the owner
+// with it (FUN_005a2d10: FUN_0058f380 -> FUN_005a2cc0, then FUN_005a7e60 mode 0, no credit). The first piece's owner is
+// the Necromancer, not a monster, so it falls alone (FUN_0058f380 walks a monster owner's list only); so does a later
+// one whose first is gone (FUN_00552f60 finds no owner by its id).
+// ponytail: a piece that ends by its time (pets_turn) dies after this frame's check, so the rest fall a frame later.
+void prison_falls(std::vector<Fight::Pet>& pets, const GameData& game_data, std::uint32_t now_ms) {
+    for (auto& pet : pets) {
+        if (pet.monster.alive() || pet.monster.party_owner < 0) continue;
+        const int owner = std::exchange(pet.monster.party_owner, -1);
+        if (std::ranges::none_of(pets, [&](const Fight::Pet& other) { return other.monster.id == owner; })) continue;
+        for (auto& other : pets)
+            if (&other != &pet && (other.monster.party_owner == owner || other.monster.id == owner)) {
+                other.monster.party_owner = -1;
+                if (other.monster.alive()) { other.monster.hit_points = 0; other.monster.life_frac = 0; set_mode(game_data, other.monster, "DT", now_ms); }
+            }
+    }
+}
+
 }  // namespace
 
 // FUN_005eab20 by name: may a Shadow (MonStats row `type_info`, raised by
@@ -388,6 +407,7 @@ auto Fight::pet_skill_damage(Pet& pet) -> void {
 // FUN_005e0400) only stand (pet.idle).
 auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -> void {
         for (auto& pet : actor->pets) (void)golem_blast(pet, now_ms);
+        prison_falls(actor->pets, *game_data, now_ms);
         std::erase_if(actor->pets, [&](const Pet& pet) { return !pet.monster.alive() && pet.monster.mode == "DT" && now_ms >= pet.monster.mode_until && !blast_due(pet.monster); });
         const auto save_class = std::size_t(std::max(actor->character.character_class, 0));
         for (const auto& made : std::exchange(actor->pet_summons, {}))            // a Shadow's traps and Blade Sentinel from last turn

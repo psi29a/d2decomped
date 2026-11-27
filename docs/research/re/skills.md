@@ -2208,6 +2208,13 @@ repeat skill.
   FUN_0058f100); each made piece faces the point (FUN_0064fdc0 from the
   subtile it got, FUN_006488a0). d2d: `rules::bone_prison`; tools/emu/bone_prison.py
   runs FUN_005c5d00 (0 of 20,028 differ, seeds 1 and 2, 2026-11-26).
+  MonUMod 15 (partydead) hook 1, FUN_005a2d10, as a piece dies: its group's
+  owner (FUN_0058f0d0); FUN_0058f380 walks that owner's minions only when
+  the owner is a monster, each leaving the group and dying (FUN_005a2cc0:
+  FUN_005a7e60 mode 0, no credit), then the owner dies too. So a later
+  piece broken takes the whole prison down, and the first (its owner the
+  Necromancer) falls alone. d2d: `prison_falls` (fight/pets.cpp), cited
+  from the read, `test_bone_prison`.
 - Do **115** (FUN_005c6a80, the vines): the summon at level calc2, state
   0x96. **116** (FUN_005c6ec0, Werewolf / Werebear): the aurastate for
   auralen frames (1000 + Shape Shifting), a second cast shifts back:
