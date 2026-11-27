@@ -2145,10 +2145,12 @@ bool imbuable(const Tables& tables, const d2d::d2s::Item& item, bool expansion) 
 
 // The imbued item (FUN_00579d60, kind 0 at Charsi): the same base made
 // anew, rare (+0x30 = 6), item level player_ilvl plus 4 when that is past
-// 5, a fresh seed; ethereal stays so (flag 4 / 2) and a personalized name is kept.
-d2d::d2s::Item imbue_item(const Tables& tables, const d2d::d2s::Item& item, int clvl, Rng& rng) {
+// 5; ethereal stays so (flag 4 / 2) and a personalized name is kept. It is made as a drop is
+// (FUN_00558d90: FUN_00555230's two game seed steps, its unit seed and its own, then FUN_00557ab0).
+d2d::d2s::Item imbue_item(const Tables& tables, const d2d::d2s::Item& item, int clvl, Rng& game_seed) {
     const int ilvl = player_ilvl(clvl);
-    auto made = generate_item(tables, item.code, ilvl > 5 ? ilvl + 4 : ilvl, 6, rng);
+    Rng unit_seed{ game_seed.next() }, item_seed{ game_seed.next() };
+    auto made = generate_item(tables, item.code, ilvl > 5 ? ilvl + 4 : ilvl, 6, item_seed, &unit_seed);
     made.ethereal = item.ethereal;
     made.personalized = item.personalized;
     made.owner = item.owner;

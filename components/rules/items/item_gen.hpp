@@ -116,7 +116,7 @@ bool imbuable(const Tables& tables, const d2d::d2s::Item& item, bool expansion =
 inline int player_ilvl(int clvl) { return clvl < 2 ? 1 : clvl; }
 
 // The imbued item.
-d2d::d2s::Item imbue_item(const Tables& tables, const d2d::d2s::Item& item, int clvl, Rng& rng);
+d2d::d2s::Item imbue_item(const Tables& tables, const d2d::d2s::Item& item, int clvl, Rng& game_seed);
 
 // The most sockets `item` may have: its gemsockets, capped by its type's MaxSock1 / 25 / 40 for item level <=
 // 25, <= 40, above.

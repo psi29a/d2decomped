@@ -322,8 +322,13 @@ int main() try {
     tables.rare_suffix_names = { { .itypes = { "axe" } } };
     d2d::d2s::Item axe{ .code = "hax", .quality = 2 };
     assert(imbuable(tables, axe));
+    // Made as a drop (FUN_00558d90 -> FUN_00555230): two game seed steps, the first its unit seed (the fingerprint).
+    auto two_steps = rng;
+    const auto fingerprint = two_steps.next();
+    two_steps.next();
     const auto imbued = imbue_item(tables, axe, 8, rng);
     assert(imbued.code == "hax" && imbued.quality == 6 && imbued.ilvl == 12 && !imbuable(tables, imbued));
+    assert(rng.low == two_steps.low && rng.high == two_steps.high && imbued.uid == fingerprint);
     Rng imbue_low{ 1 };
     assert(imbue_item(tables, axe, 5, imbue_low).ilvl == 5);
     axe.quality = 4;
