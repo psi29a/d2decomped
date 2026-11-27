@@ -1388,7 +1388,8 @@ hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
   none there and the request's flag 4 clear (0x56d9bb), again at radius 4,
   0x56d9cb; else none), marks it a pet (+0xc4 |= 0x20000) and ties it to
   its owner.
-  Hydra's three (hydra1..3 are SizeX 0) share the subtile.
+  Hydra's three (hydra1..3) stand a subtile apart round the target
+  (FUN_005ca910: 0x6e312c / 0x6e3120).
 - **FUN_005c49e0**(game, owner; pet, forced, bonus): the pet's level
   (stat 12) = a forced level above 0 as it is, else min(max(owner's × 3 /
   4 + bonus, 1), owner's level). Raise, the golems, the Decoy and the
