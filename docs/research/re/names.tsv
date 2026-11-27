@@ -79,6 +79,7 @@ address	name	evidence
 0041c840	slist_new_node_2	Same as slist_new_node (FUN_00420820) with the tag .?AUHANDLER@ (0x708434) (source-list.md)
 0041c8a0	slink_delete_2	Same as slink_delete (FUN_00420880), another copy (source-list.md)
 0041d200	mem_compare	memcmp (dword steps, then bytes): -1, 0 or 1. Callers FUN_0040d290, FUN_0041d300, d2d_warden_verify_signature, d2d_warden_module_load (source-frontier.md)
+0041d320	sbig_new_forward	thiscall: SBigNew (FUN_00423950) with the ECX output handle as its sole stack arg; ignores the constructor's return, returns the handle in EAX (source-sbig-api.md)
 0041d880	storm_bits_read_init	ECX bit reader, source (ret 4): +4 = first dword, +0 = source + 4, +8 = 32 (source-bits.md)
 0041d8d0	storm_bits_peek	ECX bit reader, n, mask (ret 8): refills 16 bits when the count is at most n; returns the held bits & mask (source-bits.md)
 0041d900	storm_bits_skip	ECX bit reader, n (ret 4): bits >>= n, count -= n (source-bits.md)
