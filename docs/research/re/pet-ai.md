@@ -235,10 +235,15 @@ path test (`rules::path_found`) as the merc does.
   else 5 about the owner (`FUN_005df530`; with no owner `FUN_005de200(2)`),
   else stand 5. No line: stand 3.
   d2d starts it at -1, 1, 0 (`Fight::summon_one`, `rules::blade_sentinel_init`,
-  FUN_005ea510 read at 0x73d07c). Its think `blade_sentinel_think` is not
-  dispatched live: BladeCreeper isn't in `traced_pet_ai`, so the pet takes
-  the untraced stand-in in `Fight::pets_turn`. `tests/test_blade_sentinel_init.cpp`
-  holds the three values; nothing checks `summon_one`'s branch in play.
+  FUN_005ea510 read at 0x73d07c). The cast (do 44, `FUN_005d6020`, EDI the caster)
+  makes it through `FUN_005d5e10`, gives it the caster's level (stat 0xc, 0x5d60c3),
+  puts it on the caster's subtile (`FUN_00554ea0`, 0x5d60e7) and files its line
+  (`FUN_0058ef40`: +0xc / +0x10 the caster's subtile, +0x14 / +0x18 the point).
+  Its blade (0x5ea660) is `FUN_0056ede0` with EDX the owner, so its damage is the
+  player's, and `FUN_00621ce0` makes the pet the unit it rides (missile do 20).
+  d2d: `Fight::blade_sentinel`, `Fight::pet_blade`, `blade_sentinel_think` dispatched
+  in `pet_think_turn`; `tests/game/test_blade_sentinel.cpp` runs the cast in a game,
+  `tests/test_blade_sentinel_init.cpp` holds the three values.
 - **Raven** (`0x5ecc10`, init `0x5ecb70`: +0x14 -1, +0x18 aip3 + 1, +0x1c
   a seed step's low bit): +0x14 its hits (-1 at first: Skill1's
   `FUN_004efcb0`, else 3); 0 and it dies (`FUN_0057ccb0`). Over 50 from the

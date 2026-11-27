@@ -647,7 +647,7 @@ struct Missile {
     int target_id = -1;                       // its target's Foe::id: the foes are rebuilt each frame, pets come and go
     int anim_rate = 0;                        // its animation in 256ths of a frame a tick (unit +0x4c, FUN_00621780), 0 its row's AnimSpeed
     float target_x = 0, target_y = 0;                     // where it was sent (Molten Boulder), a spiral's centre
-    float origin_x = 0, origin_y = 0;                     // where it came from (Blade Sentinel goes back and forth)
+    int rider = -1;                           // the unit it rides (do 20, FUN_005a99e0: Blade Sentinel's blade on its bladecreeper), a Monster::id
     int turn = 0;                             // Frozen Orb's direction index (do 15)
     int subtile_x = 0, subtile_y = 0;         // a Bone Wall maker's (do 13) subtile as it last laid or started; `hops` its pieces left, `target_id` the first piece
     std::array<int, 2> clt_count{};           // client do 26's frames to its next CltSubMissile1 / 2 (missile data +0x28 / +0x2c); a rock's [0], its hit 33's count

@@ -261,6 +261,22 @@ auto Fight::summon(const d2d::rules::Skill& skill, int lvl, float x, float y, st
         summon_one(skill, type, lvl, env, x, y, now_ms, corpse);
     }
 
+// Blade Sentinel (do 44, FUN_005d6020; EDI the caster): its bladecreeper through FUN_005d5e10 (as a
+// trap's, so summon_one's levelled), its level then the caster's (stat 0xc, 0x5d60c3), put on the caster's
+// subtile in its room (FUN_00554ea0, 0x5d60e7), and its line (FUN_0058ef40's record: +0xc / +0x10 the
+// caster's subtile, +0x14 / +0x18 the point), which its think (MonAI 102) walks.
+auto Fight::blade_sentinel(const d2d::rules::Skill& skill, int lvl, float from_x, float from_y, float to_x, float to_y, int caster_level, std::uint32_t now_ms) -> void {
+        const int type = game_data->monsters.row(skill.summon);
+        if (type < 0) return;
+        const int from_sub_x = int(std::floor(from_x * 5)), from_sub_y = int(std::floor(from_y * 5));
+        const int id = summon_one(skill, type, lvl, calc_env(), (float(from_sub_x) + 0.5f) / 5, (float(from_sub_y) + 0.5f) / 5, now_ms);
+        const auto made = std::ranges::find(actor->pets, id, [](const Pet& pet) { return pet.monster.id; });
+        if (made == actor->pets.end()) return;
+        made->monster.stats.level = caster_level;
+        made->line = { std::pair{ from_sub_x, from_sub_y }, std::pair{ int(std::floor(to_x * 5)), int(std::floor(to_y * 5)) } };
+        made->lined = true;
+    }
+
 // Makes one pet of monster row `type` for `skill` at a spot: its AI control
 // starts as the AI's init does (the traced inits in the body), returns its id.
 auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const d2d::rules::CalcEnv& env, float x, float y, std::uint32_t now_ms, int corpse) -> int {
@@ -276,7 +292,7 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
         const bool forced_calc2 = skill.srvdofunc == ServerDoFunction::kRaven || skill.srvdofunc == ServerDoFunction::kDruidSummon;
         const bool levelled = forced_calc2 || skill.srvdofunc == ServerDoFunction::kRaiseSkeleton || skill.srvdofunc == ServerDoFunction::kGolem
                               || skill.srvdofunc == ServerDoFunction::kIronGolem || skill.srvdofunc == ServerDoFunction::kDecoy || skill.srvdofunc == ServerDoFunction::kValkyrie
-                              || skill.srvdofunc == ServerDoFunction::kTrap;
+                              || skill.srvdofunc == ServerDoFunction::kTrap || skill.srvdofunc == ServerDoFunction::kBladeSentinel;
         const int forced = forced_calc2 ? std::max(d2d::rules::eval_calc(game_data->skills, skill.calc[1], env, skill.id, lvl), 1) : 0;
         const int plvl = d2d::rules::summon_level(clvl, forced, levelled ? lvl : 0);
         Pet pet;

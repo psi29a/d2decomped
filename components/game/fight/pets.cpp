@@ -416,7 +416,10 @@ auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
         std::erase_if(actor->pets, [&](const Pet& pet) { return !pet.monster.alive() && pet.monster.mode == "DT" && now_ms >= pet.monster.mode_until && !blast_due(pet.monster); });
         const auto save_class = std::size_t(std::max(actor->character.character_class, 0));
         for (const auto& made : std::exchange(actor->pet_summons, {}))            // a Shadow's traps and Blade Sentinel from last turn
-            if (const auto* skill = game_data->skills.get(made.skill)) summon(*skill, made.level, made.x, made.y, now_ms);
+            if (const auto* skill = game_data->skills.get(made.skill)) {
+                if (skill->srvdofunc == ServerDoFunction::kBladeSentinel) blade_sentinel(*skill, made.level, made.from_x, made.from_y, made.x, made.y, made.caster_level, now_ms);
+                else summon(*skill, made.level, made.x, made.y, now_ms);
+            }
         for (auto& pet : actor->pets)   // the pet's own room (FUN_00620bb0 on the unit, FUN_0061ab00): one left behind keeps its level's
             pet_regen(*game_data, pet.monster, !pet.where || d2d::rules::level_ids::is_town(pet.where->id), now_ms);
         for (auto& pet : actor->pets) {
@@ -818,6 +821,21 @@ auto Fight::pet_second_foe(const Monster& searcher, int size, const Crowd& crowd
         return chosen >= 0 ? sight_index[std::size_t(chosen)] : -1;
     }
 
+// The Blade Sentinel's blade, made once by its think (FUN_005ea540, 0x5ea660): FUN_0056ede0 with EDX its
+// owner (the player: its damage and weapon are the player's, FUN_0064b860) at the pet's subtile, its
+// Skill1's srvmissilea (row +0x48) at its level, then FUN_00621ce0 records the pet as the unit it rides
+// (do 20). The pet takes the owner's attack rating (stat 0x13, FUN_00622560) and item_tohit_percent plus
+// the weapon's mastery (0x77, FUN_00645830): the blade's to-hit is the owner's, as d2d rolls it.
+auto Fight::pet_blade(Pet& pet, std::uint32_t now_ms) -> void {
+        const auto& type_info = game_data->monsters.types[std::size_t(pet.monster.type)];
+        const auto* skill1 = skill_named(type_info.skill[0]);
+        if (!skill1) return;
+        const auto row = game_data->missiles.find(skill1->srvmissilea);
+        if (row == game_data->missiles.end()) return;
+        const float x = (std::floor(pet.monster.unit.x * 5) + 0.5f) / 5, y = (std::floor(pet.monster.unit.y * 5) + 0.5f) / 5;
+        launch(row->second, *skill1, std::max(pet.level, 1), x, y, 0, 0, 10, now_ms).rider = pet.monster.id;
+    }
+
 // A traced pet's frame outside an attack (rules::traced_pet_ai): a walk
 // goes on, then at its think the AI's rules::*_think on a PetScene, its
 // follows and follow-or-fight tests by rules::PetFollow as NecroPet's. The
@@ -827,8 +845,8 @@ auto Fight::pet_second_foe(const Monster& searcher, int size, const Crowd& crowd
 // Vines' and the Sentries' `foe2` is FUN_005ddc30's (0x5ddc30), below.
 // The foe2 poisoned (state 2: its poison running), the pet under
 // Decrepify (0x3c), the owner's life / mana in 256ths.
-// Fenris's rage is pet_cast's (its buff, fenris_rage). Blade Sentinel isn't
-// summoned, so its think doesn't run.
+// Fenris's rage is pet_cast's (its buff, fenris_rage). Blade Sentinel's
+// bladecreeper walks its line (Pet::line) and carries its blade (pet_blade).
 // The Shadows: the Warrior's scene and the Master's think below.
 auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const Crowd& crowd) -> void {
         using d2d::rules::PetUnit;
@@ -944,6 +962,10 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
             return row && row->aurastate == "fenris_rage" && now_ms < buff.until;
         });
         scene.velocity = type_info.velocity; scene.run = type_info.run;
+        // Blade Sentinel's (FUN_005ea540): its line's two ends, and its last frame's span, its Skill1's
+        // calc4 (row +0x144) at its level in it (the cast's, FUN_005d5e10 gives it).
+        scene.ends = pet.lined; scene.end = pet.line;
+        if (type_info.ai_name == "BladeCreeper" && skill1) scene.skill_calc = calc(*skill1, skill1->calc[3], std::max(pet.level, 1));
         // How it follows: PetFollow on its PetView (as NecroPet's).
         d2d::rules::PetView view{ .x = pet_x, .y = pet_y, .size = size, .owner_x = sub(actor->player.x), .owner_y = sub(actor->player.y), .owner_mode = actor->owner_mode,
                                   .cur_x = sub(actor->target_x), .cur_y = sub(actor->target_y),
@@ -1196,6 +1218,11 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
         else if (ai_name == "Totem") d2d::rules::totem_think(brain);
         else if (ai_name == "Vines") d2d::rules::poison_creeper_think(brain);
         else if (ai_name == "CycleOfLife") d2d::rules::cycle_vine_think(brain);
+        else if (ai_name == "BladeCreeper") {
+            const bool unmade = pet.ctrl[2] == 0;
+            d2d::rules::blade_sentinel_think(brain);
+            if (unmade && pet.ctrl[2] != 0) pet_blade(pet, now_ms);         // its missile, once (+0x1c)
+        }
         else d2d::rules::druid_bear_think(brain);
         const auto& act = brain.act;
         monster.force_sight = act.unreachable;
@@ -1380,7 +1407,7 @@ auto Fight::shadow_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd, int 
         // Its traps and Blade Sentinel (do 45 / 44): laid at its target (else
         // where it stands) once the pets have had their turns.
         if (skill->srvdofunc == ServerDoFunction::kTrap || skill->srvdofunc == ServerDoFunction::kBladeSentinel) {
-            actor->pet_summons.push_back({ skill->id, lvl, foe.x, foe.y });
+            actor->pet_summons.push_back({ skill->id, lvl, foe.x, foe.y, monster.unit.x, monster.unit.y, monster.stats.level });
             return;
         }
         // Attack with the owner's bow or crossbow shoots its missile (skill_missile: weapon_missile); fire spends no ammo.

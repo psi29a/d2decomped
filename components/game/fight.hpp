@@ -198,6 +198,9 @@ struct Fight {
             bool skill_damage = false;
             int skill_low = 0, skill_high = 0, skill_to_hit = 0;
             const Level* where = nullptr;              // the level it's on (pets follow the player across)
+            // A Blade Sentinel's line (FUN_0058ef40's record +0xc..+0x18): the caster's subtile, then the point.
+            std::array<std::pair<int, int>, 2> line{};
+            bool lined = false;
             std::uint32_t until = 0;                   // it goes then (Decoy, Revive, Hydra; 0 never)
             bool homing = false;                       // a revived monster on its walk back to its owner (FUN_005b0ff0)
             int variant = 0;                           // a skeletal mage's element (its +0xf, FUN_005ce0b0)
@@ -225,7 +228,7 @@ struct Fight {
         };
         // What a Shadow summons while the pets take their turns (traps, Blade
         // Sentinel), made once they're done.
-        struct PetSummon { int skill = 0, level = 0; float x = 0, y = 0; };
+        struct PetSummon { int skill = 0, level = 0; float x = 0, y = 0; float from_x = 0, from_y = 0; int caster_level = 1; };   // from: Blade Sentinel's caster
         std::vector<PetSummon> pet_summons;
         std::vector<Pet> pets;
         std::uint32_t aura_next = 0;           // its next pulse
@@ -894,6 +897,9 @@ struct Fight {
     [[nodiscard]] const GameData::MissileInfo* pet_missile(const d2d::rules::Skill& skill, int variant = 0) const;
     void summon(const d2d::rules::Skill& skill, std::uint32_t now_ms) { summon(skill, skill_level ? skill_level(skill.id) : 1, actor->cast_x, actor->cast_y, now_ms); }
     void summon(const d2d::rules::Skill& skill, int lvl, float x, float y, std::uint32_t now_ms);
+    // Blade Sentinel's do 44: its bladecreeper on the caster (at `from`, of level `caster_level`), its line to the point.
+    void blade_sentinel(const d2d::rules::Skill& skill, int lvl, float from_x, float from_y, float to_x, float to_y, int caster_level, std::uint32_t now_ms);
+    void pet_blade(Pet& pet, std::uint32_t now_ms);   // its think's blade, riding it (do 20)
     [[nodiscard]] static int pet_buff_stat(const Pet& pet, int stat) { const auto found = pet.buff_stats.find(stat); return found == pet.buff_stats.end() ? 0 : found->second; }
     void pet_buffs(Pet& pet);
     // A Shadow's: the owner's fighter with its own damagepercent (a curse's) in.

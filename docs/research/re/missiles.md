@@ -654,8 +654,9 @@ Do 20 then sets the missile's frames left to 10 (`FUN_0064a330(missile,
 10)`, `0x5af564`) and strikes as do 1 (`FUN_005ae1f0`, `0x5af56d`), and
 returns 1; with no owner, or a dead one, `FUN_005adf10(0, 1)` and 2. So the
 blade creeper missile is put on its owner each time do 20 runs, and lasts
-as long as the owner does. Who that owner is (Blade Sentinel's bladecreeper
-monster, MonAI 102, is a lead) is not traced here, nor do 30's rest.
+as long as the owner does. That owner is Blade Sentinel's bladecreeper:
+its think makes the blade and records itself on it (`FUN_005ea540`,
+0x5ea66b `FUN_00621ce0`; pet-ai.md). Do 30's rest is not traced here.
 
 Checked: `tools/emu/missile_ride.py` runs `FUN_005a99e0` with the path
 readers, `FUN_00620bb0` and `FUN_00650be0` for real on owners of unit
@@ -663,8 +664,9 @@ types 0 to 7 and -1. Run on 2026-11-24 as `cd tools/emu && uv run python
 missile_ride.py --exe <game.exe> --mutation-check`: `ok: 3000 FUN_005a99e0
 cases`, then 7 `caught` lines (model defects). Hooked,
 not claimed: the owner lookup `FUN_00552fd0` and the move `FUN_00650910`.
-d2d's do 20 (`missiles.cpp`, "20 (Blade Sentinel)") moves the missile
-itself back and forth between the caster's spot and its point instead.
+d2d's do 20 (`missiles.cpp`, `Missile::rider`) puts the blade on its
+bladecreeper's subtile each frame, 10 frames left, and ends it once the
+pet is dead.
 
 ## d2d
 

@@ -710,15 +710,8 @@ auto Fight::fire(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
             const bool firestorm = skill.srvdofunc == ServerDoFunction::kFirestorm;
             if (calc1 > 0 && firestorm) send(dx, dy, range);
             for (int k = 0; k < calc1 - (firestorm ? 1 : 0); ++k) send(dx, dy, range).bolt = k;
-        } else if (skill.srvdofunc == ServerDoFunction::kBladeSentinel) {                      // Blade Sentinel: out to the point and back, Param1 frames
-            // ponytail: do 44 (FUN_005d6020) summons a BladeCreeper monster (FUN_005d5e10) that the
-            // AI 0x5ea540 walks between the caster and the point, its line a record (FUN_0058ef40); here
-            // the missile row does, hitting as it passes (NextHit). Needs the pet's think dispatched
-            // (summons.cpp, pets.cpp), not this file alone.
-            auto& missile = send(dx, dy, std::max(range, skill.par[0]));
-            missile.origin_x = caster.x; missile.origin_y = caster.y;
-            const float distance = std::max(std::hypot(dx, dy), 0.01f), speed = cells_per_sec(10.f);   // bladecreeper's Velocity
-            missile.velocity_x = dx / distance * speed; missile.velocity_y = dy / distance * speed;
+        } else if (skill.srvdofunc == ServerDoFunction::kBladeSentinel) {                      // Blade Sentinel (FUN_005d6020): its bladecreeper
+            blade_sentinel(skill, lvl, caster.x, caster.y, caster.to_x, caster.to_y, int(actor->character.stats.get(d2d::d2s::kLevel)), now_ms);
         } else if (skill.srvdofunc == ServerDoFunction::kGrimWard) {                      // Grim Ward: its start row at the point
             launch(missile_info, skill, lvl, caster.to_x, caster.to_y, 0, 0, missile_info.range, now_ms);
         } else if (skill.srvdofunc == ServerDoFunction::kVolcano) {                     // Volcano (FUN_005c8080): at the target point
@@ -998,14 +991,20 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
                 curse.srvdofunc = ServerDoFunction::kCurse;
                 spot(curse, now_ms, Caster{ .x = missile.x, .y = missile.y, .level = missile.level, .to_x = missile.x, .to_y = missile.y });
             }
-            // 20 (Blade Sentinel): back and forth between the caster's spot and
-            // where it was sent.
-            if (missile_info.srv_do == 20 && std::hypot(missile.target_x - missile.x, missile.target_y - missile.y) < 0.3f) {
-                std::swap(missile.target_x, missile.origin_x); std::swap(missile.target_y, missile.origin_y);
-                const float speed = std::hypot(missile.velocity_x, missile.velocity_y), dx = missile.target_x - missile.x, dy = missile.target_y - missile.y, distance = std::max(std::hypot(dx, dy), 0.01f);
-                missile.velocity_x = dx / distance * speed; missile.velocity_y = dy / distance * speed; missile.dir = missile_facing(missile.x, missile.y, dx, dy);
-                missile.retarget = std::pair{ missile.target_x, missile.target_y };
-                missile.last_hit = -1;
+            // 20 (FUN_005af540, Blade Sentinel's blade): on its rider's subtile (FUN_005a99e0) with 10 frames
+            // left (FUN_0064a330) while the rider stands (FUN_005541b0: alive, not in DT / DD); else it ends.
+            if (missile_info.srv_do == 20 && missile.rider >= 0) {
+                const auto rider = std::ranges::find(actor->pets, missile.rider, [](const Pet& pet) { return pet.monster.id; });
+                if (rider == actor->pets.end() || !rider->monster.alive() || rider->monster.mode == "DT" || rider->monster.mode == "DD") missile.dies = now_ms;
+                else {
+                    const int ride_x = int(std::floor(rider->monster.unit.x * 5)), ride_y = int(std::floor(rider->monster.unit.y * 5));
+                    missile.x = (float(ride_x) + 0.5f) / 5; missile.y = (float(ride_y) + 0.5f) / 5;
+                    if (missile.launched) {                               // FUN_00650910 moves its path there
+                        missile.flight.x = (std::uint32_t(level->world_x * 5 + ride_x) << 16) + 0x8000;
+                        missile.flight.y = (std::uint32_t(level->world_y * 5 + ride_y) << 16) + 0x8000;
+                    }
+                    missile.dies = now_ms + 10 * 40;
+                }
             }
             // 31 (Wake of Fire's maker): its fire where it goes.
             if (missile_info.srv_do == 31 && sub != game_data->missiles.end())
