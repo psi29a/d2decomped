@@ -218,7 +218,7 @@ address	name	evidence
 0043b7a0	bnclient_attach	Fastcall screen: when +0x225 is unset, the Battle.net interface (FUN_00518c00) into DAT_0077abf0 and +0x225, its first virtual call, 1. Only caller d2d_frontend_screen_run (src-frontier.md)
 0043f8c0	chatdlg_close_all	ChatDlg.cpp: FUN_00443220, FUN_00443130, FUN_0043db20, FUN_0043ea20, FUN_00443e10; DAT_0077bd00 = 0; frees the controls 0x77bd9c and 0x77bd90 (FUN_004f95c0); ... (frontier-ring.md)
 0043fb50	chatdlg_reopen	ChatDlg.cpp: chatdlg_close_all, hides DAT_0077bc4c again, four FUN_005009a0, makes DAT_0077bd9c from 0x70d3c0 (FUN_004f93c0), FUN_004fd060, keeps EDX in DAT_0077bda4; ... (frontier-ring.md)
-00449e50	set_798f7c	Stores its stack argument in DAT_00798f7c (RET 4); its three callers pass 0 (frontier-ring.md)
+00449e50	set_798f7c	Stores its stack argument in DAT_00798f7c (RET 4), the create queue flag; FUN_0043f850, FUN_0043fe40 and FUN_00441b70 (twice) pass 0, the MCP 0x14 reply at 0x44b15b passes 1 (frontier-ring.md, mcp-connect.md)
 0044b220	set_799308	Stores ECX in DAT_00799308 (frontier-ring.md)
 0044b6b0	app_args_init	Runs the init table 0x6d5be0; with no video option (FUN_0044d9f0), the registry's Default Command Line parsed (FUN_006c4fb0); the user name (GetUserNameA, noname on failure) into 0x7a05c4. Only caller the app start ... (unnamed-frontier.md)
 0044b7a0	get_7a0438	Returns DAT_007a0438, the launch record. Only caller FUN_0044e5a0 (unnamed-frontier.md)

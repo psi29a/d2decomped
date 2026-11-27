@@ -76,7 +76,7 @@ caller of `app_mode_run`) reads it.
 | `FUN_00407360` | `ptr_74d88c_if_set` | `&DAT_0074d88c` when it's nonzero, else 0. Callers `FUN_00457300` (gfx start), `FUN_00510020` (video-drivers.md), `FUN_005ffd40`, `FUN_006b42f0`, `FUN_006b4e80`. Run | not compared |
 | `FUN_0043f8c0` | `chatdlg_close_all` | ChatDlg.cpp: `FUN_00443220`, `FUN_00443130`, `FUN_0043db20`, `FUN_0043ea20`, `FUN_00443e10`; `DAT_0077bd00` = 0; frees the controls `0x77bd9c` and `0x77bd90` (`FUN_004f95c0`); `FUN_00444e20` when `DAT_00798cc0` is 1; `DAT_0077bbe4` 3 becomes 0; hides `DAT_0077bc4c` (`d2d_control_set_hidden`). Callers the chat front end (`FUN_0043fe40`, `FUN_0043ffa0`, `FUN_00441b70` and 5 more) | no counterpart (Battle.net chat) |
 | `FUN_0043fb50` | `chatdlg_reopen` | ChatDlg.cpp: `chatdlg_close_all`, hides `DAT_0077bc4c` again, four `FUN_005009a0`, makes `DAT_0077bd9c` from `0x70d3c0` (`FUN_004f93c0`), `FUN_004fd060`, keeps EDX in `DAT_0077bda4`; returns 1 | as above |
-| `FUN_00449e50` | `set_798f7c` | Stores its stack argument in `DAT_00798f7c` (`RET 4`); its three callers pass 0. Run | not compared |
+| `FUN_00449e50` | `set_798f7c` | Stores its stack argument in `DAT_00798f7c` (`RET 4`), the create queue flag; `FUN_0043f850`, `FUN_0043fe40` and `FUN_00441b70` (twice) pass 0, the MCP 0x14 reply at `0x44b15b` (code Ghidra has no function for) passes 1 (mcp-connect.md). Run | not compared |
 | `FUN_0044bf30` | `get_7a0650` | Returns `DAT_007a0650`. Caller `FUN_00467000` (collision.md). Run | not compared |
 | `FUN_004549b0` | `ui_resize_refresh` | `FUN_004a02f0` then `FUN_004b69e0`. Caller `FUN_0044ba20`, the screen size set (automap.md) | not compared |
 | `FUN_00457440` | `nop_457440` | Returns at once. Caller `FUN_0044ba20`. Run | n/a |
