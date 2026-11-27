@@ -5,6 +5,7 @@
 #include "ai.hpp"
 #include "character.hpp"
 #include "cues.hpp"
+#include "effect_policy.hpp"
 #include "fight.hpp"
 #include "gamedata.hpp"
 #include "inventory.hpp"
@@ -556,6 +557,30 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
 // FUN_0057eec0(1, 0, 0): state 0x36, or mode 0 / 0x11; walking passes
 // (network.md).
 auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
+        if (const auto* dismiss = std::get_if<cmd::DismissEffect>(&command)) {
+            if (!game_data || !dismiss_effects || !dismiss->instance || fight.dead()) return;
+            bool removed = false;
+            if (dismiss->kind == 0) {
+                const auto found = std::ranges::find(actor->self_states, dismiss->instance, &Fight::SelfState::instance);
+                if (found == actor->self_states.end() || now_ms >= found->until) return;
+                const auto* skill = game_data->skills.get(found->skill);
+                if (!skill || !dismissible_self_effect(skill->name)) return;
+                if (actor->absorb_skill == found->skill) {
+                    actor->absorb_pool = actor->absorb_frac = 0;
+                    actor->absorb_skill = -1;
+                }
+                actor->self_states.erase(found);
+                removed = true;
+            } else if (dismiss->kind == 1 && actor->boost.instance == dismiss->instance && now_ms < actor->boost.until
+                       && dismissible_shrine_effect(shrine_code(actor->boost.shrine), actor->boost.stats)) {
+                if (shrine_code(actor->boost.shrine) == 14)
+                    actor->character.stats.values[d2d::d2s::kStamina] = actor->character.stats.values[d2d::d2s::kMaxStamina];
+                actor->boost = {};
+                removed = true;
+            }
+            if (removed) fight.update_fighters(now_ms);
+            return;
+        }
         if (const auto* say = std::get_if<cmd::Say>(&command)) {   // typed chat: to everyone in the game
             if (!say->text.empty()) announce({ ev::Message::chat, actor->character.name, say->text.substr(0, 255) });
             d2d::log::info("chat: {}: {}", actor->character.name, say->text);

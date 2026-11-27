@@ -432,6 +432,14 @@ if touch_ux:
     tap(598, 530)           # onto skill ring 1
     screenshot("touch-assignment-corpse.png" if corpse_ux else "touch-assignment.png")
     tap(768, 30); tap(768, 30)  # Done, then Back from the tree
+    tap(30, 30)
+    assert state()["inventory"] == "1", "Inventory touch toggle did not open"
+    tap(30, 30)
+    assert state()["inventory"] == "0", "Inventory touch toggle did not close"
+    tap(100, 30)
+    assert state()["tree"] != "0", "Skill touch toggle did not open"
+    tap(100, 30)
+    assert state()["tree"] == "0", "Skill touch toggle did not close"
     tap(170, 30)  # Stats from the field, outside the NPC dispatch branch.
     assert state()["character_panel"] == "1", "Stats did not open Character from the field"
     tap(768, 30)

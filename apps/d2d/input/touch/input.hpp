@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Touch adapter in logical 800x600 coordinates. No SDL, game rules or saves.
+// Touch adapter in logical viewport coordinates. No SDL, game rules or saves.
 #pragma once
 
 #include "input/touch/feedback.hpp"
@@ -23,9 +23,14 @@ struct Box {
     [[nodiscard]] bool contains(float point_x, float point_y) const { return point_x >= x && point_x < x + width && point_y >= y && point_y < y + height; }
 };
 
-// Extra inset within the centre 800x600 touch band (main.cpp from SDL safe area).
+// Inset within the full-width logical viewport (main.cpp from SDL safe area).
 struct SafeInset { float left = 0, top = 0, right = 0, bottom = 0; };
 inline SafeInset safe_inset;
+inline float viewport_width = 800.f;
+inline float legacy_offset() { return float((int(viewport_width) - 800) / 2); }
+inline float to_legacy_x(float point_x) { return point_x - legacy_offset(); }
+inline float to_viewport_x(float point_x) { return point_x + legacy_offset(); }
+inline Box translate_legacy_box(Box box) { box.x = to_viewport_x(box.x); return box; }
 
 inline bool g_touch_classic_hud = false;
 
@@ -84,12 +89,23 @@ inline constexpr Box kQuestTrack{ 0, 132, 172, 148 };
 
 struct Layout {
     Box move, move_visual, attack, page, menu, skills_bar, stats, quest, bind, map, done, interact, quest_track;
-    Box healing, mana, belt_more;
+    Box healing, mana, belt_more, life_orb, mana_orb;
     std::array<Box, 4> skills{}, belts{};
 };
 
-inline float ui_scale(float value) { return value * kUiScale; }
-inline float bar_gap() { return kBarGapChip * ui_scale(kChipSize); }
+inline constexpr float ui_scale(float value) { return value * kUiScale; }
+inline constexpr float bar_gap() { return kBarGapChip * ui_scale(kChipSize); }
+
+inline constexpr Box stamina_bar_rect(const Layout& chrome) {
+    const float width = std::max(118.f, chrome.bind.x + chrome.bind.width - chrome.menu.x);
+    const float half = std::max(1.f, (width - 4.f) * .5f);
+    const float y = chrome.bind.y + chrome.bind.height + bar_gap();
+    return { chrome.menu.x, y, half, 6.f };
+}
+inline constexpr Box stamina_bar_box(const Layout& chrome) {
+    const Box bar = stamina_bar_rect(chrome);
+    return { bar.x, bar.y - 4.f, bar.width, 56.f };
+}
 
 /** Top-left for a frame centred in `box` (belt and skill icons). */
 inline std::pair<float, float> centred_blit_origin(Box box, float frame_w, float frame_h) {
@@ -206,7 +222,7 @@ inline Box anchor_box(float width, float height, bool left, bool top) {
     constexpr float kPad = 6.f;
     Box box{ 0, 0, width, height };
     if (left) box.x = safe_inset.left + kPad;
-    else box.x = 800.f - safe_inset.right - width - kPad;
+    else box.x = viewport_width - safe_inset.right - width - kPad;
     if (top) box.y = safe_inset.top + kPad;
     else box.y = 600.f - safe_inset.bottom - height - kPad;
     return box;
@@ -216,7 +232,7 @@ inline Box placed(Box box) {
     constexpr float kEdge = 24.f;
     if (box.x < kEdge) box.x += safe_inset.left;
     if (box.y < kEdge) box.y += safe_inset.top;
-    if (box.x + box.width > 800.f - kEdge) box.x -= safe_inset.right;
+    if (box.x + box.width > viewport_width - kEdge) box.x -= safe_inset.right;
     if (box.y + box.height > 600.f - kEdge) box.y -= safe_inset.bottom;
     return box;
 }
@@ -267,6 +283,14 @@ inline Layout layout_boxes() {
     out.interact = { potion_x, attack_cy - 216.f, 64.f, 64.f };
     out.mana = { potion_x, attack_cy - 136.f, 64.f, 64.f };
     out.healing = { potion_x, attack_cy - 56.f, 64.f, 64.f };
+    const float orb_bottom = 600.f - safe_inset.bottom - 6.f;
+    const float orb_center = viewport_width * .5f;
+    const float mana_x = std::min(orb_center - 13.f, out.healing.x - 90.f);
+    out.life_orb = { mana_x - 110.f, orb_bottom - 100.f, 82.f, 100.f };
+    out.mana_orb = { mana_x, orb_bottom - 100.f, 82.f, 100.f };
+    const float left_controls = std::min({ out.skills[0].x, out.mana.x, out.healing.x });
+    out.move.width = std::max(out.move.width, std::min(left_controls - 8.f, viewport_width * .55f) - out.move.x);
+    out.move.height = std::max(out.move.height, 600.f - safe_inset.bottom - out.move.y);
     return out;
 }
 
@@ -341,10 +365,21 @@ private:
 /** Build a right-hand cast at the caster without a locked enemy. */
 [[nodiscard]] inline Target caster_target(int skill, float x, float y) { return { skill, -1, x, y, false, true }; }
 
+class StaminaPress {
+public:
+    bool event(std::int64_t finger, Phase phase, float x, float y, const Box& box);
+    [[nodiscard]] bool owns(std::int64_t finger) const { return owner_ != -1 && owner_ == finger; }
+    void clear() { owner_ = -1; inside_ = true; }
+private:
+    std::int64_t owner_ = -1;
+    bool inside_ = true;
+};
+
 class Input {
 public:
     bool belt_expanded = false;
     PotionPress potion_press;
+    StaminaPress stamina_press;
     FeedbackState feedback;
     bool alternate = false, attack_down = false, attack_press = false;
     bool menu = false, done = false, belt_quick = false, run_toggle = false;
@@ -368,6 +403,7 @@ public:
             if (feedback.sample(std::size_t(skill_feedback_), 0).kind == FeedbackKind::Pressed) feedback.release(std::size_t(skill_feedback_));
             skill_feedback_ = -1;
         }
+        if (stamina_press.owns(finger)) stamina_press.clear();
         if (potion_press.owns(finger)) potion_press.clear();
         if (finger == movement_) { movement_ = -1; move_x = move_y = 0; }
         if (finger == attack_) { attack_ = -1; attack_down = false; }
@@ -375,7 +411,7 @@ public:
     }
 
     void clear() {
-        potion_press.clear(); belt_expanded = false; feedback.reset();
+        stamina_press.clear(); potion_press.clear(); belt_expanded = false; feedback.reset();
         movement_ = skill_ = attack_ = -1;
         skill_feedback_ = -1; release_consumed_ = false;
         move_x = move_y = 0;
@@ -473,7 +509,7 @@ public:
             aim_x = x; aim_y = y;
             dragged = dragged || (!stationary && std::hypot(x - origin_x, y - origin_y) > 10);
             if (phase == Phase::Up) {
-                const bool in_band = x >= 0 && x < 800 && y >= 0 && y < 600;
+                const bool in_band = x >= 0 && x < viewport_width && y >= 0 && y < 600;
                 const bool accepted = in_band && preview.valid;
                 if (accepted && !release_consumed_) casts.push_back(preview);
                 if (skill_feedback_ >= 0) {

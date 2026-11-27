@@ -246,6 +246,23 @@ on its level (FUN_005404f0), 1 without a party.
    by tools/emu/kill_exp.py.
 4. A party: FUN_0057e6c0.
 
+### FUN_0057e510 — the award added
+
+ESI the player (nothing for a null unit or one not of type 0), the stack
+the game, the level before and the award, `RET 0xc`. new = stat 13 + the
+award, a 32-bit add (`LEA EDI, [EAX + ECX]`, 0x57e533: past 2^32 it wraps),
+lowered to `FUN_00611800(class, FUN_00611830(class) - 1)` (Experience.txt's
+row MaxLvl - 1: 3520485254 for every class in 1.14d) when above it,
+compared unsigned (`JBE`, 0x57e547). Stat 29 takes new - old (less than 0
+when the old was already over the cap), stat 13 new (`FUN_00627260`); when
+`FUN_00611860` (the level the new experience reaches) is not the level
+before, `FUN_00570880` (full life, mana, stamina) and `FUN_005c0c30` (event
+0xc) run. Callers FUN_0057e6c0, FUN_0057e990 (kills), FUN_0057eab0 and
+FUN_0057eb10. d2d: rules::exp_after_award, which rules::gain_exp adds with
+(capped at exp_next[max_level - 1]); stat 29 isn't kept and the level-up is
+gain_exp's own loop. Oracle tools/emu/exp_add.py (20000 cases, all of the
+body reached), fixture tests/exp_add_cases.inc.
+
 ### FUN_0057e6c0
 
 FUN_005405a0 walks the killer's party members whose room is on the

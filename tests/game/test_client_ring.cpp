@@ -2,11 +2,13 @@
 // test-links: game
 // The client's rooms past the near list (drlg.md "Entering a room"): FUN_0061b390 walks the near list three deep;
 // each room first reached at depth 2, whichever level it's of, goes on the status-2 list at its tail, and the client's
-// frame (FUN_0061b920) brings them up from its head, so they're made in that depth-first order. With the game's MPQs.
+// frame (FUN_0061b920, step_client_ring) brings them up from its head, one each 5 frames, so they're made in that
+// depth-first order. The frame after the arrival's room1s only clears their count (+0x98). With the game's MPQs.
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
 #include <level.hpp>
 #include <level_ids.hpp>
+#include <spawning.hpp>
 #include <world.hpp>
 
 #include <algorithm>
@@ -15,13 +17,13 @@
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
-#include <span>
 #include <utility>
 #include <vector>
 
 namespace fs = std::filesystem;
 using namespace d2d::game;
 
+// Arrives in the Blood Moor, then steps the client's frames: each ring room comes up on its frame, in order.
 int main() try {
     const char* mpq_dir = std::getenv("D2_MPQ_DIR");
     if (!mpq_dir || !fs::exists(fs::path(mpq_dir) / "d2data.mpq")) { std::puts("SKIP: no d2data.mpq (D2_MPQ_DIR)"); return D2D_TEST_SKIPPED; }
@@ -49,16 +51,25 @@ int main() try {
             if (!std::ranges::contains(first, further) && !std::ranges::contains(ring, further)) ring.push_back(further);
     }
     assert(!ring.empty());
-    const auto& levels = world.fight.spawning.levels;
-    std::vector<std::size_t> own;                                 // this level's ring rooms, in the walk's order
-    for (const auto& [level, room] : ring) {
-        const auto found = levels.find(level);
-        assert(found != levels.end() && std::ranges::contains(found->second.client_order, std::size_t(room)));
-        if (level == moor) own.push_back(std::size_t(room));
+    auto& spawning = world.fight.spawning;
+    const auto made = [&](const std::pair<const Level*, int>& entry) {
+        const auto found = spawning.levels.find(entry.first);
+        return found != spawning.levels.end() && std::ranges::contains(found->second.client_order, std::size_t(entry.second));
+    };
+    for (const auto& entry : ring) assert(!made(entry));          // not with the arrival's: they wait for the client's frames
+    std::vector<int> frame_of(ring.size(), -1);
+    for (int frame = 1; frame <= int(ring.size()) * 5 + 10; ++frame) {
+        step_client_ring(*data, spawning);
+        for (std::size_t index = 0; index < ring.size(); ++index)
+            if (frame_of[index] < 0 && made(ring[index])) frame_of[index] = frame;
     }
-    const auto& order = levels.at(moor).client_order;
-    assert(order.size() >= own.size() && std::ranges::equal(own, std::span(order).last(own.size())));
-    std::printf("OK: %zu rooms past the near list, made depth first (FUN_0061b390, FUN_0061b920)\n", ring.size());
+    for (std::size_t index = 0; index < ring.size(); ++index) {
+        if (frame_of[index] != 6 + int(index) * 5) {
+            std::printf("FAIL: ring room %zu came up at frame %d, not %d\n", index, frame_of[index], 6 + int(index) * 5);
+            return 1;
+        }
+    }
+    std::printf("OK: %zu rooms past the near list, made depth first one each 5 frames (FUN_0061b390, FUN_0061b920)\n", ring.size());
     return 0;
 } catch (const std::exception& error) {
     std::printf("FAIL: %s\n", error.what());

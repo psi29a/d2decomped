@@ -21,6 +21,29 @@ the rooms round the player and keeps those the hit test
 4. The pixel or box test (per-layer selectable rectangles when the class
    asks for them, else the frame's box).
 
+### The active skill's select proc (`FUN_00464310`)
+
+`FUN_00464310` takes the target in **ESI** and the local player in **EDI**.
+It returns 0 for null or non-monster targets. For a monster it gets the
+player's left skill (`FUN_00620190`), obtains its id through
+`FUN_00643ce0(..., "UNIT\\CUnit.cpp", 0x68a)`, and runs
+`FUN_004642b0(id, target)`. A true left result returns at once; otherwise it
+does the same for the right skill (assert line `0x68e`) and returns that
+result. The runner reads Skills.txt `SelectProc` at record `+0x15` and calls
+one of six callbacks. Their full gates are recorded in collision.md "The
+skill select-proc runner".
+
+For player skills the effects are: Corpse / Poison Explosion require a DD,
+non-hidden `corpseSel` corpse; Raise Skeleton / Skeletal Mage additionally
+require nonzero MonStats `Velocity`; Revive additionally requires a walking,
+SwitchAI, non-MonStats-boss class and no champion/unique/superunique bits.
+`client::corpse_cursor_takes` applies each hand's Skills.txt `SelectProc` and
+these gates to `near_pick`; a corpse no proc passes isn't taken (its +0xc4
+bit 1 is clear). Procs 4 and 6 also require MonStats2 `soft`; d2d's `MonType`
+does not retain that field, so that final gate remains unported.
+`tools/emu/skill_select_proc.py` runs the native runner and every callback on
+73 synthetic cases and catches four mutations.
+
 ## May the player interact with it (`FUN_00465c60`)
 
 - **In town** (`FUN_0061ab00` → `FUN_006426a0`: levels 1, 40, 75, 103,
@@ -517,11 +540,22 @@ no +0xc4 bit 0x10000) answers `FUN_004dc440(local id, other id, 8)`. That
 function reads the local player's roster record (`FUN_0047a310`: ECX into
 EDX, `FUN_004792e0`, its +0x34) and returns the node for the other id's
 flags & 8: the hostile bit, the same flags S->C 0x8c carries (`{0x8c, player,
-toward whom, flags}`, net-packets.md). A dead other player passes instead when
-`FUN_0047a4f0` says its corpse is ours or loot bit 1 is set. `FUN_00466870`
-also passes a unit `FUN_00465c60` refuses when `FUN_00464ec0` or
-`FUN_00464f70` does (a hand's skill with Skills row byte +7 bit 2 or 4: our
-own pet, a party member); with the hit-test argument zero it then returns 1
+toward whom, flags}`, net-packets.md). For a dead other player (unit flag
+`+0xc4 & 0x10000`, or mode 0 / 0x11), `FUN_0047a4f0(local id)` looks up the
+target's roster record. It passes when record `+0x10` is the local id (this is
+our corpse) or the target's relation toward the local id has loot bit 1. In a
+town that is required; outside town its failure falls through to the ordinary
+hostile-bit-8 test, while success returns 1.
+
+`FUN_00466870` also passes a unit `FUN_00465c60` refuses when
+`FUN_00464ec0` or `FUN_00464f70` does. Both read the local player's left and
+right skill. `FUN_00464ec0` needs Skills record byte `+7` bit 2 (`TargetPet`),
+then maps the target monster through `FUN_00479150` and requires its owner id
+to equal the local player's id. A player has no owner mapping, so this arm
+cannot admit another player. `FUN_00464f70` needs byte `+7` bit 4
+(`TargetAlly`), maps a monster target to its owner (a player target stays
+itself), and `FUN_0047a520` requires both roster records' party words `+0x22`
+to be equal and not `0xffff`. With the hit-test argument zero it then returns 1
 after the unit flags (+0xc4 & 0x200000 refuses; +0xc4 & 2 or `FUN_00464310`,
 and +0xc8 & 0x80, pass), before any pixel or box test.
 
@@ -535,16 +569,24 @@ bit-1 mutants are caught, and the record looked up by the other id differs
 d2d: `ClientSession::near_pick` takes the other players from
 `add_near_players` (apps/d2d/session/near_players.cpp): each `View::others`
 player is type 0, `hit` its `hostile` (bit 8 of a joined game's S->C 0x8c flags
-toward it, `ClientSession::net_overlay`; the View codec carries it), and dead
+toward it, `ClientSession::net_overlay`; the View codec carries it) or, for a
+TargetAlly skill, its same-party result. Joined-game monsters also get the
+TargetPet owner and TargetAlly owner's-party exceptions from the host unit and
+roster records. A player is dead
 (mode 0, dropped unless the skill takes corpses) when a local co-op ghost or,
 joined, after the host's 0x0d command 8 / 9 on it until its 0x15. Local co-op has no
 relation nodes, so its players are never hostile, and a hosted World reads
-`UseSkill::unit` only as a monster. The dead-player arm and the
-`FUN_00464ec0` / `FUN_00464f70` passes for a player aren't ported.
+`UseSkill::unit` only as a monster. FUN_00465c60's dead-player corpse/loot
+answer cannot affect this search: `FUN_0065aa40`'s player mask rejects mode 0
+and 0x11 before the hit-test result is considered. Local-co-op pets still have
+no unit id/owner in `View`, so they cannot enter this search.
 `test_hostile_player_search` runs `add_near_players`: two non-hostile players
 fail, a hostile one is picked and a dead hostile one isn't, the flag survives
 the View codec, and the cast keeps type 0 through the command codec and the
-C->S packet.
+C->S packet. `test_near_player_exceptions` covers the TargetAlly player and
+TargetPet/TargetAlly owner rules. `tools/emu/player_cursor_exceptions.py` runs
+the native dead/loot, owner and party arms over 40 cases and catches three
+mutations.
 
 The native send is `FUN_00461700` -> `FUN_00481030` -> `FUN_00480b40` ->
 `FUN_004786a0`: `FUN_00461700` takes the target's +0 as its type and +0xc as

@@ -316,10 +316,13 @@ struct Level {
     // level subtile). Spawning::LevelState::group_rooms.
     using GroupRoom = d2d::game::GroupRoom;
     // What brings its rooms up again in another order (relevel): an outdoor
-    // level's plain rooms, its DT1s, the assets they're from. Null assets: not generated.
+    // level's plain rooms, its DT1s, the assets they're from. Null assets: not
+    // generated, and not the camp (lay_camp_picks).
     std::vector<d2d::drlg::PlainRoom> plain;
     LevelDt1s tile_dt1s;
     const d2d::drlg::OutdoorAssets* assets = nullptr;
+    // The camp's rooms with their DRLG seeds (lay_camp_picks), by room_rects index: what relevel lays it from.
+    std::vector<d2d::drlg::Outdoor::RoomSeed> preset_split;
     std::vector<std::size_t> laid;                     // the order (list indices) relevel last laid its rooms in, empty: list order
     std::size_t laid_up = 0;                           // and how many of them were up (their spawn areas merged)
     // The walk grid as the tiles alone make it (finish_level, before any
@@ -363,8 +366,10 @@ struct GameData::LevelBuilder {
 // A preset level's (no generated rooms.
 // `assets`: any generated level's (the presets' rows and DS1s).
 std::vector<d2d::drlg::BuiltRoom> preset_rooms(const GameData& game_data, const Level& level, const d2d::drlg::OutdoorAssets& assets);
-// The camp's tiles as game.exe's rooms pick them (rarity, on the DRLG room seeds), into Level::picks.
-void lay_camp_picks(GameData& game_data, const d2d::drlg::OutdoorAssets& assets);
+// The camp's tiles as game.exe's rooms pick them (rarity, on the DRLG room seeds), into Level::picks;
+// the rooms in `came_up` (room_rects indices) brought up first in that order, the rest after in list order.
+// Keeps what relevel needs to lay the camp again as its rooms come up.
+void lay_camp_picks(GameData& game_data, const d2d::drlg::OutdoorAssets& assets, const std::vector<std::size_t>& came_up = {});
 // Its rooms' room1 seeds by room_rects index, the rooms in `came_up` (room_rects indices) brought up in that
 // order; `generated`: drlg::generate_preset's rooms, which hold the DRLG room seeds.
 std::vector<std::uint32_t> preset_room1_seeds(const GameData& game_data, const Level& level, const d2d::drlg::OutdoorAssets& assets,

@@ -3307,27 +3307,59 @@ Not traced: the callers' item flag meanings, which NPC each class id is.
   subindex = a MonType id) and, for each entry whose subindex is
   equivalent to the target's type by the same matrix bit as above (row =
   target's type), adds its value to the damage struct's `dwEnDmgPct`.
-- `FUN_0057d8a0` (**EBX** attacker, **EDI** defender, stack to-hit pointer,
-  stack AC pointer): (1) stat 0x73 (`item_ignoretargetac`) nonzero and the
-  defender a monster that is not monster-type 10, not a boss and not a
-  merc: AC = 0. (2) stat `item_fractionaltargetac` percent `p > 0`: halved
-  (integer) against players, bosses, monster-type 2 and mercs, forced
-  to 0 if below 1, capped at 100, then AC -= `D2ApplyPercent(AC, p, 100)`.
-  (3) `item_demon_tohit` added to the to-hit if the defender is a demon;
-  `item_undead_tohit` likewise for undead. The three stat ids other than
-  0x73 are the decompile's names; their numbers were not read.
+- `FUN_0057d8a0` (**EBX** attacker, **EDI** defender, the stack the attack
+  rating's address then the defense's, `RET 8`; stats read with
+  `FUN_00625500(attacker, id, 0)`), in this order:
+  1. stat 0x73 (115, `item_ignoretargetac`) nonzero (`0057d8ad`, so a
+     negative value counts too) and the defender a monster (type 1) that
+     is not a champion, unique or superunique (`FUN_005a0180(defender,
+     10)`: monster data `+0x16 & 10`; a champion carries 1 | 4 | 8, a unique
+     1 | 8, a superunique 2, per `crush_divisor`'s note in units.hpp), not
+     a MonStats boss (`FUN_0063e9f0(0, defender)`: `+0xc & 0x40`) and not a
+     hireling class (`FUN_0063ee90`: 0x10f, 0x152, 0x167, 0x230, 0x231):
+     defense = 0.
+  2. stat 0x74 (116, `item_fractionaltargetac`) `p > 0` (`JLE` at
+     `0057d8f7`): halved toward zero (`CDQ; SUB; SAR`, `0057d92e`) against a
+     player (type 0) and against a monster that is a boss, a superunique
+     (`FUN_005a0180(defender, 2)`) or a hireling; then 0 when not above 0
+     (`SETLE`, `0057d939`), at most 100; defense -= `FUN_00483360(defense,
+     p, 100)` (the MulDiv), a 32-bit `SUB`.
+  3. stat 0x7b (123, `item_demon_tohit`) nonzero and the defender a demon
+     (`FUN_0063e940`: MonStats `+0xd & 0x20`): added to the attack rating
+     (`ADD [EAX], ESI`, `0057d97f`, wrapping).
+  4. stat 0x7c (124, `item_undead_tohit`) nonzero and the defender undead
+     (`FUN_0063e990`: `+0xd & 8` or `& 0x10`): added the same way.
+  The four ids are ItemStatCost.txt's rows 115, 116, 123, 124 (read in
+  1.14d's MPQ); Properties.txt `ignore-ac`, `reduce-ac`, `att-demon` and
+  `att-undead` give them, on uniques, set items, runewords and affixes.
+  `FUN_0057d9b0` (the to-hit roll) calls it only for a player attacker,
+  after the rating (`FUN_00622560`) and the defense (`FUN_006223f0` plus
+  stat 0x21 or 0x20) and before the rating's % (119, the mastery's, the
+  skill's and stat 0xb3 by MonType through `FUN_0057a830`), so the demon
+  and undead points take that %.
 - Callers: `FUN_0057a830` ← `0057d9b0`, `005a89a0`; `FUN_0057d8a0` ←
   `0057d9b0`; `FUN_0057b6a0` ← `0057b7d0`.
 
-d2d: `git grep` finds no `ignoretargetac`, `fractionaltargetac`,
-`demon_tohit` or `undead_tohit` in `components/` or `apps/`, so item
-ignore-target-AC / to-hit-vs-demon items have no d2d rule; **not checked
-whether d2d reads those stats under another name**. Not traced: monster
-type codes 2 and 10, the 0xb4 stat's row.
+d2d: `rules::target_defense` (components/rules/combat/combat.cpp) is
+`FUN_0057d8a0`, in its 32-bit math, with stats 115, 116, 123 and 124 on the
+Fighter; `rules::player_to_hit` runs it before the rating's % for each
+player to-hit roll (`player_blow`, a missile's `to_hit` roll in
+`Fight`'s missile hit). `Monster::target` fills the Target's boss,
+superunique and hireling. A hireling attacker (type 1) takes the other
+branch of `FUN_0057d9b0`, so `Fight::merc_fighter` zeroes the four stats
+its gear sums give it (tests/game/test_merc_hits.cpp). Oracle `tools/emu/target_ac.py` (20000 cases, all
+of `FUN_0057d8a0` reached), fixture `tests/target_ac_cases.inc`.
+Stats 0xb3 / 0xb4 (179 `attack_vs_montype`, 180 `damage_vs_montype`, the
+`FUN_0057a830` / `FUN_0057b6a0` terms) come only from Properties.txt
+`att-mon%` / `dmg-mon%`, which no row of UniqueItems, SetItems, Sets,
+Runes, MagicPrefix, MagicSuffix, Automagic, Gems or QualityItems uses, so
+stock data never sets them; d2d leaves both out.
 
-Re-check: `python3 tools/ghidra/fn.py 0057a830 0057b6a0 0057d8a0`; disassemble
-`0057b6a0`..`0057b710` (target in EAX, `MonType` at `+0x1c`) and
-`0057d8a0`..`0057d8c0` (stat 0x73 on EBX).
+Re-check: `python3 tools/ghidra/fn.py 0057a830 0057b6a0 0057d8a0 0057d9b0`;
+disassemble `0057b6a0`..`0057b710` (target in EAX, `MonType` at `+0x1c`) and
+`0057d8a0`..`0057d9a2`; `cd tools/emu && uv run python target_ac.py gen 20000
+1 > c.tsv && uv run python target_ac.py game c.tsv > g.txt &&
+../../build/tests/test_target_ac g.txt | diff g.txt -`.
 
 ### Client player and unit helpers: `FUN_00460d50`, `FUN_00460de0`, `FUN_00461010`, `FUN_004611f0`, `FUN_004619e0`, `FUN_00461ac0`, `FUN_00462370`, `FUN_00463810`, `FUN_00463180`, `FUN_00464420`, `FUN_004644e0`, `FUN_00464600`, `FUN_00465420`, `FUN_00465bf0`, `FUN_00465f20` (batch 24)
 
@@ -3468,11 +3500,10 @@ Re-check: disassemble `00461a70`..`00461aa2` (ESI/EDI set at `0x461a90`..`0x461a
 The three functions read a byte of the 0x23c-byte Skills row (`id * 0x23c + [tables + 0xb98]`, count at `[tables + 0xba0]`, `tables` = `[0x744304]`) against a mask loaded from the dword array at `0x6ce268`. `read_memory` at `0x6ce268` gives the dwords 1, 2, 4, 8, so `0x6ce268` = 1, `0x6ce26c` = 2, `0x6ce270` = 4.
 
 - `FUN_00462560` (**EAX** skill node, plain `RET`): 0 for a null node; skill id from `FUN_00643ce0(node, "UNIT\Player.cpp", 0x75a)`; row byte `+5` and mask 1 (`0x6ce268`). Out-of-range id leaves the row pointer 0 and the following `TEST [EAX+5]` dereferences null (no row null check; `0x462594`..`0x46259c`). Only caller `FUN_004625b0`.
-- `FUN_00464ec0` (**ECX** unit, **EDX** params pointer, plain `RET`): 0 if either is null, or if the unit's type is nonzero and `params[0]` is not 1. Takes the left skill (`FUN_00620190`) and the right skill (`FUN_006201d0`); each gets its id through `FUN_00643ce0(..., "UNIT\CUnit.cpp", 0xb4a / 0xb55)` and its row through `FUN_0045c4b0`; the flag is row byte `+7` & mask 2 (`0x6ce26c`). If either hand has it, returns `FUN_00479150(params[3]) == unit[+0xc]` (the id owner of that roster entry equals the unit's id); else 0.
-- `FUN_00464f70` (same registers): same guards but the unit-type test is "nonzero type and `params[0]` not 0 and not 1 gives 0". Row byte `+7` & mask 4 (`0x6ce270`), the skill row is bounds-checked inline here (`0x464fbc`..`0x464fc8`). If neither hand has the flag, 0. Target id = `params[3]`; when `params[0] == 1` it is replaced by `FUN_00479150(params[3])` and 0xffffffff gives 0 (`0x465035`..). Returns the result of the call after `0x46503f` (not read past that point; the decompiler names it a same-party roster check, a lead).
-- Names of the two Skills columns at `+7` bit 1 and bit 2: not traced.
+- `FUN_00464ec0` (**ECX** local unit, **EDX** target unit, plain `RET`): 0 if either is null, or if the local unit is non-player and the target is not a monster. Takes the local unit's left skill (`FUN_00620190`) and right skill (`FUN_006201d0`); each gets its id through `FUN_00643ce0(..., "UNIT\CUnit.cpp", 0xb4a / 0xb55)` and its row through `FUN_0045c4b0`; the flag is row byte `+7` & mask 2 (`TargetPet`). If either hand has it, returns `FUN_00479150(target id) == local id`; a player target has no owner mapping and fails.
+- `FUN_00464f70` (same registers): 0 when the local unit is non-player and the target is neither player nor monster. Row byte `+7` & mask 4 is `TargetAlly`; the skill row is bounds-checked inline (`0x464fbc`..`0x464fc8`). If neither hand has it, 0. A monster target's id is replaced by `FUN_00479150(target id)`, with `0xffffffff` rejected; a player target keeps its id. `FUN_0047a520(local id, target/owner id)` looks up both roster records and returns 1 exactly when their party words at `+0x22` are equal and not `0xffff`.
 
-d2d: no match for these addresses in `components/` or `apps/`. Not traced: the end of `FUN_00464f70` past `0x46503f`; callers of the two cursor-exception functions beyond `cursor-units.md`.
+d2d: `client::skill_cursor_exception` and `add_near_players` apply the owner and party passes in `ClientSession::near_pick`; see cursor-units.md. `tools/emu/player_cursor_exceptions.py` runs both functions with synthetic Skills rows and rosters.
 
 Re-check: disassemble `00462560`..`004625a9` and `00464ec0`..`0046503f`; `read_memory 006ce268 16`.
 
@@ -3576,20 +3607,42 @@ argument (a unit). Returns 1 then.
 Read from memory: `0x711f50` is 7, and the table `0x711f34` holds seven
 dwords: `0`, `0x464210`, `0x464220`, `0x464230`, `0x464280`, `0x4642a0`,
 `0x464290`. So index 0 is unused (a zero byte already returns 0), indices
-1..6 are the six select procs at those addresses. Their bodies were not
-read. Ghidra's name is `SKILL_ExecuteSelectProc`; the Skills.txt column
-behind `+0x15` was not matched to a header here.
+1..6 are the six select procs at those addresses. The Skills.txt loader
+`FUN_00613f80` names byte `+0x15` `SelectProc`. The callbacks, in table
+order, are:
+
+- 1 (`0x464210`) calls `FUN_00645680`: a type-1 unit in mode `0xc`, with no
+  `FUN_0063a770` hidden/dead state and MonStats2 `corpseSel` (bit 7).
+- 2 (`0x464220`) calls `FUN_00645510(unit, 0)`: proc 1 plus nonzero MonStats
+  `Velocity` (`+0x32`).
+- 3 (`0x464230`) first calls proc 2, then requires `FUN_004b11f0`: the
+  MonStats row has a walking mode and SwitchAI, is not a MonStats `boss`,
+  and monster-data `+0x16` has neither bit 2 nor bit 8 (no champion,
+  unique, or superunique).
+- 4 (`0x464280`) and 6 (`0x464290`) require proc 1 plus MonStats2 `soft`
+  (bit 12, through `FUN_00621f60`).
+- 5 (`0x4642a0`) is the same as proc 1.
+
+The stock Skills table uses nonzero procs on rows 70, 74, 80, 83, 95, 131,
+142, 150 and 351. The player corpse skills use proc 2 for Raise Skeleton /
+Skeletal Mage, proc 1 for Corpse / Poison Explosion, and proc 3 for Revive.
 
 Callers: `FUN_00464310` (`SKILL_CheckActiveSkillSelectProc`, cited) twice,
 at `00464337` and `0046435f`; it passes the skill id from `FUN_00643ce0`
 in EAX and its own unit on the stack.
 
-d2d: `git grep` finds no select-proc table in `components/` or `apps/`; how
-d2d decides a skill may be selected was not compared. Not traced: the six
-procs and the column name.
+d2d: `client::corpse_cursor_takes` reads each hand's `Skill::select_proc`
+(Skills.txt `SelectProc`) and applies the traced gates in
+`ClientSession::near_pick`; procs 4 and 6 lack only their MonStats2 `soft`
+gate because d2d's `MonType` does not retain that field. With no proc passing,
+`FUN_00466870` falls back to unit flag bit 1 (targetable), which a corpse lacks,
+so the corpse isn't taken. `tools/emu/skill_select_proc.py` runs `FUN_00464310`,
+`FUN_004642b0` and all six callbacks on synthetic records (73 cases, four
+mutation checks).
 
-Re-check: `python3 tools/ghidra/fn.py 004642b0`; disassemble
-`004642b0`..`00464303` and read dwords at `0x711f34` and `0x711f50`.
+Re-check: `python3 tools/ghidra/fn.py 004642b0 00645510 00645590 006455e0
+00645630 00645680`; disassemble `00464210`..`004642af`, and run
+`tools/emu/txt_fields.py SelectProc --all`.
 
 ### The client unit lists: idle message, placing, allegiance, tick: `FUN_00463b80`, `FUN_00463bc0`, `FUN_00463c00`, `FUN_00463cc0` (batch 22)
 
