@@ -556,17 +556,19 @@ auto Fight::start_swing(std::uint32_t now_ms, bool shown) -> bool {
 
 // An SQ skill plays its sequence (FUN_00663310: seqnum's frames for
 // the weapon class) at the attack's speed; with no frames for the
-// weapon it swings once.
-// ponytail: the sequence's rate taken as the class's A1 (animdata)
-// through attack_ticks, 30 points slower for a UseAttackRate skill
-// (rules::sequence_sias); seqinput isn't read.
+// weapon it swings once. Its AnimData record is mode 0x12's, whose COF
+// name takes the override table's "gh" (0x745900: modes 0x12 and 0x13,
+// FUN_0064f5b0; compcode.md): the class's GH record for the weapon
+// class, through attack_ticks, 30 points slower for a UseAttackRate
+// skill (rules::sequence_sias).
+// ponytail: seqinput isn't read.
 auto Fight::start_sequence(std::uint32_t now_ms) -> void {
         actor->seq = {};
         actor->seq_struck = 0;
         actor->seq_sounded = 0;
         actor->seq = skill_sequence();
         if (actor->seq.empty()) return;
-        const auto& attack_anim = player_anim(kModeA1);
+        const auto& attack_anim = player_anim(kModeGH);
         start_move(*game_data->skills.get(actor->swing_skill), now_ms);
         const auto* skill = game_data->skills.get(actor->swing_skill);   // skill_sequence() found it: a sequence skill's row
         const int sias = actor->player_combat.sias + chill_rate(now_ms) + d2d::rules::sequence_sias(skill->use_attack_rate, skill->seqtrans);
