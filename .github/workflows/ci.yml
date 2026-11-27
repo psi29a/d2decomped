@@ -799,11 +799,107 @@ jobs:
           path: build/d2d-*-${{ matrix.artifact }}.*
           if-no-files-found: error
 
+  # The AppImage: the same install as the Linux package, built on Debian 13
+  # so it needs no newer glibc than 2.41 (stock Void) and Qt is 6.8 (the
+  # launcher needs 6.5); Ubuntu 26.04's would need its own newer glibc.
+  # tools/appimage.sh fails it when any ELF needs a newer GLIBC_ or GLIBCXX_.
+  # appimagetool and its runtime are tagged releases checked by sha256, so
+  # appimagetool fetches nothing itself. Unpacked in the container (no FUSE).
+  appimage:
+    name: AppImage (x86_64)
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-24.04
+    container: debian:13
+    timeout-minutes: 90
+    env:
+      APPIMAGETOOL_VERSION: "1.9.1"
+      APPIMAGETOOL_SHA256: ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0
+      APPIMAGE_RUNTIME_VERSION: "20251108"
+      APPIMAGE_RUNTIME_SHA256: 2fca8b443c92510f1483a883f60061ad09b46b978b2631c807cd873a47ec260d
+    steps:
+      # git first, so checkout makes a repository (git describe's version).
+      - name: Install dependencies
+        run: |
+          apt-get update -qq
+          DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends \
+            ca-certificates curl git cmake ninja-build build-essential pkg-config file \
+            libcurl4-openssl-dev libsdl3-dev libopenal-dev zlib1g-dev libbz2-dev libstorm-dev \
+            qt6-base-dev qt6-wayland libgl1-mesa-dev
+
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          fetch-depth: 0   # every tag, for git describe's version stamp
+
+      - name: Trust the checkout
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      # As the build job's: keyed on FFmpeg's version and configure options.
+      - name: FFmpeg cache key
+        id: ffmpeg-key
+        run: |
+          key=$(sed -n -e '/^set(D2D_FFMPEG_VERSION /p' -e '/set(ffmpeg_options/,/enable-decoder=/p' \
+            apps/d2d/CMakeLists.txt | git hash-object --stdin)
+          echo "key=${key:0:16}" >> "$GITHUB_OUTPUT"
+
+      - name: Cache FFmpeg
+        uses: actions/cache@v4
+        with:
+          path: build/ffmpeg-*
+          key: ffmpeg-debian13-${{ runner.arch }}-${{ steps.ffmpeg-key.outputs.key }}
+          restore-keys: ffmpeg-debian13-${{ runner.arch }}-
+
+      - name: Build and install
+        run: |
+          cmake -S . -B build -G Ninja \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DD2D_BUILD_TESTS=OFF \
+            -DD2D_CCACHE=OFF \
+            -DD2D_SENTRY=${{ startsWith(github.ref, 'refs/tags/') && 'ON' || 'OFF' }}
+          cmake --build build
+          cmake --install build --prefix build/pkg
+
+      - name: Download appimagetool and its runtime
+        run: |
+          mkdir -p "$RUNNER_TEMP/appimage"
+          cd "$RUNNER_TEMP/appimage"
+          curl -fsSLo appimagetool "https://github.com/AppImage/appimagetool/releases/download/$APPIMAGETOOL_VERSION/appimagetool-x86_64.AppImage"
+          curl -fsSLo runtime "https://github.com/AppImage/type2-runtime/releases/download/$APPIMAGE_RUNTIME_VERSION/runtime-x86_64"
+          printf '%s  appimagetool\n%s  runtime\n' "$APPIMAGETOOL_SHA256" "$APPIMAGE_RUNTIME_SHA256" | sha256sum -c -
+          chmod +x appimagetool
+
+      - name: Make the AppImage
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: "1"
+        run: |
+          version=$(git describe --tags --always | sed -E 's/-[0-9]+-g/-g/')   # as CMake's D2D_VERSION
+          APPIMAGETOOL="$RUNNER_TEMP/appimage/appimagetool" APPIMAGE_RUNTIME="$RUNNER_TEMP/appimage/runtime" \
+            tools/appimage.sh build/pkg "build/d2d-$version-x86_64.AppImage"
+
+      # d2d from inside the image, without a window: its libraries resolve.
+      - name: Smoke test
+        run: |
+          cd "$RUNNER_TEMP"
+          "$GITHUB_WORKSPACE"/build/d2d-*.AppImage --appimage-extract >/dev/null
+          squashfs-root/d2d --help >/dev/null
+          test -x squashfs-root/d2d-launcher
+
+      - name: Upload AppImage
+        if: github.event_name == 'push'
+        continue-on-error: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: d2d-AppImage-x86_64
+          retention-days: ${{ startsWith(github.ref, 'refs/tags/') && 90 || 14 }}
+          path: build/d2d-*.AppImage
+          if-no-files-found: error
+
   # The one check the main ruleset requires: green when every job above
   # passed or was skipped for a docs-only change.
   ci-ok:
     name: CI ok
-    needs: [changes, build, tidy, flatpak, ports]
+    needs: [changes, build, tidy, flatpak, ports, appimage]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -821,6 +917,7 @@ jobs:
       - build
       - ports
       - flatpak
+      - appimage
     runs-on: ubuntu-latest
     permissions:
       contents: write
