@@ -423,6 +423,7 @@ struct GameData {
                          int travel_sound = 0, hit_sound = 0, prog_sound = 0;   // TravelSound (+0x12), HitSound (+0x14), ProgSound (+0x34)
                          std::string prog_overlay;                              // ProgOverlay (+0x36): hit function 7's overlay on the unit it heals
                          bool to_hit = false, collide_kill = true, pierce = false;
+                         bool half_2h_src = false;                              // Half2HSrc (+4 bit 14): SrcDamage halved from a two-hander (FUN_0064b860)
                          bool return_fire = false;   // ReturnFire (record flag bit 9, +5 & 2): Chilling Armor answers it (FUN_005cab40)
                          bool collide_friend = false;   // CollideFriend (+0x187): it strikes its owner's friends too (FUN_005a8730)
                          bool client_col = false;       // ClientCol (+0x185): the client tests units along its path (FUN_004d30c0), so each one it meets goes off (FUN_004d2d70)

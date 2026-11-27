@@ -210,7 +210,24 @@ FUN_00557ab0 (ECX game, EDX &item; struct, do quality) off the unit seed:
   dur (Items `+0x112`); defence (stat 0x1f, FUN_00556360) minac +
   rand(maxac - minac + 1).
 - Weapons (`weap`): a stackable's quantity min + rand(max - min), then
-  durability as armor's; FUN_005563d0 draws nothing.
+  durability as armor's; FUN_005563d0 draws nothing: it sets the base
+  damage stats 0x16 / 0x15 / 0x17 / 0x18 from Items `+0xff` / `+0xfe` /
+  `+0x102` / `+0x103` (signed bytes, each only when not 0), and 0x9f /
+  0xa0 from `+0x100` / `+0x101` when `+0x101` is not 0. Low
+  (FUN_005c2d40) then sets each of 0x15..0x18 to its value × 75 / 100,
+  at least 1 (min) or 2 (max), even when the value was 0, and a throwable's
+  0x9f / 0xa0 the same through FUN_005c0d40 (EAX × arg / 100, at least
+  ESI). Ethereal (FUN_0065e4d0) takes each of them × 3 / 2. A load
+  (FUN_0062cbe0, `0x62d495..0x62d6f9`) sets them again from the
+  record: low × 3 >> 2 at least 1 / 2, only for a melee byte that is not
+  0; the throw pair only when `+0x101` is not 0, its min at least 1 even
+  from a 0 byte; then ethereal (FUN_0062a8d0) × 3 / 2 on all six; so a
+  low one-hander's 1-2 two-hand damage lasts only until it is saved and
+  loaded. d2d keeps none of these on the item and derives the load's
+  values at use: `weapon_base_damage` in make_fighter (combat.cpp;
+  `tools/emu/weapon_base_damage.py --mutation-check` runs that block,
+  `test_weapon_base_damage` reads its frozen answers) and item_text.cpp
+  where it shows them.
 - Misc stackables: min + rand(bound - min), bound = spawnstack (Items
   `+0xec`), or max(min, max) when it's 0 or under min.
 - Then rand(VarInvGfx) (ItemTypes `+0x23`) for its picture, then quality

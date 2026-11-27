@@ -56,6 +56,7 @@ struct Fighter {
     int kick_lo = 0, kick_hi = 0, kick_pct = 0;
     int smite_lo = 0, smite_hi = 0, smite_pct = 0;  // the shield's (Smite, FUN_005ce9f0 -> FUN_0057b420 on the shield)
     bool blunt = false;                             // the weapon is a Blunt type (ItemTypes Equiv chain: club, hammer, mace, scepter, wand, staff)
+    bool two_handed = false;                        // the weapon is a two-hander (weapons.txt 2handed, Items +0x11c, FUN_006289c0)
     int undead_pct = 0;                             // stat 122 (item_undeaddamage_percent) over all the gear (the game reads the unit's own stat)
     int demon_pct = 0;                              // stat 121 (item_demondamage_percent), the same way: against demons, melee or missile
     int ignore_target_def = 0;                      // stat 115: any nonzero ignores a plain monster's defense (target_defense)
@@ -91,6 +92,10 @@ struct Fighter {
     int life_regen = 0, mana_regen = 0;             // hpregen; manarecoverybonus %
     int prime_evil_pct = 100;                       // FUN_0057c060's percent on a prime evil's blow: a hireling 200, a player's other pet 400
 };
+
+// A weapon's base damage pair as its stats hold it: the record's min / max
+// bytes, low quality's 3/4 and ethereal's 3/2 (`thrown`: the throw pair).
+std::pair<int, int> weapon_base_damage(int min_byte, int max_byte, bool low, bool ethereal, bool thrown);
 
 // Builds the Fighter from the worn weapon / shield, the summed item stats (`sum`.
 Fighter make_fighter(const Tables& tables, const d2d::d2s::Item* weapon, const d2d::d2s::Item* shield,
@@ -488,6 +493,7 @@ struct Swing {
     // A missile's blow: its record and hit path (missile_physical: FUN_0064b860 + FUN_005a89a0),
     // no SrcDam scale after the crit, and Crushing Blow's divisor doubled (event 6, FUN_005bffc0).
     bool missile = false;
+    bool half_2h_src = false;             // the missile row's Half2HSrc: srcdam halved from a two-hander (missile_physical)
 };
 
 // A player's leech of a blow, in 256ths.

@@ -34,6 +34,27 @@ int hit_chance(int attack_rating, int def, int alvl, int dlvl) {
     return int(std::clamp<std::int64_t>(chance * 2 * alvl / std::max(alvl + dlvl, 1), 5, 95));
 }
 
+// A loaded weapon's base damage stats (FUN_0062cbe0, 0x62d495..0x62d6f9):
+// low quality (FUN_00627e70 == 1) sets each melee stat whose byte isn't 0 to
+// byte x 3 >> 2, at least 1 (min) or 2 (max), and the throw pair (0x9f /
+// 0xa0) only when the max byte isn't 0, the min at least 1 even from a 0
+// byte; any other quality takes the bytes as they are (the throw pair again
+// only with a max). Ethereal (FUN_0062a8d0) then takes each x 3 / 2, as
+// FUN_0065e4d0 does on a new one.
+std::pair<int, int> weapon_base_damage(int min_byte, int max_byte, bool low, bool ethereal, bool thrown) {
+    int low_end = 0, high_end = 0;
+    if (thrown && max_byte == 0) return { 0, 0 };
+    if (low) {
+        if (min_byte != 0 || thrown) low_end = std::max(min_byte * 3 >> 2, 1);
+        if (max_byte != 0) high_end = std::max(max_byte * 3 >> 2, 2);
+    } else {
+        low_end = min_byte;
+        high_end = max_byte;
+    }
+    if (ethereal) { low_end = low_end * 3 / 2; high_end = high_end * 3 / 2; }
+    return { low_end, high_end };
+}
+
 // FUN_0057d8a0 (SUnitDmg.cpp), from FUN_0057d9b0 for a player attacker before the rating's %, in its 32-bit math:
 // stat 115 nonzero zeroes the defense of a monster that is not a champion, unique or superunique (data +0x16 & 10,
 // FUN_005a0180), a MonStats boss (FUN_0063e9f0) or a hireling (FUN_0063ee90); stat 116 over 0 is halved (toward
@@ -97,14 +118,19 @@ Fighter make_fighter(const Tables& tables, const d2d::d2s::Item* weapon, const d
     const ItemBase* weapon_base = nullptr;
     if (weapon && item_usable(*weapon)) if (const auto found = tables.item_base.find(weapon->code); found != tables.item_base.end()) weapon_base = &found->second;   // a broken or 0x4000 one's stats are off (FUN_0055f850, FUN_0055dbc0)
     if (weapon) if (const auto found = tables.item_base.find(weapon->code); found != tables.item_base.end() && found->second.hit_class) fighter.hit_class = found->second.hit_class;
+    if (weapon) if (const auto* info = info_of(tables, *weapon)) fighter.two_handed = info->two_handed;   // FUN_006289c0 on the owner's weapon (FUN_00623990, 0x64bab3)
     // In 256ths, as game.exe keeps them.
     // `thrown`: the weapon's throw damage (FUN_0064b860: stats 0x9f / 0xa0, minmisdam / maxmisdam).
-    const int base_min = weapon_base ? (thrown ? weapon_base->min_misdam : weapon_base->mindam) : 0, base_max = weapon_base ? (thrown ? weapon_base->max_misdam : weapon_base->maxdam) : 0;
+    // The record's bytes through low quality and ethereal (weapon_base_damage), as the weapon's stats hold them.
+    const bool low_quality = weapon && weapon->quality == 1, ethereal = weapon && weapon->ethereal;
+    const auto [melee_min, melee_max] = weapon_base ? weapon_base_damage(weapon_base->mindam, weapon_base->maxdam, low_quality, ethereal, false) : std::pair{ 0, 0 };
+    const auto [throw_min, throw_max] = weapon_base ? weapon_base_damage(weapon_base->min_misdam, weapon_base->max_misdam, low_quality, ethereal, true) : std::pair{ 0, 0 };
+    const int base_min = thrown ? throw_min : melee_min, base_max = thrown ? throw_max : melee_max;
     std::int64_t low = (weapon_base ? base_min * (100 + weapon_stat(kMinDamagePercent)) / 100 : 1) + stat(kMinDamage) + stat(kNormalDamage),
                  high = (weapon_base ? base_max * (100 + weapon_stat(kMaxDamagePercent) + weapon_stat(kMaxDamagePercentPerLevel) * clvl / 8) / 100 : 2) + stat(kMaxDamage) + stat(kMaxDamagePerLevel) * clvl / 8 + stat(kNormalDamage);
     if (weapon_base) {
-        fighter.throw_lo = int(weapon_base->min_misdam * (100 + weapon_stat(kMinDamagePercent)) / 100 + stat(kMinDamage));
-        fighter.throw_hi = int(weapon_base->max_misdam * (100 + weapon_stat(kMaxDamagePercent) + weapon_stat(kMaxDamagePercentPerLevel) * clvl / 8) / 100
+        fighter.throw_lo = int(std::int64_t(throw_min) * (100 + weapon_stat(kMinDamagePercent)) / 100 + stat(kMinDamage));
+        fighter.throw_hi = int(std::int64_t(throw_max) * (100 + weapon_stat(kMaxDamagePercent) + weapon_stat(kMaxDamagePercentPerLevel) * clvl / 8) / 100
                                + stat(kMaxDamage) + stat(kMaxDamagePerLevel) * clvl / 8);
     }
     fighter.unit_min_pct = int(stat(kMinDamagePercent) - weapon_stat(kMinDamagePercent));
@@ -768,16 +794,24 @@ int melee_record_pct(const Fighter& fighter, const Target& target, const Swing& 
 // end + rand(the gap) on the missile's seed, the ends swapped when the min is the larger, none unless both are over
 // 0; then its % (0x5a8b09..0x5a8bde): stat 25, + 121 against a demon, + 122 against the undead (no floor of its own),
 // at least -90. SrcDamage 0 takes none of the unit's (0x64bcfe).
-// ponytail: the hit's MonProp stat 0xb4 % (FUN_0057a830), the row's +0x12e owner branch (0x64bd07) and the
-// halved SrcDamage of row flag 0x6ce280 (FUN_006289c0, 0x64bb09) aren't here. phys_lo / phys_hi carry stat 111
+// A row with Half2HSrc (Missiles.txt +4 bit 14, the loader's field at 0x662b8a; the test is byte +5 & the mask
+// 0x6ce280 holds, 0x40) shot with a two-hander in hand (FUN_006289c0 on the unit's weapon, 0x64bb09) halves the
+// SrcDamage first, toward zero (0x64bb12..0x64bb1a): Blade Fury's, Blade Sentinel's and Blade Shield's rows.
+// tools/emu/half_2h_src.py runs it.
+// ponytail: the attacker's stat 0xb4 % against a monster of its layer's MonType (FUN_005a89a0 0x5a8b8e..0x5a8bd4,
+// FUN_0057a830's MonType matrix; melee's FUN_0057b6a0 too; not MonProp) isn't here: d2d keeps no MonType matrix. The row's +0x12e
+// (SrcMissDmg) branch (0x64bd07), the parent missile's damage, is only viper_poisjavcloud's (Missiles.txt row 649,
+// 128), which d2d never makes. The halved value also scales the owner's elemental share (0x64bed9 -> FUN_0064aa60):
+// not checked in d2d's element path. phys_lo / phys_hi carry stat 111
 // and make_fighter's floors (at least a point; phys_pct at least -90 before the missile's terms join).
 MissilePhysical missile_physical(const Fighter& fighter, const Target& target, const Swing& swing) {
     MissilePhysical physical;
     std::int64_t low = swing.row_lo, high = swing.row_hi;
     int record_pct = swing.ed_pct, demon_pct = 0, undead_pct = 0;
-    if (swing.srcdam > 0) {
-        low += std::int64_t(fighter.phys_lo) * swing.srcdam / 128;
-        high += std::int64_t(fighter.phys_hi) * swing.srcdam / 128;
+    const int srcdam = swing.half_2h_src && fighter.two_handed ? swing.srcdam / 2 : swing.srcdam;
+    if (swing.srcdam > 0) {                  // tested before the halving (0x64ba8f); 0x64bc43 scales by the halved one
+        low += std::int64_t(fighter.phys_lo) * srcdam / 128;
+        high += std::int64_t(fighter.phys_hi) * srcdam / 128;
         record_pct += fighter.phys_pct + std::max(fighter.unit_min_pct, fighter.unit_max_pct);
         demon_pct = fighter.demon_pct;
         undead_pct = fighter.undead_pct + (fighter.blunt ? 50 : 0);

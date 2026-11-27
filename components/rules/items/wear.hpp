@@ -5,6 +5,7 @@
 
 #include "item_price.hpp"
 #include "rules.hpp"
+#include "set_list.hpp"
 
 #include <d2s.hpp>
 #include <d2s_items.hpp>
@@ -211,8 +212,10 @@ bool inventory_charm(const Tables& tables, const d2d::d2s::Item& item);
 //   unbroken flagged item that meets them loses 0x4000 and gets
 //   FUN_0063d1d0 (its stats on, FUN_0055c2c0). A flagged item's own stats
 //   don't count toward its own requirements; an unflagged one's do.
+// - Last, each worn set piece neither broken nor flagged, in slot order, has
+//   its stats off and on (restamp_worn_sets): its set's list built again.
 template <class WearerOf, class LevelOf>
-inline void settle_requirements(const Tables& tables, std::vector<d2d::d2s::Item>& items, WearerOf&& wearer, LevelOf&& level) {
+inline void settle_requirements(const Tables& tables, std::vector<d2d::d2s::Item>& items, WearerOf&& wearer, LevelOf&& level) {   // FUN_0055dbc0
     const auto worn = [](const d2d::d2s::Item& item) {
         return item.location == d2d::d2s::item_location::kEquipped && item.slot >= d2d::d2s::body_location::kFirst
             && item.slot <= d2d::d2s::body_location::kLast;
@@ -234,6 +237,7 @@ inline void settle_requirements(const Tables& tables, std::vector<d2d::d2s::Item
                     changed = true;
                 }
     }
+    restamp_worn_sets(items);
 }
 
 // The item Throw takes (FUN_0056f460; the gate FUN_00647640 for skill 2):

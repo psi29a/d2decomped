@@ -27,15 +27,43 @@ namespace d2d::rules {
 // FUN_00663cc0(.., 0, 0) itself (FUN_0055f900). d2d stamps the item at
 // each of those: wield_enters (FUN_0063d1d0 runs on the same moves) and
 // equip_from_bag.
-// ponytail: unequipping a set piece (FUN_0055c730 -> FUN_00663cc0(.., 1, 0),
-// a break FUN_0055f850 and FUN_0057f410 with (.., 1, 1)) frees the set's
-// whole list (FUN_006277e0, FUN_00626cd0) with no rebuild, so the pieces
-// still worn give no partial bonus until one goes on again; d2d keeps
-// them (set_props counts what's worn). Not checked in play.
+// Taking a set piece off (FUN_0055c730 -> FUN_00663cc0(.., 1, 0)) frees the
+// set's whole list (FUN_006277e0, FUN_00626cd0), but each server move then
+// runs the requirements pass (FUN_0055dbc0), whose last loop builds it again
+// from the pieces still worn (restamp_worn_sets). A break (FUN_0055f850)
+// frees it after that pass (free_set_list). tools/emu/set_settle.py.
+// ponytail: FUN_0057f410 (from the corpse's FUN_0057f700) frees with (.., 1, 1)
+// too, with no pass after it read; d2d doesn't model it. A merc's moves
+// (FUN_0054ced0, FUN_0054d130) run no pass (FUN_0055dbc0 takes a player or
+// unit flag 0x200), and d2d's merc has no set list at all (merc_gear).
+// A piece's stats going on rebuild its set's list with it (stamp, list back).
 void stats_on(std::vector<d2d::d2s::Item>& items, d2d::d2s::Item& item) {
     std::uint32_t last = 0;
     for (const auto& each : items) last = std::max(last, each.set_stamp);
     item.set_stamp = last + 1;
+    item.set_list_freed = false;
+}
+
+// FUN_0055dbc0's last loop (0x55de23..0x55de99): body slots 1..10 in order, a
+// quality 5 item not broken (0x100) nor flagged 0x4000 gets FUN_0055c730(.., 1, 1)
+// then FUN_0055c2c0: its set's list is freed and built again with it, so the
+// list ends with the piece in the highest slot.
+void restamp_worn_sets(std::vector<d2d::d2s::Item>& items) {
+    for (int slot = d2d::d2s::body_location::kFirst; slot <= d2d::d2s::body_location::kLast; ++slot)
+        for (auto& item : items)
+            if (item.location == d2d::d2s::item_location::kEquipped && item.slot == slot && item.quality == 5 && (item.flags & 0x4100u) == 0)
+                stats_on(items, item);
+}
+
+// FUN_0055f850 ends with FUN_00663cc0(owner, item, 1, 1) (0x55f8e3), after its
+// requirements pass: FUN_00663b40 with 1 finds the list by the broken piece's
+// set (Sets.txt row's +0x2c) and frees it (set_list.py).
+void free_set_list(const Tables& tables, std::vector<d2d::d2s::Item>& items, const d2d::d2s::Item& broken) {
+    if (broken.quality != 5 || broken.set_id < 0 || std::size_t(broken.set_id) >= tables.sets.size()) return;
+    const int set = tables.sets[std::size_t(broken.set_id)].set;
+    for (auto& item : items)
+        if (item.quality == 5 && item.set_id >= 0 && std::size_t(item.set_id) < tables.sets.size() && tables.sets[std::size_t(item.set_id)].set == set)
+            item.set_list_freed = true;
 }
 
 int worn_set(const Tables& tables, const d2d::d2s::Item& item) {
@@ -53,11 +81,13 @@ int set_pieces_worn(const Tables& tables, const std::vector<d2d::d2s::Item>& ite
     return int(rows.size());
 }
 
+// The piece `set`'s list was last built with (FUN_00663b40 -> FUN_00660120): the
+// highest stamp, nullptr once a break freed it (FUN_0055f850, free_set_list).
 const d2d::d2s::Item* set_list_piece(const Tables& tables, const std::vector<d2d::d2s::Item>& items, int set) {
     const d2d::d2s::Item* piece = nullptr;
     for (const auto& item : items)
         if (set >= 0 && worn_set(tables, item) == set && (!piece || item.set_stamp >= piece->set_stamp)) piece = &item;
-    return piece;
+    return piece && !piece->set_list_freed ? piece : nullptr;
 }
 
 // FUN_00660120 (Sets.txt record from FUN_00483410: +0xc the pieces, +0x10

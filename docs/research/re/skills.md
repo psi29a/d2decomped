@@ -961,14 +961,27 @@ runs from the local do (`client_skill_guard`); startmana's state inferno is `Her
   both ends are over 0, else the lower end + rand(the gap) on the
   missile's seed (+0x20), the ends swapped when the min is the larger;
   then its % (0x5a8b09..0x5a8bde): stat 25, + 121 against a demon, + 122
-  against the undead (no floor of its own), the MonProp stat 0xb4 list
-  (`FUN_0057a830`), at least -90; the roll + roll × % / 100 (0x5a8bff),
+  against the undead (no floor of its own), the attacker's stat 0xb4
+  layers (0x5a8b8e..0x5a8bd4: each layer's % when `FUN_0057a830`'s MonType
+  matrix says the target's MonStats +0x1c type is that layer's; not
+  MonProp), at least -90; the roll + roll × % / 100 (0x5a8bff),
   and a crit doubles it after (0x5a8c02..0x5a8c1e). d2d:
   `rules::missile_physical` / `missile_scaled`, player_blow's missile
   swing; tools/emu/missile_record.py runs the three for real (4000 cases,
   0 differ, 2026-11-25), its fixture `tests/missile_record_cases.inc`.
-  Not in d2d: the MonProp %, the row's +0x12e owner branch (0x64bd07), the
-  halved SrcDamage of row flag 0x6ce280 (`FUN_006289c0`, 0x64bb09).
+  Half2HSrc (Missiles.txt +4 bit 14, byte +5 & `0x6ce280`'s 0x40):
+  with the owner's weapon (`FUN_00623990`, 0x64bab3) a two-hander
+  (`FUN_006289c0` → Items +0x11c), SrcDamage is halved toward zero
+  (0x64bb12..0x64bb1a) after the SrcDamage-0 test (0x64ba8f), so the
+  weapon share and the owner's elemental share (0x64bed9, `FUN_0064aa60`)
+  take the half: Blade Fury, Blade Sentinel and Blade Shield's rows
+  (blade creeper, bladefury1-3, bladefragment1-3, blade shield missile /
+  attachment). d2d: `Fighter::two_handed`, `Swing::half_2h_src`;
+  `tools/emu/half_2h_src.py` runs the block on every weapons.txt row.
+  Not in d2d: the stat 0xb4 % (no MonType matrix), the row's +0x12e
+  (SrcMissDmg) branch (0x64bd07: only viper_poisjavcloud, Missiles.txt row
+  649, which d2d never makes); the halved elemental share is not checked
+  in d2d's element path.
 - **A crossbow's bolts** (do 8 `FUN_005db410` 0x5db51e..0x5db53d, do 10
   `FUN_005db6d0` 0x5db74f..0x5db76b, do 12 `FUN_005dba40`
   0x5dbb20..0x5dbb3f): srvmissilea (+0x48), or srvmissileb (+0x4a) when it
