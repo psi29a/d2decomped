@@ -70,23 +70,24 @@ int skill_class(const d2d::rules::Skill& skill) {
     return found == kClasses.end() ? 7 : int(found - kClasses.begin());
 }
 
-// A pet's own regeneration, its unit event 3 (FUN_005a6920) as monster_dots runs it for the monsters: from the frame
-// after a hurt (pet_hurt), its stat 0x4a (rules::monster_regen of the life it was made with, FUN_00573cb0) onto its
-// life each frame (rules::regen_frame), the event over once that passes its max life; under state 0x34 the event
+// A pet's own regeneration, its unit event 3 (FUN_005a6920, rules::regen_event) as monster_dots runs it for the
+// monsters: from the frame after a hurt (pet_hurt), its stat 0x4a (rules::monster_regen of the life it was made with,
+// FUN_00573cb0) onto its life each frame, the event over once that passes its max life; under state 0x34 the event
 // ends without a gain (0x5a695c returns before it files itself again). tools/emu/pet_regen.py runs both.
 // Poisoned (state 2, FUN_0057ac50: its list's stat 0x4a is minus the poison a frame, and it files the event for the
-// next frame), FUN_0063a750 takes the base regeneration off (FUN_005a6920): the rate is the poison's alone, and state
-// 0x34 doesn't stop a falling rate (0x5a695c). A rate of 0 ends the event; life stays 0..max, and at 0 the pet dies.
+// next frame), FUN_0063a750 takes the base regeneration off: the rate is the poison's alone, and state 0x34 doesn't
+// stop a falling rate (0x5a695c). A rate of 0 ends the event; life stays 0..max, and at 0 the pet dies. Under a point
+// of life the poison takes nothing in a town or out of a room (`town`: FUN_0061ab00, tools/emu/pet_poison_town.py).
 // ponytail: which runs first in a frame, a pet's hits or its event 3, isn't traced: here the hits (tick.cpp).
-// ponytail: preventheal and open wounds (FUN_0063a750's other states) aren't on d2d's pets; the room test that spares
-// a unit under a point (FUN_0061ab00) isn't kept.
-void pet_regen(const GameData& game_data, Monster& monster, std::uint32_t now_ms) {
+// ponytail: preventheal and open wounds (state 0x34 by stat 117, 0x3e by stat 135) come only from a player's hits
+// (FUN_0057d810, FUN_005bfe60), and no player strikes a pet in d2d (no enemy players): the pet keeps neither.
+void pet_regen(const GameData& game_data, Monster& monster, bool town, std::uint32_t now_ms) {
     if (monster.regen_from == 0 || now_ms < monster.regen_from || !monster.alive()) return;
     const bool poisoned = now_ms < monster.poison_until && monster.poison_rate > 0;
-    const int rate = poisoned ? -int(std::lround(monster.poison_rate * 256 * 40)) : monster.stats.regen;   // poison_rate: points a ms
-    if ((now_ms < monster.no_heal_until && rate >= 0) || rate == 0) { monster.regen_from = 0; return; }
-    const auto frame = d2d::rules::regen_frame(monster.life_fine(), monster.max_life_fine(), rate);
-    monster.set_life_fine(std::max(frame.life, 0));
+    const int poison = poisoned ? int(std::lround(monster.poison_rate * 256 * 40)) : 0;   // poison_rate: points a ms
+    const auto frame = d2d::rules::regen_event(monster.life_fine(), monster.max_life_fine(), monster.stats.regen - poison, monster.stats.regen,
+                                               poisoned, now_ms < monster.no_heal_until, town);
+    monster.set_life_fine(frame.life);
     if (!frame.filed) monster.regen_from = 0;
     if (monster.hit_points <= 0 && monster.life_frac <= 0) { monster.hit_points = 0; monster.life_frac = 0; set_mode(game_data, monster, "DT", now_ms); }
 }
@@ -392,7 +393,8 @@ auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
         const auto save_class = std::size_t(std::max(actor->character.character_class, 0));
         for (const auto& made : std::exchange(actor->pet_summons, {}))            // a Shadow's traps and Blade Sentinel from last turn
             if (const auto* skill = game_data->skills.get(made.skill)) summon(*skill, made.level, made.x, made.y, now_ms);
-        for (auto& pet : actor->pets) pet_regen(*game_data, pet.monster, now_ms);
+        for (auto& pet : actor->pets)   // the pet's own room (FUN_00620bb0 on the unit, FUN_0061ab00): one left behind keeps its level's
+            pet_regen(*game_data, pet.monster, !pet.where || d2d::rules::level_ids::is_town(pet.where->id), now_ms);
         for (auto& pet : actor->pets) {
             auto& monster = pet.monster;
             auto& unit = monster.unit;
