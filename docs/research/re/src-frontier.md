@@ -191,9 +191,9 @@ clipped one takes the left and right edges). "Blend" is
 | `FUN_00604c20` | `tile_get_20` | A tile record's `+0x20` (null asserts). `FUN_0066d440` walks frames by it; `FUN_0066d820` sums it as pick weights | not compared: d2d reads the DT1's rarity (components/drlg/room_tiles.hpp:656) |
 | `FUN_00604cb0` | `tile_get_8` | A tile record's `+8`. Only caller the automap `FUN_004dd7c0` | not compared |
 | `FUN_00604ce0` | `tile_get_28_ptr` | The tile record + 0x28. Only caller `FUN_0064c4c0` | not compared |
-| `FUN_00606d10` | `dc6_skip_rows` | Fastcall (rows data, n): skips n rows | matches: d2d decodes the same tokens (components/dc6/dc6.hpp:123) |
-| `FUN_00606d40` | `dc6_rows_copy` | Opaque copy of `param_3` rows, pitch `param_4` | matches (as `dc6_skip_rows`) |
-| `FUN_00606da0` | `dc6_rows_copy_clip` | As `dc6_rows_copy`, only columns between the two edges | matches (as `dc6_skip_rows`) |
+| `FUN_00606d10` | `dc6_skip_rows` | Fastcall (rows data, n): skips n rows | no counterpart: d2d decodes the whole frame (`decode_rle`, components/dc6/dc6.hpp) and skips no rows |
+| `FUN_00606d40` | `dc6_rows_copy` | Opaque copy of `param_3` rows, pitch `param_4` | matches: the same tokens as d2d's `decode_rle` (0x80 ends a row, bit 7 skips the low 7 bits, else that many bytes) |
+| `FUN_00606da0` | `dc6_rows_copy_clip` | As `dc6_rows_copy`, only columns between the two edges | matches (as `dc6_rows_copy`) |
 | `FUN_00606e40` | `dc6_rows_blend_map` | Blend after a colour map: `blend[dst × 256 + map[src]]` | differs: d2d blends in RGB, not through the tables (todo.md 30) |
 | `FUN_00607060` | `dc6_rows_blend_map_clip` | Clipped `dc6_rows_blend_map` | differs (todo.md 30) |
 | `FUN_006072f0` | `dc6_rows_map2` | Two colour maps: `map_a[map_b[src]]` | not compared |
