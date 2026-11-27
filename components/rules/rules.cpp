@@ -1841,7 +1841,8 @@ d2d::d2s::Item roll_item(const Tables& tables, const std::string& code, int ilvl
         const auto& list = quality == 7 ? tables.uniques : tables.sets;
         const int picked = classic ? classic_special() : special(list);
         int special_row = picked;
-        // FUN_005566b0 tests the one-per-game bit (but for a quest item);
+        // FUN_005566b0 tests the one-per-game bit (FUN_005564a0: game +0x1b24;
+        // an id over 0x1000, past UniqueItems' rows, reads as found), but for a quest item;
         // FUN_00556530 then sets it unless nolimit (UniqueItems +0x2c bit
         // 2), a quest item's too.
         if (!classic && quality == 7 && special_row >= 0 && found_uniques && base) {
