@@ -1580,7 +1580,7 @@ auto Fight::aura_pulse(std::uint32_t now_ms) -> void {
             const int radius = calc(*skill, skill->aurarange, lvl);
             for (auto& monster : monsters)
                 if (!monster.alive() && !monster.corpse_used && monster.mode == "DD" && std::hypot(monster.unit.x - actor->player.x, monster.unit.y - actor->player.y) * 5 <= float(radius)) {
-                    if (int(rng(100)) < calc(*skill, skill->calc[0], lvl)) {
+                    if (int(actor->seed(100)) < calc(*skill, skill->calc[0], lvl)) {   // FUN_005d0d70: the caster's seed
                         monster.corpse_used = true;
                         const std::int64_t life = std::int64_t(calc(*skill, skill->calc[1], lvl)) << 8, mana = std::int64_t(calc(*skill, skill->calc[2], lvl)) << 8;
                         actor->character.stats.values[kLife] = std::min(actor->character.stats.values[kMaxLife], actor->character.stats.values[kLife] + life);

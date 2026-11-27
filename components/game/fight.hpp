@@ -593,6 +593,8 @@ struct Fight {
     [[nodiscard]] Caster player_caster(int skill) const;
     // The caster's unit seed: the merc's, the summon's (Caster::unit_id) or the player's.
     d2d::rules::Rng& caster_seed(const Caster& caster);
+    // A blow's striker's (land's `striker`): the merc's, a pet's, a monster's or the player's.
+    d2d::rules::Rng& striker_seed(int striker);
     bool casting_merc = false;             // launch() marks what's fired as the merc's
     int flight_part = 3;                   // spot's Dragon Flight: 1 the flight, 2 the kick (one event's, FUN_005d7850), 3 both
     int casting_unit = -1;                 // ... and as a summon's (Missile::striker)

@@ -818,14 +818,14 @@ auto Fight::land(std::size_t monster_index, const d2d::rules::Blow& blow, bool b
         // Stunned (state 21, FUN_0057aae0): it stands until the stun ends, a
         // new stun resetting the length. A special monster (champion, unique,
         // superunique: monster data +0x16 & 8, FUN_005a0180) shrugs it off
-        // 90 % of the time (the attacker's seed); MonStats boss (+0xc & 0x40,
+        // 90 % of the time (the attacker's seed: d2d_unit_stun's param_1, 0x57ab17); MonStats boss (+0xc & 0x40,
         // FUN_0063e9f0) or Velocity 0 (+0x32) can't be stunned; 250 frames at
         // most (the hirelings' 13, FUN_0063ee90, is for mercs struck). The
         // gear's stun length (stat 66) comes in the blow (rules::player_blow).
         if (const auto* stun_type = target.type >= 0 ? &game_data->monsters.types[std::size_t(target.type)] : nullptr;
             blow.stun_ticks > 0 && (!stun_type || (!stun_type->boss_column && stun_type->velocity != 0))) {
             const bool special = target.boss != d2d::rules::Boss::none && target.boss != d2d::rules::Boss::minion;
-            if (!special || rng(100) >= 90) target.stun_until = target.stunned_until = now_ms + std::uint32_t(std::min(blow.stun_ticks, 250)) * 40;
+            if (!special || striker_seed(striker).next() % 100 >= 90) target.stun_until = target.stunned_until = now_ms + std::uint32_t(std::min(blow.stun_ticks, 250)) * 40;
         }
         // Its striker's gear item_slow (ItemStatCost item_slow's events, func 19, FUN_005c0310; FUN_0057c6c0 raises
         // domeleedamage / domissiledamage on the striker as the hit lands, event 5 / 6): state 0x18 on the target,
@@ -1113,7 +1113,7 @@ auto Fight::hit(std::uint32_t now_ms, float reach ) -> void {
             && swaps_ai(*game_data, monsters[target])) {
             const int lvl = skill_level ? skill_level(skill->id) : 1;
             auto& turned = monsters[target];
-            if (int(rng(100)) < calc(*skill, skill->calc[0], lvl)
+            if (int(actor->seed(100)) < calc(*skill, skill->calc[0], lvl)          // FUN_005d02b0: on the caster's seed (0x5d0326)
                 && put_state(*game_data, turned, { skill->id, lvl, now_ms + std::uint32_t(std::max(calc(*skill, skill->auralen, lvl), 1)) * 40 }, now_ms))
                 turn_good(turned, int(actor->character.stats.get(d2d::d2s::kLevel)));
         }
@@ -1265,6 +1265,14 @@ auto Fight::spot_skill(const d2d::rules::Skill& skill) -> bool {
 
 auto Fight::player_caster(int skill) const -> Caster {
         return { actor->player.x, actor->player.y, skill_level ? skill_level(skill) : 1, actor->attack_mon, actor->cast_x, actor->cast_y, false };
+    }
+
+auto Fight::striker_seed(int striker) -> d2d::rules::Rng& {
+        if (striker == merc_foe_id() && actor->merc) return actor->merc->seed;
+        for (auto& pet : actor->pets)
+            if (pet.monster.id == striker) return pet.monster.seed;
+        if (const int found = monster_index(striker); found >= 0) return monsters[std::size_t(found)].seed;
+        return actor->seed;
     }
 
 auto Fight::caster_seed(const Caster& caster) -> d2d::rules::Rng& {
@@ -1542,9 +1550,9 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
                 if (corpse_index < 0) break;
                 auto& corpse = monsters[std::size_t(corpse_index)];
                 corpse.corpse_used = true;
-                if (int(rng(100)) >= calc(skill, skill.calc[0], lvl)) break;
+                if (int(seed(100)) >= calc(skill, skill.calc[0], lvl)) break;           // the caster's seed (0x5d824b), as the potion's (0x5d813a)
                 if (skill.srvdofunc == ServerDoFunction::kFindItem) { const auto [players, nearby] = drop_counts(); loot.drop(corpse, spawning.game, now_ms, players, nearby); break; }
-                const std::string code = d2d::rules::find_potion(level ? level->id : 1, game_difficulty, int(rng(100)), skill.par[2], skill.par[3]);
+                const std::string code = d2d::rules::find_potion(level ? level->id : 1, game_difficulty, int(seed.next() % 100), skill.par[2], skill.par[3]);
                 loot.put({ code, 2, 0 }, corpse.unit.x, corpse.unit.y, corpse.stats.level, spawning.game, now_ms);
                 break;
             }

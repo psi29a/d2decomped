@@ -1120,7 +1120,8 @@ auto Fight::monster_auras(std::vector<Foe>& foes, std::uint32_t now_ms) -> void 
             const int high = std::max(d2d::rules::elem_damage(game_data->skills, *skill, env, aura_monster.aura_lvl, true) >> 8, low);
             for (auto& foe : foes)
                 if (foe.alive && in_range(foe.x, foe.y)) {
-                    const int dealt = std::max(d2d::rules::resisted(rng.range(low, high), foe.fighter.res[std::size_t(skill->etype)]) - foe.fighter.mdr, 0);
+                    // FUN_0056e0c0: low + rand(high - low) on the aura's monster's seed.
+                    const int dealt = std::max(d2d::rules::resisted(low + aura_monster.seed(high - low), foe.fighter.res[std::size_t(skill->etype)]) - foe.fighter.mdr, 0);
                     foe.damage += dealt; foe.elemental += dealt;
                     foe.blows.push_back({ dealt, 0, true, 0, dealt });
                     foe.blows.back().striker = aura_monster.id;
