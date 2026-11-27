@@ -633,18 +633,7 @@ struct ObjectRooms {
         if (info) pop.uniques += d2d::rules::act_boss(type, info->base) ? 1 : 0;
         const auto value = game.next();
         d2d::rules::Rng own{ value };
-        const std::vector<d2d::rules::Components>* sets = nullptr;
-        for (std::size_t i = 0; i < region.types.size() && i < region.components.size(); ++i)
-            if (region.types[i].first == type) sets = &region.components[i];
-        // FUN_00547bc0: a type the region lacks joins it (13 at most) with
-        // its sets on this seed (FUN_005bdb20) when TotalPieces > 2
-        // (MonStats2 +0xec); else its look rolls every layer.
-        const bool special = type == 0xc3 || type == 0xc4 || type == 0x126 || type == 0x128;
-        if (!sets && !special && region.types.size() < 13 && type_at(type) && types[std::size_t(type)].pieces > 2) {
-            region.types.emplace_back(type, 0);
-            region.components.push_back(d2d::rules::roll_components(types[std::size_t(type)].choices, own));
-            sets = &region.components.back();
-        }
+        const auto* sets = d2d::rules::region_sets(region, game_data.monsters, type, own);   // FUN_00547bc0
         if (type_at(type)) (void)d2d::rules::monster_look(sets, types[std::size_t(type)].choices, own);
         (void)d2d::rules::monster_variant(type, own);
         own.next();

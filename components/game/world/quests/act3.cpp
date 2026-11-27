@@ -258,14 +258,15 @@ auto World::act3_update(std::uint32_t now_ms) -> void {
             });
             if (by_altar && d2d::rules::BladeQuest::kGuardian < int(game_data->monsters.types.size())) {
                 const int diff = actor->character.header.active_difficulty();
-                auto fetish_lord = make_monster(*game_data, d2d::rules::BladeQuest::kGuardian, altar.x + 1, altar.y + 1, fight.rng, diff, true, fight.game_players(), level->id);
-                make_boss(*game_data, fetish_lord, d2d::rules::Boss::unique, {}, -1, int(fight.rng.next() & 0xffff), diff, fight.rng, fight.game_players());
+                auto fetish_lord = make_monster(*game_data, d2d::rules::BladeQuest::kGuardian, altar.x + 1, altar.y + 1, fight.rng, diff, false, fight.game_players(), level->id, d2d::rules::Rng{ fight.spawning.game.next() }, fight.spawning.region(level->id));
+                make_boss(*game_data, fetish_lord, d2d::rules::Boss::unique, {}, -1, int(fight.rng.next() & 0xffff), diff, fetish_lord.seed, fight.game_players());
+                finish_unit_seed(*game_data, fetish_lord);
                 const int minion = game_data->monsters.types[std::size_t(d2d::rules::BladeQuest::kGuardian)].minion[0];
                 const int party = 2 + int(fight.rng.next() % 6);
                 const int leader = fight.add_monster(std::move(fetish_lord));
                 blade.spawned = true; blade.guardian = fight.monsters.back().id;
                 for (int i = 0; minion >= 0 && i < party; ++i) {
-                    auto fetish = make_monster(*game_data, minion, altar.x + float(i % 3) - 1, altar.y + float(i / 3), fight.rng, diff, true, fight.game_players(), level->id);
+                    auto fetish = make_monster(*game_data, minion, altar.x + float(i % 3) - 1, altar.y + float(i / 3), fight.rng, diff, true, fight.game_players(), level->id, d2d::rules::Rng{ fight.spawning.game.next() }, fight.spawning.region(level->id));
                     fetish.boss = d2d::rules::Boss::minion;
                     fetish.leader = leader;                               // its pack's lord (FUN_005a43e0's group)
                     fight.add_monster(std::move(fetish));

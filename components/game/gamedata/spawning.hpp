@@ -82,6 +82,8 @@ struct Spawning {
     d2d::rules::Rng proxy;
     d2d::rules::Rng quests;                 // the quests' seed (game +0x10f4 +0x18): its timers and drops (FUN_005438b0)
     std::vector<d2d::rules::Region> regions;               // by Levels.txt Id
+    // A level's region (its monsters' looks, rules::region_sets), none off the list.
+    d2d::rules::Region* region(int level_id) { return level_id >= 0 && std::size_t(level_id) < regions.size() ? &regions[std::size_t(level_id)] : nullptr; }
     std::unordered_map<const Level*, LevelState> levels;
     // Room1 creation is act-wide in game.exe: FUN_0061b190 can walk a near
     // list containing rooms from either side of a level edge. Preserve that

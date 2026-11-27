@@ -168,13 +168,19 @@ int main() try {
     shadow.cast = flight;
     fight.shadow_sequence(shadow, now);
     assert(shadow.seq);
-    for (int frame = 1; frame < 60 && shadow.seq; ++frame) {         // to its end (then it thinks again)
+    // To its end: its think may start another flight at once (at the zombie, by its unit seed's draws), so the
+    // move is the one this sequence made, read as it ends (its row back past the last).
+    float moved = 0;
+    for (int frame = 1, last_row = 0; frame < 60 && shadow.seq && shadow.seq_done >= last_row; ++frame) {
+        last_row = shadow.seq_done;
+        moved = shadow.monster.unit.y - shadow_back;
         now += kTickMs;
         fight.crowd(crowd);
         fight.pets_turn(now, float(kTickMs) / 1000.f, crowd);
+        if (shadow.seq_done >= last_row) moved = shadow.monster.unit.y - shadow_back;
     }
-    std::printf("the Shadow's at one it kills: %s, moved %.1f\n", fight.monsters[killed_too].alive() ? "alive" : "dead", double(shadow.monster.unit.y - shadow_back));
-    assert(!fight.monsters[killed_too].alive() && shadow.monster.unit.y - shadow_back > 3.f);
+    std::printf("the Shadow's at one it kills: %s, moved %.1f\n", fight.monsters[killed_too].alive() ? "alive" : "dead", double(moved));
+    assert(!fight.monsters[killed_too].alive() && moved > 3.f);
     std::printf("test_dragon_flight_events: ok\n");
     return 0;
 } catch (const std::exception& error) {
