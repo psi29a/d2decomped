@@ -58,6 +58,9 @@ struct Fighter {
     bool blunt = false;                             // the weapon is a Blunt type (ItemTypes Equiv chain: club, hammer, mace, scepter, wand, staff)
     int undead_pct = 0;                             // stat 122 (item_undeaddamage_percent) over all the gear (the game reads the unit's own stat)
     int demon_pct = 0;                              // stat 121 (item_demondamage_percent), the same way: against demons, melee or missile
+    int ignore_target_def = 0;                      // stat 115: any nonzero ignores a plain monster's defense (target_defense)
+    int target_def_pct = 0;                         // stat 116: -n% target defense
+    int demon_tohit = 0, undead_tohit = 0;          // stats 123 / 124: attack rating against demons / the undead
     std::array<std::pair<int, int>, 5> elem{};      // added damage (poison: its total over poison_len)
     int cold_len = 0, poison_len = 0;               // ticks
     int stun_len = 0;                               // stat 66 (gear), ticks
@@ -337,8 +340,17 @@ struct Target {
     // DifficultyLevels HireableBossDamagePercent (row +0x38). 100 none.
     int pair_pct = 100;
     bool special = false;                           // a champion, unique or superunique (monster data +0x16 & 12, FUN_005a0180): Open Wounds takes half
+    // For target_defense: the unit type (0 a player, 1 a monster, -1 none), a MonStats boss (+0xc & 0x40,
+    // FUN_0063e9f0), a superunique (data +0x16 & 2) and a hireling class (FUN_0063ee90).
+    int unit_type = 1;
+    bool boss = false, superunique = false, hireling = false;
     [[nodiscard]] std::int64_t paired(std::int64_t field) const { return field > 0 && pair_pct != 100 ? field * pair_pct / 100 : field; }
 };
+// A player's attack rating (before its %) and the target's defense as the gear changes them: ignore target's
+// defense, -n% target defense, attack rating against demons and the undead.
+void target_defense(const Fighter& fighter, const Target& target, int& attack, int& defense);
+// The attack rating and the defense a player's to-hit roll compares: target_defense, then the rating's % on top.
+std::pair<int, int> player_to_hit(const Fighter& fighter, const Target& target, int swing_ar_pct);
 // What one player hit does: the instant damage (physical after resistance,
 // fire / lightning / cold / magic, crushing blow), leeched life and mana,
 // poison (total and ticks), chill ticks, and whether it bled, knocked back.
@@ -531,11 +543,16 @@ std::int64_t kill_award(int exp, int clvl, int mlvl, int add_pct, std::span<cons
 // A kill's experience shared by the party members who share it, by their character levels.
 std::vector<std::int64_t> party_shares(int exp, std::span<const int> levels);
 
-// Adds experience; every level reached (exp_next[level] = experience for
-// level + 1) gives StatPerLevel stat points, a skill point and the class's
-// life/stamina/mana per level (quarter points, 8.8 fixed stats), and fills
-// all three. Returns the levels gained.
-int gain_exp(d2d::d2s::Stats& stats, std::int64_t exp, const std::vector<std::int64_t>& exp_next, const ClassGains& gains);
+// The experience after an award: a 32-bit add, at most `cap` (Experience.txt's row MaxLvl - 1) compared unsigned.
+std::uint32_t exp_after_award(std::uint32_t exp, std::int32_t award, std::uint32_t cap);
+
+// Adds experience (exp_after_award, capped at exp_next[max_level - 1]); every
+// level reached (exp_next[level] = experience for level + 1) gives
+// StatPerLevel stat points, a skill point and the class's life/stamina/mana
+// per level (quarter points, 8.8 fixed stats), and fills all three. Returns
+// the levels gained.
+int gain_exp(d2d::d2s::Stats& stats, std::int64_t exp, const std::vector<std::int64_t>& exp_next, const ClassGains& gains,
+             int max_level = 99);
 
 // Stamina a running frame costs outside town.
 int stamina_drain(int run_drain, int armor_speed, int slower_pct);
