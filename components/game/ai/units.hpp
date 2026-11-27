@@ -444,7 +444,8 @@ struct Monster {
     std::optional<std::pair<int, int>> chamber_portal;
     int point_x = 0, point_y = 0;
     std::uint32_t laid_until = 0;
-    // Its unit seed (+0x20) as its look left it: what its thinks draw. A
+    std::array<std::uint8_t, 16> look{};      // its component picks (monster data +4..+0x13: make_monster)
+    // Its unit seed (+0x20) as its stat init left it: what its thinks draw. A
     // special AI (AI control [0], FUN_005b0e00: the Countess's 0xd, Dim
     // Vision's / Cloak's 10, Terror's / Howl's 11) or its MonAI row's other
     // think (`other`, rules::ai_toggle), its map AI's points (subtiles),

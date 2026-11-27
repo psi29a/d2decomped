@@ -3162,6 +3162,7 @@ Monster make_monster(const GameData& game_data, int type, float x, float y, d2d:
         look[10] = std::uint8_t(monster.variant);
         if (type == 0x138) look[11] = std::uint8_t(monster.variant);
     }
+    monster.look = look;
     for (std::size_t layer = 0; layer < 16; ++layer)
         if (look[layer] < type_info.parts[layer].size()) monster.npc.comp[layer] = type_info.parts[layer][look[layer]];
     monster.unit.x = monster.home_x = x;
