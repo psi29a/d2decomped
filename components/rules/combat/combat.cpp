@@ -798,11 +798,13 @@ int melee_record_pct(const Fighter& fighter, const Target& target, const Swing& 
 // 0x6ce280 holds, 0x40) shot with a two-hander in hand (FUN_006289c0 on the unit's weapon, 0x64bb09) halves the
 // SrcDamage first, toward zero (0x64bb12..0x64bb1a): Blade Fury's, Blade Sentinel's and Blade Shield's rows.
 // tools/emu/half_2h_src.py runs it.
-// ponytail: the attacker's stat 0xb4 % against a monster of its layer's MonType (FUN_005a89a0 0x5a8b8e..0x5a8bd4,
-// FUN_0057a830's MonType matrix; melee's FUN_0057b6a0 too; not MonProp) isn't here: d2d keeps no MonType matrix. The row's +0x12e
-// (SrcMissDmg) branch (0x64bd07), the parent missile's damage, is only viper_poisjavcloud's (Missiles.txt row 649,
-// 128), which d2d never makes. The halved value also scales the owner's elemental share (0x64bed9 -> FUN_0064aa60):
-// not checked in d2d's element path. phys_lo / phys_hi carry stat 111
+// The attacker's stat 0xb4 (ItemStatCost row 180, damage_vs_montype) % against a monster of its layer's MonType
+// (FUN_005a89a0 0x5a8b8e..0x5a8bd4: FUN_0057a830(layer, MonStats +0x1c); melee's FUN_0057b6a0 too) isn't here:
+// only Properties.txt's dmg-mon% sets it, and no 1.14d UniqueItems, SetItems, Sets, Runes, MagicPrefix,
+// MagicSuffix, Automagic, Gems, CubeMain, MonProp, MonUMod, States, Skills or Hireling row uses it. The row's
+// +0x12e (SrcMissDmg) branch (0x64bd07), the parent missile's damage, is only viper_poisjavcloud's (Missiles.txt
+// row 649, 128), which d2d never makes. The halved value also scales the owner's elemental share (0x64bed9 ->
+// FUN_0064aa60): not checked in d2d's element path. phys_lo / phys_hi carry stat 111
 // and make_fighter's floors (at least a point; phys_pct at least -90 before the missile's terms join).
 MissilePhysical missile_physical(const Fighter& fighter, const Target& target, const Swing& swing) {
     MissilePhysical physical;

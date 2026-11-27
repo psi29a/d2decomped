@@ -978,10 +978,12 @@ runs from the local do (`client_skill_guard`); startmana's state inferno is `Her
   (blade creeper, bladefury1-3, bladefragment1-3, blade shield missile /
   attachment). d2d: `Fighter::two_handed`, `Swing::half_2h_src`;
   `tools/emu/half_2h_src.py` runs the block on every weapons.txt row.
-  Not in d2d: the stat 0xb4 % (no MonType matrix), the row's +0x12e
-  (SrcMissDmg) branch (0x64bd07: only viper_poisjavcloud, Missiles.txt row
-  649, which d2d never makes); the halved elemental share is not checked
-  in d2d's element path.
+  Not in d2d: the stat 0xb4 % (ItemStatCost row 180,
+  damage_vs_montype, from Properties.txt's dmg-mon%: no 1.14d item, set,
+  runeword, affix, MonProp, MonUMod, state or skill row sets it), the
+  row's +0x12e (SrcMissDmg) branch (0x64bd07: only viper_poisjavcloud,
+  Missiles.txt row 649, which d2d never makes); the halved elemental
+  share is not checked in d2d's element path.
 - **A crossbow's bolts** (do 8 `FUN_005db410` 0x5db51e..0x5db53d, do 10
   `FUN_005db6d0` 0x5db74f..0x5db76b, do 12 `FUN_005dba40`
   0x5dbb20..0x5dbb3f): srvmissilea (+0x48), or srvmissileb (+0x4a) when it
