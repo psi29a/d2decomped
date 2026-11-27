@@ -576,27 +576,71 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
         return actor->pets.back().monster.id;
     }
 
+// FUN_005cc4e0: a flame (srvmissilea) at the target, its range FUN_005cc2e0's: calc1, or under 1 its row's
+// Param2 + level - 1, 1..255 (its animation that many frames, FUN_00621780); while the frame is before the
+// end and state 0xc holds it runs again calc3 frames on (at least 1), else the mode ends (FUN_005cc3b0).
+auto Fight::pet_breath(Pet& pet, std::uint32_t now_ms) -> void {
+        auto& monster = pet.monster;
+        if (monster.breath < 0) return;
+        if (now_ms >= monster.breath_until || !monster.breath_state) { monster.breath = -1; monster.breath_state = false; return; }
+        if (now_ms < monster.breath_next) return;
+        const auto* skill = game_data->skills.get(monster.breath);
+        const auto found = skill ? game_data->missiles.find(skill->srvmissilea) : game_data->missiles.end();
+        if (!skill || found == game_data->missiles.end()) { monster.breath = -1; return; }
+        const int lvl = pet.shot_level;
+        monster.breath_next = now_ms + std::uint32_t(std::max(d2d::rules::eval_calc(game_data->skills, skill->calc[2], calc_env(), skill->id, lvl), 1)) * 40;
+        if (pet.target < 0 || std::size_t(pet.target) >= monsters.size() || !monsters[std::size_t(pet.target)].alive()) return;
+        const auto& missile_info = found->second;
+        int range = d2d::rules::eval_calc(game_data->skills, skill->calc[0], calc_env(), skill->id, lvl);
+        if (range < 1) range = missile_info.param2 - 1 + lvl;
+        range = std::clamp(range, 1, 255);
+        const auto& foe = monsters[std::size_t(pet.target)];
+        const float dx = foe.unit.x - monster.unit.x, dy = foe.unit.y - monster.unit.y, dist = std::max(std::hypot(dx, dy), 0.01f);
+        const float speed = missile_speed(missile_info, lvl);
+        Missile flame{ &missile_info, monster.unit.x, monster.unit.y, dx / dist * speed, dy / dist * speed, missile_facing(monster.unit.x, monster.unit.y, dx, dy), now_ms,
+                       now_ms + std::uint32_t(range) * 40, {} };
+        flame.friendly = true; flame.caster = actor->id; flame.level = lvl; flame.striker = monster.id;
+        const auto owner = game_data->skills.by_name.find(missile_info.skill);
+        flame.skill = owner != game_data->skills.by_name.end() ? owner->second : skill->id;
+        flame.anim_rate = missile_info.anim_len * 256 / range;
+        seed_made(flame);
+        missiles.push_back(std::move(flame));
+    }
+
 // A trap's shot (its shot skill's missile) at monster `target`.
 auto Fight::trap_fire(Pet& pet, std::size_t target, std::uint32_t now_ms) -> void {
         auto& monster = pet.monster;
         const auto* skill = game_data->skills.get(pet.shot_skill);
         if (!skill) return;
-        const auto& missile_info = *skill_missile(*skill, true);
+        // Inferno Sentry's breath (srvst FUN_005cc240: its end calc2 frames on, at least 1, the skill record's
+        // +0x18, state 0xc; do 95, FUN_005cc4e0): its first flame now, the rest pet_breath's.
+        if (skill->srvdofunc == ServerDoFunction::kMonsterBreath) {
+            if (monster.breath >= 0) return;                         // one under way: its mode holds
+            monster.breath = skill->id;
+            monster.breath_until = now_ms + std::uint32_t(std::max(d2d::rules::eval_calc(game_data->skills, skill->calc[1], calc_env(), skill->id, pet.shot_level), 1)) * 40;
+            monster.breath_state = true;
+            monster.breath_next = now_ms;
+            pet.target = int(target);
+            pet_breath(pet, now_ms);
+            return;
+        }
+        const auto* shot_info = skill_missile(*skill, true);
+        if (!shot_info) return;
+        const auto& missile_info = *shot_info;
         const auto owner = game_data->skills.by_name.find(missile_info.skill);
         const float dx = monsters[target].unit.x - monster.unit.x, dy = monsters[target].unit.y - monster.unit.y, dist = std::max(std::hypot(dx, dy), 0.01f);
         const float speed = missile_speed(missile_info, pet.shot_level);
-        // Inferno Sentry's (do 95, FUN_005cc4e0) is a stream of flames:
-        // here eight at once, their reach staggered.
-        const int count = skill->srvdofunc == ServerDoFunction::kScatteredBolts ? std::max(d2d::rules::eval_calc(game_data->skills, skill->calc[0], calc_env(), skill->id, pet.shot_level), 1)
-                    : skill->srvdofunc == ServerDoFunction::kMonsterBreath ? 8 : 1;
+        const int count = skill->srvdofunc == ServerDoFunction::kScatteredBolts ? std::max(d2d::rules::eval_calc(game_data->skills, skill->calc[0], calc_env(), skill->id, pet.shot_level), 1) : 1;
+        // A bolt sentry's do 17 is Charged Bolt's (FUN_005c9300): calc1 bolts all at the target, each wandering on
+        // its index (Missile::bolt, FUN_005c9290's path type 10).
+        const bool bolts = skill->srvdofunc == ServerDoFunction::kScatteredBolts;
         for (int j = 0; j < count; ++j) {
-            const float angle = count > 1 ? (float(rng(81)) - 40) * 3.14159265f / 180 : 0.f;
-            const float aim_x = dx * std::cos(angle) - dy * std::sin(angle), aim_y = dx * std::sin(angle) + dy * std::cos(angle);
+            const float aim_x = dx, aim_y = dy;
             Missile x{ &missile_info, monster.unit.x, monster.unit.y, aim_x / dist * speed, aim_y / dist * speed, missile_facing(monster.unit.x, monster.unit.y, aim_x, aim_y), now_ms,
                        now_ms + std::uint32_t(std::max(missile_info.range, 1)) * 40, {} };
             x.friendly = true; x.caster = actor->id; x.level = pet.shot_level;
             x.skill = owner != game_data->skills.by_name.end() ? owner->second : skill->id;
-            if (skill->srvdofunc == ServerDoFunction::kMonsterBreath) { x.velocity_x = dx / dist * speed; x.velocity_y = dy / dist * speed; x.dies = now_ms + std::uint32_t(4 + 3 * j) * 40; }
+            if (bolts) { x.bolt = j; x.aim_at = std::pair{ monsters[target].unit.x, monsters[target].unit.y }; }
             seed_made(x);
             missiles.push_back(std::move(x));
         }

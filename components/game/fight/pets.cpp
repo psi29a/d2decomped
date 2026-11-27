@@ -425,6 +425,7 @@ auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
             if (!monster.alive() || pet.where != level) continue;
             unit.turns_on = true;                                        // a monster unit's turn, a step a frame (turn_frame)
             if (!unit.walking) turn_frame(unit);
+            pet_breath(pet, now_ms);
             pet_skill_damage(pet);                                          // its swings at the owner's level now
             for (const auto& buff : pet.buffs)                              // a Shadow's Blade Shield, as the player's
                 if (const auto* skill = game_data->skills.get(buff.skill); skill && skill->srvdofunc == ServerDoFunction::kBladeShield && now_ms >= pet.blade_next) {

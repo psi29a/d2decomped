@@ -944,6 +944,8 @@ struct Fight {
     void shadow_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd, int dragon_part = 3);
     void shadow_sequence(Pet& pet, std::uint32_t now_ms);   // a Shadow's Dragon Flight: its MonSeq sequence starts
     void trap_fire(Pet& pet, std::size_t target, std::uint32_t now_ms);
+    // A breath under way (do 95, FUN_005cc4e0 re-run): a flame at its target every calc3 frames till its end.
+    void pet_breath(Pet& pet, std::uint32_t now_ms);
     // Holy Shield: the holyshield state for auralencalc ticks, its aurastats (toblock dm56) on the player.
     bool cast(int skill, std::uint32_t now_ms);
     // A cast's cost: a charged entry's (Hero::charge, for that skill) is a charge and no mana, else the skill's
