@@ -501,10 +501,12 @@ requirements pass `FUN_0055dbc0`, whose last loop (0x55de23..0x55de99)
 walks body slots 1..10 and, for each quality 5 item neither broken (0x100)
 nor flagged 0x4000, calls `FUN_0055c730(.., 1, 1)` then `FUN_0055c2c0`
 (0x55de7c, 0x55de88): every worn set's list is built again, last with its
-piece in the highest slot. A break (`FUN_0055f850`) runs the pass first and
+highest-slot piece the loop takes (a broken or 0x4000 piece is skipped, so
+a lower one can supply the list). A break (`FUN_0055f850`) runs the pass first and
 `FUN_00663cc0(owner, item, 1, 1)` last (0x55f8e3), so the broken piece's set
 is left with no list until a piece's stats go on again (the next move's
-pass). So after any move the list holds the worn piece in the highest slot.
+pass). So after any move the list holds the highest-slot worn piece that is
+neither broken nor flagged 0x4000.
 
 Sets.txt's codes use Properties funcs 1, 3, 5, 6, 7, 8, 11, 15, 16, 17,
 21, 22 and 24 only, none of the ones that write the item (2 / 4's
@@ -525,7 +527,8 @@ loop (`rules::restamp_worn_sets`), and each break site in
 (`Item::set_list_freed`, cleared by the next `stats_on`). Not ported: the
 corpse's `FUN_0057f410` (`set_list.cpp`'s ponytail).
 `tools/emu/set_settle.py` runs `FUN_0055dbc0` (3000 cases, every requirement
-met; `tests/set_settle_cases.inc`) and records `FUN_0055f850`'s calls.
+met; `tests/set_settle_cases.inc`; all matched, 2026-11-27) and records
+`FUN_0055f850`'s calls.
 Oracle: `tools/emu/set_list.py` runs `FUN_00663b40` and `FUN_00660120`
 over runs of pieces going on and off (the owner's lists a Python model,
 `FUN_0065fe10` logged): 0 of 19,383 lines differ from
