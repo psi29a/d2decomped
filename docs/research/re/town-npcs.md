@@ -314,8 +314,15 @@ control is block [0].
    (FUN_00553380(unit, 0x12, player): the unit sound the town NPCs'
    heeding plays); a negative timer goes to 0, a positive one counts down
    by 1. Stand 20.
-3. Else TownRogue's test (monster-ai.md): A1 (FUN_005ddf90(4)) at her
-   second target (FUN_005ddc30) under 25, else stand 50.
+3. Else `FUN_005ddc30` asks the ordinary target search (`FUN_005dd610`,
+   then `d2d_unit_search` and `FUN_005dd510`) for her second hostile target.
+   It writes the target's unit distance through `FUN_00622c40`; below 25,
+   `FUN_005ddf90(4, target)` builds a mode context (`FUN_005a7e60`) and
+   starts A1 (`FUN_005a7c20`). With no target, or one at least 25 away, she
+   stands 50 frames (`FUN_005de080`). The think has no direct global write;
+   its effects are Flavie's AI-control greeting timer and unit seed, the
+   unit sound call, or the mode/event state changed by those callees. The
+   search callees read the game's unit lists and target state.
 
 - **The flag word is not set before the search** (0x5e7e62..0x5e7e66: `lea eax, [ebp-4]`,
   `push eax`, with no store to [ebp-4] before). FUN_005ddf20 writes it only
@@ -324,9 +331,14 @@ control is block [0].
   driver's earlier calls at that depth). A bug, confidence high for the
   read, the effect unknown; not yet in bugs.md. d2d takes the evident
   intent: the flag only under 4.
-- **d2d:** `rules::navi_think`, `TownAi::navi`. No monster is passed (NPCs
-  don't see the fight), so she never shoots: a ponytail note at the call in
-  ai.cpp's `npc_patrol`.
+- **d2d:** `rules::navi_think`, `TownAi::navi`. `World::tick` already owns
+  the current level's `Fight::monsters` at the `npc_patrol` call. The patrol
+  now passes the stock branch when a targetable hostile monster's
+  `unit_distance` is below 25, so Flavie's A1 plays. It does not yet rank
+  `FUN_005ddc30`'s primary and secondary picks, and the town-NPC path has no
+  action-frame arrow. Those remaining gaps are narrowed at the call in
+  `ai.cpp` rather than inventing a target or missile without tracing the
+  event.
 - **Checked:** `tools/emu/navi.py` runs FUN_005e7e20 natively on 3000
   random scenes, the stale flag word a scene input written at [ebp-4]
   before the call; `--dump tests/navi_cases.inc` is replayed by

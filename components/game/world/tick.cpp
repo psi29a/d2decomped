@@ -398,6 +398,8 @@ auto World::hand_out_announced() -> void {
         announced.clear();
     }
 
+// Runs one server frame for the current level: commands, NPCs, combat,
+// quests, objects, travel, drops, sounds and the resulting player events.
 auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std::uint32_t last_ms) -> void {
         const float elapsed = float(now_ms - last_ms) / 1000.f;
         now = now_ms;
@@ -843,7 +845,7 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
                 if (const int pick = d2d::rules::npc_visitor_pick(int(std::floor(npc_states[i].x * 5)), int(std::floor(npc_states[i].y * 5)), candidates[i]); pick >= 0)
                     visitors[i] = &players[std::size_t(pick)]->player;
         }
-        npc_patrol(*game_data, *level, npc_states, talking, now_ms, elapsed, crowd, visitors, arcane.guard_state == 2);
+        npc_patrol(*game_data, *level, npc_states, talking, now_ms, elapsed, crowd, visitors, arcane.guard_state == 2, fight.monsters);
         for (std::size_t i = 0; i < npc_states.size() && i < level->npcs.size(); ++i)
             if (std::exchange(npc_states[i].greets, false)) {   // unit sound 0x12 to the visitor, at its spot
                 const UnitState& heard = visitors[i] ? *visitors[i] : lead().player;

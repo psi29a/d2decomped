@@ -49,11 +49,14 @@ void file_first_think(UnitState& state, std::uint32_t now_ms);
 // (by its index in `visitors`: rules::npc_visitor_pick, a player within 16
 // with a "!" for them) walks up to it and greets it; one in `busy` (menu, speech or
 // store open on it) stops and stands (rules::npc_think's visitor).
+// Flavie starts A1 when `monsters` has a targetable hostile unit within
+// FUN_005e7e20's 25-unit-distance limit.
 // The walk is a monster's (set_off / walk_on: toward 0xd, wall 0xf) at
 // Velocity. Its first think comes 2 frames after the first call that
 // meets it, unless file_first_think filed it already.
 void npc_patrol(const GameData& game_data, const Level& level, std::vector<UnitState>& npcs, std::array<int, 3> busy,
-                std::uint32_t now_ms, float elapsed, const Crowd& crowd = {}, std::span<const UnitState* const> visitors = {}, bool guard_aside = false);
+                std::uint32_t now_ms, float elapsed, const Crowd& crowd = {}, std::span<const UnitState* const> visitors = {}, bool guard_aside = false,
+                std::span<const Monster> monsters = {});
 
 // A player's walk from (x, y) to (gx, gy), in cells: game.exe's path type 7
 // (rules::player_path: the toward pather, the search when close) over
