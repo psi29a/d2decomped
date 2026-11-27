@@ -83,6 +83,19 @@ int main() try {
     assert(world.cain_walk.lifeless && corpse_stamp_is(true));
     assert(world.cain_walk.npc == -1 && cain.hidden);
 
+    // FUN_00649f70 skips the stamp when MonStats2 compositeDeath is set; the life cut still runs.
+    std::ranges::fill(tristram.walk, 0);
+    world.cain = {};
+    tristram.npcs[0].composite_death = true;
+    cain = UnitState{};
+    cain.x = Fine::centre(kCainX);
+    cain.y = Fine::centre(kCainY);
+    world.cain_walk = { .npc = 0, .stage = 7, .spot_x = kCainX, .spot_y = kCainY };
+    cain.hidden = false;
+    world.cain_step(3000, 0.04f);
+    assert(world.cain_walk.lifeless && corpse_stamp_is(false));
+    assert(world.cain_walk.npc == -1 && cain.hidden);
+
     std::printf("OK: both Cain death paths leave FUN_00649f70's %dx%d corpse-grid stamp and cut life\n", kCase.width, kCase.height);
     return 0;
 } catch (const std::exception& error) {

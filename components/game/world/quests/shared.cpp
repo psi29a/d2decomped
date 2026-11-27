@@ -534,12 +534,13 @@ auto World::cain_step(std::uint32_t now_ms, float /* elapsed: a step is a frame 
         const auto death_start = [&] {
             cain_walk.lifeless = true;                              // FUN_00627260(unit, 6, 0, 0)
             const int width = level->ds1.width() * 5, height = level->ds1.height() * 5;
-            for (int row = -1; row <= 1; ++row)
-                for (int column = -1; column <= 1; ++column) {
-                    const int corpse_x = at_x + column, corpse_y = at_y + row;
-                    if (corpse_x >= 0 && corpse_y >= 0 && corpse_x < width && corpse_y < height)
-                        level->walk[std::size_t(corpse_y) * std::size_t(width) + std::size_t(corpse_x)] |= 0x8000;
-                }
+            if (!npc.composite_death)                                                                   // FUN_00649f70: compositeDeath skips the stamp
+                for (int row = -1; row <= 1; ++row)
+                    for (int column = -1; column <= 1; ++column) {
+                        const int corpse_x = at_x + column, corpse_y = at_y + row;
+                        if (corpse_x >= 0 && corpse_y >= 0 && corpse_x < width && corpse_y < height)
+                            level->walk[std::size_t(corpse_y) * std::size_t(width) + std::size_t(corpse_x)] |= 0x8000;
+                    }
         };
         const auto off = [&](int x, int y) { return d2d::rules::ai_distance(x - at_x, y - at_y); };
         if (cain_walk.stage < 0) {
