@@ -50,6 +50,7 @@ Level level_of(int id, int world_x, std::uint16_t walk) {
 
 }  // namespace
 
+// Larzuk's marker by a neighbour level's edge, both levels GameData's (FUN_00587840, FUN_005b2f20).
 int main() try {
     d2d::test::TestData test_data;
     auto& data = test_data.data;
@@ -69,8 +70,11 @@ int main() try {
     // (walk) only its five east columns, its collision (tile_walk) open only in the last two
     // (subtiles 38, 39): Larzuk's plus (size 2) fits only at 39, its east arm on level 1's
     // subtile 0, free there once level 1's room is up.
-    Level here = level_of(1, 100, 0x100);
-    Level west = level_of(2, 92, 0x100);
+    // GameData owns them, so the near list finds each by its id (FUN_0066c220).
+    data.levels[1] = std::make_unique<Level>(level_of(1, 100, 0x100));
+    data.levels[2] = std::make_unique<Level>(level_of(2, 92, 0x100));
+    Level& here = *data.levels[1];
+    Level& west = *data.levels[2];
     west.tile_walk.assign(40 * 40, 0x01);
     for (int row = 0; row < 40; ++row)
         for (int column = 35; column < 40; ++column) {
@@ -79,6 +83,9 @@ int main() try {
         }
     here.vis[0] = 2; here.vis_warp[0] = -1;
     west.vis[0] = 1; west.vis_warp[0] = -1;
+    // Each room holds its walk slot 0 (FUN_00667970: a preset room's), which the near list walks (FUN_0066c370).
+    here.room_flags[0] = 0x10;
+    west.room_flags[0] = 0x10;
     here.nearby.push_back({ &west, -8, 0 });
     west.nearby.push_back({ &here, 8, 0 });
     d2d::drlg::Unit marker{};

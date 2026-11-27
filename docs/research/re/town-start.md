@@ -86,8 +86,9 @@ sorted again, so FUN_0066e940 finds the camp's edge tiles and the room
 rolls fewer picks on its seed (its room1 seed moves). d2d: `camp_rooms`
 (gamedata.cpp) lays the camp's rooms up on its preset (LvlPrest def 1)
 and hands them to `level_room_tiles` as `outside`; no DT1s, so the
-camp's tiles are found, never picked. Checked: the same diff, every
-room1 and room seed of seeds 1-20.
+camp's tiles are found, never picked, and a found cell draws the camp's
+own pick there (`next_door_pick`, `test_camp_edge_draw`). Checked: the
+same diff, every room1 and room seed of seeds 1-20.
 
 The camp's own rooms' room1 seeds (room1 +0x6c, FUN_006422a0: the room's
 tile seed, the DRLG room's, stepped once more after its tile picks): d2d's
@@ -97,17 +98,34 @@ preset with LvlPrest def 1's DT1 list, the DRLG room seeds from
 `generate_preset`, the rooms up so far first). They depend on the order the
 rooms came up in (a shared edge's re-pick rolls on the later room's seed). Checked:
 `uv run python camp_room1.py 1-4 --mutation-check` (game.exe's rooms up in list,
-reverse and shuffled order against `drlg-dump ... 1 <dir> camp`). Not done: the
-seeds are taken once, with the rooms up at the first roll (`keep_camp_seeds`'
-ponytail), and the client's critters (apps/d2d/session/ambient.cpp) still use the
-DRLG room's seed.
+reverse and shuffled order against `drlg-dump ... 1 <dir> camp`). A room's seed
+depends only on the rooms laid before it, so `keep_camp_seeds` lays the camp
+again whenever more rooms are up and gives only the rooms new to `order` their
+seed; a room already up keeps its stream (`test_camp_seeds_later`). It keeps
+which rooms it laid by index (`seeds_laid`): a retired room leaves `order`
+(`age_live_room`), and a room up after that is laid without it. Not done:
+the client's critters (apps/d2d/session/ambient.cpp) still use the DRLG room's
+seed.
 
 The camp's tiles: each cell's tile is the rarity pick (FUN_0066d820) on its
 room's DRLG seed, the picks of `level_room_tiles` on the camp's preset (LvlPrest def 1,
 DT1 list by its Dt1Mask, the three always-lists after). d2d's `lay_camp_picks`
-(gamedata.cpp) lays them once, rooms in list order, into `GameData::town`'s
+(gamedata.cpp) lays them at load, rooms in list order, into `GameData::town`'s
 `Level::picks` through `lay_tiles` and re-runs `finish_level`, so drawing and the walk
 grid read the picked tiles where load_town's first match in the DT1s stood. Checked:
 `uv run python camp_tiles.py 1-8 --mutation-check` (every camp room brought up in game.exe
-against `drlg-dump ... 1 <dir> camptiles`, the tile sets equal). Not done: the order the
-rooms come up in as a player walks (shared edges re-pick by it; relevel doesn't run on the camp).
+against `drlg-dump ... 1 <dir> camptiles`, the tile sets equal). Laid with the rooms up in a given
+order (`lay_camp_picks`' `came_up`), they are game.exe's with its rooms brought up (FUN_0061b730) in
+that order: `uv run python camp_tiles_order.py 1-10 <dir> --mutation-check` (list, reverse and shuffled,
+against `ORDER=<kind> drlg-dump ... 1 <dir>/<kind> camptiles`, its usage line). As a player walks, `relevel` lays the
+camp again with its rooms in the order they came up (Spawning order, as `keep_camp_seeds` takes
+the room1 seeds), from the rooms, DT1s and assets `lay_camp_picks` keeps, and stamps the objects'
+footprints back (`test_camp_picks_order`). Not done: a Blood Moor room up before a camp room, whose edge
+tiles that camp room then finds (FUN_0066e940): `camp_rooms` lays the camp beside the Blood
+Moor, never the reverse. In game.exe (the Blood Moor built with FUN_00642ae0 / FUN_006424a0 and
+every room of it brought up with FUN_0061b730 before the camp's, against the camp alone, map seeds
+1-3, 2026-11-27) the camp's rooms on the Blood Moor's side pick other floors on that edge and
+their own tile lists hold fewer tiles: the ones found are the Blood Moor rooms'. Porting it needs
+the come-up order across both levels (Spawning keeps an order per level), `level_room_tiles`'
+`outside` rooms up between the level's own rather than all before them, and `keep_camp_seeds`'
+room1 seeds laid with the same rooms.

@@ -604,7 +604,7 @@ auto World::stones_portal() -> void {
 // new free spot, within 10; at last within 15 of the start spot itself.
 // All failing, no Cain (0x592ad8 returns): the quest's +0x51 / +0x52 stay, so he's still due at the
 // next try (the start object's init, a player into the camp). Made, CainQuest::camp_made.
-// The camp's room seeds are keep_camp_seeds' (its own ponytail on the room1 seed).
+// The camp's room seeds are keep_camp_seeds' (each room's room1 seed as it came up).
 auto World::place_camp_cain() -> bool {
         auto& town = const_cast<Level&>(game_data->town);              // GameData owns its levels mutable
         const auto start = std::ranges::find_if(town.ds1.objects(), [](const auto& object) {

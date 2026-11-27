@@ -18,7 +18,8 @@
 // drlg-dump <mpq dir> <seed> 1 [<out dir>] camp: the Rogue Encampment's rooms' room1 seeds with the rooms
 // brought up in $ORDER (preset_room1_seeds), as tools/emu camp_room1.py prints game.exe's.
 // drlg-dump <mpq dir> <seed> 1 [<out dir>] camptiles: the camp's picked tiles (GameData::town's Level::picks,
-// lay_camp_picks), a line a tile sorted, as tools/emu camp_tiles.py prints game.exe's.
+// lay_camp_picks), a line a tile sorted, as tools/emu camp_tiles.py prints game.exe's. With $ORDER set (list,
+// reverse, shuffle) the camp is laid again with its rooms brought up in that order, as camp_tiles_order.py's.
 #include <drlg.hpp>
 #include <drops.hpp>
 #include <gamedata.hpp>
@@ -488,10 +489,16 @@ int main(int argc, char** argv) try {
         const auto first = std::uint32_t(std::stoul(range.substr(0, dash), nullptr, 0));
         const auto last = dash == std::string::npos ? first : std::uint32_t(std::stoul(range.substr(dash + 1), nullptr, 0));
         if (last < first) { std::fprintf(stderr, "camptiles: seeds %s run backwards\n", range.c_str()); return 2; }
+        const char* kind = std::getenv("ORDER");
         for (auto seed = first;; ++seed) {
             d2d::game::set_map_seed(*game, seed, dump_difficulty());
             const auto& town = game->town;
             const auto& assets = *game->builder->act1;
+            if (kind) {                                         // the rooms up in $ORDER (room_rects indices, as camp's)
+                std::size_t rooms = 0;
+                while (d2d::game::level_room(town, rooms)) ++rooms;
+                d2d::game::lay_camp_picks(*game, assets, walk_order(rooms, seed, kind));
+            }
             const auto heads = game->layouts.prest_automap_dt1s.find(town.id);
             if (heads == game->layouts.prest_automap_dt1s.end()) return 1;
             int def = 0;

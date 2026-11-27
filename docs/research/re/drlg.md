@@ -314,6 +314,9 @@ FUN_006772c0 adds no Vis links in act 5 (act index 4 skips them). The links
 come from FUN_006775c0's edge shares, in this order: (111, 112), then
 FUN_00677680 makes 111's and 112's neighbour nodes, then (110, 111),
 (109, 110). So 111's Vis is [112, 110], but 110 is never one of its nodes.
+d2d: `level_vis` gives the made act's list, `neighbours_pass` the one
+FUN_00677680 reads (`test_level_vis_links`; 111's list read through
+FUN_0066c040 on game.exe, map seed 0x1234).
 `drlg-dump <data> 1-2000 109 layout`: 2000/2000.
 
 ## Act 5's levels
@@ -593,6 +596,28 @@ sets the new room's +0x04 to `(cell +0x2c >> 16) & 0xf`
 nothing, the rest plain 8×8 rooms (FUN_0067d540 with +0x18, +0x2c,
 +0x40 and a LevelType word: 2 → 0x44103).
 
+**Room slot flags** (room2 +0x28 & 0xff0, read by the near list
+FUN_0066c370). The anchor's call hands FUN_00667ed0 its cell's +0x18
+value (`006751e0`), and FUN_00667970 ORs into it 0x10 << n for each slot
+n whose Vis (FUN_0066c040: the act's override list +0x90, else Levels.txt)
+is set and whose warp (FUN_0066af30) is −1 (`006679b0`..`006679d3`), then
+fills every cell of the preset's grid with that (FUN_0067c590, operator 0)
+before its warp walls add their own bits. So every room of a preset, in
+any level, holds its level's walk-across slots: each Blood Moor preset room
+0x30 (the camp, the Cold Plains), each Cold Plains one 0x70. A plain room
+gets its cell's +0x18 alone (FUN_0067d540's sixth argument, `0067521a`):
+a contact span's slot on the level's edge, 0x30000, the table values.
+Run on game.exe (`room_vis.py`, rooms as generated, before they come up):
+d2d's `Level::room_flags` agree on every room of levels 2, 3, 26, 27, 41,
+47 and 111 for map seeds 1-3.
+The near list (FUN_0066c370) walks every slot those flags hold, a walk
+across as a warp: FUN_0066c220 takes the slot's level's rooms holding a
+slot of theirs naming this level, and for a walk only those under 6 tiles
+away (FUN_0066be80); a close room without the bit isn't taken. d2d:
+`near_list` (`test_room_near_flags`; `near_rooms.py` against
+`test_room_near --near` on acts 1-5's outdoor levels, map seeds 0x1234
+and 77, every list the same).
+
 ### Act 2's desert (FUN_0067f980, LevelType 16, levels 41–46)
 
 FUN_00675360 picks the act's body (act 1 FUN_006807f0, 2 FUN_0067f980, 3
@@ -856,8 +881,12 @@ walks each near room's array in index order, group (flags >> 14 & 7) 1 then
 2, so the shown frame draws in its own place, after the room's other tiles of
 its group, not in frame 0's. d2d: `animated_tile` (gamedata.cpp) draws the
 shown frame at its own pick (`lay_tiles` lists a room's tiles in array order).
-Not traced: the tick (one a game frame is assumed), and cross-cell order (d2d
-draws a cell's picks cell by cell, game.exe a room's array).
+The tick is one client frame: FUN_0044c790 → FUN_0061aef0 → FUN_0066d410,
+the frame DAT_0070ef1c (0x28 ms). The floor pass (FUN_004de730) walks the
+near rooms of the player's room (FUN_004646a0) one by one, each room's whole floor array
+(FUN_00619660) in index order, group 1 then group 2; d2d's draw
+(`world_view`) goes cell by cell instead, so cross-cell order differs (its
+ponytail). Re-check: `python3 tools/ghidra/fn.py 004de730`.
 
 **FillBlanks** is the preset's own flag (LvlPrest FillBlanks, preset
 +0x1c): 34 rows have 0, Act 4's lava among them; their empty floors stay
@@ -906,7 +935,12 @@ upper bounds (an orient-3 cell also adds the extra orient-4 tile in d2d's
 `add(0, x, y, 4, ...)`, which is what the orient pass is for).
 Re-check: `python3 tools/ghidra/fn.py 0066ece0 0066edb0 0067c570`.
 Loaded DT1s are a list at 0x8adbb4 `{name[0x104], buf, lib, next}`,
-cached by name.
+cached by name. One it can't open is fatal: FUN_00600790 reads it
+(FUN_00516e46 reports "Error opening file: %s"), and FUN_0060a390 exits
+through FUN_00681e09(-1) unless the header's version is 7. So game.exe
+never lays a room with a DT1 missing; d2d's camp keeps load_town's first
+match then (`finish_level`), a fallback for incomplete MPQs only.
+Re-check: `python3 tools/ghidra/fn.py 00600790 0060a390 00516e46`.
 
 ## Act 3's jungle (FUN_0067f450, levels 76–78)
 
@@ -1489,8 +1523,20 @@ status, links +0x1c / +0xe8; FUN_0061b210 moves it).
   client, 7 on the server), the first without a room1 (`+0x30`) from a
   cursor (`+0x460`) on the circular status-2 list, which FUN_0061b210 fills
   at its tail: the rooms first reached at depth 2, depth first, whichever
-  level they're of (d2d: `player_moved`'s ring, `test_client_ring`; all at
-  once, not one each 5 frames). The server never does: its room1s
+  level they're of. Each room1 made (FUN_0061b190) adds 1 to act `+0x98`,
+  and FUN_0061b2d0's (depth 1) also puts `+0x45c` back to 5. FUN_0061b920
+  with `+0x98` at 2 or more only clears it; else it counts `+0x45c` down
+  and at 0 walks the list from the cursor (the head when the cursor's room
+  `+0x44` isn't status 2), making the first room without a room1, the walk
+  ending once `+0x98` is 1 (so with one made already, only the cursor's
+  room is tried); the cursor stays on the room after the last one looked
+  at and `+0x98` goes to 0 (`0x61b9c0..0x61b9fa`). After an arrival's
+  room1s the first status-2 room comes up on the 6th client frame, then
+  one each 5 (d2d: `player_moved` fills `Spawning::client_ring`,
+  `step_client_ring` each frame, `test_client_ring`; an empty list still
+  clears `+0x98`, as the walk meets only the list's own node at act
+  `+0x278`; `tools/emu/client_ring.py --mutation-check` runs FUN_0061b920
+  on made-up lists against a copy of `step_client_ring`). The server never does: its room1s
   come only from depth 1 (and a warp's landing room, FUN_0052d0f0).
 - **Freeing** (FUN_0052d240, every 12th server frame from FUN_0052d870):
   for each act's room1 (list +0x10, next +0x7c), FUN_0061a790 resets the
