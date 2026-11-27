@@ -806,6 +806,8 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             return;
         }
         if (const auto* to_book = std::get_if<cmd::ScrollToBook>(&command)) {   // FUN_0055ef20
+            // FUN_00549350: a book the player carries (FUN_00549220). Its branch for a
+            // book on the ground (mode 3, in reach) has no d2d sender: the UI never asks.
             const auto book = std::ranges::find(actor->character.items, to_book->book, &d2d::d2s::Item::id);
             if (actor->held && book != actor->character.items.end() && d2d::rules::tome_takes(tables, *actor->held, *book)) {
                 ++book->quantity;
