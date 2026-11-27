@@ -9,7 +9,7 @@ hooked. Each case is diffed against a line-for-line copy of d2d's
 weapon_base_damage (components/rules/combat/combat.cpp), which
 test_weapon_base_damage checks against the frozen cases.
 
-Run: .venv/bin/python weapon_base_damage.py [--mutation-check] [cases] [seed]
+Run: .venv/bin/python weapon_base_damage.py [--mutation-check] [check [cases [seed]]]
      .venv/bin/python weapon_base_damage.py inc --out ../../tests/weapon_base_damage_cases.inc
 """
 import argparse
