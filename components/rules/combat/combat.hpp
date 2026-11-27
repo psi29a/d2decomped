@@ -555,8 +555,9 @@ std::vector<std::int64_t> party_shares(int exp, std::span<const int> levels);
 // The experience after an award: a 32-bit add, at most `cap` (Experience.txt's row MaxLvl - 1) compared unsigned.
 std::uint32_t exp_after_award(std::uint32_t exp, std::int32_t award, std::uint32_t cap);
 
-// Adds experience (exp_after_award, capped at exp_next[max_level - 1]); every
-// level reached (exp_next[level] = experience for level + 1) gives
+// Adds experience (exp_after_award, capped at exp_next[max_level - 1]) and
+// stores the signed 32-bit gain in stat 29; every level reached
+// (exp_next[level] = experience for level + 1) gives
 // StatPerLevel stat points, a skill point and the class's life/stamina/mana
 // per level (quarter points, 8.8 fixed stats), and fills all three. Returns
 // the levels gained.
