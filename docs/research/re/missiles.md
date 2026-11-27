@@ -46,7 +46,7 @@ its EDX, run after the path is set.
 - Flag 0x400 (FUN_0056ee90): range = (FUN_006417f0 distance << 16) /
   (velocity << 4), the frames to arrive.
 - Collision mask (path +0x50) = DAT_0073c724[CollideType]; the unit
-  filter DAT_0073c720[CollideType] (3: 0x184 and FUN_005a8850 →
+  filter DAT_0073c720[CollideType] (3: 0x184 and 0x5a8850 →
   FUN_005a8730: targetable, not the last unit hit, hostile unless
   CollideFriend). In FUN_005a8730 (ESI the unit, EDI the owner, EBX the
   row): unit +0xc4 bits 2 and 3 set; row +0x188 with the unit in state
@@ -58,7 +58,7 @@ its EDX, run after the path is set.
   monster's missile is made; `MissileInfo::collide_friend`), the monsters
   as foes past the players' side whenever any is aligned or cursed
   (Fight::world's `monster_foes`, again around `missiles_update`);
-  `tests/game/test_missile_sides.cpp`. Not read here: what row +0x188 is.
+  `tests/game/test_missile_sides.cpp`. Row +0x188 is NextHit (below).
 
 ## Unit vectors — FUN_0064fc60
 
@@ -133,7 +133,8 @@ An allied monster earlier in the walk is skipped before that choice.
 d2d: `Fight::missile_tick`'s do 5 builds the missile's `near_rooms` (this
 level), `Fight::restamp` keeps each room chain's newest-first order, and
 `rules::room_order` over the hostile, targetable monsters `standing_struck`
-takes gives the unit. Not traced: the step list `FUN_005ae1f0` walks (d2d tests
+takes gives the unit, none in state 0x56 when the row has NextHit (+0x188; no
+burner row does); no burner row is LastCollide, so no last unit is passed by. Not traced: the step list `FUN_005ae1f0` walks (d2d tests
 the missile's own position).
 `tools/emu/burner_room_order.py` runs the stock function on synthetic
 multi-room cases against that selection model; `--mutation-check` shows it

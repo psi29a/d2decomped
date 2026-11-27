@@ -949,13 +949,16 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
                     for (const auto& monster : monsters)
                         units.push_back({ room_of(*level, monster.unit.x, monster.unit.y),
                                           monster.targetable() && (missile_info.collide_friend || !d2d::rules::friends(2, monster.align))
+                                              && !(missile_info.next_hit && now_ms <= monster.just_hit_until)
                                               && standing_struck(missile, monster.unit.x, monster.unit.y,
                                                                  game_data->monsters.types[std::size_t(monster.type)].size),
                                           monster.unit.room_stamp });
                 }
                 // LAB_005a8850 -> FUN_005a8730: CollideType 3/8 accepts a targetable player or monster
                 // hostile to the owner (or any side with CollideFriend). Every stock do-5 row has
-                // CollideFriend clear. The first accepted footprint in FUN_00641cb0's walk burns.
+                // CollideFriend clear; not one in state 0x56 when the row has NextHit (+0x188; no burner row
+                // does); no burner row is LastCollide, so no last unit is passed by. The first accepted footprint
+                // in FUN_00641cb0's walk burns.
                 if (const auto order = d2d::rules::room_order(units, rooms); !order.empty())
                     burn(std::size_t(order.front()), damage, now_ms, missile);
             }
