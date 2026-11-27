@@ -703,11 +703,13 @@ auto Fight::fire(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
             if (target < 0) return;
             const auto& target_monster = monsters[std::size_t(target)];
             launch(missile_info, skill, lvl, target_monster.unit.x, target_monster.unit.y, 0, 0, range, now_ms).target = target;
-        } else if (skill.srvdofunc == ServerDoFunction::kFirestorm || skill.srvdofunc == ServerDoFunction::kWindMissile) {   // Firestorm (FUN_005c7160), Twister / Tornado (FUN_005c72f0)
-            for (int k = 0; k < std::max(calc1, 1); ++k) {
-                const float angle = k == 0 ? 0.f : (float(rng(41)) - 20) * 3.14159265f / 180;
-                send(dx * std::cos(angle) - dy * std::sin(angle), dx * std::sin(angle) + dy * std::cos(angle), range);
-            }
+        } else if (skill.srvdofunc == ServerDoFunction::kFirestorm || skill.srvdofunc == ServerDoFunction::kWindMissile) {
+            // Firestorm (FUN_005c7160): one straight at the point (FUN_0056ecb0), then calc1 - 1; Twister / Tornado
+            // (FUN_005c72f0 -> FUN_005c7040, param_7 0): calc1. Each of those wanders as Charged Bolt's (the create
+            // callback FUN_005c9290: path type 10 on {target x + its index, 666}), its index from 0.
+            const bool firestorm = skill.srvdofunc == ServerDoFunction::kFirestorm;
+            if (calc1 > 0 && firestorm) send(dx, dy, range);
+            for (int k = 0; k < calc1 - (firestorm ? 1 : 0); ++k) send(dx, dy, range).bolt = k;
         } else if (skill.srvdofunc == ServerDoFunction::kBladeSentinel) {                      // Blade Sentinel: out to the point and back, Param1 frames
             // ponytail: do 44 (FUN_005d6020) summons a BladeCreeper monster (FUN_005d5e10) that the
             // AI 0x5ea540 walks between the caster and the point, its line a record (FUN_0058ef40); here
