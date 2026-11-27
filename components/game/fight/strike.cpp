@@ -854,7 +854,8 @@ auto Fight::land(std::size_t monster_index, const d2d::rules::Blow& blow, bool b
             else if (const auto pet = std::ranges::find_if(actor->pets, [&](const Pet& each) { return each.monster.id == striker; }); pet != actor->pets.end() && pet->monster.alive())
                 pet->monster.set_life_fine(int(d2d::rules::life_tap_life(pet->monster.life_fine(), pet->monster.max_life_fine(), damage_fine, pct)));
         }
-        if (blow_hurt(*game_data, target, blow, now_ms)) { killed(monster_index, now_ms); return true; }
+        if (blow.soft) { target.left_mode = "hit"; target.struck_event = target.struck_event || target.mode != "GH"; }   // event 4 tests mode 3 at the hit
+        if (blow_hurt(*game_data, target, blow, now_ms, !blow.no_get_hit)) { killed(monster_index, now_ms); return true; }
         // Knockback (result flag 8): a monster with GH and KB modes
         // (MonStats2, FUN_0046c140 bits 3 / 13; else it's a GH) goes into
         // KB (LAB_005a77d0): path type 8, 5 subtiles on from the attacker,
@@ -1254,9 +1255,8 @@ auto Fight::corpse_blast(const d2d::rules::Skill& skill, int lvl, std::size_t co
 // caster: a clear line (0x200), out of town.
 // Its record's result flags are 0x4001 (0x5c97d2): no knockback (8) and no
 // get-hit (4); FUN_0057cee0's monster branch takes 0x4000 to event 4 alone.
-// ponytail: Static Field hits only monsters (0x8783's 0x1 takes an enemy
-// player, FUN_0056b3e0 type 0: no player strikes another in d2d), and land's
-// blow_hurt -> hurt (ai.cpp) still rolls a get-hit (rules::get_hit) on it.
+// Its walk's 0x1 would take an enemy player too (FUN_0056b3e0 type 0): no
+// player is another's enemy in d2d's games.
 auto Fight::spot_skill(const d2d::rules::Skill& skill) -> bool {
         return std::ranges::contains(std::array{ ServerDoFunction::kPsychicHammer, ServerDoFunction::kMindBlast, ServerDoFunction::kStaticField, ServerDoFunction::kCorpseExplosion,
             ServerDoFunction::kPoisonExplosion, ServerDoFunction::kTeleport, ServerDoFunction::kCurse, ServerDoFunction::kStateAroundCaster,
@@ -1357,6 +1357,7 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
                     blow.damage = got >> 8;
                     blow.frac = got & 255;
                     blow.elemental = got > 0;
+                    blow.no_get_hit = true; blow.soft = true;                  // result flags 0x4001 (0x5c97d2)
                     land(monster_index, blow, true, now_ms, striker_of(caster));
                 }
                 break;

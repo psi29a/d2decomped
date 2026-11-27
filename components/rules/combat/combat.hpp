@@ -367,6 +367,8 @@ struct Blow {
     int life = 0, mana = 0;              // leeched life and mana in 256ths (FUN_0057c420), what the attacker gains
     int phys = 0;                        // the physical rolled, before resistance (Dragon Tail's fire is a share of it)
     std::int64_t rolled = -1;            // the physical's draw itself (256ths, before any %): what a burst hands its other units
+    bool no_get_hit = false;             // the record's result flags lack 4: no get-hit is rolled (record_gets_hit)
+    bool soft = false;                   // result flag 0x4000: the struck monster's event 4, as a soft hit (FUN_0057cee0)
     int phys_fine = 0;                   // the physical after resistance, in 256ths (the record's +8 field)
     int crush_fine = 0;                  // the Crushing Blow's share of `damage` and `frac`, 256ths: not in the record's total (+0x4c), so not in the get-hit's size
     int frac = 0;                        // 256ths of a point the physical (a blow's fine value after resistance) and a missile's element dealt beyond `damage`; may pass 255 (game.exe keeps life in 256ths)
