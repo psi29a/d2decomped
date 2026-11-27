@@ -59,7 +59,7 @@ int main() try {
     // No owner: every foe.
     assert(strikes(-1, &evil, false) && strikes(-1, nullptr, false));
     // Never its owner, CollideFriend or not (FUN_00554200: one unit with itself).
-    Monster self = owner;
+    Monster self = std::move(owner);
     self.align = 0;
     assert(!strikes(0, &self, true));
     std::puts("OK: a monster's missile strikes the units hostile to its owner (FUN_005a8730)");

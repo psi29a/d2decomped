@@ -20,6 +20,7 @@
 #include <cstdio>
 #include <exception>
 #include <iterator>
+#include <utility>
 #include <vector>
 
 using namespace d2d::game;
@@ -72,7 +73,7 @@ int main() try {
     charsi.modes = 1U << 8;
     charsi.x = charsi.y = 20.1f;
     charsi.path = { { 20.1f, 20.1f } };
-    level.npcs.push_back(charsi);
+    level.npcs.push_back(std::move(charsi));
     auto states = npc_start(level);
     auto& state = states[0];
     const int spot_x = state.x.subtile(), spot_y = state.y.subtile();

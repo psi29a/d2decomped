@@ -30,6 +30,7 @@
 #include <exception>
 #include <filesystem>
 #include <tuple>
+#include <vector>
 
 using namespace d2d::game;
 namespace fs = std::filesystem;
@@ -74,7 +75,7 @@ int main() try {
     // No spot for him anywhere: no Cain (FUN_00592960 returns at 0x592ad8 before +0x51 / +0x52), so he
     // stays due for the next try, and comes at it.
     auto& camp = const_cast<Level&>(town);                          // as World::place_camp_cain takes it
-    const auto walk = camp.walk;
+    const std::vector<std::uint16_t> walk = camp.walk;              // kept to put back: a copy on purpose
     std::ranges::fill(camp.walk, std::uint16_t(0xffff));
     World blocked(&*data, -1, -1);
     blocked.enter(character);

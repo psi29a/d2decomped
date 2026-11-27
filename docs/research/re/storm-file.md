@@ -249,6 +249,32 @@ use (stubs.md).
 | `FUN_0041b080` | (6 words; `ret 0x18`): `FUN_0041aad0(a0, a1, a2, a3, a4, 0, a5)` |
 | `FUN_0041ba30` | (3 words; `ret 0xc`): `FUN_0041b280(a0, a1, a2, 0, 0x7fffffff, 0x7fffffff, 0)` |
 
+## SCOMP.CPP: the compressed-sector unpacker
+
+`FUN_0041e340` is a thiscall forwarder to the unpacker core `FUN_0041e250`. The core is a real, complex function (security check, dereferences `ESI`), so the forwarder is traced on its own and the core is treated as a callee. Its only in-image reference is a data pointer in the SCOMP.CPP dispatch table at `0x6cfee0`; `FUN_0041e720` walks that table.
+
+| Function | What |
+|---|---|
+| `FUN_0041e340` | (thiscall, edx, a0, a1, a2; `ret 0xc`): a thiscall forwarder to the compressed-sector unpacker core `FUN_0041e250`. Reorders the args before the call: this = a0, esi = edx, arg0 = original this, arg1 = a1 (the core pops those two, `RET 8`). The forwarder's third stack arg `a2` is not read, only popped. Propagates the core's return unchanged. 24 bytes. No in-image CALL (data ref in the SCOMP.CPP dispatch table at `0x6cfee0`); `FUN_0041e720` walks that table (`0x6cfec8`..`0x6cfee4`) |
+
+## SCOMP.CPP: the word-copy forwarders
+
+Two byte-identical thiscall forwarders (30 bytes each) sit in the same
+SCOMP.CPP dispatch table, at `0x6cfec8` (variant 1) and `0x6cfed0` (variant 2),
+one for each of the two packed-word sizes the word-copy core `FUN_0041dce0`
+accepts. `FUN_0041e720` walks that table (`0x6cfec8`..`0x6cfee4`). Each takes
+`thiscall` in ECX, a pointer in EDX, and three stack args (a0, a1, a2); it
+dereferences EDX, calls the core with this = thiscall, EAX = a1, edx = *edx,
+stack[0] = *edx, stack[1] = a0, stack[2] = its variant constant (1 or 2),
+writes the core's return back into *edx, and propagates it unchanged
+(`RET 0xc`). `a2` is not read, only popped.
+
+| Function | What |
+|---|---|
+| `FUN_0041e3a0` | (thiscall, edx, a0, a1, a2; `ret 0xc`): the variant-1 forwarder to the word-copy core `FUN_0041dce0` (pushes constant 1). 30 bytes. No in-image CALL (data ref in the dispatch table at `0x6cfec8`). |
+| `FUN_0041e400` | (thiscall, edx, a0, a1, a2; `ret 0xc`): the variant-2 forwarder to the word-copy core `FUN_0041dce0` (pushes constant 2). 30 bytes. No in-image CALL (data ref in the dispatch table at `0x6cfed0`). |
+
+
 ## PKWARE implode and explode (`0x6b01b0..0x6b1290`)
 
 The library behind `FUN_00415240`'s sector decompression above: its

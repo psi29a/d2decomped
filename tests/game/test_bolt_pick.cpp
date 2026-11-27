@@ -150,7 +150,7 @@ int main(int argc, char** argv) try {
         weapon.code = code;
         weapon.location = d2d::d2s::item_location::kEquipped;
         weapon.slot = d2d::d2s::body_location::kRightArm;
-        items.push_back(weapon);
+        items.push_back(std::move(weapon));
         return world.fight.player_fighter().bow;
     };
     assert(holding("sbw") && !holding("lxb") && !holding("hax"));

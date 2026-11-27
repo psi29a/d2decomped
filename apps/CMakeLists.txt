@@ -145,11 +145,28 @@ else()
             \"/lib(X11|X11-xcb|xcb|wayland-[a-z]+)[.]so\"
             \"/lib(asound|pulse|pulse-simple|jack|pipewire-[0-9.]+)[.]so\"
             \"/lib(dbus-1|udev|systemd|fontconfig|freetype|expat)[.]so\"")
+    # Qt 6.8 (Debian 13, the AppImage's base) deploys the plugins its plugin
+    # targets list, and Debian's Qt has none for Gui (no Qt6GuiPlugins.cmake):
+    # the list is empty and the package gets no platform plugin. Then take the
+    # window's plugin types from Qt's plugin folder; the deploy copies each and
+    # the libraries it needs. Newer Qt finds them itself, from its module
+    # descriptions (the support file then names their folder), and skips this.
+    file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/qt_plugin_fallback.cmake" [[
+if(NOT DEFINED __QT_DEPLOY_QT_INSTALL_DESCRIPTIONSDIR AND "${__QT_DEPLOY_PLUGINS}" STREQUAL "")
+    foreach(type platforms platforminputcontexts xcbglintegrations egldeviceintegrations
+            wayland-decoration-client wayland-graphics-integration-client wayland-shell-integration)
+        file(GLOB found "${__QT_DEPLOY_QT_INSTALL_PREFIX}/${__QT_DEPLOY_QT_INSTALL_PLUGINS}/${type}/*.so")
+        list(APPEND __QT_DEPLOY_PLUGINS ${found})
+    endforeach()
+    message(STATUS "Qt listed no plugins, so they come from its plugin folder: ${__QT_DEPLOY_PLUGINS}")
+endif()
+]])
+    set(deploy_prelude "include(\"${CMAKE_CURRENT_BINARY_DIR}/qt_plugin_fallback.cmake\")")
 endif()
 
 # Qt's deploy tool: macdeployqt (also d2d's dylibs), windeployqt, or
 # Qt's generic one on Linux (also d2d's .so files).
-qt_generate_deploy_script(TARGET d2d-launcher OUTPUT_SCRIPT deploy_script CONTENT "
+qt_generate_deploy_script(TARGET d2d-launcher OUTPUT_SCRIPT deploy_script CONTENT "${deploy_prelude}
 qt_deploy_runtime_dependencies(${deploy_args}
     LIB_DIR lib PLUGINS_DIR plugins
     GENERATE_QT_CONF NO_TRANSLATIONS NO_COMPILER_RUNTIME)")

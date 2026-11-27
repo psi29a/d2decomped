@@ -296,7 +296,7 @@ std::pair<std::string, int> flippy_sound(const GameData& game_data, const d2d::d
 
 std::vector<TextLine> item_lines(const GameData& game_data, const d2d::d2s::Item& item, int clvl,
                                         const d2d::rules::Wearer* wearer, const std::vector<d2d::d2s::Item>* owner_items) {
-    auto str = [&](std::string_view key) {
+    auto str = [&](std::string_view key) -> std::string {
         if (key.empty()) return std::string{};
         const std::optional<std::u16string_view> found = lookup_string(game_data, key);
         return found ? u16_to_latin1(*found) : std::string(key);
@@ -353,6 +353,24 @@ std::vector<TextLine> item_lines(const GameData& game_data, const d2d::d2s::Item
     const bool unid = !item.identified && item.quality >= 4 && !item.runeword;
     if (unid) out = { { base, out.front().rgb } };
     if (item.personalized && !item.owner.empty()) out.front().text = item.owner + "'s " + out.front().text;
+    // A name string with "\n" in it (the Scroll of Resistance's "Right Click to Cast\nScroll of
+    // Resistance", the Potion of Life's) goes into the bottom-up string as it is (FUN_0048c060), so
+    // its last segment is the top line: one line a segment, in that order. Kept whole, the "\n"
+    // drew as a glyph.
+    for (std::size_t at = 0; at < out.size(); ++at) {
+        if (out[at].text.find('\n') == std::string::npos) continue;
+        std::vector<TextLine> segments;
+        for (std::size_t from = 0;;) {
+            const auto end = out[at].text.find('\n', from);
+            segments.push_back({ out[at].text.substr(from, end == std::string::npos ? std::string::npos : end - from), out[at].rgb });
+            if (end == std::string::npos) break;
+            from = end + 1;
+        }
+        std::ranges::reverse(segments);
+        out.erase(out.begin() + std::ptrdiff_t(at));
+        out.insert(out.begin() + std::ptrdiff_t(at), segments.begin(), segments.end());
+        at += segments.size() - 1;
+    }
     if (info == game_data.rules.item_info.end()) return out;
 
     // The item's stat list: its own and its sockets' (game.exe links them).

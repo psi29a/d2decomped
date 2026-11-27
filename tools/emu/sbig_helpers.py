@@ -3,7 +3,7 @@
 
 Run: uv run python sbig_helpers.py [--exe /path/to/game.exe] [--mutation-check]
 
-# gaps-runs: FUN_00420db0 FUN_00420dd0 FUN_00420e00 FUN_00420e10 FUN_00420eb0 FUN_00420f30 FUN_00420f60 FUN_00420fd0 FUN_00420fe0 FUN_00421000 FUN_004210e0 FUN_00421110
+# gaps-runs: FUN_00420db0 FUN_00420dd0 FUN_00420e00 FUN_00420e10 FUN_00420eb0 FUN_00420f30 FUN_00420f60 FUN_00420fd0 FUN_00420fe0 FUN_00421000 FUN_004210e0 FUN_00421110 FUN_00422120
 
 Each case calls one helper on game.exe with random registers and arguments
 (the number or pool in ECX, the 64-bit accumulator at ESI, the high dword in
@@ -20,13 +20,14 @@ import random
 import struct
 from pathlib import Path
 
-from unicorn.x86_const import UC_X86_REG_EDX, UC_X86_REG_ESP
+from unicorn.x86_const import UC_X86_REG_EDX, UC_X86_REG_ECX, UC_X86_REG_ESP
 
 import emu
 
 SHA256 = "631066c1649c4ea9ffe48bf97e24c00bca1f7a6759c21150f1a79982589adaaf"
 M32, M64 = 0xFFFFFFFF, 0xFFFFFFFFFFFFFFFF
 REALLOC, INT_TAG = 0x4133D0, 0x708874
+RESERVE = 0x421FE0
 MUTATIONS = {
     0x420DB0: ("below_signed", "below_or_equal", "below_no_offset"),
     0x420DD0: ("take_stride_0x10", "take_no_count", "take_returns_next"),
@@ -40,9 +41,11 @@ MUTATIONS = {
     0x421000: ("byte_stride_4",),
     0x4210E0: ("round_down", "round_always_adds"),
     0x421110: ("size_always_reallocs", "size_bytes_not_dwords", "size_keeps_count"),
+    0x422120: ("write_none", "reserve_always", "reserve_never", "reserve_inverted"),
 }
 STACK_ARGS = {0x420DB0: 1, 0x420DD0: 1, 0x420E00: 1, 0x420E10: 2, 0x420EB0: 2, 0x420F30: 1,
-              0x420F60: 1, 0x420FD0: 1, 0x420FE0: 0, 0x421000: 1, 0x4210E0: 2, 0x421110: 1}
+              0x420F60: 1, 0x420FD0: 1, 0x420FE0: 0, 0x421000: 1, 0x4210E0: 2, 0x421110: 1,
+              0x422120: 1}
 
 
 class Model:
@@ -115,6 +118,19 @@ class Model:
                 calls = [(num(8), size, INT_TAG, 0xFFFFFFFE, 0)]
                 changes[8] = 0x5A5A0000
             return None, None, changes, calls
+        if address == 0x422120:   # +0x10 = param_2; reserve(number, 0xFFFFFFFF) iff param_2 != 0
+            changes = {0x10: args[0]} if m != "write_none" else {}
+            calls = []
+            should_reserve = args[0] != 0
+            if m == "reserve_always":
+                should_reserve = True
+            elif m == "reserve_never":
+                should_reserve = False
+            elif m == "reserve_inverted":
+                should_reserve = args[0] == 0
+            if should_reserve:
+                calls = [(regs.get("ecx", 0), 0xFFFFFFFF)]
+            return None, None, changes, calls
         raise ValueError(hex(address))
 
 
@@ -127,12 +143,18 @@ class Rig:
         self.machine = emu.Emu(exe)
         self.calls = []
         self.machine.hook(REALLOC, self.realloc, 5)
+        self.machine.hook(RESERVE, self.reserve, 1)
         self.block = self.machine.alloc(0x200)
         self.counter = self.machine.alloc(4)
 
     def realloc(self, machine):
         self.calls.append(tuple(machine.arg(i) for i in range(5)))
         return 0x5A5A0000
+
+    def reserve(self, machine):
+        # sbig_reserve(number=ECX, n): stub it (no buffer growth) and log the call.
+        self.calls.append((machine.mu.reg_read(UC_X86_REG_ECX), machine.arg(0)))
+        return 0
 
     def run(self, address, regs, args, mem):
         """Writes the block's dwords, calls, returns (EAX, EDX, changed dwords, realloc calls, popped)."""

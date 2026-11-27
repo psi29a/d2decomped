@@ -17,6 +17,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace d2d::client {
@@ -95,7 +96,7 @@ void draw_char_tooltips(std::vector<std::uint8_t>& framebuffer, const Scene& sce
             block = block.substr(0, block.find('\n'));
             if (const auto found_at = block.find("%d"); found_at != std::string::npos) block.replace(found_at, 2, std::to_string(panel.block));
             if (const auto found_at = block.find("%%"); found_at != std::string::npos) block.erase(found_at, 1);
-            lines.push_back({ block, kTxtWhite });
+            lines.push_back({ std::move(block), kTxtWhite });
         }
         lines.push_back({ chance, kTxtWhite });
         int width = 0;
