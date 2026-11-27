@@ -83,6 +83,10 @@ struct Spawning {
     d2d::rules::Rng quests;                 // the quests' seed (game +0x10f4 +0x18): its timers and drops (FUN_005438b0)
     std::vector<d2d::rules::Region> regions;               // by Levels.txt Id
     std::unordered_map<const Level*, LevelState> levels;
+    // Room1 creation is act-wide in game.exe: FUN_0061b190 can walk a near
+    // list containing rooms from either side of a level edge. Preserve that
+    // order so shared tiles see only rooms which were already up.
+    std::vector<std::pair<const Level*, std::size_t>> room_order;
     std::bitset<128> superuniques;                         // spawned this game (game +0x1d30)
     // a5q2's cages up so far (its record's data +0x86 / +0x8c, game-wide):
     // level id, spot (level subtiles).
