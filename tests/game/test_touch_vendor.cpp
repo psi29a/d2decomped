@@ -38,7 +38,9 @@ int main() try {
     d2d::d2s::Stats stats;
     stats.values[d2d::d2s::kGold] = 500;
     std::vector<d2d::d2s::Item> items;
-    assert(store_buy(tables, store, potion.index(store), items, stats) == Trade::done);
+    const int potion_at = potion.index(store);
+    assert(potion_at >= 0);
+    assert(store_buy(tables, store, potion_at, items, stats) == Trade::done);
     assert(items.size() == 1 && items[0].code == "hp1" && stats.get(d2d::d2s::kGold) == 470);
     assert(potion.index(store) == -1 && scroll.index(store) == 0);
     const auto encoded = d2d::game::encode(d2d::game::cmd::Buy{ scroll.id });

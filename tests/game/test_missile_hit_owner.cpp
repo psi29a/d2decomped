@@ -13,7 +13,6 @@
 #include <cassert>
 #include <cstdio>
 #include <exception>
-#include <utility>
 #include <vector>
 
 using namespace d2d::game;
@@ -21,11 +20,11 @@ using namespace d2d::game;
 namespace {
 
 // Runs one update frame at the missile's end and returns how many missiles there are after it.
-std::size_t ends_with(const Level& level, Missile control) {
+std::size_t ends_with(const Level& level, const Missile& control) {
     std::array<Foe, 1> foes{};
     foes[0].x = foes[0].y = 30.f;
     d2d::rules::Rng rng(7);
-    std::vector<Missile> missiles{ std::move(control) };
+    std::vector<Missile> missiles{ control };
     missiles_update(level, missiles, foes, rng, 400, [](float, float) { return std::vector<std::array<int, 4>>{}; },
                     [](Missile&) { return false; }, [](int) { return true; }, [](Missile&) {});
     return missiles.size();

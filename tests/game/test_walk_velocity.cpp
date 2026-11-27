@@ -30,6 +30,7 @@
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 using namespace d2d::game;
@@ -150,7 +151,7 @@ int main(int argc, char** argv) try {
                 cap.location = d2d::d2s::item_location::kEquipped;
                 cap.slot = d2d::d2s::body_location::kHead;
                 cap.props = { { d2d::d2s::kFasterMoveVelocity, 0, frw } };
-                world.actor->character.merc_items.push_back(cap);
+                world.actor->character.merc_items.push_back(std::move(cap));
             }
             world.spawn_merc();
             if (world.actor->merc && world.actor->merc->type == int(row->second)) {

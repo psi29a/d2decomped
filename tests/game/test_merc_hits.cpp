@@ -25,6 +25,7 @@
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
+#include <utility>
 
 namespace fs = std::filesystem;
 using namespace d2d::game;
@@ -54,14 +55,14 @@ int main() try {
     // Stats 115 / 116 / 123 / 124 on it too: a player's only (FUN_0057d9b0 calls FUN_0057d8a0 for attacker type 0).
     ring.props = { { d2d::d2s::kItemSlow, 0, 40 }, { d2d::d2s::kLifeDrainMinDamage, 0, 50 }, { d2d::d2s::kIgnoreTargetDefense, 0, 1 },
                    { d2d::d2s::kTargetDefensePercent, 0, 50 }, { d2d::d2s::kDemonToHit, 0, 100 }, { d2d::d2s::kUndeadToHit, 0, 100 } };
-    character.merc_items.push_back(ring);
+    character.merc_items.push_back(std::move(ring));
     // And a short bow: a weaponless merc's arrow reads its stats 21 / 22, none (FUN_0064b860), so no physical to leech.
     d2d::d2s::Item bow;
     bow.code = "sbw";
     bow.location = d2d::d2s::item_location::kEquipped;
     bow.slot = d2d::d2s::body_location::kRightArm;
     bow.identified = true;
-    character.merc_items.push_back(bow);
+    character.merc_items.push_back(std::move(bow));
     World world(&*data, -1, -1);
     world.enter(character);
     auto& fight = world.fight;

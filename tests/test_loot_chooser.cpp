@@ -9,6 +9,7 @@
 #include <cassert>
 #include <cstdio>
 #include <exception>
+#include <utility>
 #include <vector>
 
 int main() try {
@@ -54,7 +55,7 @@ int main() try {
     assert(!mapper.step(held, pad::Context::Game, .016f).move_active);
     (void)mapper.step({}, pad::Context::Game, .016f);
     assert(mapper.step(held, pad::Context::Game, .016f).move_active);
-    chooser.start(items, true);
+    chooser.start(std::move(items), true);
     chooser.clear();
     assert(!chooser.take_controller_close());
     return 0;

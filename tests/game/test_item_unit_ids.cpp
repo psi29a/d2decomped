@@ -24,6 +24,7 @@
 #include <exception>
 #include <filesystem>
 #include <set>
+#include <utility>
 #include <vector>
 
 using namespace d2d::game;
@@ -111,7 +112,7 @@ int main() try {
     assert(unique(all_ids(world)));
 
     // A new game numbers from 1 again, whatever ids the character came with.
-    Character again = character;
+    Character again = std::move(character);
     for (std::size_t index = 0; index < again.items.size(); ++index) again.items[index].id = 500 + int(index);
     world.enter(again);
     ids = all_ids(world);

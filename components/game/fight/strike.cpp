@@ -446,7 +446,7 @@ auto Fight::auras_at(float x, float y, bool enemy, const Monster* taker) const -
         // At an equal level game.exe keeps the first list but each pulse rewrites its stats (FUN_00627150, 0x5cef1e); here the first
         // listed (the player's). ponytail: that differs only for a caster-dependent value at one level (no Act 2 merc aura has one).
         std::vector<AuraOn> one_each;
-        const auto state = [](const AuraOn& aura) { return !aura.skill->auratarget.empty() ? aura.skill->auratarget : aura.skill->aurastate; };
+        const auto state = [](const AuraOn& aura) -> const std::string& { return !aura.skill->auratarget.empty() ? aura.skill->auratarget : aura.skill->aurastate; };
         for (auto& aura : out) {
             const auto held = std::ranges::find_if(one_each, [&](const AuraOn& other) { return state(other) == state(aura); });
             if (held == one_each.end()) one_each.push_back(std::move(aura));

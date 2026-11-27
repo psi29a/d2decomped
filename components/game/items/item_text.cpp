@@ -296,7 +296,7 @@ std::pair<std::string, int> flippy_sound(const GameData& game_data, const d2d::d
 
 std::vector<TextLine> item_lines(const GameData& game_data, const d2d::d2s::Item& item, int clvl,
                                         const d2d::rules::Wearer* wearer, const std::vector<d2d::d2s::Item>* owner_items) {
-    auto str = [&](std::string_view key) {
+    auto str = [&](std::string_view key) -> std::string {
         if (key.empty()) return std::string{};
         const std::optional<std::u16string_view> found = lookup_string(game_data, key);
         return found ? u16_to_latin1(*found) : std::string(key);

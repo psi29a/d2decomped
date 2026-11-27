@@ -226,12 +226,13 @@ int main() try {
         const std::string& name = act1[job % act1.size()];
         const int level = int(job * 37 % 100), ilvl = int(1 + job * 13 % 99), players = int(1 + job % 8);
         const int magic_find = std::array{ 0, 0, 0, 50, 110, 250, 600, -100 }[job / 8 % 8];
-        d2d::rules::Rng seed{ job * 0x9E3779B1u };
+        const auto mixed = std::uint32_t(std::uint64_t{ job } * 0x9E3779B1u);   // the golden-ratio mix, wrapped to 32 bits
+        d2d::rules::Rng seed{ mixed };
         const auto moved = d2d::rules::tc_upgrade(data->rules, name, level);
         std::vector<d2d::rules::Drop> dropped;
         d2d::rules::roll_drops(data->rules, moved, ilvl, seed, dropped, players, magic_find);
         char text[128];
-        std::snprintf(text, sizeof text, "%08x %s@%d>%s i%d p%d m%d:", job * 0x9E3779B1u, name.c_str(), level, moved.c_str(), ilvl, players, magic_find);
+        std::snprintf(text, sizeof text, "%08x %s@%d>%s i%d p%d m%d:", mixed, name.c_str(), level, moved.c_str(), ilvl, players, magic_find);
         drops += text;
         for (const auto& drop : dropped) drops += " " + drop.code + ":" + std::to_string(drop.quality) + (drop.mul ? "*" + std::to_string(drop.mul) : "");
         std::snprintf(text, sizeof text, " -> %08x\n", seed.low);

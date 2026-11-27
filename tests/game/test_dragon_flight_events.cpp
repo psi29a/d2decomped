@@ -161,7 +161,7 @@ int main() try {
     doomed.id = 0x7ffff2;
     doomed.unit.x = shadow.monster.unit.x; doomed.unit.y = shadow.monster.unit.y + 6.f;
     const auto killed_too = fight.monsters.size();
-    fight.monsters.push_back(doomed);
+    fight.monsters.push_back(std::move(doomed));
     now += 100 * kTickMs;
     const float shadow_back = shadow.monster.unit.y;
     shadow.target = int(killed_too);
