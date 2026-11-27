@@ -1,18 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Opt-in touch prototype: separate per-character destinations, shared skill
 // eligibility, targeting and gameplay commands. No platform code in the World.
+#include "input/touch/ui_sound.hpp"
 #include "session.hpp"
 
 #include "common.hpp"
 #include "input/gamepad_map.hpp"
 #include "input/hold_confirm.hpp"
 #include "input/pad_hold.hpp"
-#include "input/touch/belt.hpp"
 #include "input/touch/binding.hpp"
 #include "input/touch/feedback.hpp"
 #include "input/touch/gestures.hpp"
-#include "input/touch/glyph.hpp"
-#include "input/touch/icon.hpp"
 #include "input/touch/input.hpp"
 #include "input/touch/potions.hpp"
 #include "input/touch/trade.hpp"
@@ -24,13 +22,13 @@
 #include "scene.hpp"
 #include "skills/pad.hpp"
 #include "skills/tree.hpp"
+#include "ui.hpp"
 
 #include <inventory.hpp>
 
 #include <SDL3/SDL_keycode.h>
 
 #include <d2s_items.hpp>
-#include <dc6.hpp>
 #include <fight.hpp>
 #include <gamedata.hpp>
 #include <item_gen.hpp>
@@ -75,16 +73,6 @@ bool touch_interact_visible(const ClientSession::PadPick& pick) {
     return pick.kind == ClientSession::PadPick::kItem || pick.kind == ClientSession::PadPick::kThing;
 }
 
-/** Short Immortal-style label for the contextual interact button. */
-std::string touch_interact_label(const ClientSession& session, const ClientSession::PadPick& pick) {
-    if (pick.kind == ClientSession::PadPick::kItem) return "Get";
-    if (pick.kind != ClientSession::PadPick::kThing) return {};
-    if (pick.id <= -3000) return "Get";
-    if (pick.id < 0) return "Use";
-    if (session.level && std::size_t(pick.id) < session.level->npcs.size())
-        return session.level->npcs[std::size_t(pick.id)].root == "objects" ? "Use" : "...";
-    return "Use";
-}
 
 } // namespace
 
@@ -105,13 +93,12 @@ auto ClientSession::touch_store_panel_x() const -> int {
 }
 
 void ClientSession::touch_rebuild_bind_wheel() {
-    wheel_actions = false;
-    wheel_ids.clear();
+    touch_bind_ids.clear();
     if (scene)
         for (const auto& info : scene->skills.rows)
             if (skillpad::assignable_name(info.name) && skill_known(character.name, info.id))
-                wheel_ids.push_back(info.id);
-    if (wheel_at < 0 || wheel_at >= int(wheel_ids.size())) wheel_at = 0;
+                touch_bind_ids.push_back(info.id);
+    touch_bind_ids.insert(touch_bind_ids.end(), skillpad::kActions.begin(), skillpad::kActions.end());
     touch_bind_wheel_page = 0; touch_bind_wheel_at = -1;
     touch_bind_finger = -1; touch_bind_hit = false;
 }
@@ -132,28 +119,35 @@ void ClientSession::touch_close_bind() {
     touch_bind_slot = -1;
     touch_bind_finger = -1; touch_bind_hit = false;
     touch_feedback.clear();
-    save_touch_sheet(character.name);
 }
 
-void ClientSession::touch_apply_bind(int slot, int skill) {
-    auto [found, inserted] = touch_sheets.try_emplace(sheet_key(character.name));
-    if (inserted) found->second.slots.fill(skillpad::kEmpty);
-    if (slot == touch::kAttackBind) {
-        if (touch_input.alternate) found->second.alt_main = skill;
-        else found->second.main = skill;
-    } else if (slot >= 0 && slot < touch::kSkillButtons)
-        found->second.set_slot(touch_input.alternate, slot, skill);
-    save_touch_sheet(character.name);
+bool ClientSession::touch_apply_bind(int slot, int skill) {
+    const auto key = sheet_key(character.name);
+    const auto found = touch_sheets.find(key);
+    skillpad::Sheet sheet = found == touch_sheets.end() ? skillpad::Sheet{} : found->second;
+    if (!touch::assign_binding(sheet, slot, skill, touch_input.alternate,
+            [&](const auto& candidate) { return save_touch_sheet(character.name, candidate); })) {
+        touch_feedback = "Could not save assignment";
+        touch_input.feedback.pulse(std::size_t(std::clamp(slot, 0, touch::kAttackBind)), touch::FeedbackKind::Rejected, now_ms);
+        return false;
+    }
+    touch_sheets.insert_or_assign(key, std::move(sheet));
+    touch_input.feedback.pulse(std::size_t(slot), touch::FeedbackKind::Accepted, now_ms);
+    touch_play_ui_click(touch::UiClick::Assignment, slot + (touch_input.alternate ? touch::kAttackBind + 1 : 0));
+    return true;
+}
+
+void ClientSession::touch_play_ui_click(touch::UiClick action, int destination) {
+    if (last_device == touch::LastDevice::Touch && g_on_button_press
+        && touch_clicks.accept(action, destination, now_ms)) g_on_button_press();
 }
 
 int ClientSession::touch_bound_skill(int slot) const {
     const auto found = touch_sheets.find(sheet_key(character.name));
     if (slot == touch::kAttackBind) {
         if (found == touch_sheets.end()) return skill_known(character.name, 0) ? 0 : std::max(0, int(character.header.left_skill));
-        const int skill = found->second.trigger(touch_input.alternate);
-        if (skill == skillpad::kUnset || skill == skillpad::kEmpty)
-            return skill_known(character.name, 0) ? 0 : std::max(0, int(character.header.left_skill));
-        return skill;
+        return touch::trigger_binding(found->second, touch_input.alternate,
+            skill_known(character.name, 0) ? 0 : std::max(0, int(character.header.left_skill)));
     }
     if (slot < 0 || slot >= touch::kSkillButtons || found == touch_sheets.end()) return skillpad::kEmpty;
     return found->second.slot(touch_input.alternate, slot);
@@ -180,22 +174,23 @@ void ClientSession::load_touch_sheet(const std::string& name) {
  * Persist a cached touch sheet through a checked temporary file and rename. Leave the original
  * destination in place on a failed write and report the failure.
  */
-void ClientSession::save_touch_sheet(const std::string& name) const {
-    if (key_dir.empty() || name.empty()) return;
-    const auto found = touch_sheets.find(sheet_key(name));
-    if (found == touch_sheets.end()) return;
+bool ClientSession::save_touch_sheet(const std::string& name, const skillpad::Sheet& sheet) const {
+    if (name.empty()) return false;
+    if (key_dir.empty()) return true;
     const auto path = key_dir / (name + ".touchskills");
     auto temporary = path; temporary += ".tmp";
     std::ofstream file(temporary);
-    if (!file) { d2d::log::warn("Touch assignments could not be written"); return; }
-    file << skillpad::write(found->second);
+    if (!file) { d2d::log::warn("Touch assignments could not be written"); return false; }
+    file << skillpad::write(sheet);
     file.close();
     std::error_code error;
     if (file) std::filesystem::rename(temporary, path, error);
     if (!file || error) {
         d2d::log::warn("Touch assignments could not be written");
         std::filesystem::remove(temporary, error);
+        return false;
     }
+    return true;
 }
 
 /**
@@ -206,17 +201,30 @@ void ClientSession::save_touch_sheet(const std::string& name) const {
 
 /**
  * Dispatch a committed skill preview after rechecking availability and player state. Panel
- * shortcuts open UI, portal bindings use a carried tome, and auras update the selected hand rather
+ * shortcuts open UI, portal bindings use a carried tome or loose scroll, and auras update the selected hand rather
  * than attacking a target.
  */
 void ClientSession::cast_resolved(PadPlayer& player_pad, const touch::Target& target) {
     if (target.valid && skillpad::panel_index(target.skill) >= 0) {
         skill_strip = skillpad::panel_index(target.skill);
+        const std::array panels{ &char_open, &inv_open, &tree_open, &automap.open, &quest_log.open };
+        const std::array clicks{ touch::UiClick::Stats, touch::UiClick::Inventory, touch::UiClick::Skills, touch::UiClick::Map, touch::UiClick::Quest };
+        const bool was_open = *panels[std::size_t(skill_strip)];
+        const auto index = std::size_t(skill_strip);
         pad::Actions open; open.confirm = true; drive_strip(open);
+        if (was_open != *panels[index]) touch_play_ui_click(clicks[index], *panels[index]);
         touch_input.clear();
         return;
     }
-    if (!target.valid || !scene || !skill_known(character.name, target.skill) || view.dead) return;
+    if (!target.valid || view.dead) return;
+    if (target.skill == skillpad::kInteract) {
+        const auto pick = pad_pick(player_pad, view.player, true, {}, false);
+        if (pick.kind == PadPick::kItem) {
+            if (!open_loot_chooser(player_pad, view.player, true)) send(cmd::Pickup{ pick.id });
+        } else if (pick.kind == PadPick::kThing) send(cmd::Interact{ pick.id });
+        return;
+    }
+    if (!scene || !skill_known(character.name, target.skill)) return;
     const auto* info = scene->skills.get(target.skill);
     if (!info) return;
     if (skillpad::portal_name(info->name)) {
@@ -243,11 +251,13 @@ void ClientSession::cast_resolved(PadPlayer& player_pad, const touch::Target& ta
 bool ClientSession::touch_event(std::int64_t finger, touch::Phase phase, float x, float y) {
     if (!touch_enabled) return false;
     if (loot_chooser.open) {
+        if (touch_get_hold.finger == finger && (phase == touch::Phase::Up || phase == touch::Phase::Cancel)) touch_get_hold.clear();
         if (!loot_chooser.touch || !pad_field() || view.dead) { loot_chooser.clear(); return true; }
+        const float legacy_x = touch::to_legacy_x(x);
         const auto box = LootChooser::list_box();
         const touch::Box close{ box.x + box.width - 70.f, box.y - 48.f, 70.f, 44.f };
-        if (phase == touch::Phase::Down && close.contains(x, y)) { loot_chooser.clear(); return true; }
-        if (const int picked = loot_chooser.touch_event(finger, phase, x, y); picked >= 0) commit_loot(picked);
+        if (phase == touch::Phase::Down && close.contains(legacy_x, y)) { loot_chooser.clear(); return true; }
+        if (const int picked = loot_chooser.touch_event(finger, phase, legacy_x, y); picked >= 0) commit_loot(picked);
         return true;
     }
     if (touch_cancelled_item_finger == finger) {
@@ -286,7 +296,7 @@ bool ClientSession::touch_event(std::int64_t finger, touch::Phase phase, float x
         const std::array boxes{ chrome.menu, chrome.skills_bar, chrome.stats, chrome.quest,
             chrome.bind, chrome.done, chrome.map, chrome.page, chrome.belt_more };
         for (std::size_t index = 0; index < boxes.size(); ++index)
-            if (boxes[index].contains(x, y)) {
+            if ((store.npc < 0 || index >= 5) && boxes[index].contains(x, y)) {
                 touch_input.feedback.pulse(index + 7, touch::FeedbackKind::Accepted, now_ms);
                 break;
             }
@@ -295,71 +305,84 @@ bool ClientSession::touch_event(std::int64_t finger, touch::Phase phase, float x
         const decltype(acknowledge)& callback;
         ~Acknowledge() { callback(); }
     } acknowledge_on_exit{ acknowledge };
+    if (touch_hides_classic_hud() && touch_shows_field_controls() && !view.dead && !loot_chooser.open
+        && touch_bind == TouchBindPhase::Off && touch_assign == skillpad::kUnset && touch_effect_event(finger, phase, x, y)) return true;
     if (pad_field()) touch_interact_pick = pad_pick(touch_player, view.player, true, {}, false);
     if (speech.npc >= 0 || npc_menu.npc >= 0) {
         if (phase == touch::Phase::Down && touch::touch_interface_visible(touch_enabled, last_device) && chrome.map.contains(x, y)) {
             touch_input.clear();
             automap.open = !automap.open;
+            touch_play_ui_click(touch::UiClick::Map, automap.open);
             if (automap.open) { automap.mini = 0; automap.fade = 2; automap.panel_side = 0; automap.covered = false; }
             return true;
         }
         if (phase == touch::Phase::Down && chrome.done.contains(x, y)) {
             touch_input.clear();
             touch_item_finger = -1;
-            focus_keys.push_back(SDLK_ESCAPE);
+            touch_play_ui_click(touch::UiClick::Back);
+        focus_keys.push_back(SDLK_ESCAPE);
             return true;
         }
         return false;
     }
-    if (phase == touch::Phase::Down && chrome.bind.contains(x, y)) {
+    if (store.npc < 0 && phase == touch::Phase::Down && chrome.bind.contains(x, y)) {
         if (touch_bind != TouchBindPhase::Off) {
             touch_input.clear(); touch_item_finger = -1; touch_ground_finger = -1;
             touch_close_bind();
         } else {
             touch_open_bind();
         }
+        touch_play_ui_click(touch::UiClick::Bind, touch_bind != TouchBindPhase::Off);
         return true;
     }
     const bool on_quest_track = chrome.quest_track.contains(x, y) && touch_hides_classic_hud()
         && pad_field() && !quest_log.open;
-    if (touch_bind == TouchBindPhase::Off && phase == touch::Phase::Down
+    if (store.npc < 0 && touch_bind == TouchBindPhase::Off && phase == touch::Phase::Down
         && (chrome.quest.contains(x, y) || on_quest_track)) {
         touch_input.clear();
         touch_sheet = {};
         toggle_quest_log();
+        touch_play_ui_click(touch::UiClick::Quest, quest_log.open);
         return true;
     }
-    if (touch_bind == TouchBindPhase::Off && touch_assign == skillpad::kUnset && phase == touch::Phase::Down && chrome.menu.contains(x, y)) {
+    if (store.npc < 0 && touch_bind == TouchBindPhase::Off && touch_assign == skillpad::kUnset && phase == touch::Phase::Down && chrome.menu.contains(x, y)) {
         touch_input.clear();
         touch_sheet = {};
-        inv_open = true;
-        tree_open = false;
+        const bool was_open = inv_open;
+        toggle_inventory();
+        if (was_open != inv_open) touch_play_ui_click(touch::UiClick::Inventory, inv_open);
         return true;
     }
-    if (touch_bind == TouchBindPhase::Off && phase == touch::Phase::Down && chrome.skills_bar.contains(x, y)) {
+    if (store.npc < 0 && touch_bind == TouchBindPhase::Off && phase == touch::Phase::Down && chrome.skills_bar.contains(x, y)) {
         touch_input.clear();
         touch_sheet = {};
         if (store.npc >= 0) send(cmd::CloseTrade{});
-        tree_open = true;
-        inv_open = false;
+        const bool was_open = tree_open;
+        toggle_skill_tree();
+        if (was_open != tree_open) touch_play_ui_click(touch::UiClick::Skills, tree_open);
         return true;
     }
-    if (touch_bind == TouchBindPhase::Off && touch_assign == skillpad::kUnset
+    if (store.npc < 0 && touch_bind == TouchBindPhase::Off && touch_assign == skillpad::kUnset
         && phase == touch::Phase::Down && chrome.stats.contains(x, y)) {
         touch_input.clear(); touch_sheet = {};
         if (store.npc >= 0) send(cmd::CloseTrade{});
-        char_open = true; inv_open = tree_open = false;
+        const bool was_open = char_open;
+        toggle_character();
+        if (char_open) inv_open = tree_open = false;
+        if (was_open != char_open) touch_play_ui_click(touch::UiClick::Stats, char_open);
         return true;
     }
     if (phase == touch::Phase::Down && chrome.done.contains(x, y)) {
         touch_input.clear(); touch_item_finger = -1; touch_ground_finger = -1;
         if (touch_bind != TouchBindPhase::Off) { touch_close_bind(); return true; }
         if (touch_assign != skillpad::kUnset) { touch_assign = skillpad::kUnset; tree_open = touch_assignment_from_tree; touch_assignment_from_tree = false; return true; }
+        touch_play_ui_click(touch::UiClick::Back);
         focus_keys.push_back(SDLK_ESCAPE);
         return true;
     }
     if (touch_bind != TouchBindPhase::Off && phase == touch::Phase::Down && chrome.page.contains(x, y)) {
         touch_input.alternate = !touch_input.alternate;
+        touch_play_ui_click(touch::UiClick::BindSet, touch_input.alternate);
         return true;
     }
     if (touch_bind == TouchBindPhase::PickSkill) {
@@ -373,20 +396,22 @@ bool ClientSession::touch_event(std::int64_t finger, touch::Phase phase, float x
             bool& hit;
             ~SaveBinding() { page = binding.page; selected = binding.selected; finger = binding.finger; hit = binding.hit; }
         } save_binding{ touch_binding, touch_bind_wheel_page, touch_bind_wheel_at, touch_bind_finger, touch_bind_hit };
-        constexpr float wheel_cx = 380.f, wheel_cy = 270.f;
-        const int count = int(wheel_ids.size());
+        const float wheel_cx = touch::to_viewport_x(380.f), wheel_cy = 270.f;
+        const int count = int(touch_bind_ids.size());
         const auto track_wheel = [&](float point_x, float point_y) {
             touch_binding.track(point_x - wheel_cx, point_y - wheel_cy, count);
         };
         if (phase == touch::Phase::Down && touch::BindingPicker::pages(count) > 1
-            && (touch::kBindingPrevious.contains(x, y) || touch::kBindingNext.contains(x, y))) {
-            touch_binding.turn(count, touch::kBindingPrevious.contains(x, y) ? -1 : 1);
+            && (touch::translate_legacy_box(touch::kBindingPrevious).contains(x, y) || touch::translate_legacy_box(touch::kBindingNext).contains(x, y))) {
+            touch_binding.turn(count, touch::translate_legacy_box(touch::kBindingPrevious).contains(x, y) ? -1 : 1);
+            touch_play_ui_click(touch::UiClick::WheelPage, touch_binding.page);
             touch_feedback = "Tap or drag a skill; choose Prev/Next for more";
             return true;
         }
         if (phase == touch::Phase::Down) {
             const int slot = touch::bind_slot_at(chrome, x, y);
             if (slot >= 0) {
+                if (slot != touch_bind_slot) touch_play_ui_click(touch::UiClick::Destination, slot);
                 touch_bind_slot = slot;
                 touch_binding = {};
                 touch_rebuild_bind_wheel();
@@ -405,7 +430,7 @@ bool ClientSession::touch_event(std::int64_t finger, touch::Phase phase, float x
                 track_wheel(x, y);
                 if (touch_binding.hit && count > 0) {
                     const int index = std::clamp(touch_binding.selected, 0, count - 1);
-                    touch_apply_bind(touch_bind_slot, wheel_ids[std::size_t(index)]);
+                    if (!touch_apply_bind(touch_bind_slot, touch_bind_ids[std::size_t(index)])) { touch_binding.clear_press(); return true; }
                     touch_bind = TouchBindPhase::PickSlot;
                     touch_binding.clear_press();
                     touch_feedback = "Tap another button, I/II, or Done";
@@ -420,6 +445,7 @@ bool ClientSession::touch_event(std::int64_t finger, touch::Phase phase, float x
         if (phase == touch::Phase::Down) {
             const int slot = touch::bind_slot_at(chrome, x, y);
             if (slot >= 0) {
+                if (slot != touch_bind_slot) touch_play_ui_click(touch::UiClick::Destination, slot);
                 touch_bind_slot = slot;
                 touch_rebuild_bind_wheel();
                 touch_bind = TouchBindPhase::PickSkill;
@@ -433,7 +459,7 @@ bool ClientSession::touch_event(std::int64_t finger, touch::Phase phase, float x
         if (phase == touch::Phase::Down && chrome.menu.contains(x, y)) { touch_assign = skillpad::kInventory; return true; }
         touch_input.event(finger, phase, x, y, {}, false, true);
         if (touch_input.destination >= 0) {
-            touch_apply_bind(touch_input.destination, touch_assign);
+            if (!touch_apply_bind(touch_input.destination, touch_assign)) { touch_input.destination = -1; return true; }
             const auto* info = scene ? scene->skills.get(touch_assign) : nullptr;
             const std::string name = info ? info->name : std::string(skillpad::action_label(touch_assign, true));
             touch_feedback = (touch_input.destination == touch::kAttackBind ? std::string("Attack")
@@ -443,6 +469,8 @@ bool ClientSession::touch_event(std::int64_t finger, touch::Phase phase, float x
         return true;
     }
     if (!pad_field()) {
+        const float viewport_x = x;
+        x = touch::to_legacy_x(x);
         touch_input.clear();
         const auto follow_pointer = [&](bool press, bool lifted) {
             touch_pointer.active = !lifted;
@@ -665,9 +693,10 @@ bool ClientSession::touch_event(std::int64_t finger, touch::Phase phase, float x
                 return true;
             }
         }
-        if (phase == touch::Phase::Down && chrome.map.contains(x, y)) {
+        if (phase == touch::Phase::Down && chrome.map.contains(viewport_x, y)) {
             touch_input.clear();
             automap.open = !automap.open;
+            touch_play_ui_click(touch::UiClick::Map, automap.open);
             if (automap.open) { automap.mini = 0; automap.fade = 2; automap.panel_side = 0; automap.covered = false; }
             return true;
         }
@@ -691,6 +720,7 @@ bool ClientSession::touch_event(std::int64_t finger, touch::Phase phase, float x
                 return true;
             }
             if (phase == touch::Phase::Down && touch::kTreeAssign.contains(x, y) && touch_selected >= 0) {
+                touch_play_ui_click(touch::UiClick::TreeAssign);
                 touch_assign = touch_selected; touch_feedback.clear(); touch_assignment_from_tree = true; tree_open = false;
                 clear_tree_preview();
                 return true;
@@ -726,6 +756,16 @@ bool ClientSession::touch_event(std::int64_t finger, touch::Phase phase, float x
         }
         return false; // other panels use their ordinary pointer input
     }
+    const bool stamina_available = touch_hides_classic_hud() && !view.dead && pad_field() && !touch_sheet.open;
+    if (touch_input.stamina_press.owns(finger) || (stamina_available && phase == touch::Phase::Down
+        && touch::stamina_bar_box(chrome).contains(x, y))) {
+        if (!stamina_available) { touch_input.stamina_press.clear(); return true; }
+        if (touch_input.stamina_press.event(finger, phase, x, y, touch::stamina_bar_box(chrome))) {
+            touch_input.run_toggle = true;
+            touch_play_ui_click(touch::UiClick::Run, !view.running);
+        }
+        return true;
+    }
     if (touch_input.potion_press.owns(finger) || (!touch_sheet.open && phase == touch::Phase::Down
         && (chrome.healing.contains(x, y) || chrome.mana.contains(x, y)))) {
         const auto pressed = touch_input.potion_press.event(finger, phase, x, y, chrome);
@@ -742,6 +782,7 @@ bool ClientSession::touch_event(std::int64_t finger, touch::Phase phase, float x
     if (!touch_sheet.open && phase == touch::Phase::Down && chrome.belt_more.contains(x, y)) {
         const bool expand = !touch_input.belt_expanded;
         touch_input.clear(); touch_input.belt_expanded = expand;
+        touch_play_ui_click(touch::UiClick::Belt, expand);
         return true;
     }
     const auto belt_potion = [&](std::string_view code) {
@@ -774,9 +815,9 @@ bool ClientSession::touch_event(std::int64_t finger, touch::Phase phase, float x
                 touch_sheet = {};
                 return true;
             }
-            const auto hit = touch_sheet.hit(x, y);
+            const auto hit = touch_sheet.hit(touch::to_legacy_x(x), y);
             if (hit == touch::ItemAction::Cancel || hit == touch::ItemAction::None) {
-                if (hit == touch::ItemAction::Cancel || !touch_sheet.contains(x, y)) touch_sheet = {};
+                if (hit == touch::ItemAction::Cancel || !touch_sheet.contains(touch::to_legacy_x(x), y)) touch_sheet = {};
                 return true;
             }
             if (hit == touch::ItemAction::Confirm) {
@@ -815,6 +856,7 @@ bool ClientSession::touch_event(std::int64_t finger, touch::Phase phase, float x
     if (phase == touch::Phase::Down && chrome.map.contains(x, y)) {
         touch_input.clear();
         automap.open = !automap.open;
+            touch_play_ui_click(touch::UiClick::Map, automap.open);
         if (automap.open) {
             automap.mini = 0;
             automap.fade = 2;
@@ -824,11 +866,21 @@ bool ClientSession::touch_event(std::int64_t finger, touch::Phase phase, float x
         return true;
     }
     if (pad_field()) {
+        if (touch_get_hold.finger == finger) {
+            touch_get_inside = touch_get_inside && chrome.interact.contains(x, y);
+            if (phase == touch::Phase::Up || phase == touch::Phase::Cancel) {
+                const bool activate = phase == touch::Phase::Up && touch_get_inside && !touch_get_hold.activated;
+                touch_get_hold.clear();
+                if (activate && touch_interact_pick.kind == PadPick::kItem) {
+                    if (!open_loot_chooser(touch_player, view.player, true)) send(cmd::Pickup{ touch_interact_pick.id });
+                }
+            }
+            return true;
+        }
         if (phase == touch::Phase::Down && touch_interact_visible(touch_interact_pick) && chrome.interact.contains(x, y)) {
             if (touch_interact_pick.kind == PadPick::kItem) {
-                if (!open_loot_chooser(touch_player, view.player, true)) send(cmd::Pickup{ touch_interact_pick.id });
-            }
-            else if (touch_interact_pick.kind == PadPick::kThing) send(cmd::Interact{ touch_interact_pick.id });
+                touch_get_hold.begin(finger, now_ms); touch_get_inside = true;
+            } else send(cmd::Interact{ touch_interact_pick.id });
             return true;
         }
         if (phase == touch::Phase::Down && !touch::chrome_hit(x, y, touch_interact_visible(touch_interact_pick), true, touch_input.belt_expanded)) {
@@ -838,7 +890,7 @@ bool ClientSession::touch_event(std::int64_t finger, touch::Phase phase, float x
                 std::hypot(x - touch_ground_x, y - touch_ground_y) > 14.f)
                 touch_ground_finger = -1;
             if (phase == touch::Phase::Up && touch_ground_finger == finger) {
-                const float iso_u = float(x - int(kScreenWidth) / 2) / (kIsoW / 2);
+                const float iso_u = (touch::to_legacy_x(x) - float(kScreenWidth) / 2) / (kIsoW / 2);
                 const float iso_v = float(y - kViewY) / (kIsoH / 2);
                 const float world_x = cam_x + (iso_u + iso_v) / 2, world_y = cam_y + (iso_v - iso_u) / 2;
                 send(cmd::Move{ world_x, world_y, true });
@@ -895,7 +947,9 @@ bool ClientSession::touch_event(std::int64_t finger, touch::Phase phase, float x
         touch_skill_hold.clear();
     }
     release.armed = false;
+    const bool was_alternate = touch_input.alternate;
     touch_input.event(finger, input_phase, x, y, target, stationary, false, now_ms);
+    if (was_alternate != touch_input.alternate) touch_play_ui_click(touch::UiClick::BindSet, touch_input.alternate);
     if (phase == touch::Phase::Down) touch_begin_skill_hold(finger);
     return true;
 }
@@ -974,6 +1028,18 @@ void ClientSession::drive_touch() {
         if (!tree_open) { touch_learn_skill = -1; touch_tree_tap_skill = -1; }
         touch_panel_state = panel_state;
     }
+    const int effect_level = level ? level->id : -1;
+    if (!touch_shows_field_controls() || view.dead || effect_level != touch_effect_level || loot_chooser.open) {
+        touch_effect.cancel();
+        touch_get_hold.clear();
+        touch_input.stamina_press.clear();
+    }
+    if (touch_effect.modal) {
+        const auto* selected = touch_effect.current(view.effects);
+        if (!selected || !selected->dismissible) touch_effect.cancel();
+    }
+    touch_effect_level = effect_level;
+    if (!pad_field() || last_device != touch::LastDevice::Touch || view.dead) touch_get_hold.clear();
     if (last_device != touch::LastDevice::Touch) {
         cancel_touch_item();
         touch_cancel_skill_chase(); touch_stop_skill_chase(false);
@@ -982,13 +1048,18 @@ void ClientSession::drive_touch() {
         if (touch_sheet.belt_index >= 0) touch_sheet = {};
         return;
     }
-    if (!pad_field() || view.dead || loot_chooser.open) {
+    if (pad_field() && !view.dead && !touch_effect.modal && touch_get_inside
+        && touch_get_hold.finger != -1 && !touch_get_hold.activated && touch_get_hold.update(now_ms))
+        open_loot_chooser(touch_player, view.player, true);
+    if (!pad_field() || view.dead || loot_chooser.open || touch_effect.modal) {
         touch_cancel_skill_chase();
         if (!view.dead) touch_stop_skill_chase(false);
         else touch_stop_chase = false;
         touch_skill_hold.clear(); touch_teleport.clear();
         const Send stop = [this](const Command& command) { send(command); };
         pad_walk(touch_player, view.player, view.dead, false, stop);
+        touch::cancel_modal_gestures(touch_effect.modal, touch_input, touch_get_hold, touch_skill_hold, touch_ground_finger);
+        if (touch_effect.modal) touch_get_inside = false;
         touch_input.clear();
         if (touch_sheet.belt_index >= 0) touch_sheet = {};
         return;
@@ -1013,472 +1084,14 @@ void ClientSession::drive_touch() {
     touch_attack_pick = pad_pick(touch_player, view.player, false);
     touch_interact_pick = pad_pick(touch_player, view.player, true, {}, false);
     if (touch_input.belt >= 0) send(cmd::UseBelt{ touch_input.belt }); // belt_quick from the adapter; field tap uses the sheet
-    for (const auto& target : touch_input.casts) cast_resolved(touch_player, target);
+    if (touch_input.aiming && touch_input.preview.skill == skillpad::kShowItems) pad_show_items = true;
+    const auto casts = std::exchange(touch_input.casts, {});
+    for (const auto& target : casts) {
+        if (target.valid && target.skill == skillpad::kShowItems) pad_show_items = true;
+        cast_resolved(touch_player, target);
+        if (loot_chooser.open || !pad_field()) break;
+    }
 
-}
-
-/**
- * Draw the optional touch controls, assignment destinations and aim/cancel feedback. Reuse the
- * skill preview and current item hints without committing gameplay actions.
- */
-void ClientSession::draw_touch(std::vector<std::uint8_t>& framebuffer) {
-    if (!touch::touch_interface_visible(touch_enabled, last_device) || !scene || !have_world) return;
-    touch::Layout chrome = touch::layout_boxes();
-    const auto& font = scene->font_small;
-    const auto& palette = scene->act_pal.entries().empty() ? scene->pal : scene->act_pal;
-    const auto darken = [&](int pixel_x, int pixel_y, std::uint8_t alpha) {
-        if (pixel_x < 0 || pixel_x >= int(kScreenWidth) || pixel_y < 0 || pixel_y >= int(kScreenHeight)) return;
-        auto* pixel = &framebuffer[(std::size_t(pixel_y) * kScreenWidth + std::size_t(pixel_x)) * 4];
-        const float scale = 1.f - alpha / 255.f * .72f;
-        pixel[0] = std::uint8_t(pixel[0] * scale);
-        pixel[1] = std::uint8_t(pixel[1] * scale);
-        pixel[2] = std::uint8_t(pixel[2] * scale);
-    };
-    const auto halo = [&](float centre_x, float centre_y, float radius, std::uint8_t alpha = 16) {
-        for (int pixel_y = int(centre_y - radius); pixel_y <= int(centre_y + radius); ++pixel_y)
-            for (int pixel_x = int(centre_x - radius); pixel_x <= int(centre_x + radius); ++pixel_x) {
-                if (pixel_x < 0 || pixel_x >= int(kScreenWidth) || pixel_y < 0 || pixel_y >= int(kScreenHeight)) continue;
-                if (std::hypot(float(pixel_x) - centre_x, float(pixel_y) - centre_y) > radius) continue;
-                darken(pixel_x, pixel_y, alpha);
-            }
-    };
-    const auto ring = [&](float centre_x, float centre_y, float radius, bool faint = false) {
-        for (int pixel_y = int(centre_y - radius - 1); pixel_y <= int(centre_y + radius + 1); ++pixel_y)
-            for (int pixel_x = int(centre_x - radius - 1); pixel_x <= int(centre_x + radius + 1); ++pixel_x)
-                if (pixel_x >= 0 && pixel_x < int(kScreenWidth) && pixel_y >= 0 && pixel_y < int(kScreenHeight) &&
-                    std::abs(std::hypot(float(pixel_x) - centre_x, float(pixel_y) - centre_y) - radius) < 1.5f) {
-                    auto* pixel = &framebuffer[(std::size_t(pixel_y) * kScreenWidth + std::size_t(pixel_x)) * 4];
-                    pixel[0] = faint ? 120 : 199; pixel[1] = faint ? 108 : 179; pixel[2] = faint ? 72 : 119;
-                }
-    };
-    const auto button = [&](touch::Box box, const std::string& text, bool active = false, bool round = false, bool gold = false, bool label = true) {
-        const std::array feedback_boxes{ chrome.skills[0], chrome.skills[1], chrome.skills[2], chrome.skills[3],
-            chrome.attack, chrome.healing, chrome.mana, chrome.menu, chrome.skills_bar, chrome.stats,
-            chrome.quest, chrome.bind, chrome.done, chrome.map, chrome.page, chrome.belt_more };
-        touch::FeedbackSample feedback;
-        for (std::size_t index = 0; index < feedback_boxes.size(); ++index)
-            if (feedback_boxes[index].x == box.x && feedback_boxes[index].y == box.y) {
-                feedback = touch_input.feedback.sample(index, now_ms);
-                break;
-            }
-        for (int pixel_y = int(box.y); pixel_y < int(box.y + box.height); ++pixel_y)
-            for (int pixel_x = int(box.x); pixel_x < int(box.x + box.width); ++pixel_x) {
-                if (pixel_x < 0 || pixel_x >= int(kScreenWidth) || pixel_y < 0 || pixel_y >= int(kScreenHeight)) continue;
-                auto* pixel = &framebuffer[(std::size_t(pixel_y) * kScreenWidth + std::size_t(pixel_x)) * 4];
-                const float radius_x = box.width / 2, radius_y = box.height / 2;
-                const float ellipse = std::hypot((float(pixel_x) - box.x - radius_x) / radius_x, (float(pixel_y) - box.y - radius_y) / radius_y);
-                if (round && ellipse > 1) continue;
-                const bool edge = round ? ellipse > .92f && ellipse < 1.02f : pixel_x == int(box.x) || pixel_y == int(box.y) || pixel_x == int(box.x + box.width) - 1 || pixel_y == int(box.y + box.height) - 1;
-                if (edge) {
-                    pixel[0] = gold ? 220 : 199; pixel[1] = gold ? 185 : 179; pixel[2] = gold ? 72 : 119;
-                    if (feedback.active) {
-                        const bool cancelled = feedback.kind == touch::FeedbackKind::Cancelled;
-                        const float red = cancelled ? 135.f : 255.f;
-                        const float green = cancelled ? 135.f : feedback.kind == touch::FeedbackKind::Rejected ? 70.f : 220.f;
-                        const float blue = cancelled ? 135.f : 100.f;
-                        pixel[0] = std::uint8_t(float(pixel[0]) * (1.f - feedback.strength) + red * feedback.strength);
-                        pixel[1] = std::uint8_t(float(pixel[1]) * (1.f - feedback.strength) + green * feedback.strength);
-                        pixel[2] = std::uint8_t(float(pixel[2]) * (1.f - feedback.strength) + blue * feedback.strength);
-                    }
-                } else if (!round || label || !text.empty()) {
-                    // Round interior was 0.22; 15% of that darkness is ~0.88. Chip labels stay a bit stronger.
-                    const float dim = round ? (label && !text.empty() ? .70f : .88f) : .5f;
-                    pixel[0] = std::uint8_t(pixel[0] * dim); pixel[1] = std::uint8_t(pixel[1] * dim); pixel[2] = std::uint8_t(pixel[2] * dim);
-                }
-            }
-        if (!label || text.empty()) return;
-        std::string clipped = text;
-        while (!clipped.empty() && font.measure(clipped) > int(box.width) - 8) clipped.pop_back();
-        const int label_x = round ? int(box.x + (box.width - float(font.measure(clipped))) / 2) : int(box.x) + 4;
-        const int label_y = round ? int(box.y + box.height * .62f) - 6 : int(box.y) + 12;
-        font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, palette, label_x, label_y, clipped,
-                         gold ? 255 : active ? 255 : 199, gold ? 220 : active ? 220 : 179, gold ? 100 : 119);
-    };
-    const auto blit_skill_icon = [&](int skill_id, int pixel_x, int pixel_y) {
-        const auto* info = scene->skills.get(skill_id);
-        if (!info) return;
-        int icon_class = -1;
-        for (int column = 0; column < 7; ++column)
-            if (info->cls == d2d::rules::kClassCode[std::size_t(column)]) icon_class = column;
-        const auto& art = icon_class >= 0 ? scene->skill_icons[std::size_t(icon_class)] : scene->generic_skill_icons;
-        if (info->icon >= 0 && std::uint32_t(info->icon) < art.frames_per_direction())
-            blit_sprite(framebuffer, art.frame(0, std::uint32_t(info->icon)), palette, pixel_x, pixel_y);
-    };
-    const auto blit_frame_scaled = [&](const touch::Box& box, const d2d::dc6::Frame& frame, const d2d::palette::Palette& pal, float scale) {
-        if (scale <= 0.f || frame.width == 0 || frame.height == 0) return;
-        const int dest_w = std::max(1, int(std::lround(float(frame.width) * scale)));
-        const int dest_h = std::max(1, int(std::lround(float(frame.height) * scale)));
-        const int dst_x = int(box.x + (box.width - float(dest_w)) * .5f);
-        const int dst_y = int(box.y + (box.height - float(dest_h)) * .5f);
-        const int screen_w = int(kScreenWidth);
-        for (int pixel_y = 0; pixel_y < dest_h; ++pixel_y) {
-            const int dy = dst_y + pixel_y;
-            if (dy < 0 || dy >= int(kScreenHeight)) continue;
-            const int src_y = std::min(int(frame.height) - 1, int(float(pixel_y) / scale));
-            for (int pixel_x = 0; pixel_x < dest_w; ++pixel_x) {
-                const int dx = dst_x + pixel_x;
-                if (dx < 0 || dx >= screen_w) continue;
-                const int src_x = std::min(int(frame.width) - 1, int(float(pixel_x) / scale));
-                const auto idx = frame.pixels[std::size_t(src_y) * frame.width + std::size_t(src_x)];
-                if (idx == 0) continue;
-                const auto colour = pal[idx];
-                auto* pixel = &framebuffer[(std::size_t(dy) * std::size_t(screen_w) + std::size_t(dx)) * 4];
-                pixel[0] = colour.r; pixel[1] = colour.g; pixel[2] = colour.b; pixel[3] = colour.a;
-            }
-        }
-    };
-    const auto blit_skill_icon_centered = [&](const touch::Box& box, int skill_id, bool fill_button = false) {
-        const auto* info = scene->skills.get(skill_id);
-        if (!info || info->icon < 0) return;
-        int icon_class = -1;
-        for (int column = 0; column < 7; ++column)
-            if (info->cls == d2d::rules::kClassCode[std::size_t(column)]) icon_class = column;
-        const auto& art = icon_class >= 0 ? scene->skill_icons[std::size_t(icon_class)] : scene->generic_skill_icons;
-        if (std::uint32_t(info->icon) >= art.frames_per_direction()) return;
-        const auto& frame = art.frame(0, std::uint32_t(info->icon));
-        const float rim = fill_button ? 6.f : std::max(3.f, std::min(box.width, box.height) * .5f - touch::kSkillRing + 3.f);
-        touch::draw_circular_icon(framebuffer, int(kScreenWidth), int(kScreenHeight), box.x, box.y, box.width, box.height,
-                                  frame.pixels, int(frame.width), int(frame.height),
-                                  [&](std::uint8_t index) { return palette[index]; }, rim);
-    };
-    const auto glyph_button = [&](touch::Box box, touch::Glyph glyph, const std::string& caption, bool active = false, bool notify = false) {
-        button(box, "", active, true);
-        touch::draw_glyph(framebuffer, int(kScreenWidth), int(kScreenHeight), box.x, box.y,
-                          box.width, box.height, glyph, active);
-        if (notify) font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, palette, int(box.x + box.width - 12), int(box.y + 4), "!", 255, 220, 100);
-        font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, palette,
-                         int(box.x + (box.width - float(font.measure(caption))) * .5f), int(box.y + box.height * .72f),
-                         caption, active ? 255 : 199, active ? 220 : 179, 119);
-    };
-    const auto draw_left_chips = [&] {
-        glyph_button(chrome.menu, touch::Glyph::Inventory, "Inv", inv_open);
-        glyph_button(chrome.skills_bar, touch::Glyph::Skills, "Skl", tree_open, character.stats.get(d2d::d2s::kSkillPts) > 0);
-        glyph_button(chrome.stats, touch::Glyph::Character, "Stats", char_open, character.stats.get(d2d::d2s::kStatPts) > 0);
-        glyph_button(chrome.quest, touch::Glyph::Quest, "Quest", quest_log.open, quest_log.touch_notice.active());
-        glyph_button(chrome.bind, touch::Glyph::Bind, touch_bind != TouchBindPhase::Off ? "Done" : "Bind", touch_bind != TouchBindPhase::Off);
-    };
-    const auto draw_sheet = [&] {
-        if (!touch_sheet.open) return;
-        if (touch_sheet.show_use) button(touch_sheet.use, "Use", touch_sheet.chosen == touch::ItemAction::Use);
-        if (touch_sheet.show_sell) button(touch_sheet.sell, "Sell", touch_sheet.chosen == touch::ItemAction::Sell);
-        if (touch_sheet.show_buy) button(touch_sheet.buy, "Buy", touch_sheet.chosen == touch::ItemAction::Buy);
-        if (touch_sheet.show_fill) button(touch_sheet.fill, "Fill", touch_sheet.chosen == touch::ItemAction::Fill);
-        if (touch_sheet.show_confirm()) button(touch_sheet.confirm, touch_sheet.identifying_target ? "Identify" : "Confirm", touch_sheet.confirming);
-        button(touch_sheet.cancel, "Cancel");
-    };
-    glyph_button(chrome.done, pad_field() && touch_bind == TouchBindPhase::Off && touch_assign == skillpad::kUnset
-                              && skillbar.picking != 3 ? touch::Glyph::More : touch::Glyph::Back,
-                 touch_bind != TouchBindPhase::Off || touch_assign != skillpad::kUnset || skillbar.picking == 3 ? "Done"
-                      : pad_field() ? "..." : "Back");
-    if (touch_bind != TouchBindPhase::Off) {
-        draw_left_chips();
-        glyph_button(chrome.map, touch::Glyph::Map, "Map", automap.open);
-        const auto bound = touch_sheets.find(sheet_key(character.name));
-        for (int index = 0; index < 4; ++index) {
-            const touch::Box& skill_box = chrome.skills[std::size_t(index)];
-            const float centre_x = skill_box.x + skill_box.width * .5f, centre_y = skill_box.y + skill_box.height * .5f;
-            halo(centre_x, centre_y, skill_box.width * .56f, 18);
-            ring(centre_x, centre_y, skill_box.width * .52f, index == touch_bind_slot);
-            const int id = bound == touch_sheets.end() ? skillpad::kEmpty : bound->second.slot(touch_input.alternate, index);
-            const auto* info = scene->skills.get(id);
-            if (info && info->icon >= 0) blit_skill_icon_centered(skill_box, id);
-            else button(skill_box, std::to_string(index + 1), false, true, false, info == nullptr);
-        }
-        {
-            const touch::Box& attack_box = chrome.attack;
-            const float centre_x = attack_box.x + attack_box.width * .5f, centre_y = attack_box.y + attack_box.height * .5f;
-            halo(centre_x, centre_y, attack_box.width * .56f, 18);
-            ring(centre_x, centre_y, attack_box.width * .52f, touch_bind_slot == touch::kAttackBind);
-            const int id = bound == touch_sheets.end() ? skillpad::kUnset : bound->second.trigger(touch_input.alternate);
-            const int shown = (id == skillpad::kUnset || id == skillpad::kEmpty) ? (skill_known(character.name, 0) ? 0 : std::max(0, int(character.header.left_skill))) : id;
-            const auto* info = scene->skills.get(shown);
-            if (info && info->icon >= 0) blit_skill_icon_centered(attack_box, shown, true);
-            else button(attack_box, "Atk", false, true, false, true);
-        }
-        if (touch_bind == TouchBindPhase::PickSkill && !wheel_ids.empty()) {
-            constexpr float wheel_cx = 380.f, wheel_cy = 270.f;
-            const touch::BindingPicker touch_binding{ touch_bind_wheel_page, touch_bind_wheel_at };
-            const auto page = touch_binding.visible(int(wheel_ids.size()));
-            for (int slot = 0; slot < page.shown; ++slot) {
-                const int index = std::clamp(page.start + slot, 0, int(wheel_ids.size()) - 1);
-                const float angle = skillpad::wedge_center(slot, page.shown);
-                const int icon_x = int(wheel_cx + std::cos(angle) * skillpad::kBindWheelRx);
-                const int icon_y = int(wheel_cy + std::sin(angle) * skillpad::kBindWheelRy);
-                const int id = wheel_ids[std::size_t(index)];
-                if (index == touch_binding.selected) ring(float(icon_x), float(icon_y), 22.f, false);
-                blit_skill_icon(id, icon_x - 12, icon_y - 12);
-            }
-            ring(wheel_cx, wheel_cy, 18.f, true);
-            const int pages = touch::BindingPicker::pages(int(wheel_ids.size()));
-            if (pages > 1) {
-                button(touch::kBindingPrevious, "Prev", false, true);
-                button(touch::kBindingNext, "Next", false, true);
-            }
-            const std::string page_label = std::to_string(touch_binding.page + 1) + "/" + std::to_string(pages);
-            font.draw(framebuffer, kScreenWidth, kScreenHeight, palette, 322 - font.measure(page_label) / 2, 474, page_label);
-        }
-        button(chrome.page, touch_input.alternate ? "II" : "I", false, true);
-        font.draw(framebuffer, kScreenWidth, kScreenHeight, palette, 280, 90, touch_feedback);
-        return;
-    }
-    if (touch_assign != skillpad::kUnset) {
-        button(chrome.menu, "Assign Inventory");
-        button(chrome.page, touch_input.alternate ? "II" : "I", false, true);
-        const auto found = touch_sheets.find(sheet_key(character.name));
-        for (int index = 0; index < 4; ++index) {
-            const int id = found == touch_sheets.end() ? -1 : found->second.slot(touch_input.alternate, index);
-            const auto* info = scene->skills.get(id);
-            const touch::Box& skill_box = chrome.skills[std::size_t(index)];
-            const float centre_x = skill_box.x + skill_box.width * .5f, centre_y = skill_box.y + skill_box.height * .5f;
-            halo(centre_x, centre_y, skill_box.width * .56f, 22);
-            ring(centre_x, centre_y, skill_box.width * .52f, false);
-            button(skill_box, std::to_string(index + 1) + ": " + (info ? info->name : "Empty"), false, true, true);
-            if (info) blit_skill_icon(id, int(skill_box.x) + 24, int(skill_box.y) + 18);
-        }
-        {
-            const int id = found == touch_sheets.end() ? skillpad::kUnset : found->second.trigger(touch_input.alternate);
-            const auto* info = scene->skills.get(id);
-            const touch::Box& attack_box = chrome.attack;
-            halo(attack_box.x + attack_box.width * .5f, attack_box.y + attack_box.height * .5f, attack_box.width * .56f, 22);
-            ring(attack_box.x + attack_box.width * .5f, attack_box.y + attack_box.height * .5f, attack_box.width * .52f, false);
-            button(attack_box, info ? info->name : "Attack", false, true, true);
-            if (info) blit_skill_icon_centered(attack_box, id, true);
-        }
-        const auto* info = scene->skills.get(touch_assign);
-        font.draw(framebuffer, kScreenWidth, kScreenHeight, palette, 310, 170, "Assign: " + (info ? info->name : std::string(skillpad::action_label(touch_assign, true))));
-        font.draw(framebuffer, kScreenWidth, kScreenHeight, palette, 310, 195, touch_feedback);
-        return;
-    }
-    if (tree_open) {
-        draw_left_chips();
-        glyph_button(chrome.map, touch::Glyph::Map, "Map", automap.open);
-        font.draw(framebuffer, kScreenWidth, kScreenHeight, palette, 12, 118, "Skills . Done closes");
-        if (touch_learn_skill >= 0) {
-            button(touch::kTreeLearnConfirm, "Confirm");
-            button(touch::kTreeLearnCancel, "Cancel");
-            font.draw(framebuffer, kScreenWidth, kScreenHeight, palette, 16, 472, "Learn this skill?");
-        }
-        if (touch_selected >= 0) {
-            button(touch::kTreeAssign, "Assign to touch button");
-        }
-        return;
-    }
-    if (!pad_field()) {
-        if (inv_open) font.draw(framebuffer, kScreenWidth, kScreenHeight, palette, 12, 36, "Inventory . Done closes");
-        draw_touch_trade_hint(framebuffer);
-        draw_left_chips();
-        glyph_button(chrome.map, touch::Glyph::Map, "Map", automap.open);
-        draw_sheet();
-        if (touch_hold_fraction > 0.f && touch_item_finger != -1)
-            ring(touch_item_x, touch_item_y, 22.f + 18.f * touch_hold_fraction, false);
-        return;
-    }
-    const auto found = touch_sheets.find(sheet_key(character.name));
-    for (int index = 0; index < 4; ++index) {
-        const int skill = found == touch_sheets.end() ? skillpad::kEmpty : found->second.slot(touch_input.alternate, index);
-        touch_previews[std::size_t(index)] = resolve_skill(touch_player, skill);
-    }
-    if (touch_hides_classic_hud()) {
-        using namespace d2d::d2s;
-        const auto& stats = character.stats;
-        const int life = int(stats.values[kLife] >> 8), max_life = std::max(1, int(stats.values[kMaxLife] >> 8));
-        const int mana = int(stats.values[kMana] >> 8), max_mana = std::max(1, int(stats.values[kMaxMana] >> 8));
-        const int stamina = int(stats.values[kStamina] >> 8), max_stamina = std::max(1, int(stats.values[kMaxStamina] >> 8));
-        const int bar_x = int(chrome.menu.x), bar_y = int(chrome.bind.y + chrome.bind.height + touch::bar_gap());
-        const int bar_w = std::max(118, int(chrome.bind.x + chrome.bind.width - chrome.menu.x)), bar_h = 8;
-        const auto bar = [&](int x, int y, int width, int fill, std::string_view label, std::uint8_t red, std::uint8_t green, std::uint8_t blue) {
-            const int used = std::clamp(fill, 0, width);
-            for (int pixel_y = y; pixel_y < y + bar_h; ++pixel_y)
-                for (int pixel_x = x; pixel_x < x + width; ++pixel_x) {
-                    if (pixel_x < 0 || pixel_y < 0 || pixel_x >= int(kScreenWidth) || pixel_y >= int(kScreenHeight)) continue;
-                    auto* pixel = &framebuffer[(std::size_t(pixel_y) * kScreenWidth + std::size_t(pixel_x)) * 4];
-                    const bool edge = pixel_x == x || pixel_y == y || pixel_x == x + width - 1 || pixel_y == y + bar_h - 1;
-                    const bool full = pixel_x < x + used;
-                    if (edge) {
-                        pixel[0] = 199; pixel[1] = 179; pixel[2] = 119;
-                    } else if (full) {
-                        pixel[0] = red; pixel[1] = green; pixel[2] = blue;
-                    } else {
-                        pixel[0] = std::uint8_t(pixel[0] * .25f); pixel[1] = std::uint8_t(pixel[1] * .25f); pixel[2] = std::uint8_t(pixel[2] * .25f);
-                    }
-                }
-            font.draw(framebuffer, kScreenWidth, kScreenHeight, palette, x, y - 12, std::string(label));
-        };
-        bar(bar_x, bar_y, bar_w, life * bar_w / max_life, "Life " + std::to_string(life) + "/" + std::to_string(max_life), 180, 40, 40);
-        const int half = std::max(1, (bar_w - 4) / 2);
-        const int row_y = bar_y + 20;
-        bar(bar_x, row_y, half, stamina * half / max_stamina,
-            "Sta " + std::to_string(stamina) + "/" + std::to_string(max_stamina), 200, 180, 40);
-        int xp_fill = 0;
-        const int lvl = int(stats.get(kLevel));
-        if (lvl >= 1 && std::size_t(lvl) < scene->exp_next.size()) {
-            const auto next = scene->exp_next[std::size_t(lvl)], prev = scene->exp_next[std::size_t(lvl - 1)];
-            if (next > prev) {
-                const std::int64_t num = stats.values[kExp] > prev ? stats.values[kExp] - prev : 0;
-                const std::int64_t den = next - prev;
-                xp_fill = int(num * half / den);
-                if (xp_fill > half) xp_fill = half;
-            }
-        }
-        bar(bar_x + half + 4, row_y, half, xp_fill, "XP", 180, 160, 80);
-        bar(bar_x, bar_y + 40, bar_w, mana * bar_w / max_mana, "Mana " + std::to_string(mana) + "/" + std::to_string(max_mana), 40, 40, 200);
-        if (!quest_log.open) {
-            struct QuestCard { std::string title, line; };
-            std::array<QuestCard, 2> cards{};
-            int count = 0;
-            const int act = view_act();
-            for (const auto& entry : kQuestLog) {
-                if (entry.act != act || count >= 2) continue;
-                const auto text = quest_text(quest_bits(), entry.quest, quest_state());
-                if (text.shown != 3 && text.shown != 1) continue;
-                QuestCard& card = cards[std::size_t(count++)];
-                card.title = string_id(*scene, std::uint16_t(entry.name));
-                if (text.string) {
-                    const std::string body = string_id(*scene, std::uint16_t(text.string));
-                    card.line = body.size() > 42 ? body.substr(0, 41) + "." : body;
-                }
-            }
-            if (count > 0) {
-                for (int pixel_y = int(chrome.quest_track.y); pixel_y < int(chrome.quest_track.y + chrome.quest_track.height); ++pixel_y)
-                    for (int pixel_x = int(chrome.quest_track.x); pixel_x < int(chrome.quest_track.x + chrome.quest_track.width); ++pixel_x)
-                        if (pixel_x >= 0 && pixel_y >= 0 && pixel_x < int(kScreenWidth) && pixel_y < int(kScreenHeight)) darken(pixel_x, pixel_y, 120);
-                float card_y = chrome.quest_track.y + 6.f;
-                for (int index = 0; index < count; ++index) {
-                    font.draw(framebuffer, kScreenWidth, kScreenHeight, palette, int(chrome.quest_track.x) + 6, int(card_y), cards[std::size_t(index)].title);
-                    if (!cards[std::size_t(index)].line.empty())
-                        font.draw(framebuffer, kScreenWidth, kScreenHeight, palette, int(chrome.quest_track.x) + 6, int(card_y) + 16, cards[std::size_t(index)].line);
-                    card_y += 72.f;
-                }
-            }
-        }
-    }
-    if (!touch_shows_field_controls()) {
-        draw_left_chips();
-        glyph_button(chrome.map, touch::Glyph::Map, "Map", automap.open);
-        return;
-    }
-    draw_left_chips();
-    glyph_button(chrome.map, touch::Glyph::Map, "Map", automap.open);
-    const touch::Box& move_pad = chrome.move_visual;
-    const float stick_x = move_pad.x + move_pad.width * .5f;
-    const float stick_y = move_pad.y + move_pad.height * .55f;
-    halo(stick_x, stick_y, touch::kStickOuter + 4, 6);
-    ring(stick_x, stick_y, touch::kStickOuter, true);
-    ring(stick_x, stick_y, touch::kStickInner, true);
-    ring(stick_x + touch_input.move_x * 32, stick_y + touch_input.move_y * 32, 16);
-    const auto potions = potion_summary(character.items);
-    const auto potion_button = [&](touch::Box box, std::optional<int> slot, int count, const char* caption) {
-        button(box, slot ? "" : caption, false, true, slot.has_value());
-        if (slot) for (const auto& item : character.items) {
-            if (item.location != d2d::d2s::item_location::kBelt || item.column != *slot) continue;
-            if (const auto* sprite = scene->item_sprite(item); sprite && sprite->frames_per_direction() > 0) {
-                const auto& frame = sprite->frame(0, 0);
-                blit_frame_scaled(box, frame, scene->item_pal(item, palette),
-                    touch::fit_icon_scale(box.width, box.height, float(frame.width), float(frame.height), .18f));
-            }
-            break;
-        }
-        const auto text = std::to_string(count);
-        font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, palette,
-            int(box.x + box.width - float(font.measure(text)) - 6.f), int(box.y + box.height - 18.f), text, 255, 220, 100);
-    };
-    potion_button(chrome.healing, potions.strongest_healing_slot, potions.healing, "HP");
-    potion_button(chrome.mana, potions.strongest_mana_slot, potions.mana, "MP");
-    glyph_button(chrome.belt_more, touch::Glyph::Belt, touch_input.belt_expanded ? "Close" : "Belt", touch_input.belt_expanded);
-    touch::BeltStock belt_stock;
-    for (const auto& item : character.items)
-        if (item.location == d2d::d2s::item_location::kBelt) belt_stock.add(item.column);
-    if (touch_input.belt_expanded) for (int index = 0; index < 4; ++index) {
-        const touch::Box belt = chrome.belts[std::size_t(index)];
-        const d2d::d2s::Item* belt_item = nullptr;
-        for (const auto& item : character.items)
-            if (item.location == d2d::d2s::item_location::kBelt && item.column == index) { belt_item = &item; break; }
-        halo(belt.x + belt.width * .5f, belt.y + belt.height * .5f, belt.width * .48f, 10);
-        const bool has_icon = belt_item && scene->item_sprite(*belt_item);
-        button(belt, has_icon ? "" : std::to_string(index + 1), false, true, false, !has_icon);
-        if (belt_item) {
-            if (const auto* spr = scene->item_sprite(*belt_item); spr && spr->frames_per_direction() > 0) {
-                const auto& frame = spr->frame(0, 0);
-                const auto& item_pal = scene->item_pal(*belt_item, palette);
-                const float max_w = belt.width * .80f, max_h = belt.height * .80f;
-                if (float(frame.width) > max_w || float(frame.height) > max_h)
-                    blit_frame_scaled(belt, frame, item_pal, std::min(max_w / float(std::max(1u, frame.width)), max_h / float(std::max(1u, frame.height))));
-                else {
-                    const auto origin = touch::centred_blit_origin(belt, float(frame.width), float(frame.height));
-                    blit_sprite(framebuffer, frame, item_pal, int(origin.first), int(origin.second));
-                }
-            }
-        }
-        const int stock = belt_stock.count(std::size_t(index));
-        if (stock > 0) {
-            const std::string label = std::to_string(stock);
-            const int label_x = int(belt.x + belt.width) - font.measure(label) - 8;
-            const int label_y = int(belt.y + belt.height) - 20;
-            for (int pixel_y = label_y - 2; pixel_y < label_y + 16; ++pixel_y)
-                for (int pixel_x = label_x - 3; pixel_x < int(belt.x + belt.width) - 5; ++pixel_x)
-                    if (pixel_x >= 0 && pixel_y >= 0 && pixel_x < int(kScreenWidth) && pixel_y < int(kScreenHeight))
-                        darken(pixel_x, pixel_y, 180);
-            font.draw_tinted(framebuffer, kScreenWidth, kScreenHeight, palette, label_x, label_y, label, 255, 220, 100);
-        }
-    }
-    const touch::Box attack_box = chrome.attack;
-    halo(attack_box.x + attack_box.width * .5f, attack_box.y + attack_box.height * .5f, attack_box.width * .46f);
-    button(attack_box, touch_input.attack_down ? "!" : "", touch_input.attack_down, true, false, touch_input.attack_down);
-    blit_skill_icon_centered(attack_box, touch_bound_skill(touch::kAttackBind), true);
-    button(chrome.page, touch_input.alternate ? "II" : "I", false, true);
-    if (touch_interact_visible(touch_interact_pick)) {
-        const touch::Box& interact = chrome.interact;
-        halo(interact.x + interact.width * .5f, interact.y + interact.height * .5f, interact.width * .62f, 20);
-        ring(interact.x + interact.width * .5f, interact.y + interact.height * .5f, interact.width * .48f, true);
-        button(interact, touch_interact_label(*this, touch_interact_pick), true, true, true);
-    }
-    for (int index = 0; index < 4; ++index) {
-        const auto& target = touch_previews[std::size_t(index)];
-        const auto* info = scene->skills.get(target.skill);
-        const touch::Box skill_box = chrome.skills[std::size_t(index)];
-        const float skill_cx = skill_box.x + skill_box.width * .5f, skill_cy = skill_box.y + skill_box.height * .5f;
-        halo(skill_cx, skill_cy, skill_box.width * .46f, 10);
-        ring(skill_cx, skill_cy, touch::kSkillRing, true);
-        const bool has_icon = info && info->icon >= 0;
-        if (has_icon && touch_input.feedback.sample(std::size_t(index), now_ms).active)
-            button(skill_box, "", false, true, false, false);
-        if (!has_icon) {
-            const std::string skill_label = info ? (info->name.size() > 6 ? info->name.substr(0, 5) + "." : info->name) :
-                                                  target.skill < -2 ? std::string(skillpad::action_label(target.skill, false)) : "-";
-            button(skill_box, skill_label, info && info->id == view.aura, true);
-        } else if (info && info->id == view.aura)
-            ring(skill_cx, skill_cy, touch::kSkillRing + 2, false);
-        if (info) blit_skill_icon_centered(skill_box, target.skill);
-    }
-    if (view.aura > 0) {
-        const auto* aura = scene->skills.get(view.aura);
-        if (aura) font.draw(framebuffer, kScreenWidth, kScreenHeight, palette, int(chrome.page.x), int(chrome.page.y) - 14, aura->name);
-    }
-    if (touch_attack_pick.kind == PadPick::kMonster) {
-        const auto monster = std::ranges::find(view.monsters, touch_attack_pick.id, &Monster::id);
-        if (monster != view.monsters.end()) {
-            const float unit_x = monster->unit.x, unit_y = monster->unit.y;
-            const int mark_x = int(kScreenWidth) / 2 + int((unit_x - cam_x - unit_y + cam_y) * kIsoW / 2);
-            const int mark_y = kViewY + int((unit_x - cam_x + unit_y - cam_y) * kIsoH / 2);
-            ring(float(mark_x), float(mark_y), 14, false);
-        }
-    }
-    if (touch_input.aiming) {
-        const auto& target = touch_input.preview;
-        if (target.unit >= 0) {
-            const auto monster = std::ranges::find(view.monsters, target.unit, &Monster::id);
-            if (monster != view.monsters.end()) {
-                const float unit_x = monster->unit.x, unit_y = monster->unit.y;
-                const int mark_x = int(kScreenWidth) / 2 + int((unit_x - cam_x - unit_y + cam_y) * kIsoW / 2);
-                const int mark_y = kViewY + int((unit_x - cam_x + unit_y - cam_y) * kIsoH / 2);
-                ring(float(mark_x), float(mark_y), 16, false);
-            }
-        }
-        const auto* info = scene->skills.get(target.skill);
-        font.draw(framebuffer, kScreenWidth, kScreenHeight, palette, 300, 120,
-            (info ? info->name : std::string("Skill")) + (target.valid ? " - release to cast" : " - no eligible target"));
-    }
-    draw_sheet();
 }
 
 } // namespace d2d::client

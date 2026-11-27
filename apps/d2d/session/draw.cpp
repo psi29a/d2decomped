@@ -122,6 +122,7 @@ auto ClientSession::draw(std::vector<std::uint8_t>& framebuffer, const Mouse& mo
     if (screen_w == int(kScreenWidth)) {
         draw_view(framebuffer, nullptr, mouse, frame_ms);
         draw_touch(framebuffer);
+        draw_touch_effects(framebuffer);
         draw_combat_previews(framebuffer);
         draw_loot(framebuffer);
         draw_coop_portraits(framebuffer, left_panel_open());
@@ -130,10 +131,11 @@ auto ClientSession::draw(std::vector<std::uint8_t>& framebuffer, const Mouse& mo
     const int off = (screen_w - int(kScreenWidth)) / 2;
     ui_buffer.resize(std::size_t(kScreenWidth) * kScreenHeight * 4);
     draw_view(ui_buffer, &framebuffer, mouse, frame_ms);
-    draw_touch(ui_buffer);
     for (std::size_t y = 0; y < kScreenHeight; ++y)
         std::copy_n(ui_buffer.begin() + std::ptrdiff_t(y * kScreenWidth * 4), kScreenWidth * 4,
                     framebuffer.begin() + std::ptrdiff_t((y * std::size_t(screen_w) + std::size_t(off)) * 4));
+    draw_touch(framebuffer);
+    draw_touch_effects(framebuffer);
     draw_combat_previews(framebuffer);
     draw_loot(framebuffer);
     draw_coop_portraits(framebuffer, left_panel_open());       // on the whole frame: widescreen's spare width
@@ -374,7 +376,7 @@ auto ClientSession::draw_view(std::vector<std::uint8_t>& framebuffer, std::vecto
                       cube_open ? (transmute_down ? 2 : 1) : 0, &npc_menu, &speech, &automap, &store, stat_pressed,
                       nullptr, nullptr, nullptr, extra, rate, light.pal ? &light : nullptr, &rain,
                       !(pmode == kModeDD && !view.corpses.empty()),    // dead, the corpse lies there instead
-                      &player_look, alt_held || pad_show_items || function_held(keys::kShowItems),   // Alt, or a slot bound to Show Items
+                      &player_look, alt_held || pad_show_items || touch_show_loot_labels() || function_held(keys::kShowItems),   // Alt, or a slot bound to Show Items
                       Hud{ view.poisoned, view.running, run_down, character.header.weapon_set != 0, coop_hud_hidden() || touch_compact,
                           left_panel_open(), inv_open || tree_open, view.stamina_blue, view.stamina_shrine, std::move(belt_names), &character.header, frame_ms / 40, pad_bar, &hud_hovers, view.life_preview, view.mana_preview, life_text, mana_text, holy_shield, run_key_names, false, false, touch_compact, view.uninterruptable, &item_tip, panel_tohit_class, panel_behit_class }, wide, { hero_x - cam_x, hero_y - cam_y }, view.ghost, alert_clocks, object_flashes);
         for (const auto& body : view.bodies)                       // local co-op: a body being raised

@@ -304,8 +304,12 @@ target_sources(d2d PRIVATE
     input/loot_radial.cpp
     input/pointer_events.cpp
     input/teleport_aim.cpp
+    input/touch/effects.cpp
     input/touch/gestures.cpp
+    input/touch/input.cpp
+    input/touch/theme.cpp
     input/touch/trade.cpp
+    input/touch/ui_sound.cpp
     items/cursor.cpp
     items/items.cpp
     items/use_item.cpp
@@ -341,6 +345,8 @@ target_sources(d2d PRIVATE
     session/staff_show.cpp
     session/touch.cpp
     session/touch_combat.cpp
+    session/touch_draw.cpp
+    session/touch_effects.cpp
     session/touch_items.cpp
     session/update.cpp
     session/use_item.cpp

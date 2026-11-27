@@ -44,18 +44,17 @@ touch::BagDrop ClientSession::touch_bag_drop(float x, float y) const {
     return touch::bag_drop(inventory, touch_trade_drop(), x, y);
 }
 void ClientSession::draw_touch_trade_hint(std::vector<std::uint8_t>& framebuffer) const {
-    const auto box = touch_trade_drop();
-    const bool dropping = box.width > 0.f && box.height > 0.f;
-    const bool inside = dropping && box.contains(touch_pointer.x, touch_pointer.y);
+    const auto [box, dropping, inside] = touch::trade_drop_preview(touch_trade_drop(), touch_pointer.x, touch_pointer.y);
+    const int screen_width = fb_width(framebuffer);
     if (dropping) {
         const int left = std::max(0, int(box.x)), top = std::max(0, int(box.y));
-        const int right = std::min(int(kScreenWidth), int(box.x + box.width));
+        const int right = std::min(screen_width, int(box.x + box.width));
         const int bottom = std::min(int(kScreenHeight), int(box.y + box.height));
         for (int pixel_y = top; pixel_y < bottom; ++pixel_y)
             for (int pixel_x = left; pixel_x < right; ++pixel_x) {
                 const int stroke = inside ? 4 : 2;
                 if (pixel_x >= left + stroke && pixel_x < right - stroke && pixel_y >= top + stroke && pixel_y < bottom - stroke) continue;
-                auto* pixel = &framebuffer[(std::size_t(pixel_y) * kScreenWidth + std::size_t(pixel_x)) * 4];
+                auto* pixel = &framebuffer[(std::size_t(pixel_y) * std::size_t(screen_width) + std::size_t(pixel_x)) * 4];
                 pixel[0] = inside ? 70 : 170; pixel[1] = inside ? 200 : 150; pixel[2] = 60;
             }
     }
@@ -64,7 +63,7 @@ void ClientSession::draw_touch_trade_hint(std::vector<std::uint8_t>& framebuffer
     const std::string_view hint = identify_with >= 0 ? "Tap an unidentified item . Back cancels"
         : dropping ? (inside ? (touch_stock.tab >= 0 ? "Release to buy" : "Release to sell") : "Drag into the highlighted grid")
         : std::string_view(touch_item_hint);
-    font.draw(framebuffer, kScreenWidth, kScreenHeight, palette, 400 - font.measure(hint) / 2, 500, hint);
+    font.draw(framebuffer, screen_width, kScreenHeight, palette, screen_width / 2 - font.measure(hint) / 2, 500, hint);
 }
 void ClientSession::close_touch_item() {
     touch_item_finger = -1; touch_item = touch_sell_vendor = touch_sell_tab = -1; touch_stock = {};

@@ -2,6 +2,7 @@
 // test-links:
 // test-includes: apps/d2d
 #include "input/touch/binding.hpp"
+#include "input/touch/input.hpp"
 #include "skills/pad.hpp"
 
 #include <cassert>
@@ -39,6 +40,20 @@ int main() try {
     assert(picker.finger == -1 && !picker.hit);
     assert(!touch::kBindingPrevious.contains(touch::kBindingNext.x, touch::kBindingNext.y));
     assert(touch::kBindingPrevious.width >= 64 && touch::kBindingNext.height >= 64);
+    skillpad::Sheet sheet;
+    sheet.main = 54;
+    assert(!touch::assign_binding(sheet, touch::kAttackBind, skillpad::kInteract, false, [](const auto&) { return false; }));
+    assert(sheet.main == 54);
+    assert(touch::trigger_binding(sheet, false, 0) == 54);
+    sheet.main = skillpad::kEmpty;
+    assert(touch::trigger_binding(sheet, false, 0) == skillpad::kEmpty);
+    sheet.main = skillpad::kUnset;
+    assert(touch::trigger_binding(sheet, false, 0) == 0);
+    assert(touch::assign_binding(sheet, touch::kAttackBind, skillpad::kInteract, false, [](const auto&) { return true; }));
+    assert(sheet.main == skillpad::kInteract);
+    assert(touch::assign_binding(sheet, 0, skillpad::kInventory, true, [](const auto&) { return true; }));
+    assert(sheet.slot(true, 0) == skillpad::kInventory);
+    assert(!touch::assign_binding(sheet, 5, 54, false, [](const auto&) { return true; }));
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_touch_binding: %s\n", error.what());
