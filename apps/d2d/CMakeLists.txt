@@ -334,6 +334,7 @@ target_sources(d2d PRIVATE
     scene/render.cpp
     session/ambient.cpp
     session/controls.cpp
+    session/corpse_select.cpp
     session/draw.cpp
     session/input.cpp
     session/lan.cpp

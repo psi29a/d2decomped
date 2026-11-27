@@ -3500,11 +3500,10 @@ Re-check: disassemble `00461a70`..`00461aa2` (ESI/EDI set at `0x461a90`..`0x461a
 The three functions read a byte of the 0x23c-byte Skills row (`id * 0x23c + [tables + 0xb98]`, count at `[tables + 0xba0]`, `tables` = `[0x744304]`) against a mask loaded from the dword array at `0x6ce268`. `read_memory` at `0x6ce268` gives the dwords 1, 2, 4, 8, so `0x6ce268` = 1, `0x6ce26c` = 2, `0x6ce270` = 4.
 
 - `FUN_00462560` (**EAX** skill node, plain `RET`): 0 for a null node; skill id from `FUN_00643ce0(node, "UNIT\Player.cpp", 0x75a)`; row byte `+5` and mask 1 (`0x6ce268`). Out-of-range id leaves the row pointer 0 and the following `TEST [EAX+5]` dereferences null (no row null check; `0x462594`..`0x46259c`). Only caller `FUN_004625b0`.
-- `FUN_00464ec0` (**ECX** unit, **EDX** params pointer, plain `RET`): 0 if either is null, or if the unit's type is nonzero and `params[0]` is not 1. Takes the left skill (`FUN_00620190`) and the right skill (`FUN_006201d0`); each gets its id through `FUN_00643ce0(..., "UNIT\CUnit.cpp", 0xb4a / 0xb55)` and its row through `FUN_0045c4b0`; the flag is row byte `+7` & mask 2 (`0x6ce26c`). If either hand has it, returns `FUN_00479150(params[3]) == unit[+0xc]` (the id owner of that roster entry equals the unit's id); else 0.
-- `FUN_00464f70` (same registers): same guards but the unit-type test is "nonzero type and `params[0]` not 0 and not 1 gives 0". Row byte `+7` & mask 4 (`0x6ce270`), the skill row is bounds-checked inline here (`0x464fbc`..`0x464fc8`). If neither hand has the flag, 0. Target id = `params[3]`; when `params[0] == 1` it is replaced by `FUN_00479150(params[3])` and 0xffffffff gives 0 (`0x465035`..). Returns the result of the call after `0x46503f` (not read past that point; the decompiler names it a same-party roster check, a lead).
-- Names of the two Skills columns at `+7` bit 1 and bit 2: not traced.
+- `FUN_00464ec0` (**ECX** local unit, **EDX** target unit, plain `RET`): 0 if either is null, or if the local unit is non-player and the target is not a monster. Takes the local unit's left skill (`FUN_00620190`) and right skill (`FUN_006201d0`); each gets its id through `FUN_00643ce0(..., "UNIT\CUnit.cpp", 0xb4a / 0xb55)` and its row through `FUN_0045c4b0`; the flag is row byte `+7` & mask 2 (`TargetPet`). If either hand has it, returns `FUN_00479150(target id) == local id`; a player target has no owner mapping and fails.
+- `FUN_00464f70` (same registers): 0 when the local unit is non-player and the target is neither player nor monster. Row byte `+7` & mask 4 is `TargetAlly`; the skill row is bounds-checked inline (`0x464fbc`..`0x464fc8`). If neither hand has it, 0. A monster target's id is replaced by `FUN_00479150(target id)`, with `0xffffffff` rejected; a player target keeps its id. `FUN_0047a520(local id, target/owner id)` looks up both roster records and returns 1 exactly when their party words at `+0x22` are equal and not `0xffff`.
 
-d2d: no match for these addresses in `components/` or `apps/`. Not traced: the end of `FUN_00464f70` past `0x46503f`; callers of the two cursor-exception functions beyond `cursor-units.md`.
+d2d: `client::skill_cursor_exception` and `add_near_players` apply the owner and party passes in `ClientSession::near_pick`; see cursor-units.md. `tools/emu/player_cursor_exceptions.py` runs both functions with synthetic Skills rows and rosters.
 
 Re-check: disassemble `00462560`..`004625a9` and `00464ec0`..`0046503f`; `read_memory 006ce268 16`.
 
@@ -3608,20 +3607,42 @@ argument (a unit). Returns 1 then.
 Read from memory: `0x711f50` is 7, and the table `0x711f34` holds seven
 dwords: `0`, `0x464210`, `0x464220`, `0x464230`, `0x464280`, `0x4642a0`,
 `0x464290`. So index 0 is unused (a zero byte already returns 0), indices
-1..6 are the six select procs at those addresses. Their bodies were not
-read. Ghidra's name is `SKILL_ExecuteSelectProc`; the Skills.txt column
-behind `+0x15` was not matched to a header here.
+1..6 are the six select procs at those addresses. The Skills.txt loader
+`FUN_00613f80` names byte `+0x15` `SelectProc`. The callbacks, in table
+order, are:
+
+- 1 (`0x464210`) calls `FUN_00645680`: a type-1 unit in mode `0xc`, with no
+  `FUN_0063a770` hidden/dead state and MonStats2 `corpseSel` (bit 7).
+- 2 (`0x464220`) calls `FUN_00645510(unit, 0)`: proc 1 plus nonzero MonStats
+  `Velocity` (`+0x32`).
+- 3 (`0x464230`) first calls proc 2, then requires `FUN_004b11f0`: the
+  MonStats row has a walking mode and SwitchAI, is not a MonStats `boss`,
+  and monster-data `+0x16` has neither bit 2 nor bit 8 (no champion,
+  unique, or superunique).
+- 4 (`0x464280`) and 6 (`0x464290`) require proc 1 plus MonStats2 `soft`
+  (bit 12, through `FUN_00621f60`).
+- 5 (`0x4642a0`) is the same as proc 1.
+
+The stock Skills table uses nonzero procs on rows 70, 74, 80, 83, 95, 131,
+142, 150 and 351. The player corpse skills use proc 2 for Raise Skeleton /
+Skeletal Mage, proc 1 for Corpse / Poison Explosion, and proc 3 for Revive.
 
 Callers: `FUN_00464310` (`SKILL_CheckActiveSkillSelectProc`, cited) twice,
 at `00464337` and `0046435f`; it passes the skill id from `FUN_00643ce0`
 in EAX and its own unit on the stack.
 
-d2d: `git grep` finds no select-proc table in `components/` or `apps/`; how
-d2d decides a skill may be selected was not compared. Not traced: the six
-procs and the column name.
+d2d: `client::corpse_cursor_takes` reads each hand's `Skill::select_proc`
+(Skills.txt `SelectProc`) and applies the traced gates in
+`ClientSession::near_pick`; procs 4 and 6 lack only their MonStats2 `soft`
+gate because d2d's `MonType` does not retain that field. With no proc passing,
+`FUN_00466870` falls back to unit flag bit 1 (targetable), which a corpse lacks,
+so the corpse isn't taken. `tools/emu/skill_select_proc.py` runs `FUN_00464310`,
+`FUN_004642b0` and all six callbacks on synthetic records (73 cases, four
+mutation checks).
 
-Re-check: `python3 tools/ghidra/fn.py 004642b0`; disassemble
-`004642b0`..`00464303` and read dwords at `0x711f34` and `0x711f50`.
+Re-check: `python3 tools/ghidra/fn.py 004642b0 00645510 00645590 006455e0
+00645630 00645680`; disassemble `00464210`..`004642af`, and run
+`tools/emu/txt_fields.py SelectProc --all`.
 
 ### The client unit lists: idle message, placing, allegiance, tick: `FUN_00463b80`, `FUN_00463bc0`, `FUN_00463c00`, `FUN_00463cc0` (batch 22)
 
