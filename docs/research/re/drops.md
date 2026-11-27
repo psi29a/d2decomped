@@ -666,9 +666,9 @@ rooms (`tests/test_drop_placement.cpp`, `tests/game/test_drop_no_floor.cpp`).
    above 5 to 6.
 3. When the item's version (item data `+0x30`, `FUN_0062a670`) is under 100 and the item is of
    ItemTypes row 3 (`FUN_00629bb0`): nothing. Otherwise `rand(100)` (`FUN_0045c390`) on
-   the item's own seed (`FUN_00627d90` = item data `+4`) is drawn, unless the record's `+0x80` has
-   bit 3 (8: no sockets), and forced to 0 by its bit 4 (0x10). It sockets when the record's
-   `+0x44` has 0x800 or the draw is under 33.
+   the item's own seed (`FUN_00627d90` = item data `+4`) is drawn; then a record whose `+0x80`
+   has bit 3 (8: no sockets) stops (the draw spent), and its bit 4 (0x10) forces the draw to 0.
+   It sockets when the record's `+0x44` has 0x800 or the draw is under 33.
 4. Flag 0x800 is set on the item. With a non-zero version the count is the item's
    own seed field (item data `+0x10`, `FUN_00627df0`) `% most + 1`; with version 0 it is
    `min(most, 3)`, and 2 at most for an item of ItemTypes row 0x25. `FUN_0062bcb0` sets
