@@ -32,8 +32,10 @@ namespace d2d::rules {
 // runs the requirements pass (FUN_0055dbc0), whose last loop builds it again
 // from the pieces still worn (restamp_worn_sets). A break (FUN_0055f850)
 // frees it after that pass (free_set_list). tools/emu/set_settle.py.
-// ponytail: FUN_0057f410 (from the corpse's FUN_0057f700) frees with (.., 1, 1)
-// too, with no pass after it read; d2d doesn't model it. A merc's moves
+// The corpse (FUN_0057f700) frees with (.., 1, 1) too, through FUN_0057f410,
+// with no pass after it; but its loop takes every worn piece off the player
+// (each hand index), so no piece is left to give a partial bonus: d2d's
+// World::Player::Corpse takes all the items, the same. A merc's moves
 // (FUN_0054ced0, FUN_0054d130) run no pass (FUN_0055dbc0 takes a player or
 // unit flag 0x200), and d2d's merc has no set list at all (merc_gear).
 // A piece's stats going on rebuild its set's list with it (stamp, list back).

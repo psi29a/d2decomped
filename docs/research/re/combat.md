@@ -524,8 +524,10 @@ them on in its order), `rules::set_list_rows` the rows, and `set_props`
 hands the piece to `apply_mod`. `settle_requirements` ends with the last
 loop (`rules::restamp_worn_sets`), and each break site in
 `fight/missiles.cpp` calls `rules::free_set_list` after its pass
-(`Item::set_list_freed`, cleared by the next `stats_on`). Not ported: the
-corpse's `FUN_0057f410` (`set_list.cpp`'s ponytail).
+(`Item::set_list_freed`, cleared by the next `stats_on`). The corpse's
+`FUN_0057f410` frees with no pass after it, but `FUN_0057f700` runs it on
+every worn piece (each hand index), so no piece is left worn: d2d's corpse
+takes all the items, the same.
 `tools/emu/set_settle.py` runs `FUN_0055dbc0` (3000 cases, every requirement
 met; `tests/set_settle_cases.inc`; all matched, 2026-11-27) and records
 `FUN_0055f850`'s calls.
