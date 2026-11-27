@@ -103,8 +103,11 @@ int main(int argc, char** argv) try {
     std::vector<Missile> missiles;
     const Monster fresh = korlic;                                                    // the setup, before it runs
     int landed = -1;
+    std::uint32_t until_flying = 0, until_landed = 0;
     for (std::uint32_t tick = 1; tick <= 120; ++tick) {
+        if (korlic.leaping) until_flying = korlic.mode_until;
         monster_update(data, level, korlic, foes, rng, start + tick * tick_ms, 0.04f, crowd, missiles);
+        if (landed < 0 && !korlic.leaping) until_landed = korlic.mode_until;
         if (tick == 11) {
             assert(korlic.leaping && korlic.unit.x < 20.f);                          // not snapped to the landing
             assert(korlic.leap_hold_row == 11 && korlic.seq_frame == 11);            // waiting, its row held
@@ -113,6 +116,8 @@ int main(int argc, char** argv) try {
         if (landed < 0 && !korlic.leaping) landed = int(tick);
     }
     assert(landed > 70 && landed < 90);                                              // down when the flight is: 80 frames
+    // On it, a BaseId other than sandleaper1's cuts a row off the length left (FUN_005da120: +0x48 less 0x100).
+    assert(until_landed == until_flying - tick_ms);
     assert(korlic.unit.x == korlic.leap_to_x);
     assert(korlic.leap_hold_row == -1);
     // Held at row 13 (it nears the landing, under 2 subtiles off), the row's event waits for the landing: it strikes once, a foe in reach, when the unit is down.

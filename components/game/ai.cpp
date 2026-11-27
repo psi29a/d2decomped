@@ -2987,6 +2987,9 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 monster.leap_hold_row = -1;
             }
             monster.leaping = false; monster.leap_until = 0; unit.x = monster.leap_to_x; unit.y = monster.leap_to_y;
+            // On it (FUN_005da120's landing branch): any monster but sandleaper1 (0x4e, FUN_005da020's own landing)
+            // cuts a row off what's left of its sequence (+0x48 & ~0xff, less 0x100), so it ends a row sooner.
+            if (type_info.base != 0x4e && monster.mode_until > now_ms) monster.mode_until -= std::min(leap_step, monster.mode_until - now_ms);
         }
         if (mode_over()) {
             if (monster.leaping) { monster.leaping = false; monster.leap_until = 0; unit.x = monster.leap_to_x; unit.y = monster.leap_to_y; }
@@ -3567,7 +3570,8 @@ float leap_done(const Monster& monster, std::uint32_t elapsed_ms, std::uint32_t 
 
 // FUN_005da120's wait (d2d::rules::leap_wait): the unit's subtile (its path's 16.16 x / y, the words at +2 / +6:
 // FUN_006488c0 / FUN_00648900) against the landing's; on it, short of the centre, it lands. Else the rewound row's event a tick on.
-// ponytail: only the BaseIds that leap in play (sandleaper1, the ancients) rewind to a row; the landing's own one-row cut of the length (+0x48) isn't ported.
+// Only sandleaper1 and the ancients rewind to a row (leap_wait: any other BaseId's row is 0); the landing's one-row
+// cut of the length (+0x48) is the caller's.
 bool leap_hold(Monster& monster, int base_id, std::uint32_t step_ms) {
     if (monster.leap_pace <= 0) return false;
     const float flown = leap_done(monster, monster.leap_until - monster.unit.mode_ms, 1);
