@@ -11,7 +11,6 @@
 #include <fight.hpp>
 #include <gamedata.hpp>
 #include <level.hpp>
-#include <shrines.hpp>
 #include <test_data.hpp>
 #include <world.hpp>
 
