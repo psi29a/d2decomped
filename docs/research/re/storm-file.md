@@ -257,6 +257,22 @@ use (stubs.md).
 |---|---|
 | `FUN_0041e340` | (thiscall, edx, a0, a1, a2; `ret 0xc`): a thiscall forwarder to the compressed-sector unpacker core `FUN_0041e250`. Reorders the args before the call: this = a0, esi = edx, arg0 = original this, arg1 = a1 (the core pops those two, `RET 8`). The forwarder's third stack arg `a2` is not read, only popped. Propagates the core's return unchanged. 24 bytes. No in-image CALL (data ref in the SCOMP.CPP dispatch table at `0x6cfee0`); `FUN_0041e720` walks that table (`0x6cfec8`..`0x6cfee4`) |
 
+## SCOMP.CPP: the word-copy forwarders
+
+A thiscall forwarder (30 bytes) in the SCOMP.CPP dispatch table at `0x6cfec8`
+for one of the two packed-word sizes the word-copy core `FUN_0041dce0` accepts.
+`FUN_0041e720` walks that table (`0x6cfec8`..`0x6cfee4`). It takes `thiscall`
+in ECX, a pointer in EDX, and three stack args (a0, a1, a2); it dereferences
+EDX, calls the core with this = thiscall, EAX = a1, edx = *edx, stack[0] = *edx,
+stack[1] = a0, stack[2] = its variant constant, writes the core's return back
+into *edx, and propagates it unchanged (`RET 0xc`). `a2` is not read, only
+popped.
+
+| Function | What |
+|---|---|
+| `FUN_0041e3a0` | (thiscall, edx, a0, a1, a2; `ret 0xc`): the variant-1 forwarder to the word-copy core `FUN_0041dce0` (pushes constant 1). 30 bytes. No in-image CALL (data ref in the dispatch table at `0x6cfec8`). |
+
+
 ## PKWARE implode and explode (`0x6b01b0..0x6b1290`)
 
 The library behind `FUN_00415240`'s sector decompression above: its
