@@ -151,6 +151,18 @@ int main() try {
     assert(fight.merc_fighter().attack_rating < clean_rating);   // still held
     fight.world(false, 1000, 0.04f, Crowd{});                  // in town: merc_foe doesn't run
     assert(actor.curses[1].skill < 0 && fight.merc_fighter().attack_rating == clean_rating);
+    // A co-op partner's merc too (each hero's merc turns in town): its spent curse and potion state go,
+    // one still on stays.
+    Fight::Hero partner;
+    partner.curses[1] = { kSlowCurse, 1, 500 };
+    partner.merc_potion_states[0].until = 500;
+    partner.merc_potion_states[1].until = 5000;
+    actor.curses[1] = { kSlowCurse, 1, 5000 };
+    fight.heroes.push_back(&partner);
+    fight.world(false, 1000, 0.04f, Crowd{});
+    fight.heroes.pop_back();
+    assert(partner.curses[1].skill < 0 && partner.merc_potion_states[0].until == 0 && partner.merc_potion_states[1].until == 5000);
+    assert(actor.curses[1].skill == kSlowCurse);               // the acting player's merc's, still on
     std::puts("OK: the merc shows its own aura and the player's Might; the player its own and the totem's target state; over the wire too; Vigor speeds its walk, a live curse slows it");
     return 0;
 } catch (const std::exception& error) {
