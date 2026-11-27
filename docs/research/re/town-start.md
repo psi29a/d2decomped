@@ -120,12 +120,19 @@ that order: `uv run python camp_tiles_order.py 1-10 <dir> --mutation-check` (lis
 against `ORDER=<kind> drlg-dump ... 1 <dir>/<kind> camptiles`, its usage line). As a player walks, `relevel` lays the
 camp again with its rooms in the order they came up (Spawning order, as `keep_camp_seeds` takes
 the room1 seeds), from the rooms, DT1s and assets `lay_camp_picks` keeps, and stamps the objects'
-footprints back (`test_camp_picks_order`). Not done: a Blood Moor room up before a camp room, whose edge
-tiles that camp room then finds (FUN_0066e940): `camp_rooms` lays the camp beside the Blood
-Moor, never the reverse. In game.exe (the Blood Moor built with FUN_00642ae0 / FUN_006424a0 and
+footprints back (`test_camp_picks_order`). A Blood Moor room up before a camp room has edge
+tiles that camp room then finds (FUN_0066e940). In game.exe (the Blood Moor built with FUN_00642ae0 / FUN_006424a0 and
 every room of it brought up with FUN_0061b730 before the camp's, against the camp alone, map seeds
 1-3, 2026-11-27) the camp's rooms on the Blood Moor's side pick other floors on that edge and
 their own tile lists hold fewer tiles: the ones found are the Blood Moor rooms'. Porting it needs
-the come-up order across both levels (Spawning keeps an order per level), `level_room_tiles`'
-`outside` rooms up between the level's own rather than all before them, and `keep_camp_seeds`'
-room1 seeds laid with the same rooms.
+the come-up order across both levels, `level_room_tiles`' `outside` rooms up between the level's
+own, and `keep_camp_seeds`' room1 seeds laid with the same rooms. d2d now keeps the act-wide order
+in `Spawning::room_order`; `camp_rooms` preserves each outside room's final tile seed and DT1 list,
+and `level_room_tiles` activates it at its recorded step. `relevel` files a camp room's room1 seed
+in its `LevelState` when that room comes up, so the unchanged `keep_camp_seeds` caller uses it.
+`tools/emu/camp_cross_order.py 1-4 --mutation-check` compares every camp room1 seed after every
+Blood Moor room came up first; reversing the two levels is the rejected mutation.
+
+Not done: when a next-door room comes up later and re-picks a tile owned by an earlier room, d2d's
+temporary `BuiltRoom` copy records that re-pick but does not patch it back into the earlier level's
+`Level::picks`.
