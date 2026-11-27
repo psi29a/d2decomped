@@ -13,6 +13,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <functional>
+#include <optional>
 #include <string_view>
 #include <utility>
 
@@ -316,6 +317,11 @@ struct CorpseState {
 // caster less P (dx 1 when both are 0), one toward (P.x - dy, P.y + dx), the other toward (P.x + dy, P.y - dx).
 struct BoneWallMakers { int count = 0; std::array<std::pair<int, int>, 2> aims{}; };
 BoneWallMakers bone_wall_makers(int caster_x, int caster_y, int piece_x, int piece_y, int calc2, bool town);
+// Bone Prison's twelve pieces round the point (subtiles), in its order: a spot `town` takes gets none; else `make(x, y)`
+// spawns one for it and gives the subtile it got (none: no room), and the piece faces the point from there (0..63).
+struct PrisonPiece { bool made = false; int x = 0, y = 0, dir = 0; };
+std::array<PrisonPiece, 12> bone_prison(int point_x, int point_y, const std::function<bool(int, int)>& town,
+                                        const std::function<std::optional<std::pair<int, int>>(int, int)>& make);
 bool traced_pet_ai(std::string_view ai_name);
 
 // What the other pets' thinks read (tools/emu/pet_ais.py feeds game.exe the
