@@ -75,6 +75,8 @@ int main() try {
     actor.merc_ids = { kHolyFreeze, 0, 0, 0, 0, 0 }; actor.merc_levels = { 3, 0, 0, 0, 0, 0 };
     actor.merc_aura = kHolyFreeze;                            // an Act 2 merc's own (an enemy aura)
     Fight::Pet totem;
+    totem.monster.type = 2;                                   // a summon has its MonStats row: pets_turn reads it
+    test.monster(2, "oaksage");
     totem.monster.hit_points = totem.monster.stats.hit_points = 100;
     totem.monster.unit.x = 6.5f; totem.monster.unit.y = 8;    // 1.5 cells from the player, 2.5 from the merc
     totem.where = &open;
