@@ -18,6 +18,7 @@
 #include <cstdio>
 #include <exception>
 #include <span>
+#include <utility>
 #include <vector>
 
 using namespace d2d::game;
@@ -34,7 +35,7 @@ int main() try {
     Missile made{ &death, 4.f, 4.f, 0, 0, 0, 0, 400 * 40, {} };
     made.visual_only = true;
     made.sub = &hand;
-    missiles.push_back(made);
+    missiles.push_back(std::move(made));
     d2d::rules::Rng rng{ 7 };
     std::array<Foe, 1> nobody{};
     int hands = 0;

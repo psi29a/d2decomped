@@ -32,6 +32,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -113,7 +114,7 @@ int main() try {
     left.slot = d2d::d2s::body_location::kLeftArm;
     left.wielded = false;
     left.props.push_back({ d2d::d2s::kFasterAttackRate, 0, 60 });
-    items.push_back(left);
+    items.push_back(std::move(left));
     right = in_hand(d2d::d2s::body_location::kRightArm);
     const int plain = d2d::rules::whirlwind_gap(weapon_attack_frames(*data, *right, 4));
     const int quick = d2d::rules::whirlwind_gap(weapon_attack_frames(*data, items.back(), 4));

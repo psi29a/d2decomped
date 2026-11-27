@@ -22,6 +22,7 @@
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
+#include <utility>
 
 using namespace d2d::game;
 
@@ -45,7 +46,7 @@ int main() try {
     character.panel = panel_stats(*data, character.header, character.items, character.stats);
     World world(&*data, -1, -1);
     world.enter(character);
-    auto friend_character = character;
+    auto friend_character = std::move(character);
     friend_character.name = "Friend";
     auto& ally = world.join(friend_character);
     const auto* moor = data->level(d2d::rules::level_ids::kBloodMoor);

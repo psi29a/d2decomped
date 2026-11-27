@@ -420,7 +420,7 @@ auto ClientSession::draw_view(std::vector<std::uint8_t>& framebuffer, std::vecto
             }
         }
         if (pad_target) hovered_npc = pad_hover_npc(pad_action_pick());
-        if (const int hovered = hovered_monster(); hovered >= 0 && scene) {        // FUN_00466de0: the unit the cursor took,
+        if (const int hovered = hovered_monster(); hovered >= 0) {        // FUN_00466de0: the unit the cursor took,
             // picked this frame against this view (a later publish can refill the index)
             const int hover_class = view.monsters[std::size_t(hovered)].type;
             if (hover_class >= 0 && std::size_t(hover_class) < scene->monsters.types.size()) {

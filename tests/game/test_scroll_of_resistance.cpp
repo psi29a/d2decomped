@@ -21,6 +21,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <exception>
+#include <utility>
 
 using namespace d2d::game;
 
@@ -53,7 +54,7 @@ int main() try {
     d2d::d2s::Item scroll;
     scroll.code = PrisonQuest::kScrollCode;
     scroll.id = 9;
-    character.items.push_back(scroll);
+    character.items.push_back(std::move(scroll));
     const auto resist = [&] { return panel_stats(data, character.header, character.items, character.stats).res; };
     assert((resist() == std::array<std::int64_t, 4>{ 0, 0, 0, 0 }));
 

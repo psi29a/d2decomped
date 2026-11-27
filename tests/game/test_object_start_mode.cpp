@@ -29,7 +29,7 @@ int main() try {
     assert(data);
     if (!data->patched) { std::printf("SKIP: needs the 1.14d data (D2_PATCH_INSTALLER)\n"); return D2D_TEST_SKIPPED; }
     if (!data->builder) { std::printf("SKIP: no level builder\n"); return D2D_TEST_SKIPPED; }
-    const auto mode_in = [&](int level_id, int object) {
+    const auto mode_in = [&](int level_id, int object) -> std::string {
         const auto* level = data->level(level_id);
         assert(level);
         Level one = *level;

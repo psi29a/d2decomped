@@ -19,6 +19,7 @@
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -61,12 +62,12 @@ public:
             Special row;
             row.set = set;
             row.member = member;
-            tables_.sets.push_back(row);
+            tables_.sets.push_back(std::move(row));
             d2d::d2s::Item item;
             item.id = item_id;
             item.quality = 5;
             item.set_id = int(tables_.sets.size()) - 1;
-            items_.push_back(item);
+            items_.push_back(std::move(item));
             found = items_.end() - 1;
         }
         std::string answer = "piece -1 rows -";

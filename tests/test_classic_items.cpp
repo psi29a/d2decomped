@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <exception>
+#include <utility>
 #include <vector>
 
 using namespace d2d::rules;
@@ -55,7 +56,7 @@ int main() try {
     tables.class_first_skill[2] = 66;
     Tables::Superior superior;                              // fits body armor and helms
     superior.fits[0] = true;
-    tables.superior.push_back(superior);
+    tables.superior.push_back(std::move(superior));
 
     int tors_socketed = 0, helm_socketed = 0, shield_socketed = 0, ethereal_classic = 0, ethereal_expansion = 0;
     int classic_most = 0, expansion_most = 0;
@@ -140,7 +141,7 @@ int main() try {
     };
     std::vector<Affix> list{ Affix{}, affix(100, 1, 1, 10), affix(0, 10, 2, 10), affix(0, 50, 3, 10) };
     for (int group = 4; group < 9; ++group) list.push_back(affix(0, 1, group));
-    tables.prefixes = tables.suffixes = list;
+    tables.prefixes = tables.suffixes = std::move(list);
     tables.rare_prefix_names = tables.rare_suffix_names = { Tables::RareName{ { "armo" }, {} } };
     bool expansion_row = false, out_of_reach = false, weightless = false;
     for (std::uint32_t seed = 1; seed < 400; ++seed) {

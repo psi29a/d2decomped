@@ -122,7 +122,7 @@ int main() try {
     second.slot = d2d::d2s::body_location::kLeftArm;
     second.wielded = false;                                           // the inventory names one wielded weapon (+0x1c)
     second.props.push_back({ d2d::d2s::kFasterAttackRate, 0, 60 });
-    actor.character.items.push_back(second);
+    actor.character.items.push_back(std::move(second));
     world.fight.start_move(*whirlwind, 5000);
     assert(!actor.whirl_begun && !actor.whirl_left);
     world.fight.move_event(*whirlwind, 5000);
