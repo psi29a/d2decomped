@@ -25,7 +25,8 @@ namespace d2d::drlg {
 std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSeed>& made, const std::vector<PlainRoom>& plain,
                                                const OutdoorData& data, const RoomDt1s& dt1s, int level,
                                                const std::array<WarpSlot, 8>& slots, std::vector<std::string>& notes,
-                                               const std::vector<std::size_t>& order, std::vector<BuiltRoom> outside, std::size_t up_count) {
+                                               const std::vector<std::size_t>& order, std::vector<BuiltRoom> outside, std::size_t up_count,
+                                               const std::vector<std::size_t>& come_up_steps) {
     using namespace room_tiles_detail;
     auto note = [&](std::string message) { if (std::ranges::find(notes, message) == notes.end()) notes.push_back(std::move(message)); };
     std::vector<BuiltRoom> rooms;                       // game.exe's list: newest room first
@@ -43,13 +44,22 @@ std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSeed>& ma
     // Each room's tile seed and DT1s outlive its walk: a later room re-picking a shared tile rolls the owner's.
     std::vector<d2d::rules::Rng> rngs(rooms.size());
     std::vector<decltype(room_dt1_list(0u, dt1s))> lists(rooms.size());
+    const bool interleaved = come_up_steps.size() == rooms.size();
+    for (std::size_t index = own; index < rooms.size(); ++index) {
+        rngs[index] = rooms[index].tile_seed;
+        lists[index] = rooms[index].tile_dt1s;
+        if (interleaved) rooms[index].upper = false;
+    }
     std::map<std::pair<int, int>, std::vector<Unit>> preset_units;   // by the preset's origin: units no room has taken yet
     std::uint32_t next_label = 0;                       // level +0x1dc: the next area label (logic_areas)
     for (std::size_t step = 0; step < own; ++step) {
         const std::size_t room_index = order.empty() ? step : order[step];
+        if (interleaved)
+            for (std::size_t index = own; index < rooms.size(); ++index)
+                if (!rooms[index].upper && come_up_steps[index] < come_up_steps[room_index]) rooms[index].upper = true;
         auto& room = rooms[room_index];
         room.upper = true;
-        room.step = rooms.size() - own + step;
+        room.step = interleaved ? come_up_steps[room_index] : rooms.size() - own + step;
         const Preset* pre = nullptr;
         const d2d::ds1::Map* map = nullptr;
         if (!room.plain) {
@@ -398,6 +408,10 @@ std::vector<BuiltRoom> level_room_tiles(const std::vector<Outdoor::RoomSeed>& ma
         else
             next_label = 1;                                // FUN_0066ccb0
         room.room1_seed = rng.next();
+    }
+    for (std::size_t index = 0; index < rooms.size(); ++index) {
+        rooms[index].tile_seed = rngs[index];
+        rooms[index].tile_dt1s = lists[index];
     }
     return rooms;
 }

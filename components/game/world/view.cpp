@@ -77,7 +77,9 @@ auto World::view() const -> View {
         view.seq.assign(actor->seq.begin(), actor->seq.end()); view.seq_frame_ms = actor->seq_frame_ms; view.seq_loop = actor->seq_loop;
         view.gfx = fight.gfx();
         if (actor->merc && actor->merc_npc) {
-            view.merc = View::Merc{ actor->merc->unit, actor->merc_npc, actor->merc->mode, 0, actor->merc->one_shots };
+            view.merc = View::Merc{ actor->merc->unit, actor->merc_npc, actor->merc->mode, 0, actor->merc->one_shots, {} };
+            if (actor->merc->alive() && actor->merc->mode != "DT")   // its own aura runs while it lives (Fight::auras_at)
+                view.merc->states = fight.aura_states_on(actor->merc->unit.x, actor->merc->unit.y, actor->merc_aura);
             const auto fighter = fight.merc_fighter();
             view.merc->fhr = fighter.fhr;
             const auto gear = fight.merc_gear();
@@ -104,6 +106,9 @@ auto World::view() const -> View {
             }
         for (const auto& player : players) {                  // the party's mercs and summons, as ours
             if (player.get() == actor || !here(*player)) continue;   // split levels: this level's party
+            // ponytail: a party merc's aura states (and the other players' in View::others) aren't
+            // worked out: Fight::aura_states_on reads the acting player's auras alone. Nor are
+            // the summons' (View::pets): a skeleton in the player's Might wears no state.
             if (player->merc && player->merc_npc)                  // its life isn't shown (our own pets' portraits only)
                 view.party_pets.push_back({ player->merc->npc, player->merc->unit, player->merc->mode, "hireable", 100, {},
                                             int(fight.merc_gear(*player).sum[std::size_t(d2d::d2s::kFasterGetHitRate)]) });
@@ -195,6 +200,7 @@ auto World::view() const -> View {
                                      dismiss_effects && state.instance != 0 && skill && dismissible_self_effect(skill->name) });
         }
         view.aura = actor->aura;
+        view.aura_states = fight.aura_states_on(actor->player.x, actor->player.y, actor->aura);
         view.gold_lost = int(actor->gold_lost);
         view.hand_status = actor->hand_status;
         for (const auto& state : actor->self_states) view.buffs.push_back(state.skill);

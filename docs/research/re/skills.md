@@ -978,10 +978,18 @@ runs from the local do (`client_skill_guard`); startmana's state inferno is `Her
   (blade creeper, bladefury1-3, bladefragment1-3, blade shield missile /
   attachment). d2d: `Fighter::two_handed`, `Swing::half_2h_src`;
   `tools/emu/half_2h_src.py` runs the block on every weapons.txt row.
-  Not in d2d: the stat 0xb4 % (no MonType matrix), the row's +0x12e
-  (SrcMissDmg) branch (0x64bd07: only viper_poisjavcloud, Missiles.txt row
-  649, which d2d never makes); the halved elemental share is not checked
-  in d2d's element path.
+  The owner's share (0x64bebe..0x64bedf: FUN_0064a930 then FUN_0064aa60,
+  skipped at a SrcDamage of 0 and unscaled at 128) takes the gear's
+  elements (+0xc..+0x2c, in 256ths), cold length (+0x30), poison per frame
+  (+0x34, +0x38), +0x40, life and mana drain (+0x44, +0x4c) and +0x60..+0x68
+  x SrcDamage / 128 toward zero; poison length (+0x3c) stays. d2d:
+  `rules::missile_owner_share` in `player_blow`'s missile path (whole-point
+  ends: the 256ths' fraction is lost); `tools/emu/missile_owner_share.py`
+  runs FUN_0064aa60. Not in d2d: the stat 0xb4 % (ItemStatCost row 180,
+  damage_vs_montype, from Properties.txt's dmg-mon%: no 1.14d item, set,
+  runeword, affix, MonProp, MonUMod, state or skill row sets it), the
+  row's +0x12e (SrcMissDmg) branch (0x64bd07: only viper_poisjavcloud,
+  Missiles.txt row 649, which d2d never makes).
 - **A crossbow's bolts** (do 8 `FUN_005db410` 0x5db51e..0x5db53d, do 10
   `FUN_005db6d0` 0x5db74f..0x5db76b, do 12 `FUN_005dba40`
   0x5dbb20..0x5dbb3f): srvmissilea (+0x48), or srvmissileb (+0x4a) when it
@@ -1254,10 +1262,17 @@ hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
   `aura_pulse` (Prayer's hitpoints heal; 66 / 81 strike monsters in
   range), `target_of` (the target state's resistances / defense while in
   range and taken by the aurafilter, as Holy Freeze's slow in
-  `monster_states`: `enemy_auras`), thorns_percent (131) on melee hits. Not yet: perdelay's reader
-  (taken as ticks), the merc in the aura, Sanctuary / Redemption's callbacks, Holy Freeze's
+  `monster_states`: `enemy_auras`), thorns_percent (131) on melee hits;
+  the merc's aurastats from the auras it stands in (`friendly_auras` in
+  its fighter, merc-ai.md "Its auras"). Not yet: perdelay's reader
+  (taken as ticks), Sanctuary / Redemption's callbacks, Holy Freeze's
   slow (its cold chills), Sanctuary's mana and its state 0x55
-  (FUN_005cf3a0), the aura overlays.
+  (FUN_005cf3a0), the aura states on the other players and their mercs.
+  The states shown (`Fight::aura_states_on`, `View::aura_states`,
+  `View::Merc::states`): a unit's own aura's aurastate, then the target
+  state (aurastate when none) of each friendly aura it stands in, so the
+  merc in the player's Might wears Might's overlays and the player in a
+  totem's range oaksage (not the totem's oaksagecontrol).
 - **aurafilter** (+0x50): dos 65, 66 and 81 pass it to FUN_0056b7e0
   (SkilPal.cpp lines 0x1f6, 0x2ba, 0x6ba), which runs the callback only on
   a unit within range that FUN_0056b3e0 takes (a filter of 0 is 0x583).

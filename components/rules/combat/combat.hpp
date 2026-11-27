@@ -513,6 +513,9 @@ int melee_record_pct(const Fighter& fighter, const Target& target, const Swing& 
 // (low + rand(high - low); both 0 for none), the record's +0x78 percent and the hit's, which scales the roll.
 struct MissilePhysical { std::int64_t low = 0, high = 0; int record_pct = 0, hit_pct = 0; };
 MissilePhysical missile_physical(const Fighter& fighter, const Target& target, const Swing& swing);
+// The owner's gear elements, cold length and leech a SrcDamage missile carries: each scaled by
+// the SrcDamage (after Half2HSrc) / 128 toward zero (FUN_0064b860 -> FUN_0064aa60).
+Fighter missile_owner_share(const Fighter& fighter, const Swing& swing);
 // FUN_005a89a0: a rolled physical plus its `pct` %, toward zero.
 std::int64_t missile_scaled(std::int64_t roll, int pct);
 // A SrcDamage missile's own physical moved from `damage` into `swing`'s record (FUN_0064b860): one roll with
