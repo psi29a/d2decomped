@@ -128,6 +128,26 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
             return true;
         }
         if (now_ms >= missile.dies || (!moving && level.blocked(missile.x, missile.y, 0x04))) return true;
+        // A monster's do 2 (FUN_005ae400: the viper's poison javelin): on a frame its flight entered a new
+        // subtile, SubMissile1 standing there (FUN_005a9720, flags 5), for Range + LevRange x level frames
+        // and its SubLoop's (trail_loops). Its record: a SrcDamage-0 row with SrcMissDmg takes the missile's
+        // stats 21 / 22 x SrcMissDmg / 128 (FUN_0064b860, 0x64bd07): its physical only, none of the
+        // missile's poison, elements or enchants. Then it strikes as do 1.
+        if (!missile.friendly && !missile.visual_only && missile.info && missile.info->srv_do == 2 && missile.info->subs[0]) {
+            const int at_x = int(std::floor(missile.x * 5)), at_y = int(std::floor(missile.y * 5));
+            if (at_x != missile.subtile_x || at_y != missile.subtile_y) {
+                missile.subtile_x = at_x; missile.subtile_y = at_y;
+                const auto& cloud_row = *missile.info->subs[0];
+                Missile cloud = missile_from(missile, cloud_row, (float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0, 0, now_ms);
+                cloud.dies += std::uint32_t(std::max(missile.trail_loops, 0)) * 40;
+                if ((cloud_row.src_damage & 0xff) == 0 && cloud_row.src_miss_dmg > 0) {
+                    cloud.src.a2_min = int(std::int64_t(missile.src.a2_min) * cloud_row.src_miss_dmg / 128);
+                    cloud.src.a2_max = int(std::int64_t(missile.src.a2_max) * cloud_row.src_miss_dmg / 128);
+                    cloud.src.unblockable = !(cloud.src.a2_min > 0 && cloud.src.a2_max > 0);
+                }
+                laid.push_back(std::move(cloud));
+            }
+        }
         // The client's do 55 (FUN_004d8260, "ancient death center"): every
         // third frame of its age an "ancient death cloud" (`sub`, flags 0x21)
         // from a subtile -1..0 off it each way, sent at that start's -10..9

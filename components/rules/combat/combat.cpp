@@ -806,7 +806,7 @@ int melee_record_pct(const Fighter& fighter, const Target& target, const Swing& 
 // only Properties.txt's dmg-mon% sets it, and no 1.14d UniqueItems, SetItems, Sets, Runes, MagicPrefix,
 // MagicSuffix, Automagic, Gems, CubeMain, MonProp, MonUMod, States, Skills or Hireling row uses it. The row's
 // +0x12e (SrcMissDmg) branch (0x64bd07), the parent missile's damage, is only viper_poisjavcloud's (Missiles.txt
-// row 649, 128), which d2d never makes. The halved value also scales the owner's elemental share
+// row 649, 128): a monster missile's trail's (missiles_update). The halved value also scales the owner's elemental share
 // (missile_owner_share). phys_lo / phys_hi carry stat 111
 // and make_fighter's floors (at least a point; phys_pct at least -90 before the missile's terms join).
 namespace {

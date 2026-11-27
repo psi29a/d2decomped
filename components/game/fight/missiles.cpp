@@ -903,6 +903,18 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
                 const int life = missile_info.srv_do == 6 ? sub->second.range + sub->second.lev_range * missile.level : sub->second.range;
                 launch(sub->second, *skill, missile.level, (float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0, 0, life, now_ms);
             }
+            // 2 (FUN_005ae400, Poison Javelin's): on a frame its path entered a new subtile (FUN_005a9720:
+            // FUN_006505c0), SubMissile1 standing there (create flags 5) at the missile's skill and level, for
+            // its Range + LevRange x level frames; when the row's SrvCalc1 (FUN_0064b7c0) is over 0 (create
+            // flag 8) and the sub has SubLoop, (SubStop - SubStart) x (level x 2 - 2) more (FUN_0059fa30: its
+            // [0xd], the calc at 0x5a9770, then level x 2 - 2 at 0x5a97fd). Then it strikes as do 1.
+            if (missile_info.srv_do == 2 && sub != game_data->missiles.end() && new_subtile) {
+                missile.subtile_x = at_x; missile.subtile_y = at_y;
+                const int over = missile_info.srv_calc.empty() ? 0 : calc(*skill, missile_info.srv_calc, missile.level);
+                const int loops = over > 0 && sub->second.sub_loop ? (sub->second.sub_stop - sub->second.sub_start) * (missile.level * 2 - 2) : 0;
+                launch(sub->second, *skill, missile.level, (float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0, 0,
+                       sub->second.range + sub->second.lev_range * missile.level + loops, now_ms);
+            }
             // 26 (FUN_005af980, the vines): every Param1 frames (at least 1) SubMissile1 at its subtile
             // (FUN_0056ede0), at its level; a sub row naming a Skill carries that skill (Plague Poppy's trail).
             if (missile_info.srv_do == 26 && sub != game_data->missiles.end() && age % std::max(missile_info.param1, 1) == 0) {

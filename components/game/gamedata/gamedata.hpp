@@ -426,6 +426,7 @@ struct GameData {
                          bool half_2h_src = false;                              // Half2HSrc (+4 bit 14): SrcDamage halved from a two-hander (FUN_0064b860)
                          bool return_fire = false;   // ReturnFire (record flag bit 9, +5 & 2): Chilling Armor answers it (FUN_005cab40)
                          bool collide_friend = false;   // CollideFriend (+0x187): it strikes its owner's friends too (FUN_005a8730)
+                         int src_miss_dmg = 0;          // SrcMissDmg (+0x12e): a SrcDamage-0 row's share of its parent missile's physical, of 128
                          bool client_col = false;       // ClientCol (+0x185): the client tests units along its path (FUN_004d30c0), so each one it meets goes off (FUN_004d2d70)
                          // Its own element (a row with no Skill: FUN_0064b100 / 0064b1d0 /
                          // 0064b2a0 by level): Skill::etype order, frze as cold.
@@ -435,6 +436,7 @@ struct GameData {
                          std::string dmg_sym_text; d2d::rules::Calc dmg_sym;     // DmgSymPerCalc (+0xe0), compiled with the skills
                          std::string edmg_sym_text; d2d::rules::Calc edmg_sym;   // EDmgSymPerCalc (+0x118), compiled with the skills
                          std::string hit_calc_text; d2d::rules::Calc hit_calc;   // SHitCalc1 (+0x88): Immolation Arrow's fire length
+                         std::string srv_calc_text; d2d::rules::Calc srv_calc;   // SrvCalc1 (+0x80): do 2's, over 0 its trail loops (FUN_005ae400)
                          // Its server functions' inputs: pSrvDoFunc (table 0x73c768), Param1..,
                          // sHitPar2, the rows it spawns (SubMissile1, HitSubMissile1).
                          int clt_do = 0;   // pCltDoFunc (the client's, table 0x72a398 + 4 x n)

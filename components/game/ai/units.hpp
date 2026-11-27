@@ -647,6 +647,7 @@ struct Missile {
     int target_id = -1;                       // its target's Foe::id: the foes are rebuilt each frame, pets come and go
     int anim_rate = 0;                        // its animation in 256ths of a frame a tick (unit +0x4c, FUN_00621780), 0 its row's AnimSpeed
     float target_x = 0, target_y = 0;                     // where it was sent (Molten Boulder), a spiral's centre
+    int trail_loops = 0;                      // a monster's do 2: the frames its trail's SubLoop adds (FUN_0059fa30's [0xd] x the sub's loop)
     int rider = -1;                           // the unit it rides (do 20, FUN_005a99e0: Blade Sentinel's blade on its bladecreeper), a Monster::id
     int turn = 0;                             // Frozen Orb's direction index (do 15)
     int subtile_x = 0, subtile_y = 0;         // a Bone Wall maker's (do 13) subtile as it last laid or started; `hops` its pieces left, `target_id` the first piece

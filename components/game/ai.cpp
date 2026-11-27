@@ -2237,6 +2237,13 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 x.level = lvl; x.aim_at = { unit.x + aim_x, unit.y + aim_y }; x.owner = monster.id; x.owner_align = monster.align;
                 const bool first = monster.mode == "A1", cast = monster.mode == "SC";   // an A1 shot carries A1's damage; S1's and SC's S1's (FUN_005a4f50)
                 x.src = monster_shot_stats(missile_info, monster.swing_stats(), first, cast, s1_shot, lvl);
+                // A do 2 row (the viper's poison javelin, FUN_005ae400): its trail from the subtile after its own; its
+                // SrvCalc1 (FUN_0064b7c0) over 0 makes each cloud loop its SubLoop (level x 2 - 2) times (FUN_005a9720).
+                if (const auto* trail = missile_info.subs[0]; missile_info.srv_do == 2 && trail) {
+                    x.subtile_x = int(std::floor(float(unit.x) * 5)); x.subtile_y = int(std::floor(float(unit.y) * 5));
+                    const int over = missile_info.srv_calc.empty() ? 0 : d2d::rules::eval_calc(game_data.skills, missile_info.srv_calc, {}, -1, lvl);
+                    x.trail_loops = over > 0 && trail->sub_loop ? (trail->sub_stop - trail->sub_start) * (lvl * 2 - 2) : 0;
+                }
                 missiles.push_back(x);
                 // Multishot (FUN_005a3610, the missile hook): two more, aimed a
                 // subtile to either side.

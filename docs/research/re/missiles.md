@@ -609,8 +609,23 @@ the emulator.
 - **`FUN_005ae400`** (ECX game, EDX missile): with a valid row whose +0x18
   (a short) is >= 0, evaluates the row's calc `FUN_0064b7c0` (missile, owner
   `FUN_00552fd0`, row +0x80, row index, level `FUN_0064a210`) and passes it
-  to `FUN_005a9720(row +0x18, 0, result)`, then `FUN_005ae1f0`. Neither the
-  call graph nor the data refs show who uses it: not placed in a table here.
+  to `FUN_005a9720(row +0x18, 0, result)`, then `FUN_005ae1f0`. It is missile
+  do 2 (table 0x73c768 + 2 x 4 = 0x73c770 holds 0x5ae400; read in tools/emu):
+  poisonjav, viper_poisjav and the two trap poison balls. `FUN_005a9720` (ECX
+  game, EDX missile, stack sub row, frames, calc) runs only on a frame the
+  path entered a new subtile (`FUN_006505c0`, path +0x34 & 8) and makes the
+  sub there by `FUN_0059fa30`: flags 5 (start subtile, velocity 0), 0x8000
+  with the frames over 0 (none here), 8 with the calc over 0; owner the
+  missile's (`FUN_00552fd0`), skill and level the missile's (`FUN_0064a280`,
+  `FUN_0064a210`). Its [0xd] takes the calc (0x5a9770) and then level x 2 - 2
+  (0x5a97fd), so with flag 8 and the sub's SubLoop its range runs on by
+  (SubStop - SubStart) x (level x 2 - 2). poisonjav's SrvCalc1 is 0: its
+  clouds last their Range, 60; viper_poisjav's is 3. A SrcDamage-0 sub with
+  SrcMissDmg (+0x12e: viper_poisjavcloud's 128) takes its parent's stats 21 /
+  22 x SrcMissDmg / 128 and its 25, 18 / 17, 121 / 122 (`FUN_0064b860`,
+  0x64bd07), not its poison or enchants. d2d: `Fight::missile_tick` (the
+  player's), `missiles_update` (a monster's, `Missile::trail_loops`);
+  `tests/game/test_poison_javelin_trail.cpp`, `tests/game/test_viper_trail.cpp`.
 - `FUN_00641cb0` (missile_touches) and `FUN_005ae1f0` read the same as
   d2d (`rules::missile_touches`, `standing_struck`) for missile sizes 1-3.
   Outside 1-3 `FUN_00641cb0` returns 0 (strikes no unit), while
