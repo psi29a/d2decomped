@@ -2199,7 +2199,15 @@ repeat skill.
   `Fight::missile_tick`'s do 13 (`test_bone_wall_lay`).
   **62** (FUN_005c5d00, Bone Prison): twelve round the point (0x6e304c /
   0x6e307c: (-1,-4) (1,-4) (3,-3) (4,-1) (4,1) (3,3) (-1,4) (1,4) (-3,3)
-  (-4,-1) (-4,1) (-3,-3)).
+  (-4,-1) (-4,1) (-3,-3)), each by FUN_005c5bc0: none on a spot in a town
+  room (FUN_00620bb0 -> FUN_00463740 -> FUN_0061ab00), then FUN_0056d940
+  (radius -1, then 4: the spot, else within 4, else none), its stats
+  FUN_005c4470, MonUMod 15
+  (FUN_005a4850), FUN_005b1990(.., 0, 9). The first made joins the owner's
+  AI group (FUN_0058f030), the rest the first's (FUN_0058f030 /
+  FUN_0058f100); each made piece faces the point (FUN_0064fdc0 from the
+  subtile it got, FUN_006488a0). d2d: `rules::bone_prison`; tools/emu/bone_prison.py
+  runs FUN_005c5d00 (0 of 20,028 differ, seeds 1 and 2, 2026-11-26).
 - Do **115** (FUN_005c6a80, the vines): the summon at level calc2, state
   0x96. **116** (FUN_005c6ec0, Werewolf / Werebear): the aurastate for
   auralen frames (1000 + Shape Shifting), a second cast shifts back:
