@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """A missile row's Half2HSrc in stock game.exe 1.14d: FUN_0064b860's SrcDamage halved from a two-hander.
 
-Run: export D2_MPQ_DIR=/home/gui/Projects/d2decomped/dev/data
+Run: export D2_MPQ_DIR=/path/to/the/local/game/data
      .venv/bin/python half_2h_src.py [--mutation-check]
      .venv/bin/python half_2h_src.py inc --out ../../tests/half_2h_src_cases.inc
 

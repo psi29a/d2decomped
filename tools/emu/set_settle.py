@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """The requirements pass's set lists, and a break's, in stock game.exe 1.14d.
 
-Run: export D2_MPQ_DIR=/home/gui/Projects/d2decomped/dev/data
+Run: export D2_MPQ_DIR=/path/to/the/local/game/data
      .venv/bin/python set_settle.py [--mutation-check]
      .venv/bin/python set_settle.py inc --out ../../tests/set_settle_cases.inc
 
