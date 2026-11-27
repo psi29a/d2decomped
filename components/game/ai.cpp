@@ -2073,7 +2073,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
             stats.a1_min = d2d::rules::skill_phys(game_data.skills, *run_skill, {}, lvl, false) >> 8;
             stats.a1_max = std::max(d2d::rules::skill_phys(game_data.skills, *run_skill, {}, lvl, true) >> 8, stats.a1_min);
             for (auto& element : stats.elements) element.mode = "";
-            const auto taken = d2d::rules::monster_blow(foe.fighter, foe.level, foe.motion(), stats, false, rng, false, (run_skill->result_flags & 1) != 0);
+            const auto taken = d2d::rules::monster_blow(foe.fighter, foe.level, foe.motion(), stats, false, monster.seed, false, (run_skill->result_flags & 1) != 0, false, foe.seed);
             foe.take(taken, monster.id);
             if (taken.hit) foe.struck_by(type_info.hit_class);
         };
@@ -2134,7 +2134,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
             if (!next) { monster.whirl_last = -1; continue; }
             monster.whirl_last = next->id;
             auto& struck = const_cast<Foe&>(*next);
-            const auto taken = d2d::rules::monster_blow(struck.fighter, struck.level, struck.motion(), skill_strike(game_data, monster, *spin, lvl), false, rng);
+            const auto taken = d2d::rules::monster_blow(struck.fighter, struck.level, struck.motion(), skill_strike(game_data, monster, *spin, lvl), false, monster.seed, false, false, false, struck.seed);
             struck.take(taken, monster.id);
             if (taken.hit) struck.struck_by(type_info.hit_class);
             if (taken.hit) monprop_hit(monster, struck, false);         // a melee blow: MonProp knock / crush, as the strike's
@@ -2309,7 +2309,8 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 // a row at a time: two rows due in one update strike once.
                 if (!monster.leaping && !monster.seq_once) {
                     if (foe.alive && dist <= kMeleeReach + 0.3f) {
-                        const auto taken = d2d::rules::monster_blow(foe.fighter, foe.level, foe.motion(), skill_strike(game_data, monster, *leap, skill_level(game_data, monster, monster.skill)), false, rng);
+                        const auto taken = d2d::rules::monster_blow(foe.fighter, foe.level, foe.motion(), skill_strike(game_data, monster, *leap, skill_level(game_data, monster, monster.skill)), false, monster.seed,
+                                                                    false, false, false, foe.seed);
                         foe.take(taken, monster.id);
                         if (taken.hit) { foe.knocked_from = std::pair{ unit.x, unit.y }; foe.struck_by(type_info.hit_class); monprop_hit(monster, foe, false); }
                         d2d::log::info("{} lands its leap attack ({})", monster.npc.name, taken.hit ? "hit" : "missed");
@@ -2596,7 +2597,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                         stats.elements[0] = { 1, 100, dmg - dmg / 2, dmg - dmg / 2, 0, "A1" };   // fire
                         for (auto& near_foe : foes)
                             if (near_foe.alive && std::hypot(near_foe.x - corpse.unit.x, near_foe.y - corpse.unit.y) * 5 <= float(radius)) {
-                                const auto taken = d2d::rules::monster_blow(near_foe.fighter, near_foe.level, near_foe.motion(), stats, false, rng, false, true, true);   // FUN_005c4d10: the record straight to FUN_0057c6c0 (not FUN_0057b420's roll)
+                                const auto taken = d2d::rules::monster_blow(near_foe.fighter, near_foe.level, near_foe.motion(), stats, false, monster.seed, false, true, true);   // FUN_005c4d10: the record straight to FUN_0057c6c0 (not FUN_0057b420's roll)
                                 near_foe.take(taken, monster.id);
                             }
                         d2d::log::info("{} explodes a corpse ({} damage)", monster.npc.name, dmg);
@@ -2635,7 +2636,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                     for (auto& element : stats.elements) element = {};
                     const auto added = d2d::rules::row_damage(cast->etype, cast->emin, cast->emax, cast->emin_lev, cast->emax_lev, cast->hitshift, cast->elen, cast->elen_lev, lvl);
                     if (added.etype >= 0) stats.elements[0] = { added.etype, 100, added.elo >> 8, added.ehi >> 8, added.elen, "A1" };
-                    const auto taken = d2d::rules::monster_blow(foe.fighter, foe.level, foe.motion(), stats, false, rng, false, true, true);   // the record is min == max, not FUN_0057b420's roll
+                    const auto taken = d2d::rules::monster_blow(foe.fighter, foe.level, foe.motion(), stats, false, monster.seed, false, true, true);   // the record is min == max, not FUN_0057b420's roll
                     foe.take(taken, monster.id);
                     if (taken.hit) foe.struck_by(type_info.hit_class);
                 } else if (cast->srvdofunc == ServerDoFunction::kFingerMageSpider || cast->srvdofunc == ServerDoFunction::kDoomKnightMissile
@@ -2913,7 +2914,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 for (int* damage : { &stats.a1_min, &stats.a1_max }) *damage = std::max(*damage * (100 + monster.dmg_pct + monster.aura_dmg) / 100, 0);
                 stats.to_hit += stats.to_hit * monster.aura_th / 100;
                 const bool charge = struck_with && struck_with->srvdofunc == d2d::rules::ServerDoFunction::kCharge;
-                const auto taken = d2d::rules::monster_blow(foe.fighter, foe.level, foe.motion(), stats, false, rng, false, charge);
+                const auto taken = d2d::rules::monster_blow(foe.fighter, foe.level, foe.motion(), stats, false, monster.seed, false, charge, false, foe.seed);
                 // MonFrenzy's strike (do 109, FUN_005cdf10): a hit puts on its state
                 // (FUN_005d8c70) for ln12 frames, one more charge up to its level.
                 if (struck_with && struck_with->srvdofunc == d2d::rules::ServerDoFunction::kMonFrenzy && taken.hit) {

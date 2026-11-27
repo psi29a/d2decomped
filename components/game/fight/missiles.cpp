@@ -506,18 +506,35 @@ auto Fight::launch(const GameData::MissileInfo& missile_info, const d2d::rules::
         missile.friendly = true; missile.caster = actor->id; missile.skill = skill.id; missile.level = lvl; missile.by_merc = casting_merc; missile.striker = casting_unit;
         missile.subtile_x = int(std::floor(x * 5)); missile.subtile_y = int(std::floor(y * 5));   // the subtile it starts in (the trail makers')
         seed_pierce(missile, casting_merc);
-        missile.seed = d2d::rules::Rng{ spawning.game.next() };   // its unit seed off the game seed as it's made
+        seed_made(missile);
         pending.push_back(std::move(missile));
         return pending.back();
     }
 
 auto Fight::seed_missiles(std::size_t from) -> void {
-        for (std::size_t k = from; k < missiles.size(); ++k)
-            if (!missiles[k].seed && !missiles[k].visual_only) missiles[k].seed = d2d::rules::Rng{ spawning.game.next() };
+        for (std::size_t k = from; k < missiles.size(); ++k) seed_made(missiles[k]);
+    }
+
+// The record FUN_0064b860 makes as the missile is (FUN_0064ac60 puts it on): a row taking the weapon's
+// damage (SrcDamage, +0x12d, over 0) rolls its crit on the caster's seed (0x64bad3) with the weapon's
+// mastery; the row's +0x12e owner branch (0x64bd15, no mastery) isn't d2d's.
+auto Fight::owner_seed(const Missile& missile) -> d2d::rules::Rng& {
+        if (missile.by_merc && actor->merc) return actor->merc->seed;
+        if (missile.striker >= 0)
+            for (auto& pet : actor->pets)
+                if (pet.monster.id == missile.striker) return pet.monster.seed;
+        return actor->seed;
     }
 
 auto Fight::seed_made(Missile& missile) -> void {
         if (!missile.seed && !missile.visual_only) missile.seed = d2d::rules::Rng{ spawning.game.next() };
+        if (missile.crit || !missile.friendly || missile.visual_only || !missile.info || missile.info->src_damage <= 0) return;
+        // A Shadow's carries the owner's gear (shadow_fighter), another summon's none of these stats: its draw still comes.
+        const bool summon = missile.striker >= 0 && !missile.by_merc;
+        const auto shadow = std::ranges::find_if(actor->pets, [&](const Pet& pet) { return summon && pet.monster.id == missile.striker; });
+        const bool mirror = shadow != actor->pets.end() && shadow->mirror;
+        const auto fighter = missile.by_merc ? merc_fighter() : !summon || mirror ? actor->player_combat : d2d::rules::Fighter{};
+        missile.crit = d2d::rules::missile_crit(owner_seed(missile), fighter.critical, fighter.deadly, fighter.mastery_crit);
     }
 
 auto Fight::strafe_reach(const d2d::rules::Skill& skill, int lvl) -> std::vector<int> {
@@ -1203,7 +1220,7 @@ auto Fight::skill_missile_hits(Missile& missile, std::size_t monster_index, std:
 
 // A missile's hit on a monster (FUN_0064b860's record, FUN_005a89a0's hit): its swing
 // (SrcDamage, Half2HSrc, the row's physical), the blow and what follows it.
-auto Fight::strike(const Missile& missile, std::size_t monster_index, std::uint32_t now_ms, int freeze, d2d::rules::MissileRoll* roll) -> void {
+auto Fight::strike(Missile& missile, std::size_t monster_index, std::uint32_t now_ms, int freeze, d2d::rules::MissileRoll* roll) -> void {
         const auto* skill = game_data->skills.get(missile.skill);
         if (!skill || !monsters[monster_index].alive()) return;
         const auto target = missile.by_merc ? merc_target(monster_index) : target_of(monster_index);
@@ -1222,6 +1239,11 @@ auto Fight::strike(const Missile& missile, std::size_t monster_index, std::uint3
             damage.undead_pct = missile.info->dmg_par1;
             damage.demon_pct = missile.info->dmg_par2;
         }
+        // The to-hit (FUN_005adf10 -> FUN_0057d9b0, ECX the owner) and the owner's events roll on the
+        // owner's seed, the physical and the elements on the missile's (FUN_005a89a0, ESI the missile),
+        // the block on the struck unit's (FUN_0057dd60).
+        auto& owner = owner_seed(missile);
+        auto& own_seed = missile.seed ? *missile.seed : rng;
         d2d::rules::Blow blow{ .hit = true };
         if (damage.srcdam > 0) {
             d2d::rules::Swing swing;
@@ -1230,15 +1252,16 @@ auto Fight::strike(const Missile& missile, std::size_t monster_index, std::uint3
             swing.ed_pct = missile.ed_pct;
             swing.ar_pct = missile.ar_pct;
             swing.missile = true;
+            swing.crit = missile.crit;
             // ponytail: a burst's one roll (`roll`) keeps the skill's physical apart, shared; the weapon's share rolls per unit.
             if (!roll) d2d::rules::row_into_record(damage, swing);   // one roll with the weapon's (FUN_0064b860, 0x64bdf7)
-            blow = d2d::rules::player_blow(fighter, target, clvl, rng, swing);
+            blow = d2d::rules::player_blow(fighter, target, clvl, owner, swing, &own_seed, &monsters[monster_index].seed);
         } else if (missile.info->to_hit) {
             const auto [attack_rating, defense] = d2d::rules::player_to_hit(fighter, target, 0);
-            blow.hit = int(rng(100)) < d2d::rules::hit_chance(attack_rating, defense, clvl, target.level);
+            blow.hit = int(owner(100)) < d2d::rules::hit_chance(attack_rating, defense, clvl, target.level);
             blow.prevent_heal = blow.hit && fighter.prevent_heal;
         }
-        if (blow.hit) blow = d2d::rules::missile_blow(damage, target, pierce(), rng, blow, roll);
+        if (blow.hit) blow = d2d::rules::missile_blow(damage, target, pierce(), own_seed, blow, roll);
         blow.hit_class = missile.info->hit_class | skill->hit_class;
         const auto frozen = freeze_on(monster_index, target, blow, freeze);
         land(monster_index, blow, true, now_ms, missile.striker >= 0 ? missile.striker : missile.by_merc ? merc_foe_id() : player_foe_id());
@@ -1271,7 +1294,7 @@ auto Fight::stand(std::size_t monster_index, const d2d::rules::Freeze& frozen, s
         if (frozen.freeze_ticks > 0) freeze(monsters[monster_index], now_ms + std::uint32_t(frozen.freeze_ticks) * 40);
     }
 
-auto Fight::area(const Missile& missile, float x, float y, int radius, std::uint32_t now_ms, int freeze, bool one_roll) -> void {
+auto Fight::area(Missile& missile, float x, float y, int radius, std::uint32_t now_ms, int freeze, bool one_roll) -> void {
         d2d::rules::MissileRoll roll;
         for (std::size_t j = 0; j < monsters.size(); ++j)
             if (monsters[j].targetable() && std::hypot(monsters[j].unit.x - x, monsters[j].unit.y - y) * 5 <= float(std::max(radius, 1))) strike(missile, j, now_ms, freeze, one_roll ? &roll : nullptr);

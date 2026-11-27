@@ -782,7 +782,10 @@ struct Fight {
     // Missiles from `from` on with no seed yet take their unit seed off the game seed, in order (a
     // visual-only one none): a monster's as its think returns, any left at the frame's missile tick.
     void seed_missiles(std::size_t from);
-    // A missile's unit seed off the game seed as it's made (FUN_0059fa30), unless it's visual only or seeded already.
+    // A friendly missile's owner's unit seed: the merc's, the summon's that cast it (Missile::striker) or the player's.
+    d2d::rules::Rng& owner_seed(const Missile& missile);
+    // A missile's unit seed off the game seed as it's made (FUN_0059fa30), unless it's visual only or seeded already;
+    // a friendly one taking the weapon's damage rolls its crit on its caster's seed then (Missile::crit).
     void seed_made(Missile& missile);
     Missile& launch(const GameData::MissileInfo& missile_info, const d2d::rules::Skill& skill, int lvl, float x, float y, float dx, float dy,
                     int range, std::uint32_t now_ms);
@@ -820,14 +823,14 @@ struct Fight {
     // roll the attack rating); then the skill's damage (missile_blow).
     // `freeze`: a Glacial Spike's freeze, frames. `roll`: the burst's one
     // record, drawn by the first blow and resisted by each unit.
-    void strike(const Missile& missile, std::size_t monster_index, std::uint32_t now_ms, int freeze = 0, d2d::rules::MissileRoll* roll = nullptr);
+    void strike(Missile& missile, std::size_t monster_index, std::uint32_t now_ms, int freeze = 0, d2d::rules::MissileRoll* roll = nullptr);
     // A blow's freeze length on monster i: its chill goes on the blow; stand() then stands it for the freeze,
     // after the blow lands.
     [[nodiscard]] d2d::rules::Freeze freeze_on(std::size_t monster_index, const d2d::rules::Target& target, d2d::rules::Blow& blow, int freeze);
     void stand(std::size_t monster_index, const d2d::rules::Freeze& frozen, std::uint32_t now_ms);
     // Every monster within r subtiles of (x, y) takes the missile's damage;
     // `one_roll`: from one roll for all of them (hit functions 1 and 13).
-    void area(const Missile& missile, float x, float y, int radius, std::uint32_t now_ms, int freeze = 0, bool one_roll = false);
+    void area(Missile& missile, float x, float y, int radius, std::uint32_t now_ms, int freeze = 0, bool one_roll = false);
     // A missile's hit function where it is.
     // `struck`: the monster the missile struck, -1 none.
     void burst(Missile& missile, std::uint32_t now_ms, int struck = -1);
@@ -878,14 +881,15 @@ struct Fight {
     // A Shadow's: the owner's fighter with its own damagepercent (a curse's) in.
     [[nodiscard]] static d2d::rules::Fighter shadow_fighter(const Pet& pet, d2d::rules::Fighter fighter);
     [[nodiscard]] d2d::rules::Fighter pet_swing(const Pet& pet) const;   // its own A1 blow, a curse's damagepercent in
-    void blade_shield(const d2d::rules::Skill& skill, int lvl, float x, float y, const d2d::rules::Fighter& fighter, bool by_player, int striker, std::uint32_t now_ms);
+    void blade_shield(const d2d::rules::Skill& skill, int lvl, float x, float y, const d2d::rules::Fighter& fighter, bool by_player, int striker, d2d::rules::Rng& seed,
+                      std::uint32_t now_ms);
     int summon_one(const d2d::rules::Skill& skill, int type, int lvl, const d2d::rules::CalcEnv& env, float x, float y, std::uint32_t now_ms, int corpse = -1);   // the pet's id; Revive's corpse
     // Iron Golem's item.
     [[nodiscard]] int golem_item_at(float x, float y) const;
     std::optional<d2d::d2s::Item> golem_item;   // the one do 57 took off the floor, for summon_one's golem to wear
     // A pet as the monsters see it: its defense, its MonStats resistances
     // (traps aren't there to hit).
-    [[nodiscard]] Foe pet_foe(const Pet& pet) const;
+    [[nodiscard]] Foe pet_foe(Pet& pet) const;
     void pet_hurt(Pet& pet, int damage, std::uint32_t now_ms, int hit_class = 0, bool marked = false, int fraction = 0);
     // A Crushing Blow on a pet (crushing_blow at `divisor` less `damage_resist`): off its life, no get-hit, no regen event.
     void pet_crushed(Pet& pet, int divisor, int damage_resist, std::uint32_t now_ms);

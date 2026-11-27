@@ -354,6 +354,7 @@ auto Fight::player_foe(std::uint32_t now_ms) -> Foe {
         foe.neutral = actor->pmode < 0 && actor->owner_mode == 1;   // mode 1: no swing, cast or get-hit, not moving
         foe.id = player_foe_id();
         foe.room_stamp = actor->player.room_stamp;
+        foe.seed = &actor->seed;
         foe.life_pct = int(std::int64_t(actor->character.stats.get(d2d::d2s::kLife)) * 100 / std::max<std::int64_t>(actor->character.stats.get(d2d::d2s::kMaxLife), 1));
         foe.max_life = int(actor->character.stats.values[d2d::d2s::kMaxLife]); foe.max_mana = int(actor->character.stats.values[d2d::d2s::kMaxMana]);
         // Diablo's score of the player (FUN_005e8530).
@@ -379,7 +380,7 @@ auto Fight::merc_foe(std::uint32_t now_ms) -> Foe {
                  actor->merc && actor->merc->unit.walking, merc_fighter() };
         foe.fighter.prime_evil_pct = 200;                // a hireling under a prime evil's blow (FUN_0057c060)
         foe.pet = true;                                  // the merc: its MonStats class's size
-        if (actor->merc) foe.room_stamp = actor->merc->unit.room_stamp;
+        if (actor->merc) { foe.room_stamp = actor->merc->unit.room_stamp; foe.seed = &actor->merc->seed; }
         foe.id = merc_foe_id();
         foe.listed = actor->merc ? actor->merc_listed : 0;
         foe.neutral = actor->merc && actor->merc->mode == "NU";
@@ -448,8 +449,13 @@ auto Fight::plain_missile_hits(Missile& missile, std::size_t monster_index, std:
         }
         auto struck = missile.by_merc ? merc_target(monster_index) : target_of(monster_index);
         struck.life_steal_divisor = struck.mana_steal_divisor = 1;   // a hireling's leech: no divisor (merc_target; the plain path's other owners too)
-        auto blow = missile.by_merc && actor->merc ? d2d::rules::player_blow(merc_fighter(), struck, actor->merc_st.level, rng, flight)
-                                                   : d2d::rules::player_blow(d2d::rules::simple_fighter(missile.min, missile.max, missile.attack_rating), struck, missile.by_merc ? actor->merc_st.level : missile.level, rng);
+        // The to-hit and the crits on its owner's seed, the physical on its own, the block on the struck unit's.
+        flight.crit = missile.crit;
+        auto& own_seed = missile.seed ? *missile.seed : rng;
+        auto& struck_seed = monsters[monster_index].seed;
+        auto blow = missile.by_merc && actor->merc ? d2d::rules::player_blow(merc_fighter(), struck, actor->merc_st.level, owner_seed(missile), flight, &own_seed, &struck_seed)
+                                                   : d2d::rules::player_blow(d2d::rules::simple_fighter(missile.min, missile.max, missile.attack_rating), struck, missile.by_merc ? actor->merc_st.level : missile.level,
+                                                                             owner_seed(missile), {}, &own_seed, &struck_seed);
         if (missile.info) blow.hit_class = missile.info->hit_class;   // an arrow's, not hand to hand's (as a skill's missile, Missiles.txt HitClass)
         land(monster_index, blow, false, now_ms, merc_foe_id());
         monster_return_fire(monster_index, missile, true, now_ms);
@@ -525,7 +531,7 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
             for (auto& side : sides) {
                 act_as(*side.hero);
                 side.pets = foes.size();
-                for (const auto& pet : actor->pets) foes.push_back(pet_foe(pet));
+                for (auto& pet : actor->pets) foes.push_back(pet_foe(pet));
                 for (std::size_t k = side.pets; k < foes.size(); ++k) foes[k].a3q5_done = zealots_spare();
             }
             // With Confuse or Attract about, every monster is a foe too, after
@@ -546,7 +552,7 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                     return missile.owner >= 0 && !missile.friendly && missile.info && missile.info->collide_friend;
                 });
                 if (collide_friend || std::ranges::any_of(monsters, [](const Monster& monster) { return monster.align || monster.set_kind; }))
-                    for (const auto& monster : monsters) {
+                    for (auto& monster : monsters) {
                         const auto target = monster.target(*game_data);
                         auto fighter = d2d::rules::simple_fighter(monster.stats.a1_min, monster.stats.a1_max, monster.stats.to_hit, target.armor_class);
                         fighter.block = target.block;
@@ -555,6 +561,7 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                         const auto& type_info = game_data->monsters.types[std::size_t(monster.type)];
                         Foe& foe = foes.emplace_back(Foe{ monster.unit.x, monster.unit.y, monster.stats.level, monster.targetable() && monster.mode != "DT", monster.unit.walking, fighter });
                         foe.size = type_info.size; foe.threat = type_info.threat; foe.monster = &monster; foe.id = monster.id; foe.room_stamp = monster.unit.room_stamp;
+                        foe.seed = &monster.seed;
                         monster_foe_props(*game_data, monster, foe);
                         foe.pick = unit_pick(*game_data, { target.res[0], target.res[1], target.res[2], target.res[3], target.res[4] }, monster.aura, monster.aura_lvl,
                                              d2d::rules::swing_max_damage(monster.swing_stats(), monster.swing_mode));

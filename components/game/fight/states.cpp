@@ -410,7 +410,7 @@ auto Fight::buff_tick(std::uint32_t now_ms) -> void {
         if (const auto* state = state_of("bladeshield"); state && now_ms >= actor->blade_next) {
             const auto* skill = game_data->skills.get(state->skill);
             actor->blade_next = now_ms + std::uint32_t(std::max(calc(*skill, skill->perdelay_calc, state->level), 1)) * 40;
-            blade_shield(*skill, state->level, actor->player.x, actor->player.y, actor->player_combat, true, player_foe_id(), now_ms);
+            blade_shield(*skill, state->level, actor->player.x, actor->player.y, actor->player_combat, true, player_foe_id(), actor->seed, now_ms);
         }
         // Thunder Storm (do 29, FUN_005ca4d0): a periodic skill (stats 0x15e /
         // 0x15f), every perdelay frames while its state lasts. The bolt

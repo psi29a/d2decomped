@@ -594,15 +594,16 @@ struct Foe {
         if (taken.poison > 0 && taken.poison >= poison) { poison = taken.poison; poison_ticks = taken.poison_ticks; }   // the stronger (FUN_0057ac50)
         chill_ticks = std::max(chill_ticks, taken.chill_ticks);
     }
+    d2d::rules::Rng* seed = nullptr;          // its unit seed (+0x20): a blow's block, dodge, avoid and evade roll on it
 };
 
 // A missile in flight (a quill rat's spike): straight on at its Missiles.txt
 // velocity until it hits the foe, a wall, or runs out of range.
 // A missile's seed (Missile::seed, unit +0x20, {low, high}): the draws
-// game.exe takes from it (pSrvDmgFunc 3's soft hit, FUN_005ad220) step it,
-// not the fight's rng.
-// ponytail: a missile Fight::missile_tick has not seeded (a client-made or
-// bare one) takes one step of the fight's rng for its first value (soft_hit).
+// game.exe takes from it (pSrvDmgFunc 3's soft hit, FUN_005ad220; its
+// damage, FUN_005a89a0) step it, not the fight's rng. The fight seeds each
+// as it's made (Fight::seed_made, a game seed step); only a bare one a test
+// makes takes its first value off the rng it's given (soft_hit).
 struct Missile {
     const GameData::MissileInfo* info = nullptr;
     float x = 0, y = 0, velocity_x = 0, velocity_y = 0;       // cells, cells/s
@@ -622,6 +623,9 @@ struct Missile {
     // (FUN_00555230 type 3 -> FUN_00552df0 -> FUN_00650e40). Fight::missile_tick
     // gives it to all but a visual-only one.
     std::optional<d2d::rules::Rng> seed;
+    // A player's or merc's that takes the weapon's damage: its record's crit (+0 flag 2), rolled on the
+    // caster's seed as it is made (FUN_0064b860 -> FUN_0064a850: Fight::seed_made).
+    std::optional<bool> crit;
     int skill = -1;                           // the player's: the skill whose damage it carries
     // A shrine's thrown potion: its Missiles.txt row damage, bursting over
     // `burst` subtiles where it lands (sHitPar1).

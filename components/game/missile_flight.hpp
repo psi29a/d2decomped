@@ -382,7 +382,12 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
                 if (std::ranges::contains(*missile.struck, key)) continue;
                 missile.struck->push_back(key);
             }
-            const auto taken = d2d::rules::monster_blow(foe.fighter, foe.level, foe.motion(), missile.src, true, rng, true);
+            // Its to-hit on its owner's seed (FUN_0057d9b0, ECX the owner), its damage on its own, the block,
+            // avoid and evade on the struck unit's.
+            const auto owner_foe = std::ranges::find_if(foes, [&](const Foe& other) { return other.monster && other.monster->id == missile.owner; });
+            auto& owner_seed = owner_foe != foes.end() && owner_foe->seed ? *owner_foe->seed : rng;
+            const auto taken = d2d::rules::monster_blow(foe.fighter, foe.level, foe.motion(), missile.src, true, owner_seed, true, false, false, foe.seed,
+                                                        missile.seed ? &*missile.seed : nullptr);
             foe.take(taken, missile.owner);
             if (taken.hit && missile.owner >= 0) foe.shot_by.push_back(missile.owner);
             if (taken.hit && missile.info) foe.struck_by(missile.info->hit_class);

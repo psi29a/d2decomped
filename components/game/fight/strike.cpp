@@ -1143,7 +1143,10 @@ auto Fight::build_blow(std::size_t monster_index) -> Hero::BuiltBlow {
             current_swing.ed_pct += calc(*skill, skill->calc[0], lvl);
             fighter.life_steal += calc(*skill, skill->calc[1], lvl); fighter.mana_steal += calc(*skill, skill->calc[2], lvl);
         }
-        return { d2d::rules::player_blow(fighter, target_of(monster_index), int(actor->character.stats.get(d2d::d2s::kLevel)), rng, current_swing), current_swing.freeze_len };
+        // Its rolls on the player's seed, the block on the monster's (combat.md "To-hit and block").
+        return { d2d::rules::player_blow(fighter, target_of(monster_index), int(actor->character.stats.get(d2d::d2s::kLevel)), actor->seed, current_swing, nullptr,
+                                         &monsters[monster_index].seed),
+                 current_swing.freeze_len };
     }
 
 // What Conversion (FUN_005d0350) and Mind Blast (FUN_005d7430) do once
@@ -1378,7 +1381,8 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
                 const auto dragon_kick = [&] {
                     auto flight_swing = skill_swing(skill, lvl, env, true);
                     flight_swing.ar_pct += progressive_tohit();
-                    const auto kick = d2d::rules::player_blow(actor->pf_kick, target_of(std::size_t(tgt)), int(actor->character.stats.get(d2d::d2s::kLevel)), rng, flight_swing);
+                    const auto kick = d2d::rules::player_blow(actor->pf_kick, target_of(std::size_t(tgt)), int(actor->character.stats.get(d2d::d2s::kLevel)), actor->seed, flight_swing,
+                                                              nullptr, &monsters[std::size_t(tgt)].seed);
                     if (land(std::size_t(tgt), kick, true, now_ms, striker_of(caster))) player_thorns(std::size_t(tgt), kick);   // a melee blow like any kick
                     release(std::size_t(tgt), now_ms);
                 };
