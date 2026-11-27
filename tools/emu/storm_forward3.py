@@ -1,17 +1,18 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""The Storm compressed-sector forwarder (variant 1) on game.exe 1.14d, against a model.
+"""The Storm compressed-sector forwarders on game.exe 1.14d, against a model.
 
 Run: uv run python storm_forward3.py [--exe /path/to/game.exe] [--mutation-check]
 
-# gaps-runs: FUN_0041e3a0
+# gaps-runs: FUN_0041e3a0, FUN_0041e400
 
-One small `SOURCE` function in the 0x41e3xx range (SCOMP.CPP dispatch table):
-  * FUN_0041e3a0: a thiscall forwarder to the word-copy core FUN_0041dce0.
-    It takes `thiscall` in ECX, a pointer in EDX, and three stack args
-    (a0, a1, a2); it dereferences EDX, calls the core with this = thiscall,
-    arg0 = a1, edx = *edx, stack[0] = *edx, stack[1] = a0, stack[2] = 1,
-    writes the core's return back into *edx, and propagates it unchanged
-    (RET 0xc). `a2` is not read, only popped. 30 bytes.
+Two byte-identical thiscall forwarders (30 bytes each) in the SCOMP.CPP
+dispatch table at 0x6cfec8 and 0x6cfed0, one for each of the two packed-word
+sizes the word-copy core `FUN_0041dce0` accepts. Each takes `thiscall` in ECX, a
+pointer in EDX, and three stack args (a0, a1, a2); it dereferences EDX, calls
+the core with this = thiscall, arg0 = a1, edx = *edx, stack[0] = *edx,
+stack[1] = a0, stack[2] = its variant constant (1 or 2), writes the core's
+return back into *edx, and propagates it unchanged (`RET 0xc`). `a2` is not
+read, only popped.
 
 The core is a real, complex word-copy routine, so this oracle hooks it as a
 no-op and checks only the forwarding: the core is reached with the expected
@@ -30,29 +31,31 @@ from unicorn.x86_const import UC_X86_REG_EAX, UC_X86_REG_ECX, UC_X86_REG_EDX, UC
 import emu
 
 SHA256 = "631066c1649c4ea9ffe48bf97e24c00bca1f7a6759c21150f1a79982589adaaf"
-FORWARD = 0x41E3A0
 CORE = 0x41DCE0
-CONST = 1
+FORWARDERS = (
+    (0x41E3A0, 1),
+    (0x41E400, 2),
+)
 M32 = 0xFFFFFFFF
-POPS = {FORWARD: 0}
+POPS = {addr: 0 for addr, _ in FORWARDERS}
 HOOK_RET = 0
 
 
 class Model:
-    """The forwarder's expected core arguments, write-back and return propagation.
+    """The forwarders' expected core arguments, write-back and return propagation.
     The mutation is a planted defect in the model."""
 
     def __init__(self, mutation=None):
         self.mutation = mutation
 
-    def run(self, thiscall, edx_val, a0, a1, a2):
+    def run(self, thiscall, edx_val, a0, a1, a2, const):
         m = self.mutation
         want_ecx = thiscall
         want_eax = a1
         want_edx = edx_val
         want_s0 = edx_val
         want_s1 = a0
-        want_s2 = CONST
+        want_s2 = const
         ret = HOOK_RET
         if m == "swap_this_a0":
             want_ecx, want_s1 = a0, thiscall
@@ -103,34 +106,35 @@ class Rig:
                 f"FUN_{address:08x} left the stack dirty: {esp:08x} (want {expected:08x})")
         return result
 
-    def run_forwarder(self, thiscall, edx_ptr, a0, a1, a2):
+    def run_forwarder(self, address, thiscall, edx_ptr, a0, a1, a2):
         self.called = []
         self.core_args = None
-        result = self.run(FORWARD, a0, a1, a2, ecx=thiscall, edx=edx_ptr)
+        result = self.run(address, a0, a1, a2, ecx=thiscall, edx=edx_ptr)
         if self.called != [CORE]:
-            raise SystemExit(f"FUN_{FORWARD:08x} did not call the core: {self.called}")
+            raise SystemExit(f"FUN_{address:08x} did not call the core: {self.called}")
         return result, self.core_args, edx_ptr
 
 
 def compare(rig, seed, count, mutation=None):
     rng = random.Random(seed)
     model = Model(mutation)
-    for number in range(count):
-        thiscall = rng.getrandbits(32)
-        edx_val = rng.getrandbits(32)
-        a0 = rng.getrandbits(32)
-        a1 = rng.getrandbits(32)
-        a2 = rng.getrandbits(32)
-        edx_ptr = rig.machine.alloc(4)
-        rig.machine.w32(edx_ptr, edx_val)
-        got_ret, got_args, ptr = rig.run_forwarder(thiscall, edx_ptr, a0, a1, a2)
-        got_edx_after = rig.machine.r32(ptr)
-        want = model.run(thiscall, edx_val, a0, a1, a2)
-        got = (got_ret, POPS[FORWARD], got_edx_after, got_args)
-        want = (want[6], POPS[FORWARD], want[6], (want[0], want[1], want[2], want[3], want[4], want[5]))
-        if got != want:
-            return f"case {number} FUN_{FORWARD:08x} thiscall={thiscall:08x} edx_val={edx_val:08x} " \
-                   f"a0={a0:08x} a1={a1:08x}: {got} != {want}"
+    for address, const in FORWARDERS:
+        for number in range(count):
+            thiscall = rng.getrandbits(32)
+            edx_val = rng.getrandbits(32)
+            a0 = rng.getrandbits(32)
+            a1 = rng.getrandbits(32)
+            a2 = rng.getrandbits(32)
+            edx_ptr = rig.machine.alloc(4)
+            rig.machine.w32(edx_ptr, edx_val)
+            got_ret, got_args, ptr = rig.run_forwarder(address, thiscall, edx_ptr, a0, a1, a2)
+            got_edx_after = rig.machine.r32(ptr)
+            want = model.run(thiscall, edx_val, a0, a1, a2, const)
+            got = (got_ret, POPS[address], got_edx_after, got_args)
+            want = (want[6], POPS[address], want[6], (want[0], want[1], want[2], want[3], want[4], want[5]))
+            if got != want:
+                return f"case {number} FUN_{address:08x} thiscall={thiscall:08x} edx_val={edx_val:08x} " \
+                       f"a0={a0:08x} a1={a1:08x}: {got} != {want}"
     return None
 
 
@@ -150,7 +154,7 @@ def main():
     difference = compare(rig, args.seed, args.count)
     if difference:
         raise SystemExit(f"FAIL {difference}")
-    print(f"ok: {args.count} cases of the Storm compressed-sector forwarder (variant {CONST})")
+    print(f"ok: {args.count} cases of the Storm compressed-sector forwarders")
     if args.mutation_check:
         for mutation in ("swap_this_a0", "arg1_thiscall", "edx_thiscall",
                         "const_thiscall", "ret_plus_one"):
