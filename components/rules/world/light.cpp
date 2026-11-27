@@ -40,7 +40,7 @@ auto LightQuality::frame(int option, std::uint32_t now_ms) -> int {
     if (now_ms - since_ms > 3000) { fps = frames / 3; since_ms = now_ms; frames = 0; }
     ++frames;
     int wanted = option > 0 ? 2 : 0;
-    if (option > 0) {
+    if (option > 0) {                    // fps: FUN_0044dae0's DAT_007a04a8 (0x47579d)
         if (fps <= 9) wanted = 0;
         else if (fps <= 12) wanted = 1;
         else if (fps <= 15) { if (level >= 1) return level; wanted = 1; }

@@ -774,7 +774,7 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             return;
         }
         if (const auto* drop = std::get_if<cmd::Drop>(&command)) {           // FUN_0054ab40: the item in hand, not while dead
-            if (actor->held && actor->held->id == drop->item && !fight.dead()) {
+            if (actor->held && actor->held->id == drop->item && !fight.dead()) {   // FUN_005490e0: the cursor item of that id
                 loot.enter(level);
                 const std::string dropped_code = actor->held->code;
                 loot.place(std::move(*actor->held), actor->player.x, actor->player.y, now_ms);
@@ -831,6 +831,8 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             return;
         }
         if (const auto* to_book = std::get_if<cmd::ScrollToBook>(&command)) {   // FUN_0055ef20
+            // FUN_00549350: a book the player carries (FUN_00549220). Its branch for a
+            // book on the ground (mode 3, in reach) has no d2d sender: the UI never asks.
             const auto book = std::ranges::find(actor->character.items, to_book->book, &d2d::d2s::Item::id);
             if (actor->held && book != actor->character.items.end() && d2d::rules::tome_takes(tables, *actor->held, *book)) {
                 ++book->quantity;
@@ -839,6 +841,7 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             return;
         }
         if (const auto* socket = std::get_if<cmd::Socket>(&command)) {        // FUN_00562660
+            // FUN_005491b0: the target is the player's own, stored or worn (mode 0 or 1).
             const auto target = std::ranges::find(actor->character.items, socket->item, &d2d::d2s::Item::id);
             if (actor->held && target != actor->character.items.end() && (target->location == d2d::d2s::item_location::kStored || target->location == d2d::d2s::item_location::kEquipped)
                 && d2d::rules::takes_socket(tables, *actor->held, *target)) {

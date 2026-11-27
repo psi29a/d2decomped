@@ -386,7 +386,8 @@ auto World::make_corpse(std::uint32_t now_ms) -> void {
         for (auto item_it = actor->character.items.begin(); item_it != actor->character.items.end();)
             if (item_it->location == d2d::d2s::item_location::kEquipped) { corpse.items.push_back(std::move(*item_it)); item_it = actor->character.items.erase(item_it); }
             else ++item_it;
-        // The item in hand goes first (FUN_0057f700's -1 pass), into the
+        // The item in hand goes first (FUN_0057f700's -1 pass: FUN_0057f4f0
+        // clears the cursor, S->C 0x42), into the
         // corpse's own inventory grid (FUN_0063b950 on its inventory page,
         // mode 0): stored, at the empty grid's first cell.
         if (actor->held) {
