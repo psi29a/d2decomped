@@ -110,6 +110,9 @@ auto Fight::merc_fighter() const -> d2d::rules::Fighter {
         // The merc's gear absorb (stats 142 to 149) is read like its resistances: FUN_0057bf10 and the heal-back FUN_0057a980 read the
         // struck unit's stats whatever its type (FUN_0057c6c0's type-1 test is a MonStats flag the hireling rows pass), so a
         // hireling's absorb gear lowers an elemental or magic blow and heals it by what it took (Fight::hurt_side).
+        // Its to-hit roll skips the gear's target-defense stats 115 / 116 / 123 / 124: FUN_0057d9b0 calls FUN_0057d8a0 for a
+        // player attacker only (type 0); a hireling is type 1 (rules::target_defense).
+        fighter.ignore_target_def = fighter.target_def_pct = fighter.demon_tohit = fighter.undead_tohit = 0;
         fighter.block = 0;
         if (const auto found = shield && actor->merc_npc && actor->merc_npc->hc_idx != 0x167 ? game_data->rules.item_base.find(shield->code) : game_data->rules.item_base.end();
             found != game_data->rules.item_base.end())

@@ -3307,27 +3307,59 @@ Not traced: the callers' item flag meanings, which NPC each class id is.
   subindex = a MonType id) and, for each entry whose subindex is
   equivalent to the target's type by the same matrix bit as above (row =
   target's type), adds its value to the damage struct's `dwEnDmgPct`.
-- `FUN_0057d8a0` (**EBX** attacker, **EDI** defender, stack to-hit pointer,
-  stack AC pointer): (1) stat 0x73 (`item_ignoretargetac`) nonzero and the
-  defender a monster that is not monster-type 10, not a boss and not a
-  merc: AC = 0. (2) stat `item_fractionaltargetac` percent `p > 0`: halved
-  (integer) against players, bosses, monster-type 2 and mercs, forced
-  to 0 if below 1, capped at 100, then AC -= `D2ApplyPercent(AC, p, 100)`.
-  (3) `item_demon_tohit` added to the to-hit if the defender is a demon;
-  `item_undead_tohit` likewise for undead. The three stat ids other than
-  0x73 are the decompile's names; their numbers were not read.
+- `FUN_0057d8a0` (**EBX** attacker, **EDI** defender, the stack the attack
+  rating's address then the defense's, `RET 8`; stats read with
+  `FUN_00625500(attacker, id, 0)`), in this order:
+  1. stat 0x73 (115, `item_ignoretargetac`) nonzero (`0057d8ad`, so a
+     negative value counts too) and the defender a monster (type 1) that
+     is not a champion, unique or superunique (`FUN_005a0180(defender,
+     10)`: monster data `+0x16 & 10`; a champion carries 1 | 4 | 8, a unique
+     1 | 8, a superunique 2, per `crush_divisor`'s note in units.hpp), not
+     a MonStats boss (`FUN_0063e9f0(0, defender)`: `+0xc & 0x40`) and not a
+     hireling class (`FUN_0063ee90`: 0x10f, 0x152, 0x167, 0x230, 0x231):
+     defense = 0.
+  2. stat 0x74 (116, `item_fractionaltargetac`) `p > 0` (`JLE` at
+     `0057d8f7`): halved toward zero (`CDQ; SUB; SAR`, `0057d92e`) against a
+     player (type 0) and against a monster that is a boss, a superunique
+     (`FUN_005a0180(defender, 2)`) or a hireling; then 0 when not above 0
+     (`SETLE`, `0057d939`), at most 100; defense -= `FUN_00483360(defense,
+     p, 100)` (the MulDiv), a 32-bit `SUB`.
+  3. stat 0x7b (123, `item_demon_tohit`) nonzero and the defender a demon
+     (`FUN_0063e940`: MonStats `+0xd & 0x20`): added to the attack rating
+     (`ADD [EAX], ESI`, `0057d97f`, wrapping).
+  4. stat 0x7c (124, `item_undead_tohit`) nonzero and the defender undead
+     (`FUN_0063e990`: `+0xd & 8` or `& 0x10`): added the same way.
+  The four ids are ItemStatCost.txt's rows 115, 116, 123, 124 (read in
+  1.14d's MPQ); Properties.txt `ignore-ac`, `reduce-ac`, `att-demon` and
+  `att-undead` give them, on uniques, set items, runewords and affixes.
+  `FUN_0057d9b0` (the to-hit roll) calls it only for a player attacker,
+  after the rating (`FUN_00622560`) and the defense (`FUN_006223f0` plus
+  stat 0x21 or 0x20) and before the rating's % (119, the mastery's, the
+  skill's and stat 0xb3 by MonType through `FUN_0057a830`), so the demon
+  and undead points take that %.
 - Callers: `FUN_0057a830` ← `0057d9b0`, `005a89a0`; `FUN_0057d8a0` ←
   `0057d9b0`; `FUN_0057b6a0` ← `0057b7d0`.
 
-d2d: `git grep` finds no `ignoretargetac`, `fractionaltargetac`,
-`demon_tohit` or `undead_tohit` in `components/` or `apps/`, so item
-ignore-target-AC / to-hit-vs-demon items have no d2d rule; **not checked
-whether d2d reads those stats under another name**. Not traced: monster
-type codes 2 and 10, the 0xb4 stat's row.
+d2d: `rules::target_defense` (components/rules/combat/combat.cpp) is
+`FUN_0057d8a0`, in its 32-bit math, with stats 115, 116, 123 and 124 on the
+Fighter; `rules::player_to_hit` runs it before the rating's % for each
+player to-hit roll (`player_blow`, a missile's `to_hit` roll in
+`Fight`'s missile hit). `Monster::target` fills the Target's boss,
+superunique and hireling. A hireling attacker (type 1) takes the other
+branch of `FUN_0057d9b0`, so `Fight::merc_fighter` zeroes the four stats
+its gear sums give it (tests/game/test_merc_hits.cpp). Oracle `tools/emu/target_ac.py` (20000 cases, all
+of `FUN_0057d8a0` reached), fixture `tests/target_ac_cases.inc`.
+Stats 0xb3 / 0xb4 (179 `attack_vs_montype`, 180 `damage_vs_montype`, the
+`FUN_0057a830` / `FUN_0057b6a0` terms) come only from Properties.txt
+`att-mon%` / `dmg-mon%`, which no row of UniqueItems, SetItems, Sets,
+Runes, MagicPrefix, MagicSuffix, Automagic, Gems or QualityItems uses, so
+stock data never sets them; d2d leaves both out.
 
-Re-check: `python3 tools/ghidra/fn.py 0057a830 0057b6a0 0057d8a0`; disassemble
-`0057b6a0`..`0057b710` (target in EAX, `MonType` at `+0x1c`) and
-`0057d8a0`..`0057d8c0` (stat 0x73 on EBX).
+Re-check: `python3 tools/ghidra/fn.py 0057a830 0057b6a0 0057d8a0 0057d9b0`;
+disassemble `0057b6a0`..`0057b710` (target in EAX, `MonType` at `+0x1c`) and
+`0057d8a0`..`0057d9a2`; `cd tools/emu && uv run python target_ac.py gen 20000
+1 > c.tsv && uv run python target_ac.py game c.tsv > g.txt &&
+../../build/tests/test_target_ac g.txt | diff g.txt -`.
 
 ### Client player and unit helpers: `FUN_00460d50`, `FUN_00460de0`, `FUN_00461010`, `FUN_004611f0`, `FUN_004619e0`, `FUN_00461ac0`, `FUN_00462370`, `FUN_00463810`, `FUN_00463180`, `FUN_00464420`, `FUN_004644e0`, `FUN_00464600`, `FUN_00465420`, `FUN_00465bf0`, `FUN_00465f20` (batch 24)
 
