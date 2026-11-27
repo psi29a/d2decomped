@@ -182,7 +182,7 @@ strings) redraws the list (`FUN_00442c20`), status 0x32 calls
 `FUN_00443130` and `FUN_004413e0(1)`, and anything else adds the game
 (`FUN_00442b90`, skipped when a listed game has the same id). The add
 has no bound: the array holds 1000 entries (`0x77bdc8`..`0x78a440`) and
-the redraw's snapshot follows it. For
+the redraw's snapshot follows it (bugs.md #140). For
 the info request's id `DAT_0077bbe0` it shows the game's details
 (`FUN_00442eb0`). Either way the record is then cleared (`FUN_00449d60`).
 
