@@ -803,14 +803,20 @@ int melee_record_pct(const Fighter& fighter, const Target& target, const Swing& 
 // only Properties.txt's dmg-mon% sets it, and no 1.14d UniqueItems, SetItems, Sets, Runes, MagicPrefix,
 // MagicSuffix, Automagic, Gems, CubeMain, MonProp, MonUMod, States, Skills or Hireling row uses it. The row's
 // +0x12e (SrcMissDmg) branch (0x64bd07), the parent missile's damage, is only viper_poisjavcloud's (Missiles.txt
-// row 649, 128), which d2d never makes. The halved value also scales the owner's elemental share (0x64bed9 ->
-// FUN_0064aa60): not checked in d2d's element path. phys_lo / phys_hi carry stat 111
+// row 649, 128), which d2d never makes. The halved value also scales the owner's elemental share
+// (missile_owner_share). phys_lo / phys_hi carry stat 111
 // and make_fighter's floors (at least a point; phys_pct at least -90 before the missile's terms join).
+namespace {
+int missile_srcdam(const Fighter& fighter, const Swing& swing) {
+    return swing.half_2h_src && fighter.two_handed ? swing.srcdam / 2 : swing.srcdam;
+}
+}  // namespace
+
 MissilePhysical missile_physical(const Fighter& fighter, const Target& target, const Swing& swing) {
     MissilePhysical physical;
     std::int64_t low = swing.row_lo, high = swing.row_hi;
     int record_pct = swing.ed_pct, demon_pct = 0, undead_pct = 0;
-    const int srcdam = swing.half_2h_src && fighter.two_handed ? swing.srcdam / 2 : swing.srcdam;
+    const int srcdam = missile_srcdam(fighter, swing);
     if (swing.srcdam > 0) {                  // tested before the halving (0x64ba8f); 0x64bc43 scales by the halved one
         low += std::int64_t(fighter.phys_lo) * srcdam / 128;
         high += std::int64_t(fighter.phys_hi) * srcdam / 128;
@@ -825,6 +831,29 @@ MissilePhysical missile_physical(const Fighter& fighter, const Target& target, c
         physical.high = std::max(low, high);
     }
     return physical;
+}
+
+// FUN_0064b860 0x64bebe..0x64bedf: with the SrcDamage after Half2HSrc (ESI, [EBP-0xc]) not 0, the record takes
+// the owner's stats (FUN_0064a930) and FUN_0064aa60 scales them by it / 128 toward zero, unless it is 128: fire,
+// lightning, magic and cold min / max (+0xc..+0x2c), cold length (+0x30), poison min / max (+0x34, +0x38),
+// stat 0x146 (+0x40), life and mana drain (+0x44, +0x4c) and +0x60..+0x68; poison length (+0x3c) isn't.
+// tools/emu/missile_owner_share.py runs it.
+// ponytail: game.exe scales the elements in 256ths (stats 0x30..0x37 << 8) and the poison per frame;
+// d2d's whole-point ends (and its poison total over the length) lose the fraction; +0x40 and +0x60..+0x68
+// have no Fighter field.
+Fighter missile_owner_share(const Fighter& fighter, const Swing& swing) {
+    Fighter share = fighter;
+    const int srcdam = missile_srcdam(fighter, swing);
+    if (srcdam == 128) return share;
+    const auto scale = [srcdam](int value) { return int(std::int64_t(value) * srcdam / 128); };
+    for (auto& [low, high] : share.elem) {
+        low = scale(low);
+        high = scale(high);
+    }
+    share.cold_len = scale(share.cold_len);
+    share.life_steal = scale(share.life_steal);
+    share.mana_steal = scale(share.mana_steal);
+    return share;
 }
 
 // FUN_005a89a0 (0x5a8be3..0x5a8bff): the roll x the hit's % / 100 toward zero, + the roll; a crit doubles it after.
@@ -842,8 +871,12 @@ void row_into_record(MissileDamage& damage, Swing& swing) {
 }
 
 // A player's blow: melee's record (FUN_0057b7d0 -> FUN_0057b420), a missile's from its record
-// at the hit (FUN_0064b860 -> FUN_005a89a0): the roll, the %, the crit, the blow's events.
-Blow player_blow(const Fighter& fighter, const Target& target, int clvl, Rng& rng, const Swing& swing, Rng* damage_rng) {
+// at the hit (FUN_0064b860 -> FUN_005a89a0): the roll, the %, the crit, the blow's events. A missile's
+// gear elements and leech are the owner's share (missile_owner_share).
+Blow player_blow(const Fighter& attacker, const Target& target, int clvl, Rng& rng, const Swing& swing, Rng* damage_rng) {
+    std::optional<Fighter> shared;
+    if (swing.missile) shared = missile_owner_share(attacker, swing);
+    const Fighter& fighter = shared ? *shared : attacker;
     Blow blow{ .hit_class = fighter.hit_class | swing.hit_class };
     const auto [attack_rating, defense] = player_to_hit(fighter, target, swing.ar_pct);
     if (!swing.smite && rng(100) >= hit_chance(attack_rating, defense, clvl, target.level)) return blow;
