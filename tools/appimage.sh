@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Wraps an installed Linux package (`cmake --install build --prefix <dir>`:
+# Wraps an installed Linux package (`cmake --install build --prefix <absolute dir>`:
 # d2d-launcher, d2d, lib/, plugins/, qt.conf, as the .tar.gz holds them) into
 # an AppImage, after checking that nothing in it needs a newer glibc or
 # libstdc++ than the oldest system it targets.

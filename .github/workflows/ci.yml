@@ -862,7 +862,7 @@ jobs:
             -DD2D_CCACHE=OFF \
             -DD2D_SENTRY=${{ startsWith(github.ref, 'refs/tags/') && 'ON' || 'OFF' }}
           cmake --build build
-          cmake --install build --prefix build/pkg
+          cmake --install build --prefix "$PWD/build/pkg"   # absolute: Qt 6.8's deploy refuses a relative one
 
       - name: Download appimagetool and its runtime
         run: |
