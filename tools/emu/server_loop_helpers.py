@@ -195,14 +195,17 @@ def main():
     caught = 0
     pristine = emu.Emu(exe=options.exe)
     for name, _, check in CHECKS:
+        run_check(options.exe, check)
         for address, original, _ in MUTATIONS[name]:
             assert original is None or pristine.read(address, len(original)) == original, hex(address)
         for patch in MUTATIONS[name]:
             try:
                 run_check(options.exe, check, (patch,))
-            except (AssertionError, RuntimeError, Fatal):
+            except (AssertionError, Fatal):
                 caught += 1
                 print(f"mutation {name} @{patch[0]:x}: caught")
+            except RuntimeError as fault:
+                raise SystemExit(f"mutation {name} @{patch[0]:x}: emulator fault, not a check failure: {fault}") from None
             except SystemExit as stop:
                 if str(stop).startswith("emu:"):
                     raise SystemExit(f"mutation {name} @{patch[0]:x}: emulator fault, not a check failure: {stop}") from None
