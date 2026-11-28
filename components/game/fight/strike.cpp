@@ -200,8 +200,12 @@ auto Fight::player_fighter(d2d::rules::Fighter* kick ,
 // FRW's diminishing (FUN_00623f50).
 // Venom's skill_poison_override_length (101) replaces poisonlength (59)
 // before make_fighter, as FUN_0057b7d0 reads it for a nonzero poison field.
-// ponytail: other_animrate (69, also written for attackrate by FUN_005c6cc0),
-// curse_resistance (109) and skill_staminapercent (162) are not consumed here.
+// Every aurastat and passivestat of the class skills is read (checked 2026-11-28 against Skills.txt and the
+// getters in game.exe) but lifedrainmaxdam (61: no reader in game.exe), bonearmormax (133: only the
+// client's FUN_004d8b90 / FUN_004d8e60, which stage the state's overlays 1..3 by bonearmor against its thirds,
+// stat 0x163) and the player's other_animrate.
+// ponytail: those overlay stages aren't drawn; the player's other_animrate (69, also written for
+// attackrate by FUN_005c6cc0) is not consumed here.
 auto Fight::update_fighters(std::uint32_t now_ms) -> void {
         using namespace d2d::d2s;
         std::erase_if(actor->self_states, [&](const SelfState& state) { return now_ms >= state.until; });
