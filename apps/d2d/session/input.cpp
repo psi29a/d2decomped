@@ -28,6 +28,7 @@
 #include "platform.hpp"
 #include "render/ingame.hpp"
 #include "scene.hpp"
+#include "skills/direct.hpp"
 #include "skills/pad.hpp"
 #include "skills/tree.hpp"
 #include "skills/tree_close.hpp"
@@ -456,7 +457,7 @@ auto ClientSession::pad_act(PadPlayer& player_pad, const UnitState& unit, bool d
         const PadPick pick = pad_pick(player_pad, unit, left && move.attack, pad_aim(skill, move.aim || move.active));
         if (pick.kind == PadPick::kMonster) {
             player_pad.target = pick.id;
-            out(cmd::UseSkill{ skill, pick.x, pick.y, pick.id, left, item });
+            out(skillpad::direct_cast(skill, pick.x, pick.y, pick.id, left, item));
             return;
         }
         player_pad.target = -1;
@@ -464,7 +465,7 @@ auto ClientSession::pad_act(PadPlayer& player_pad, const UnitState& unit, bool d
         // It does not pick up or talk.
         if (move.attack_down && !move.attack && !move.alt) {
             if (!(level && d2d::rules::level_ids::is_town(level->id)))
-                out(cmd::UseSkill{ skill, hero_x + face_x * 3.f, hero_y + face_y * 3.f, -1, left, item });
+                out(skillpad::direct_cast(skill, hero_x + face_x * 3.f, hero_y + face_y * 3.f, -1, left, item));
             return;
         }
         if (pick.kind == PadPick::kItem) {
@@ -475,7 +476,7 @@ auto ClientSession::pad_act(PadPlayer& player_pad, const UnitState& unit, bool d
         // Nothing in reach: the left skill swings only with a monster about (in camp A never just walks); the right one always casts (buffs, teleport).
         const bool foe_near = std::ranges::any_of(view.monsters, [&](const auto& foe) { return foe.alive() && !foe.ally_not_interact(*scene, level ? level->id : 0) && std::hypot(foe.unit.x - hero_x, foe.unit.y - hero_y) < 10.f; });
         if (move.alt || (move.attack && foe_near))
-            out(cmd::UseSkill{ skill, hero_x + face_x * 3.f, hero_y + face_y * 3.f, -1, left, item });
+            out(skillpad::direct_cast(skill, hero_x + face_x * 3.f, hero_y + face_y * 3.f, -1, left, item));
     }
 
 auto ClientSession::pad_walk(PadPlayer& player_pad, const UnitState& unit, bool dead, bool field, const Send& out) -> void {

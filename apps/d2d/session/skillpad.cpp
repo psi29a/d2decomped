@@ -7,6 +7,7 @@
 #include "input/gamepad_map.hpp"
 #include "input/teleport_aim.hpp"
 #include "input/touch/input.hpp"
+#include "skills/direct.hpp"
 #include "skills/dispatch.hpp"
 #include "skills/pad.hpp"
 #include "skills/portal.hpp"
@@ -389,7 +390,7 @@ auto ClientSession::apply_skill_pad(PadPlayer& player_pad, const UnitState& unit
             teleport.preview = resolve_skill(player_pad, teleport.preview.skill, teleport.dx, teleport.dy, teleport.manual, &unit, name);
         } else {
             const auto current = resolve_skill(player_pad, teleport.preview.skill, teleport.dx, teleport.dy, teleport.manual, &unit, name);
-            if (teleport.matches(current)) out(cmd::UseSkill{ current.skill, current.x, current.y, current.unit, current.left, -1 });
+            if (teleport.matches(current)) out(skillpad::direct_cast(current.skill, current.x, current.y, current.unit, current.left));
             teleport.clear();
         }
     }
@@ -420,7 +421,7 @@ auto ClientSession::apply_skill_pad(PadPlayer& player_pad, const UnitState& unit
         if (!press && level && d2d::rules::level_ids::is_town(level->id)) return;
         if (skill != 0) {
             const auto target = resolve_skill(player_pad, skill, 0, 0, false, &unit, name);
-            if (target.valid) out(cmd::UseSkill{ skill, target.x, target.y, target.unit, target.left, -1 });
+            if (target.valid) out(skillpad::direct_cast(skill, target.x, target.y, target.unit, target.left));
             return;
         }
         const bool swing = skillpad::swings({ info->leftskill, !info->srvmissile.empty(), info->range });
@@ -430,13 +431,13 @@ auto ClientSession::apply_skill_pad(PadPlayer& player_pad, const UnitState& unit
             : pad_pick(player_pad, unit, skill == 0 && press, pad_aim(skill, move.aim || move.active));
         if (pick.kind == PadPick::kMonster) {
             player_pad.target = pick.id;
-            out(cmd::UseSkill{ skill, pick.x, pick.y, pick.id, swing, -1 });
+            out(skillpad::direct_cast(skill, pick.x, pick.y, pick.id, swing));
             return;
         }
         player_pad.target = -1;
         if (pick.kind == PadPick::kItem) { used = true; out(cmd::Pickup{ pick.id }); return; }
         if (pick.kind == PadPick::kThing) { used = true; out(cmd::Interact{ pick.id }); return; }
-        out(cmd::UseSkill{ skill, unit.x + player_pad.face_x * 3.f, unit.y + player_pad.face_y * 3.f, -1, swing, -1 });
+        out(skillpad::direct_cast(skill, unit.x + player_pad.face_x * 3.f, unit.y + player_pad.face_y * 3.f, -1, swing));
     };
     const auto cast = [&](int skill, bool press, bool button_down, bool& used) {
         if (press && scene && skill_known(name, skill)) {

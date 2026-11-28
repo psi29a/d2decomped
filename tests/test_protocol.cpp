@@ -41,6 +41,22 @@ int main() try {
         const auto* player = player_target ? std::get_if<cmd::UseSkill>(&*player_target) : nullptr;
         assert(player && player->unit == 23 && player->unit_type == 0);
     }
+    // Direct-input intent survives LAN encoding; ordinary input stays opt-out.
+    {
+        const cmd::UseSkill pointer{ 4, 5.f, 6.f, -1, true };
+        assert(!pointer.direct);
+        auto direct = pointer;
+        direct.direct = true;
+        const auto back = decode(encode(direct));
+        assert(back && std::get<cmd::UseSkill>(*back).direct);
+        auto malformed = encode(direct);
+        malformed.back() = 2;
+        assert(!decode(malformed));
+        malformed.pop_back();
+        assert(!decode(malformed));
+        const auto retail = decode(encode(pointer));
+        assert(retail && !std::get<cmd::UseSkill>(*retail).direct);
+    }
     // Through the transport, in order.
     LocalTransport transport;
     for (const auto& command : all) transport.send(command);
