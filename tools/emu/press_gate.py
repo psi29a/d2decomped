@@ -1,0 +1,140 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+"""Whether a press or held frame sends its skill: FUN_00464600, run by game.exe's own code.
+
+    uv run python press_gate.py [--mutation-check]
+    uv run python press_gate.py inc > press_gate_cases.inc.new && mv press_gate_cases.inc.new ../../tests/press_gate_cases.inc
+
+FUN_00464600 (ECX the local player, EDX its skill) is the gate the click handlers ask before
+FUN_004625b0 (FUN_004629a0 / FUN_00462a20 left, FUN_00462ba0 / FUN_00462c20 right): 0 drops the
+click. It runs for real with FUN_004645b0 (the sequence's own test); hooked are FUN_0063c1e0 (an
+item in hand, on the unit's +0x60), FUN_00620250 (the unit's current skill node) and FUN_00644140
+(that skill's Skills row: +0x10 anim, +0x16 seqinput). The unit is a plain block: +0 type, +4
+class, +0x10 mode, +0x38 the frame in 256ths.
+
+The rule d2d ports (rules::press_goes, components/rules/world/click_spot.hpp): no item in hand and
+a player; by the mode (the byte table at 0x464684): DT, GH, A1, A2, BL, SC, TH, KK, DD, KB never;
+S1 not for class 3, S2 not for 6, S3 / S4 not for 4, 5 or 6; SQ (0x12) when the current skill's
+anim isn't SQ, or its seqinput is neither 0 nor 0xff and at most the frame >> 8 (arithmetic); the
+rest go. `inc` writes the cases for tests/test_press_gate.cpp.
+
+Tags: V (game.exe's own run). U: a unit with no current skill or no row (d2d always has both).
+
+`--mutation-check` breaks the model one defect at a time and requires each to differ.
+"""
+import argparse
+import itertools
+import sys
+
+import emu
+
+ENTRY = 0x464600
+HAND, SKILL_NODE, SKILL_ROW = 0x63C1E0, 0x620250, 0x644140
+MUTATIONS = ("hand-ignored", "monster-goes", "s1-paladin", "sq-always", "seq-strict", "ff-goes", "logical-shift")
+NEVER = (0, 4, 7, 8, 9, 10, 0xB, 0xC, 0x11, 0x13)
+
+
+def model(case, mutation=None):
+    """The gate as d2d ports it."""
+    hand, kind, cls, mode, anim, seqinput, frame = case
+    if hand and mutation != "hand-ignored":
+        return 0
+    if kind != 0 and mutation != "monster-goes":
+        return 0
+    if mode in NEVER:
+        return 0
+    if mode == 0xD:
+        return int(cls != 3 or mutation == "s1-paladin")
+    if mode == 0xE:
+        return int(cls != 6)
+    if mode in (0xF, 0x10):
+        return int(cls not in (4, 5, 6))
+    if mode == 0x12:
+        if anim != 0x12 or mutation == "sq-always":
+            return 1
+        if seqinput == 0 or (seqinput == 0xFF and mutation != "ff-goes"):
+            return 0
+        at = (frame & 0xFFFFFFFF) >> 8 if mutation == "logical-shift" else signed(frame) >> 8
+        return int(seqinput < at if mutation == "seq-strict" else seqinput <= at)
+    return 1
+
+
+def signed(word):
+    """A 32-bit word as signed."""
+    word &= 0xFFFFFFFF
+    return word - 0x100000000 if word & 0x80000000 else word
+
+
+class Rig:
+    """FUN_00464600 over its hooked neighbours."""
+
+    def __init__(self):
+        self.e = machine = emu.Emu()
+        self.unit = machine.alloc(0x100)
+        self.row = machine.alloc(0x40)
+        self.hand = 0
+        machine.hook(HAND, lambda _: self.hand, 1)
+        machine.hook(SKILL_NODE, lambda _: 5, 1)
+        machine.hook(SKILL_ROW, lambda _: self.row, 0)
+
+    def run(self, case):
+        """FUN_00464600's answer for the case."""
+        hand, kind, cls, mode, anim, seqinput, frame = case
+        machine = self.e
+        self.hand = hand
+        machine.w32(self.unit, kind)
+        machine.w32(self.unit + 4, cls)
+        machine.w32(self.unit + 0x10, mode)
+        machine.w32(self.unit + 0x38, frame & 0xFFFFFFFF)
+        machine.mu.mem_write(self.row + 0x10, bytes([anim]))
+        machine.mu.mem_write(self.row + 0x16, bytes([seqinput]))
+        return machine.call(ENTRY, ecx=self.unit, edx=5) & 0xFF
+
+
+FRAMES = (0, 0xFF, 0x100, 0x7FF, 0x800, 0x8FF, 0x900, 0xA00, 0xC00, 0xFFFFF000, 0x7FFFFF00)
+
+
+def cases():
+    """Every mode and class with and without a hand item or a player; SQ's seqinput against frames."""
+    for hand, kind, cls, mode in itertools.product((0, 1), (0, 1), range(7), range(0x16)):
+        if mode != 0x12:
+            yield hand, kind, cls, mode, 0x12, 0, 0
+            continue
+        for anim, seqinput, frame in itertools.product((0x12, 0x11, 0), (0, 1, 8, 10, 12, 0xFE, 0xFF), FRAMES):
+            yield hand, kind, cls, mode, anim, seqinput, frame
+
+
+def check(rig, mutation=None):
+    """Cases where game.exe and the model differ."""
+    return [(case, got, want) for case in cases() if (got := rig.run(case)) != (want := model(case, mutation))]
+
+
+def main():
+    """Run the comparison, `inc`, or every mutation."""
+    parser = argparse.ArgumentParser()
+    parser.add_argument("mode", nargs="?", default="check", choices=("check", "inc"))
+    parser.add_argument("--mutation-check", action="store_true")
+    args = parser.parse_args()
+    rig = Rig()
+    if args.mode == "inc":
+        print("// Stock game.exe 1.14d, FUN_00464600; generated by tools/emu/press_gate.py inc.")
+        print("// hand item, unit type, class, mode, the skill's anim, its seqinput, the frame (256ths), the press goes")
+        for case in cases():
+            hand, kind, cls, mode, anim, seqinput, frame = case
+            print(f"    {{ {hand}, {kind}, {cls}, {mode:#x}, {anim:#x}, {seqinput:#x}, {signed(frame)}, {rig.run(case)} }},")
+        return 0
+    wrong = check(rig)
+    if wrong:
+        for case, got, want in wrong[:20]:
+            print(f"differ {case}: game.exe {got}, model {want}")
+        sys.exit(f"{len(wrong)} of the cases differ")
+    print(f"ok: {sum(1 for _ in cases())} FUN_00464600 cases, no difference")
+    if args.mutation_check:
+        for name in MUTATIONS:
+            if not check(rig, name):
+                sys.exit(f"mutation {name} was not caught")
+            print(f"mutation {name}: failed as required")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
