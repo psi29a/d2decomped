@@ -3,7 +3,7 @@
 
 Run: uv run python storm_list.py [--exe /path/to/game.exe] [--mutation-check]
 
-# gaps-runs: FUN_0041c560 FUN_0041c580 FUN_0041c630 FUN_0041c690 FUN_0041c700 FUN_0041c770 FUN_0041c7b0 FUN_0041c840 FUN_0041c8a0 FUN_0041eb40 FUN_004203a0 FUN_004203f0 FUN_00420520 FUN_00420540 FUN_004205f0 FUN_00420650 FUN_004206e0 FUN_00420750 FUN_00420790 FUN_00420820 FUN_00420880
+# gaps-runs: FUN_0041c3a0 FUN_0041c560 FUN_0041c580 FUN_0041c630 FUN_0041c690 FUN_0041c700 FUN_0041c770 FUN_0041c7b0 FUN_0041c840 FUN_0041c8a0 FUN_0041eb40 FUN_004203a0 FUN_004203f0 FUN_00420520 FUN_00420540 FUN_004205f0 FUN_00420650 FUN_004206e0 FUN_00420750 FUN_00420790 FUN_00420820 FUN_00420880
 
 Each case builds a well-formed list in emulator memory: the list (`+0` the
 link offset, `+4` its terminator link: `+4` the last link, `+8` the first
@@ -32,9 +32,10 @@ ARENA = 0x400
 FREE, GLOBAL, ALLOC = 0x412650, 0x7792F4, 0x413020
 NEW_NODE_AT = 0x300   # where the hooked SMemAlloc puts a new node in the arena
 # address: stack dwords popped (the RET)
-POPS = {0x41C560: 1, 0x41C580: 3, 0x41EB40: 1, 0x41C840: 3, 0x420540: 3, 0x420820: 3, 0x41C630: 1, 0x41C690: 1, 0x41C700: 1, 0x41C770: 0, 0x41C7B0: 0, 0x41C8A0: 1, 0x4203A0: 1, 0x4203F0: 1, 0x420520: 1, 0x4205F0: 1, 0x420650: 1, 0x4206E0: 1, 0x420750: 0, 0x420790: 0, 0x420880: 1}
+POPS = {0x41C3A0: 1, 0x41C560: 1, 0x41C580: 3, 0x41EB40: 1, 0x41C840: 3, 0x420540: 3, 0x420820: 3, 0x41C630: 1, 0x41C690: 1, 0x41C700: 1, 0x41C770: 0, 0x41C7B0: 0, 0x41C8A0: 1, 0x4203A0: 1, 0x4203F0: 1, 0x420520: 1, 0x4205F0: 1, 0x420650: 1, 0x4206E0: 1, 0x420750: 0, 0x420790: 0, 0x420880: 1}
 
 TWINS = {   # a second copy of the same code: address: its twin above
+    0x41C3A0: 0x4203F0,
     0x41C560: 0x420520,
     0x41C580: 0x420540,
     0x41EB40: 0x420520,
@@ -169,6 +170,7 @@ class Model:
 
 
 MUTATIONS = {
+    0x41C3A0: ["next_link_ignores_offset"],
     0x41C580: ["insert_always_after"],
     0x41C840: ["new_size_plus_8"],
     0x420540: ["insert_always_after"],
