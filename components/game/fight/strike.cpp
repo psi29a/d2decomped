@@ -265,6 +265,20 @@ auto Fight::update_fighters(std::uint32_t now_ms) -> void {
                     current = std::min(current + std::max<std::int64_t>(orders - *bo_share[k], 0), maximum);
                     *bo_share[k] = orders;
                     want += item_share;
+                } else {
+                    // Max stamina's op 1 entries (FUN_00626200 case 1): skill_staminapercent (162: Battle Orders',
+                    // Vigor's, Werewolf's states) and skill_passive_staminapercent (163: Increased Stamina) each
+                    // add the no-op sum (own + the items' flat) x it / 100 (d2d_rules_mul_div), a non-item's.
+                    // The current stamina stays, under the new maximum.
+                    std::array<std::int64_t, 2> pct{ st_sum[kSkillStaminaPercent], st_sum[kPassiveStaminaPercent] };
+                    for (const auto& passive : passives)
+                        if (passive.itype.empty() && (passive.stat == kSkillStaminaPercent || passive.stat == kPassiveStaminaPercent))
+                            pct[passive.stat == kSkillStaminaPercent ? 0 : 1] += passive.value;
+                    const std::int64_t raw = maximum - actor->item_max[k] - actor->stamina_share + actor->character.panel.max_flat[k] * 256;
+                    std::int64_t share = 0;
+                    if (raw != 0) for (const std::int64_t each : pct) share += raw * each / 100;
+                    maximum += share - actor->stamina_share;
+                    actor->stamina_share = share;
                 }
                 maximum += want - actor->item_max[k];
                 current = std::min(current, maximum);
@@ -310,7 +324,7 @@ auto Fight::update_fighters(std::uint32_t now_ms) -> void {
         for (std::size_t k = 0; k < 4; ++k) panel.res[kPanelRes[k]] = std::max(actor->player_combat.res[k], -100);
         panel.defense = actor->player_combat.defense;
         for (const std::size_t attribute : { kStr, kEne, kDex, kVit }) panel.bonus[attribute] += st_sum[attribute];
-        panel.bonus[kMaxLife] += actor->bo_life >> 8; panel.bonus[kMaxMana] += actor->bo_mana >> 8;
+        panel.bonus[kMaxLife] += actor->bo_life >> 8; panel.bonus[kMaxMana] += actor->bo_mana >> 8; panel.bonus[kMaxStamina] += actor->stamina_share >> 8;
         std::vector<std::string_view> active;
         for (const auto& state : states) if (const auto* skill = game_data->skills.get(state.skill)) active.push_back(skill->aurastate);
         for (const auto& aura : friendly_auras(actor->player.x, actor->player.y)) active.push_back(aura.skill->aurastate);

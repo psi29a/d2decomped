@@ -138,7 +138,7 @@ auto Fight::monsters_cross(const Level* destination, float dx, float dy) -> void
 auto Fight::own_stats() const -> d2d::d2s::Stats {
         using namespace d2d::d2s;
         auto stats = actor->character.stats;
-        stats.values[kMaxLife] -= actor->bo_life + actor->item_max[0]; stats.values[kMaxMana] -= actor->bo_mana + actor->item_max[1]; stats.values[kMaxStamina] -= actor->item_max[2];
+        stats.values[kMaxLife] -= actor->bo_life + actor->item_max[0]; stats.values[kMaxMana] -= actor->bo_mana + actor->item_max[1]; stats.values[kMaxStamina] -= actor->item_max[2] + actor->stamina_share;
         return stats;
     }
 

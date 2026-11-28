@@ -78,7 +78,10 @@ std::vector<std::uint8_t> encode_view(const GameData& game_data, const View& vie
         for (const std::int64_t number : { panel.next, panel.defense }) chunk.u32(std::uint32_t(number)).u32(std::uint32_t(std::uint64_t(number) >> 32));
         for (const auto* numbers : { &panel.res, &panel.res_cap }) for (const auto number : *numbers) chunk.i32(int(number));
         for (const auto number : panel.bonus) chunk.i32(int(number));
-        for (const auto* numbers : { &panel.max_percent, &panel.max_flat }) for (const auto number : *numbers) chunk.i32(int(number));
+        // The maxima's percents and the items' flat life and mana; the flat stamina (max_flat[2]) only the host's
+        // update_fighters reads, so it doesn't go over the wire.
+        for (const auto number : panel.max_percent) chunk.i32(int(number));
+        for (std::size_t k = 0; k < 2; ++k) chunk.i32(int(panel.max_flat[k]));
         for (const auto& line : panel.attack)
             chunk.i32(line.skill).u8(line.damage).i32(line.min).i32(line.max).u8(line.damage_colour).i32(line.attack_rating).u8(line.ar_colour);
         chunk.u8(panel.blue).u8(panel.red);
@@ -326,7 +329,8 @@ bool apply_view(const GameData& game_data, std::span<const std::uint8_t> bytes, 
         for (auto* number : { &panel.next, &panel.defense }) { const std::uint64_t low = u32(), high = u32(); *number = std::int64_t(low | high << 32); }
         for (auto* numbers : { &panel.res, &panel.res_cap }) for (auto& number : *numbers) number = i32();
         for (auto& number : panel.bonus) number = i32();
-        for (auto* numbers : { &panel.max_percent, &panel.max_flat }) for (auto& number : *numbers) number = i32();
+        for (auto& number : panel.max_percent) number = i32();
+        for (std::size_t k = 0; k < 2; ++k) panel.max_flat[k] = i32();
         for (auto& line : panel.attack) {
             line.skill = i32(); line.damage = byte() != 0; line.min = i32(); line.max = i32(); line.damage_colour = byte();
             line.attack_rating = i32(); line.ar_colour = byte();

@@ -263,7 +263,9 @@ enum StatId { kStr = 0, kEne = 1, kDex = 2, kVit = 3, kStatPts = 4, kSkillPts = 
               kItemSlow = 150,                      // item_slow: a slow on the unit it strikes or that strikes it (aura event 19 / 27)
               kIndestructible = 152, kCannotBeFrozen = 153, kStaminaDrainPercent = 154,
               kItemPierce = 156, kItemMagicArrow = 157, kItemExplosiveArrow = 158,
-              kThrowMinDamage = 159, kThrowMaxDamage = 160, kSkillPierce = 166,
+              kThrowMinDamage = 159, kThrowMaxDamage = 160,
+              kSkillStaminaPercent = 162, kPassiveStaminaPercent = 163,   // skill_staminapercent (a state's), skill_passive_staminapercent: op 1 onto maxstamina
+              kSkillPierce = 166,
               kSkillArmorPercent = 171, kFade = 181, kArmorOverridePercent = 182,
               kChargedSkill = 204,                  // item_charged_skill: param skill << 6 | level, value charges << 8 | left
               kArmorPerLevel = 214, kMaxDamagePerLevel = 218, kMaxDamagePercentPerLevel = 219, kToHitPerLevel = 224,

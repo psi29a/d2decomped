@@ -320,7 +320,7 @@ auto World::take_character(const Character& entering) -> void {
         // The save's maxima are its own (Fight::own_stats): the last game's
         // gear and Battle Orders shares go, or the next refresh adds none and
         // the next save takes them off again.
-        actor->item_max = {}; actor->bo_life = actor->bo_mana = 0;
+        actor->item_max = {}; actor->bo_life = actor->bo_mana = 0; actor->stamina_share = 0;
         actor->held.reset();
         actor->store = {};
     }

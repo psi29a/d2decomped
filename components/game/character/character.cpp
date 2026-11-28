@@ -198,7 +198,7 @@ PanelStats panel_stats(const GameData& game_data, const d2d::d2s::Header& header
     }
     for (std::size_t i = 0; i < 12; ++i) panel.bonus[i] = sum[i];
     panel.max_percent = { sum[d2d::d2s::kMaxLifePercent], sum[d2d::d2s::kMaxManaPercent] };
-    panel.max_flat = { sum[d2d::d2s::kMaxLife], sum[d2d::d2s::kMaxMana] };
+    panel.max_flat = { sum[d2d::d2s::kMaxLife], sum[d2d::d2s::kMaxMana], sum[d2d::d2s::kMaxStamina] };
     {                                                     // the attributes' share of life, stamina, mana (quarter points)
         const auto& gains = game_data.class_gains[std::size_t(header.cls % 7)];
         panel.bonus[d2d::d2s::kMaxLife] += sum[d2d::d2s::kVit] * gains.life_per_vit / 4;

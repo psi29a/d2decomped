@@ -288,6 +288,7 @@ struct Fight {
         std::uint32_t armageddon_next = 0, hurricane_next = 0;   // their timer events (type 5) next
         std::uint32_t armageddon_word = 0;     // its skill record's +0x18: each pulse's seed (FUN_005c8190, FUN_005c8520)
         std::int64_t bo_life = 0, bo_mana = 0;         // Battle Orders' life and mana on the maxima (256ths)
+        std::int64_t stamina_share = 0;                // stats 162 / 163's share of max stamina (256ths): op 1
         // What worn items (and passives) put on the maxima (256ths): the
         // character's own, as a save keeps them, are the maxima less these.
         std::array<std::int64_t, 3> item_max{};        // life, mana, stamina

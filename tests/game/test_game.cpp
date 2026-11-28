@@ -1471,6 +1471,26 @@ int main(int argc, char** argv) try {
         fight.update_fighters(26 * kTickMs);
         assert(hero.character.stats.values[d2d::d2s::kMaxMana] == own);
     }
+    // Max stamina's op 1 (FUN_00626200 case 1): skill_staminapercent (162, Battle Orders' and Vigor's
+    // states) adds that % of own + the items' flat +stamina; the save keeps the own.
+    {
+        auto items = std::move(hero.character.items);
+        d2d::d2s::Item charm;
+        charm.code = "cm1"; charm.panel = 1; charm.identified = true; charm.props = { { d2d::d2s::kMaxStamina, 0, 20 } };
+        hero.character.items.clear();
+        hero.character.items.push_back(std::move(charm));
+        fight.update_fighters(26 * kTickMs);
+        const std::int64_t own = fight.own_stats().values[d2d::d2s::kMaxStamina], flat = own + 20 * 256;
+        assert(hero.character.stats.values[d2d::d2s::kMaxStamina] == flat);
+        hero.boost = { 0, { { d2d::d2s::kSkillStaminaPercent, 50 } }, 1000 * kTickMs };
+        fight.update_fighters(26 * kTickMs);
+        assert(hero.character.stats.values[d2d::d2s::kMaxStamina] == flat + flat * 50 / 100);
+        assert(fight.own_stats().values[d2d::d2s::kMaxStamina] == own);
+        hero.boost = {};
+        hero.character.items = std::move(items);
+        fight.update_fighters(26 * kTickMs);
+        assert(hero.character.stats.values[d2d::d2s::kMaxStamina] == own);
+    }
     hero.chilled = 1000 * kTickMs;
     assert(fight.cure(26 * kTickMs, false) && !poisoned() && hero.curses[0].until == 0 && fight.chill_rate(26 * kTickMs) == -50);
     fight.update_fighters(26 * kTickMs);
