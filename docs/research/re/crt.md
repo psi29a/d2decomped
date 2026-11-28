@@ -149,3 +149,37 @@ without `_IOSTRG` (0x40) is `EINVAL` (0x16) and `_invalid_parameter`.
 | `FUN_00692eac` | `_filbuf` | refills the read buffer with `_read`: needs a stream open for reading (`_flag & 0x83`, not `_IOSTRG`, not only write); gets a buffer (`__getbuf`) when it has none; 0 bytes sets `_IOEOF`, -1 `_IOERR`; a 0x200-byte buffer of a stream the CRT buffered grows to 0x1000; returns the first byte. Callers `FUN_006844cb`, `FUN_00688271` |
 | `FUN_006a2f76` | `_ungetc_nolock` | the text-mode check; -1 or a stream not open for reading returns -1; steps `_ptr` back (onto a fresh buffer when there is none) and stores the byte, or on an `_IOSTRG` stream only checks it is the same; clears `_IOEOF`. No caller |
 | `FUN_006aaefc` | `_get_fmode` | null: `EINVAL`; else `*out = DAT_0096e268`, 0. Callers `FUN_0069b08a`, `FUN_006a8b91` |
+
+## Low-level I/O
+
+A file handle `fh` indexes the handle blocks `__pioinfo` (`DAT_00993b60`):
+block `fh >> 5`, entry `(fh & 0x1f) * 0x40`, the OS handle at +0, the flags
+at +4 (bit 0 open, bit 1 cleared by a successful seek, bit 6 a device, bit 7 text), the
+lock at +0xc. `DAT_00993b50` is the handle count. The checked entry points
+share a shape: -2 sets `_doserrno` 0 and `errno` 9 (`EBADF`); a handle out of
+range or not open does the same and calls `_invalid_parameter`; both return
+-1. Otherwise `___lock_fhandle`, the open bit checked again, the `_nolock`
+routine, and its `__finally` (Locks).
+
+| Address | Name | What it does |
+|---|---|---|
+| `FUN_0068a84e` | `_close_nolock` | `CloseHandle` of the OS handle, except for handle 1 or 2 when both are open and share one OS handle; `_free_osfhnd` (`FUN_0069a94a`), the flags 0; a failure maps through `_dosmaperr` and returns -1. Callers `FUN_0068a8e5`, `FUN_0069b08a`, `FUN_006a8b91` |
+| `FUN_0068a8e5` | `_close` | the checked entry for `FUN_0068a84e`. Caller `FUN_00681f6a` |
+| `FUN_006927ae` | `_write_nolock` | (from its calls; the 1,570-byte body was not followed) writes with `WriteFile`; in text mode through `_mbtowc` / `WideCharToMultiByte`, and to a console through `GetConsoleMode`, `GetConsoleCP` and `__putwch_nolock`. Callers `FUN_00692dd0`, `__chsize_nolock` |
+| `FUN_00692dd0` | `_write` | the checked entry for `FUN_006927ae`. Callers `FUN_006842ea`, `__flush`, `FUN_0068abac`, `FUN_0069b08a`, `FUN_006a8b91` |
+| `FUN_00692fcc` | `_read_nolock` | (from its calls; the 1,473-byte body was not followed) reads with `ReadFile`, a `__malloc_crt` buffer and `MultiByteToWideChar` for the Unicode modes. Callers `FUN_0069358d`, `FUN_0069b08a`, `FUN_006a8b91` |
+| `FUN_0069358d` | `_read` | the checked entry for `FUN_00692fcc`; a count of 0x80000000 or more is `EINVAL`. Callers `FUN_006844cb`, `FUN_00692eac` |
+| `FUN_00693705` | `_lseek_nolock` | `SetFilePointer(handle, offset, NULL, origin)`; success clears flag bit 1, failure maps through `_dosmaperr` and returns -1. Callers `FUN_00693777`, `FUN_0069b08a`, `FUN_006a8b91` |
+| `FUN_00693777` | `_lseek` | the checked entry for `FUN_00693705`. Callers `FUN_0068479d`, `__fseek_nolock` |
+| `FUN_0069a1ac` | `_commit` | the checked entry: `FlushFileBuffers`; a failure sets `_doserrno` to it and `errno` 9. Caller `__fflush_nolock` |
+| `FUN_0069a8cd` | `_set_osfhnd` | an open-range handle whose OS handle is still -1 takes the new one; when `DAT_00749df0` is 1, handles 0, 1, 2 also `SetStdHandle(STD_INPUT/OUTPUT/ERROR_HANDLE)`. Callers `FUN_0069b08a`, `FUN_006a8b91` |
+| `FUN_0069a94a` | `_free_osfhnd` | the reverse: an open handle's OS handle back to -1, the standard handle set to null the same way. Callers `FUN_0068a84e`, `FUN_0069b08a`, `FUN_006a8b91` |
+| `FUN_0069a9cb` | `_get_osfhandle` | an open handle's OS handle, else `EBADF`, `_invalid_parameter`, -1. Callers `FUN_0068a84e`, `FUN_00693705`, `FUN_0069a1ac`, `FUN_0069ae4c`, `__chsize_nolock` |
+| `FUN_0069ae4c` | `_lseeki64_nolock` | `SetFilePointer` with the high half; returns the 64-bit position, -1 on failure; clears flag bit 1. Callers `FUN_006927ae`, `FUN_00692fcc`, `FUN_0069aecf`, `FUN_0069b08a`, `FUN_006a8b91`, `__chsize_nolock` |
+| `FUN_0069aecf` | `_lseeki64` | the checked entry for `FUN_0069ae4c`. Caller `FUN_0068abac` |
+| `FUN_0069b02c` | `_isatty` | flag bit 6 of the handle (-2: `EBADF`, 0; out of range: also `_invalid_parameter`). Callers `FUN_0068abac`, `FUN_006927ae`, `__stbuf` |
+| `FUN_0069b08a` | `_sopen_nolock` | (from its calls; the 1,875-byte body was not followed) `__alloc_osfhnd`, `CreateFileA`, `GetFileType`, `_set_osfhnd`, `_get_fmode`, `__get_osplatform`; it also calls `_read_nolock`, `_lseek_nolock`, `_lseeki64_nolock`, `_write`, `__chsize_nolock`, `_close_nolock` and `_free_osfhnd`, what for not followed. Caller `__sopen_helper` (Ghidra: `FID_conflict:__sopen_helper`) |
+| `FUN_0069b937` | the open helper's `__finally` | when its frame shows the open failed after a handle was taken (`[ebp-0x1c]`, `[ebp-0x20]`), clears the handle's open bit; then `_unlock_fhandle`. Caller `__sopen_helper` |
+| `FUN_006a8b91` | `_wsopen_nolock` | the same as `FUN_0069b08a` with `CreateFileW`. Caller the wide `__sopen_helper` |
+| `FUN_006a943f` | the wide open helper's `__finally` | the same as `FUN_0069b937` |
+| `FUN_006aadfa` | `_setmode_nolock` | sets the handle's mode: 0x4000 text (bit 7, Unicode bits off), 0x8000 binary (bit 7 off), 0x10000 / 0x20000 UTF-16 (+0x24 = 2), 0x40000 UTF-8 (+0x24 = 1); returns the old mode, 0x4000, 0x8000 or 0x10000. Caller `__chsize_nolock` |
