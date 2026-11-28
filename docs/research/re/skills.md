@@ -1883,7 +1883,11 @@ repeat skill.
   rolled on the corpse's seed, cut above the caster's level; calc3 % of it
   fire, the rest physical; the walk within (aurarange + 1) / 2, the
   physical within aurarange / 2 (`tools/emu/corpse_explosion.py`). **63**
-  (FUN_005c5e60, Poison Explosion): srvmissilea clouds on the corpse. **27**
+  (FUN_005c5e60, Poison Explosion): on a corpse (FUN_00553540, FUN_00645680)
+  state 0x76, then FUN_005a9370(corpse, srvmissilea, skill, level, odd 0,
+  even 2, life 0): poisonexplosioncloud the 8 even ways from the corpse's
+  subtile at its Param1 (2) << 7, flags 0x17 (`Fight::ring`,
+  `tools/emu/poison_explosion.py`). **27**
   (FUN_005ca360, Teleport): to the point if it's open and not in town.
   It returns 0 on a refusal (no room, the level's Teleport 0, Teleport
   2's line not clear, FUN_00554ea0 finding no spot) and FUN_0056f7f0,

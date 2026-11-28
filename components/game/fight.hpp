@@ -808,6 +808,9 @@ struct Fight {
     void seed_made(Missile& missile);
     Missile& launch(const GameData::MissileInfo& missile_info, const d2d::rules::Skill& skill, int lvl, float x, float y, float dx, float dy,
                     int range, std::uint32_t now_ms);
+    // A ring of `sub` from the subtile at x, y: every `even`'th of the 16 ways, then with `odd` every `odd`'th of the rest.
+    void ring(const GameData::MissileInfo& sub, const d2d::rules::Skill& skill, int lvl, float x, float y, int odd, int even, int frames,
+              std::uint32_t now_ms);
     [[nodiscard]] int calc(const d2d::rules::Skill& skill, const d2d::rules::Calc& calc_row, int lvl);
     // The skill's missiles from the caster: toward the cast point, across its line, all round, at a monster;
     // the player's spends its ammo first.
