@@ -17,6 +17,7 @@ its lists in standard containers.
 
 | Address | Name | Reading | d2d |
 |---|---|---|---|
+| `FUN_0041c3a0` | `slink_next_link_2` | Another copy of `slink_next_link` (`FUN_004203f0`): the same reading, run on the same cases | no counterpart |
 | `FUN_0041c560` | `slist_link_or_terminator_2` | Another copy of `slist_link_or_terminator` (`FUN_00420520`): the same reading, run on the same cases | no counterpart |
 | `FUN_0041c580` | `slist_link_2` | Another copy of `slist_link` (`FUN_00420540`): the same 161 bytes (compared byte for byte in the image), run on the same cases; `FUN_0041c840` is its only caller, with mode 0 | no counterpart |
 | `FUN_0041c630` | `slist_next_node_2` | Another copy of `slist_next_node` (`FUN_004205f0`): the same reading, run on the same cases | no counterpart |
@@ -26,6 +27,7 @@ its lists in standard containers.
 | `FUN_0041c7b0` | `slist_destroy_2` | Another copy of `slist_destroy` (`FUN_00420790`): the same reading, run on the same cases | no counterpart |
 | `FUN_0041c840` | `slist_new_node_2` | As `slist_new_node` (`FUN_00420820`) with the tag `".?AUHANDLER@"` (0x708434) | no counterpart |
 | `FUN_0041c8a0` | `slink_delete_2` | Another copy of `slink_delete` (`FUN_00420880`): the same reading, run on the same cases | no counterpart |
+| `FUN_0041e900` | `slink_next_link_3` | Another copy of `slink_next_link` (`FUN_004203f0`): the same reading, run on the same cases | no counterpart |
 | `FUN_0041eb40` | `slist_link_or_terminator_3` | A third copy of `slist_link_or_terminator` (`FUN_00420520`): the same reading, run on the same cases | no counterpart |
 | `FUN_004203a0` | `storm_set_7792f4` | Value (`RET 4`): `DAT_007792f4` = value, returns 1 (the getter is `storm_get_7792f4`) | no counterpart |
 | `FUN_004203f0` | `slink_next_link` | `ECX` link, offset (`RET 4`): the next link: a negative next `+4` complemented (the terminator); else next + offset, and for a negative offset the link's own offset, link − its previous link's next | no counterpart |
