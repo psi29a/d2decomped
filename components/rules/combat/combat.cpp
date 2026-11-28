@@ -176,7 +176,11 @@ Fighter make_fighter(const Tables& tables, const d2d::d2s::Item* weapon, const d
     fighter.elem = { { { scaled(stat(kFireMinDamage), kPassiveFireMastery), scaled(stat(kFireMaxDamage), kPassiveFireMastery) }, { scaled(stat(kLightningMinDamage), kPassiveLightningMastery), scaled(stat(kLightningMaxDamage), kPassiveLightningMastery) }, { scaled(stat(kColdMinDamage), kPassiveColdMastery), scaled(stat(kColdMaxDamage), kPassiveColdMastery) },
                  { scaled(stat(kPoisonMinDamage) * stat(kPoisonLength) / 256, kPassivePoisonMastery), scaled(stat(kPoisonMaxDamage) * stat(kPoisonLength) / 256, kPassivePoisonMastery) }, { scaled(stat(kMagicMinDamage), kPassiveMagicMastery), scaled(stat(kMagicMaxDamage), kPassiveMagicMastery) } } };
     fighter.cold_len = int(stat(kColdLength)); fighter.poison_len = int(stat(kPoisonLength));
-    fighter.poison_rate = { int(stat(kPoisonMinDamage)), int(stat(kPoisonMaxDamage)) }; fighter.poison_mastery = int(stat(kPassivePoisonMastery));
+    fighter.elem_stats = { { { int(stat(kFireMinDamage)), int(stat(kFireMaxDamage)) }, { int(stat(kLightningMinDamage)), int(stat(kLightningMaxDamage)) },
+                             { int(stat(kColdMinDamage)), int(stat(kColdMaxDamage)) }, { int(stat(kPoisonMinDamage)), int(stat(kPoisonMaxDamage)) },
+                             { int(stat(kMagicMinDamage)), int(stat(kMagicMaxDamage)) } } };
+    fighter.record_poison_len = int(stat(kPoisonLength));   // a player's: player_fighter's, before poison_count
+    fighter.poison_mastery = int(stat(kPassivePoisonMastery));
     fighter.stun_len = int(stat(kStunLength));
     fighter.crushing = int(stat(kCrushingBlow)); fighter.deadly = int(stat(kDeadlyStrike) + stat(kDeadlyStrikePerLevel) * clvl / 8); fighter.critical = int(stat(kPassiveCriticalStrike));
     // FUN_0057b7d0 (a player's or hireling's record) / FUN_0064b860 (a SrcDamage missile's, 0x64bcbb..0x64bcf3).
@@ -850,10 +854,9 @@ MissilePhysical missile_physical(const Fighter& fighter, const Target& target, c
 // the owner's stats (FUN_0064a930) and FUN_0064aa60 scales them by it / 128 toward zero, unless it is 128: fire,
 // lightning, magic and cold min / max (+0xc..+0x2c), cold length (+0x30), poison min / max (+0x34, +0x38),
 // stat 0x146 (+0x40), life and mana drain (+0x44, +0x4c) and +0x60..+0x68; poison length (+0x3c) isn't.
-// tools/emu/missile_owner_share.py runs it.
-// ponytail: game.exe scales the elements in 256ths (stats 0x30..0x37 << 8) and the poison per frame;
-// d2d's whole-point ends (and its poison total over the length) lose the fraction; +0x40 and +0x60..+0x68
-// have no Fighter field.
+// tools/emu/missile_owner_share.py runs it. The elements and lengths go through missile_record (its
+// 256ths, the poison a frame); the share keeps the leech.
+// ponytail: +0x40 and +0x60..+0x68 have no Fighter field.
 Fighter missile_owner_share(const Fighter& fighter, const Swing& swing) {
     Fighter share = fighter;
     const int srcdam = missile_srcdam(fighter, swing);
@@ -867,6 +870,33 @@ Fighter missile_owner_share(const Fighter& fighter, const Swing& swing) {
     share.life_steal = scale(share.life_steal);
     share.mana_steal = scale(share.mana_steal);
     return share;
+}
+
+// FUN_0064b860's switch on the skill's EType puts its element in the record's field (fire +0xc / +0x10,
+// lightning +0x18 / +0x1c, magic +0x20 / +0x24, cold +0x28 / +0x2c and length +0x30, poison +0x34 /
+// +0x38 and length +0x3c); FUN_0064a930 adds the owner's stats 0x30..0x37 << 8, 0x38 cold length, 0x39 /
+// 0x3a as they are, and 0x65 when over 0 else 0x3b to the poison length; FUN_0064aa60 (SrcDamage not 128)
+// takes each but the poison length x SrcDamage / 128 toward zero.
+MissileRecord missile_record(const MissileDamage& skill, const Fighter& owner, int srcdam) {
+    MissileRecord record;
+    for (std::size_t element = 0; element < record.fine.size(); ++element) {
+        const auto [low, high] = owner.elem_stats[element];
+        record.fine[element] = element == 3 ? std::pair{ low, high } : std::pair{ low << 8, high << 8 };
+    }
+    record.cold_len = owner.cold_len;
+    record.poison_len = owner.record_poison_len;
+    if (skill.etype >= 0 && skill.etype < 5) {
+        record.fine[std::size_t(skill.etype)].first += skill.elo;
+        record.fine[std::size_t(skill.etype)].second += skill.ehi;
+        if (skill.etype == 2) record.cold_len += skill.elen;
+        if (skill.etype == 3) record.poison_len += skill.elen;
+    }
+    if (srcdam != 128) {
+        const auto scale = [srcdam](int value) { return int(std::int64_t(value) * srcdam / 128); };
+        for (auto& [low, high] : record.fine) { low = scale(low); high = scale(high); }
+        record.cold_len = scale(record.cold_len);
+    }
+    return record;
 }
 
 // FUN_005a89a0 (0x5a8be3..0x5a8bff): the roll x the hit's % / 100 toward zero, + the roll; a crit doubles it after.
@@ -992,7 +1022,38 @@ Blow player_blow(const Fighter& attacker, const Target& struck, int clvl, Rng& r
     elem += resisted(share(swing.fire_pct), target.res[2]) + resisted(share(swing.ltng_pct), target.res[3]);
     marking += resisted(share(swing.fire_pct), target.res[2]) + resisted(share(swing.ltng_pct), target.res[3]);
     if (const int cold = resisted(share(swing.cold_pct), target.res[4]); cold > 0) { elem += cold; marking += cold; blow.chill_ticks = resisted(std::max(swing.cold_len, 1), target.res[4]); }
-    for (int element = 0; element < 5; ++element) {
+    // A missile's elements are its record's (missile_record), each rolled once in 256ths on the missile's
+    // seed (FUN_005a8910: none unless both ends are over 0, low + rand(the gap)), the resistance less the
+    // pierce (FUN_0057be00, at least -100) on the fine value: the part under a point goes in `frac`.
+    if (swing.missile) {
+        const auto record = missile_record(swing.element, attacker, missile_srcdam(attacker, swing));
+        for (std::size_t element = 0; element < record.fine.size(); ++element) {
+            const int end_low = std::min(record.fine[element].first, record.fine[element].second);
+            const int end_high = std::max(record.fine[element].first, record.fine[element].second);
+            int res = target.res[std::size_t(kRes[element])];
+            if (element < 4 && res < 100) res -= swing.pierce[element];
+            res = std::max(res, -100);
+            // The cold's length chills with a cold field there, a roll of it or not (missile_blow's, a 0 low end too).
+            if (element == 2 && end_high > 0) blow.chill_ticks = std::max(blow.chill_ticks, resisted(record.cold_len, res));
+            if (end_low <= 0) continue;
+            int* const shared_roll = swing.shared ? &swing.shared->record[element] : nullptr;
+            const int element_roll = shared_roll && *shared_roll >= 0 ? *shared_roll : end_low + physical_rng(end_high - end_low);
+            if (shared_roll) *shared_roll = element_roll;
+            const int element_fine = int(target.paired(element_roll));
+            if (element == 3) {
+                const int ticks = std::max(record.poison_len, 1);
+                blow.poison += resisted(int(std::int64_t(element_fine) * ticks >> 8), res);
+                blow.poison_ticks = std::max(blow.poison_ticks, ticks);
+                if (resisted_fine(element_fine, res) > 0) ++marking;   // the record's poison field (a frame, 256ths) marks as the others
+                continue;
+            }
+            const int resisted_element = resisted_fine(element_fine, res);
+            elem += resisted_element >> 8;
+            blow.frac += resisted_element & 255;
+            if (element != 4 && resisted_element > 0) ++marking;
+        }
+    }
+    for (int element = 0; element < 5 && !swing.missile; ++element) {
         const auto [elo, ehi] = fighter.elem[std::size_t(element)];
         if (ehi <= 0) continue;
         // The gear's cold puts its length in the record with any cold rolled

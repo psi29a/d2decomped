@@ -66,7 +66,7 @@ Result strike(GameData& data, bool crushing, int type, long maxlife, long life, 
     fight.add_monster(std::move(monster));
     d2d::rules::Fighter fighter;
     fighter.phys_lo = fighter.phys_hi = int(phys);
-    fighter.elem[0] = { fire, fire };
+    fighter.elem[0] = fighter.elem_stats[0] = { fire, fire };   // melee's, and a missile's record (missile_record)
     fighter.ar_base = 1 << 20;
     fighter.crushing = crushing ? 100 : 0;
     d2d::rules::Swing swing;

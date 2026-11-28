@@ -64,7 +64,11 @@ struct Fighter {
     int demon_tohit = 0, undead_tohit = 0;          // stats 123 / 124: attack rating against demons / the undead
     std::array<std::pair<int, int>, 5> elem{};      // added damage (poison: its total over poison_len)
     int cold_len = 0, poison_len = 0;               // ticks
-    std::pair<int, int> poison_rate{};             // stats 57 / 58 (256ths a frame), before poison_len and the mastery
+    // The gear's element stats as summed, before the masteries: fire 48 / 49, lightning 50 / 51, cold 54 / 55
+    // (whole points), poison 57 / 58 (256ths a frame, before poison_len), magic 52 / 53; a missile's record
+    // takes them (missile_record), with stat 101 else 59 as its poison length (record_poison_len).
+    std::array<std::pair<int, int>, 5> elem_stats{};
+    int record_poison_len = 0;
     int poison_mastery = 0;                         // stat 332, the % on the poison's total
     int stun_len = 0;                               // stat 66 (gear), ticks
     int crushing = 0, deadly = 0, critical = 0, open_wounds = 0;   // chances, %
@@ -451,7 +455,14 @@ MissileDamage influenced(MissileDamage damage, int influence);
 // (FUN_005a9a70 and FUN_005aa8b0 call FUN_005a8c70 once; each unit resists
 // its own copy): the physical and the element roll in 256ths, -1 until the
 // first unit's blow draws it.
-struct MissileRoll { int phys = -1, element = -1; };
+struct MissileRoll { int phys = -1, element = -1; std::array<int, 5> record{ -1, -1, -1, -1, -1 }; };   // record: missile_record's, by element
+
+// A SrcDamage missile's record (FUN_0064b860): the skill's element in its field, the owner's
+// element stats added (FUN_0064a930: whole points << 8, the poison a frame as it is), the whole
+// scaled by the SrcDamage / 128 but the poison length (FUN_0064aa60). In 256ths, by element:
+// fire, lightning, cold, poison (a frame), magic.
+struct MissileRecord { std::array<std::pair<int, int>, 5> fine{}; int cold_len = 0, poison_len = 0; };
+MissileRecord missile_record(const MissileDamage& skill, const Fighter& owner, int srcdam);
 
 // A skill's missile striking `t` (on top of `b`, the weapon's share when
 // it has one): the physical and the element, each rolled between its min
@@ -508,6 +519,11 @@ struct Swing {
     bool half_2h_src = false;             // the missile row's Half2HSrc: srcdam halved from a two-hander (missile_physical)
     std::optional<bool> crit;             // a missile's crit, rolled as it was made (missile_crit), not at the hit
     std::optional<std::int64_t> rolled;   // a burst's physical as its first unit drew it (Blow::rolled): no draw
+    // A missile's record elements (missile_record): the skill's own (etype 0..4) with the owner's, its
+    // pierce on the resistances, and a burst's rolls shared (MissileRoll::record).
+    MissileDamage element{};
+    std::array<int, 4> pierce{};
+    MissileRoll* shared = nullptr;
 };
 
 // A missile's record's crit (FUN_0064b860 -> FUN_0064a850), rolled as it is made on the caster's seed:

@@ -30,10 +30,12 @@ taken off, -100 at the least; a plain monster gets no difficulty penalty and no
 75 % cap, LAB_0057c242), 100 % or more is nothing, else MulDiv
 (FUN_00483360) of the fine value, then absorb (FUN_0057bf10). d2d keeps whole
 points in `Monster::hit_points` plus `life_frac` (256ths already taken off it);
-only a missile's element roll (FUN_005a89a0) carries a fraction (`Blow::frac`,
-`rules::resisted_fine`), a heal (FUN_0057a980, `heal`) is whole points capped
-at max life, and dead is life 0. Physical, poison, burning, thorns, pets and
-mercs still deal whole points (ponytail: not traced one by one).
+a blow's physical (melee and missile: `player_blow`, `missile_blow`) and a
+missile's element rolls (FUN_005a89a0, its record's sum: missiles.md "The
+roll") carry their fraction (`Blow::frac`, `rules::resisted_fine`); a melee
+blow's gear elements, poison, burning, thorns, pets and mercs still deal whole
+points (ponytail: not traced one by one); a heal (FUN_0057a980, `heal`) is
+whole points capped at max life, and dead is life 0.
 Oracle: `tools/emu/life_apply.py` against `test_game --life-apply`.
 
 Gear absorb (FUN_0057bf10, the last step of FUN_0057bf80 on a fire, lightning, cold or

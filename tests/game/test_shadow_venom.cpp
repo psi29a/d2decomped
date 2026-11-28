@@ -24,7 +24,7 @@ int main() try {
     d2d::rules::StatSum gear{};
     gear[d2d::d2s::kPoisonMinDamage] = 256; gear[d2d::d2s::kPoisonMaxDamage] = 512; gear[d2d::d2s::kPoisonLength] = 100;
     const Fighter owner = d2d::rules::make_fighter({}, nullptr, nullptr, gear, {}, d2d::d2s::Stats{}, {}, 0, {});
-    assert(owner.poison_rate == (std::pair{ 256, 512 }) && owner.poison_len == 100);
+    assert(owner.elem_stats[3] == (std::pair{ 256, 512 }) && owner.poison_len == 100);
     assert(owner.elem[3] == (std::pair{ 100, 200 }));
 
     Fight::Pet pet;

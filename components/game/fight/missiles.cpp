@@ -1301,6 +1301,14 @@ auto Fight::strike(Missile& missile, std::size_t monster_index, std::uint32_t no
                 roll->phys = int(physical.high > physical.low ? physical.low + own_seed(int(physical.high - physical.low)) : physical.low);
             }
             if (roll) swing.rolled = roll->phys;
+            // The skill's element is in the record with the owner's (missile_record), rolled once with them;
+            // a stun's length and Blessed Hammer's classes stay the skill's own (missile_blow).
+            if (damage.etype >= 0 && damage.etype < 5 && damage.undead_pct == 0 && damage.demon_pct == 0) {
+                swing.element = damage;
+                damage.etype = -1;
+            }
+            swing.pierce = pierce();
+            swing.shared = roll;
             blow = d2d::rules::player_blow(fighter, target, clvl, owner, swing, &own_seed, &monsters[monster_index].seed);
         } else if (missile.info->to_hit) {
             const auto [attack_rating, defense] = d2d::rules::player_to_hit(fighter, target, 0);

@@ -147,6 +147,9 @@ auto Fight::player_fighter(d2d::rules::Fighter* kick ,
         const std::array<int, 4> res{ int(resistances[0]), int(resistances[2]), int(resistances[1]), int(resistances[3]) };
         auto fighter = d2d::rules::make_fighter(game_data->rules, weapon, shield, fighter_stats(sum), weapon_sum, actor->character.stats, gains,
                                           int(actor->character.panel.defense), res, boots, throwing);
+        // A missile's record (FUN_0064a930) takes stat 101 when over 0, else stat 59 as it is: no poison_count.
+        const auto record_length = [](const d2d::rules::StatSum& stats) { return int(stats[kPoisonOverrideLength] > 0 ? stats[kPoisonOverrideLength] : stats[kPoisonLength]); };
+        fighter.record_poison_len = record_length(sum);
         {   // The swing starts by the weapon in hand: slot 4 else slot 5, a weapon, not broken and its requirements met (FUN_0063c9b0 -> FUN_0062a4e0,
             // the `weapon` chosen above), else nothing.
             const auto base = weapon ? game_data->rules.item_base.find(weapon->code) : game_data->rules.item_base.end();
@@ -178,6 +181,7 @@ auto Fight::player_fighter(d2d::rules::Fighter* kick ,
             }
             *kick = d2d::rules::make_fighter(game_data->rules, nullptr, shield, fighter_stats(bare), {}, actor->character.stats, gains,
                                              int(actor->character.panel.defense), res, boots);
+            kick->record_poison_len = record_length(bare);
             // The panel's base (descatt 5): only the wielded weapon's stats off (FUN_00627910 in FUN_004e9040),
             // so the other hand's to-hit stays in it; the kick itself has both off.
             fighter.ar_base_bare = d2d::rules::make_fighter(game_data->rules, nullptr, shield, fighter_stats(weapon_off), {}, actor->character.stats, gains,
