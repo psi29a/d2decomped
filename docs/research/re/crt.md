@@ -47,9 +47,14 @@ The CRT's argument checks use the first two together. `__get_winmajor`
 `__get_osplatform`, `_fclose`, `_sprintf`, `_fwrite`, `__strlwr` and
 `FUN_00688271` (game-calls.tsv).
 
-game.exe was not read for a call to `_set_invalid_parameter_handler`, so
-whether the game installs a handler at `DAT_0096de70`, and so whether a bad
-CRT argument ends the process, is not traced.
+`__init_pointers` (`FUN_00681e49`) passes `__encoded_null()` to
+`FUN_006894f7`, the only code that writes `DAT_0096de70`: Ghidra's
+references and a byte scan of game.exe agree. `_set_invalid_parameter_handler`
+is at `0x006895fd` (it decodes the old handler, stores the new one encoded
+and returns the old) and `_get_invalid_parameter_handler` at `0x0068961f`,
+neither a Ghidra function, and no call, jump or pointer in game.exe reaches
+either. So the handler stays null, and a CRT argument check that calls
+`_invalid_parameter` always ends the process through `__invoke_watson`.
 
 ## Locks
 
