@@ -275,8 +275,9 @@ inline Layout layout_boxes() {
     const float grid_x = out.belt_more.x - 2.f * (belt + pot_gap);
     const float grid_y = out.belt_more.y;
     for (int index = 0; index < 4; ++index) {
-        out.belts[std::size_t(index)] = { grid_x + float(index % 2) * (belt + pot_gap),
-                                         grid_y + float(index / 2) * (belt + pot_gap), belt, belt };
+        const int column = index % 2, row = index / 2;         // a 2 x 2 grid: the row is meant whole
+        out.belts[std::size_t(index)] = { grid_x + float(column) * (belt + pot_gap),
+                                         grid_y + float(row) * (belt + pot_gap), belt, belt };
     }
     // Potion pair sits left of the lower fan; interaction has extra separation above it.
     const float potion_x = std::max(safe_inset.left + 12.f, attack_cx - 277.f);
