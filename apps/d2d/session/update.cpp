@@ -154,7 +154,10 @@ auto ClientSession::update(std::vector<std::uint8_t>& framebuffer, const Mouse& 
             if (net_game && click.kind == PartyPanel::Click::kButton) net_game->party_button(click.player);
             if (net_game && click.kind == PartyPanel::Click::kFlag) net_game->relation(click.player, click.flag);
             if (net_game && click.kind == PartyPanel::Click::kLeave) net_game->leave_party();
-            if (mouse.x >= 80 && mouse.x < 400 && mouse.y >= 60 && mouse.y < 492) mouse.press_this_frame = mouse.release_this_frame = mouse.rpress_this_frame = false;
+            if (mouse.x >= 80 && mouse.x < 400 && mouse.y >= 60 && mouse.y < 492) {   // the window's: a held press walks no one
+                if (mouse.press_this_frame) press_on_ui = true;
+                mouse.press_this_frame = mouse.release_this_frame = mouse.rpress_this_frame = false;
+            }
         }
         if (party.open && !net_game && !lan_game() && !coop_hud_hidden() && party_preview.empty() && !(pad_playing && pad_config.skill_buttons)) party.open = false;
         // The merc's portrait (FUN_00493760 / FUN_004936e0 / FUN_004938e0): 700 ms
