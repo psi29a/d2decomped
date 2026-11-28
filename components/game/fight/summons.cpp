@@ -55,14 +55,16 @@ auto Fight::summon_skill(const d2d::rules::Skill& skill) const -> bool {
                 || (skill.srvdofunc == ServerDoFunction::kTrap && trap_shot(skill) >= 0));
     }
 
-// A trap's shooting skill: the first of its sumskills that fires a
+// A trap's shooting skill: the first of its sumskills that breathes (do 95: Inferno Sentry's 'mon inferno
+// sentry', its MonStats infernosentry Skill1; its flames are srvmissilea) or fires a
 // missile d2d builds (the monster skills 'sentry lightning',
 // 'BoltSentry', 'death sentry ltng'); -1 for the others (Wake of Fire's
-// and Inferno's do 125 / 95, Death Sentry's corpse blast do 55).
+// do 125, Death Sentry's corpse blast do 55).
 auto Fight::trap_shot(const d2d::rules::Skill& skill) const -> int {
         for (const auto& name : skill.sumskill)
             if (const auto found = game_data->skills.by_name.find(name); !name.empty() && found != game_data->skills.by_name.end())
-                if (const auto* trap_skill = game_data->skills.get(found->second); trap_skill && skill_missile(*trap_skill, true)) return trap_skill->id;
+                if (const auto* trap_skill = game_data->skills.get(found->second);
+                    trap_skill && (skill_missile(*trap_skill, true) || trap_skill->srvdofunc == ServerDoFunction::kMonsterBreath)) return trap_skill->id;
         return -1;
     }
 

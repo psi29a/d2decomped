@@ -79,6 +79,17 @@ int main() try {
     std::printf("the breath at level 5: %d frames, a flame every %d: %zu flames\n", lasts, every, fight.missiles.size());
     assert(fight.missiles.size() == flames && pet.monster.breath < 0);
     std::puts("OK: the Inferno Sentry breathes one flame every calc3 frames till its end");
+    // While it breathes its think doesn't run (the breath holds its mode): no shot is spent till the breath ends
+    // (CodeRabbit on #815). A real Inferno Sentry, the world's own pets_turn.
+    actor->pets.clear();
+    const auto& wake = *data->skills.get(data->skills.by_name.at("Inferno Sentry"));
+    fight.skill_level = [&](int id) { return id == wake.id ? 5 : 0; };
+    fight.summon(wake, 5, actor->player.x + 1.f, actor->player.y, now);
+    assert(!actor->pets.empty());
+    auto& trap = actor->pets.back();
+    assert(trap.shot_skill == breath.id);                       // its Skill1's breath, not Fire Trauma's bombs (trap_shot)
+    std::puts("OK: a summoned Inferno Sentry breathes its Skill1");
+
     return 0;
 } catch (const std::exception& error) {
     std::printf("test_sentry_breath: %s\n", error.what());
