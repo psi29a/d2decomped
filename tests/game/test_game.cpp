@@ -2136,6 +2136,17 @@ int main(int argc, char** argv) try {
         coop.fight.monsters[prey_index].hit_points = 0;
         coop.fight.killed(prey_index, now_ms);
         assert(coop.lead().character.stats.get(d2d::d2s::kExp) > lead_exp && second.character.stats.get(d2d::d2s::kExp) > second_exp);
+        {   // In no party, the killer takes it all however far away (FUN_0057e990: FUN_00554630 -1, FUN_0057e510).
+            const int lead_party = coop.lead().party, second_party = second.party;
+            const float was_x = coop.lead().player.x;
+            coop.lead().party = second.party = -1;
+            coop.act_as(coop.lead());
+            coop.lead().player.x = coop.fight.monsters[prey_index].unit.x + 40;   // 200 subtiles off
+            const auto lead_before = coop.lead().character.stats.get(d2d::d2s::kExp), second_before = second.character.stats.get(d2d::d2s::kExp);
+            coop.fight.killed(prey_index, now_ms);
+            assert(coop.lead().character.stats.get(d2d::d2s::kExp) > lead_before && second.character.stats.get(d2d::d2s::kExp) == second_before);
+            coop.lead().party = lead_party; second.party = second_party; coop.lead().player.x = was_x;
+        }
         // Gold picked up is shared (FUN_00540900): 100 between two, 50 each.
         const auto lead_gold = coop.lead().character.stats.get(d2d::d2s::kGold), second_gold = second.character.stats.get(d2d::d2s::kGold);
         coop.loot.put({ .code = "gld", .gold = 100 }, coop.lead().player.x, coop.lead().player.y, 1, coop.fight.spawning.game, now_ms);
