@@ -187,6 +187,22 @@ rolled. `rules::missile_blow` follows this for the elements, and
 tools/emu/missile_hit.py checks it with the skill's min / max and the hit
 (Sorceress elements only).
 
+A SrcDamage missile's record (FUN_0064b860, EBX the record, 0x64b867) puts
+the skill's element in its field by EType (the switch at 0x64be18: fire
++0xc / +0x10, lightning +0x18 / +0x1c, magic +0x20 / +0x24, cold +0x28 /
++0x2c and length +0x30, poison +0x34 / +0x38 and length +0x3c), then, on the
+weapon path (`[ebp-0xc]` the SrcDamage, 0x64bebe), FUN_0064a930 adds the
+owner's stats 0x30..0x37 shifted by BL 8 (0x64becf), 0x38 cold length, 0x39 /
+0x3a the poison a frame as they are, 0x65 when over 0 else 0x3b to the
+poison length, and FUN_0064aa60 (ECX the record, ESI the SrcDamage)
+scales all but the poison length toward zero. So the skill's element is
+scaled with the owner's (Lightning Bolt's at 96 / 128) and each element is
+one roll of the sum. The other path (0x64bef5: `[ebp-0x1c]` and the unit)
+adds the stats with BL 0, not traced further. d2d: `rules::missile_record`,
+rolled in `player_blow`'s missile path in 256ths, the pierce on the
+resistance, a burst's rolls shared (`MissileRoll::record`;
+`test_missile_elements`).
+
 The physical part (+0x08, inline) reads as the same rule in the decompile,
 but `rules::missile_blow` does not follow it: it rolls the physical with the
 inclusive `rng.range(phys_lo, phys_hi)` whenever `phys_hi > 0`, even with

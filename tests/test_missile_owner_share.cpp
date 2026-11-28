@@ -59,7 +59,7 @@ int main() try {
     int bad = fixture_differ();
     Fighter fighter;
     fighter.attack_rating = 100000;
-    fighter.elem[0] = { 100, 100 };
+    fighter.elem[0] = fighter.elem_stats[0] = { 100, 100 };   // melee's, and the stat a missile's record takes (missile_record)
     fighter.two_handed = true;
     Swing swing{ .srcdam = 128 };
     swing.missile = true;

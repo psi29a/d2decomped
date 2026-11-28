@@ -374,9 +374,10 @@ auto Fight::shadow_fighter(const Pet& pet, d2d::rules::Fighter fighter) -> d2d::
         fighter.kick_pct += percent;
         if (const int length = pet_buff_stat(pet, d2d::d2s::kPoisonOverrideLength); length > 0) {
             const auto total = [&](int rate) { return int(std::int64_t(rate) * length / 256 * (100 + fighter.poison_mastery) / 100); };
-            fighter.poison_rate.first += pet_buff_stat(pet, d2d::d2s::kPoisonMinDamage);
-            fighter.poison_rate.second += pet_buff_stat(pet, d2d::d2s::kPoisonMaxDamage);
-            fighter.elem[3] = { total(fighter.poison_rate.first), total(fighter.poison_rate.second) };
+            auto& rate = fighter.elem_stats[3];
+            rate.first += pet_buff_stat(pet, d2d::d2s::kPoisonMinDamage);
+            rate.second += pet_buff_stat(pet, d2d::d2s::kPoisonMaxDamage);
+            fighter.elem[3] = { total(rate.first), total(rate.second) };
             fighter.poison_len = length;
         }
         return fighter;
