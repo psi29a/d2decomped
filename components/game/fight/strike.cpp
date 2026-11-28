@@ -135,7 +135,10 @@ auto Fight::player_fighter(d2d::rules::Fighter* kick ,
         const auto fighter_stats = [](d2d::rules::StatSum stats) {
             // FUN_0057b7d0 reads stat 101 before stat 59: Venom's override
             // is the duration of all poison on the player's melee record.
+            // Without it, stat 59 over poison_count (326: one a poison mod)
+            // when that's over 1 (0x57bb9b..: the length, averaged).
             if (stats[kPoisonOverrideLength] > 0) stats[kPoisonLength] = stats[kPoisonOverrideLength];
+            else if (stats[kPoisonCount] > 1) stats[kPoisonLength] /= stats[kPoisonCount];
             return stats;
         };
         const auto& resistances = actor->character.panel.res;                        // panel: fire, cold, lightning, poison
