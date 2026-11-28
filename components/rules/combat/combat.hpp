@@ -68,6 +68,7 @@ struct Fighter {
     int crushing = 0, deadly = 0, critical = 0, open_wounds = 0;   // chances, %
     int item_slow = 0;                    // item_slow (stat 150): gear's event 19 (FUN_005c0310) slows the unit a landed hit strikes
     int mastery_crit = 0;                           // stat 344, the weapon's mastery (FUN_00645830)
+    int bypass = 0;                                 // the record's 0x100 / 0x200 / 0x400: skill_bypass_undead / _demons / _beasts (103, 104, 106; Sanctuary's)
     int weapon_block = 0;                           // stat 348, two claws only (FUN_0057dca0)
     bool knockback = false;
     bool prevent_heal = false;                      // stat 117 (item_preventheal)
@@ -351,6 +352,9 @@ struct Target {
     bool boss = false, superunique = false, hireling = false;
     [[nodiscard]] std::int64_t paired(std::int64_t field) const { return field > 0 && pair_pct != 100 ? field * pair_pct / 100 : field; }
 };
+// The target as a blow with `bypass` (Fighter::bypass) strikes it: on an undead (0x100), a demon (0x200), a monster
+// that's neither or a player (0x400), each element's resistance only below 0 (FUN_0057c1e0 -> FUN_0057bf80).
+[[nodiscard]] Target bypassed(const Target& target, int bypass);
 // A player's attack rating (before its %) and the target's defense as the gear changes them: ignore target's
 // defense, -n% target defense, attack rating against demons and the undead.
 void target_defense(const Fighter& fighter, const Target& target, int& attack, int& defense);

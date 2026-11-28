@@ -266,6 +266,22 @@ int main(int argc, char** argv) try {
     d2d::d2s::Stats stats;
     stats.values[d2d::d2s::kStr] = 20; stats.values[d2d::d2s::kDex] = 20; stats.values[d2d::d2s::kLevel] = 1;
     StatSum sum{}, wsum{};
+    {   // Sanctuary's skill_bypass_undead (103) and kin: the record's 0x100 / 0x200 / 0x400 (FUN_0057b7d0); on such a
+        // target each resistance counts only below 0 (FUN_0057c1e0 -> FUN_0057bf80).
+        StatSum sanctified{};
+        sanctified[d2d::d2s::kBypassUndead] = 1;
+        const auto paladin = make_fighter(tables, &hax, nullptr, sanctified, wsum, stats, {}, 0, {});
+        assert(paladin.bypass == 0x100);
+        Target skeleton; skeleton.undead = true; skeleton.res = { 30, 0, 50, -20, 100, 0 };
+        const auto hit = bypassed(skeleton, paladin.bypass);
+        assert(hit.res == (std::array<int, 6>{ 0, 0, 0, -20, 0, 0 }));
+        Target zombie_demon; zombie_demon.demon = true; zombie_demon.res = skeleton.res;
+        assert(bypassed(zombie_demon, 0x100).res == skeleton.res && bypassed(zombie_demon, 0x200).res == hit.res);
+        Target beast; beast.res = skeleton.res;
+        assert(bypassed(beast, 0x300).res == skeleton.res && bypassed(beast, 0x400).res == hit.res);
+        Target player; player.unit_type = 0; player.res = skeleton.res;
+        assert(bypassed(player, 0x100).res == skeleton.res && bypassed(player, 0x400).res == hit.res);
+    }
     auto fighter = make_fighter(tables, &hax, nullptr, sum, wsum, stats, { .to_hit = 15, .block = 25 }, 50, { 1, 2, 3, 4 });
     assert(fighter.min == 3 && fighter.max == 7 && fighter.attack_rating == 80 && fighter.block == 0 && fighter.wsm == -10 && fighter.defense == 50 && fighter.res[3] == 4);
     // A group's member (FUN_00482680): never one of its last `keep` plays.

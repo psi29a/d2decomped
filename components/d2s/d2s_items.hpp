@@ -247,6 +247,7 @@ enum StatId { kStr = 0, kEne = 1, kDex = 2, kVit = 3, kStatPts = 4, kSkillPts = 
               kFasterBlockRate = 102,
               kFasterCastRate = 105,
               kSingleSkill = 107,                   // item_singleskill: +n to one skill (param)
+              kBypassUndead = 103, kBypassDemons = 104, kBypassBeasts = 106,   // skill_bypass_*: the blow's record flags 0x100 / 0x200 / 0x400
               kCurseResistance = 109,               // curse_resistance (Fade's): a curse's length less that %, none at 100
               kPoisonLengthReduction = 110,         // item_poisonlengthresist
               kNormalDamage = 111, kStupidity = 113,

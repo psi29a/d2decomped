@@ -178,6 +178,8 @@ Fighter make_fighter(const Tables& tables, const d2d::d2s::Item* weapon, const d
     fighter.cold_len = int(stat(kColdLength)); fighter.poison_len = int(stat(kPoisonLength));
     fighter.stun_len = int(stat(kStunLength));
     fighter.crushing = int(stat(kCrushingBlow)); fighter.deadly = int(stat(kDeadlyStrike) + stat(kDeadlyStrikePerLevel) * clvl / 8); fighter.critical = int(stat(kPassiveCriticalStrike));
+    // FUN_0057b7d0 (a player's or hireling's record) / FUN_0064b860 (a SrcDamage missile's, 0x64bcbb..0x64bcf3).
+    fighter.bypass = (stat(kBypassUndead) != 0 ? 0x100 : 0) | (stat(kBypassDemons) != 0 ? 0x200 : 0) | (stat(kBypassBeasts) != 0 ? 0x400 : 0);
     fighter.mastery_crit = int(stat(kPassiveMasteryMeleeCritical)); fighter.weapon_block = int(stat(kPassiveWeaponBlock));
     fighter.open_wounds = int(stat(kOpenWounds));
     fighter.item_slow = int(stat(kItemSlow));
@@ -882,13 +884,25 @@ bool missile_crit(Rng& caster, int critical, int deadly, int mastery) {
     return mastery != 0 && int(caster.next() % 100) < mastery;
 }
 
+// FUN_0057c1e0: a monster struck that's undead with 0x100, a demon with 0x200, or neither with 0x400, or any other
+// unit with 0x400, passes FUN_0057bf80 its bypass: no flat cut nor absorb, and a resistance over 0 counts as none.
+Target bypassed(const Target& target, int bypass) {
+    const bool bypasses = target.unit_type != 1 ? (bypass & 0x400) != 0
+                                          : (target.undead && (bypass & 0x100)) || (target.demon && (bypass & 0x200)) || (!target.undead && !target.demon && (bypass & 0x400));
+    if (!bypasses) return target;
+    Target out = target;
+    for (auto& res : out.res) res = std::min(res, 0);
+    return out;
+}
+
 // A player's blow: melee's record (FUN_0057b7d0 -> FUN_0057b420), a missile's from its record
 // at the hit (FUN_0064b860 -> FUN_005a89a0): the roll, the %, the crit, the blow's events. A missile's
 // gear elements and leech are the owner's share (missile_owner_share).
-Blow player_blow(const Fighter& attacker, const Target& target, int clvl, Rng& rng, const Swing& swing, Rng* damage_rng, Rng* defender_rng) {
+Blow player_blow(const Fighter& attacker, const Target& struck, int clvl, Rng& rng, const Swing& swing, Rng* damage_rng, Rng* defender_rng) {
     std::optional<Fighter> shared;
     if (swing.missile) shared = missile_owner_share(attacker, swing);
     const Fighter& fighter = shared ? *shared : attacker;
+    const Target target = bypassed(struck, fighter.bypass);
     Blow blow{ .hit_class = fighter.hit_class | swing.hit_class };
     const auto [attack_rating, defense] = player_to_hit(fighter, target, swing.ar_pct);
     if (!swing.smite && rng(100) >= hit_chance(attack_rating, defense, clvl, target.level)) return blow;
