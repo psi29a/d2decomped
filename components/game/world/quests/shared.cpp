@@ -619,12 +619,13 @@ auto World::item_event(std::string_view code, std::uint32_t now_ms, bool corpse)
         // a2q2's (record 9's +0xb0, FUN_00599a30): Items.txt quest 10 binds tr1, vip, box and msf to it
         // (FUN_00555d20), and the event reaches it while its +0xa is set (FUN_005439a0; FUN_0059eb00 sets
         // it, FUN_00544410 clears it: closed_at_join). The scroll with bit 3 unset, the amulet, the Cube or
-        // the shaft (the last through FUN_00599570) sends its log to the picker (FUN_00544190, record 9: S->C
-        // 0x5d) when FUN_00599510 passes, which is rules::quest_log_goes_to; the client makes the act test.
-        // ponytail: a corpse's event (the corpse as the player) sends none here: where its 0x5d goes isn't traced.
+        // the shaft (the last through FUN_00599570) sends its log to the event's player (FUN_00544190, record 9:
+        // S->C 0x5d) when FUN_00599510 passes, which is rules::quest_log_goes_to; the client makes the act test.
+        // A corpse has fresh, clear quest bits, but FUN_0057f700 and FUN_00533850 copy its owner's client onto it
+        // with FUN_00553180, so the packet goes to that owner (tools/emu/staff_corpse_news.py).
         using Staff = d2d::rules::HoradricStaffQuest;
         const bool staff_part = (code == "tr1" && !d2d::rules::quest::bit(bits, Staff::kQuest, 3)) || code == "vip" || code == "box" || code == "msf";
-        if (!corpse && staff_part && !closed_at_join[std::size_t(Staff::kQuest)] && d2d::rules::quest_log_goes_to(bits, Staff::kQuest))
+        if (staff_part && !closed_at_join[std::size_t(Staff::kQuest)] && d2d::rules::quest_log_goes_to(bits, Staff::kQuest))
             actor->events.push_back(ev::QuestNews{ Staff::kQuest });
     }
 
