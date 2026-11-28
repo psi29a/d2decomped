@@ -403,7 +403,8 @@ auto World::countess_died(std::uint32_t now_ms) -> void {
             quest_kill = true;
         });
         if (quest_kill && act() == 0)
-            each_player([&](Player& player) {
+            each_in_game([&](Player& player, int their_act) {   // the party anywhere in Act 1 (another level's turn too)
+                if (their_act != 0) return;
                 auto& bits = quests();
                 if (std::ranges::none_of(took_part, [&](const Player* one) { return one == &player || same_party(*one, player); })) return;
                 if (d2d::rules::quest::bit(bits, d2d::rules::TowerQuest::kQuest, 0)) return;
