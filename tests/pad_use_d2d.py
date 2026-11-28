@@ -543,11 +543,11 @@ if touch_ux:
                 if stock_point is not None:
                     break
             assert stock_point is not None, "no stock captured"
-            if drag:
-                finger(2, "move", 610, 260); finger(2, "cancel", 610, 260)
+            if drag:   # into the bag's grid (touch_trade_drop: the grid, not the whole panel)
+                finger(2, "move", *grid_cell); finger(2, "cancel", *grid_cell)
                 assert int(state()["items"]) == before, "cancelled drag bought stock"
-                finger(2, "down", *stock_point); finger(2, "move", 610, 260)
-                finger(2, "up", 610, 260)
+                finger(2, "down", *stock_point); finger(2, "move", *grid_cell)
+                finger(2, "up", *grid_cell)
             else:
                 finger(2, "up", *stock_point); tap(400, 208)
             assert int(state()["items"]) == before + 1, "touch stock gesture did not buy"
@@ -555,6 +555,7 @@ if touch_ux:
             return item_point(bought.split(" id=")[1].split()[0])
         # A sellable potion retains Use, and using it must not sell it instead.
         potion = carried("hp1", 6, 0)
+        grid_cell = item_point(potion)                         # a cell of the bag's grid, where a stock drag buys
         cmd("debug stat 6 256"); frames(3)
         before = int(state()["items"])
         before_gold = state()["gold"]
