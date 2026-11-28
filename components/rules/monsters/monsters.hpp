@@ -54,8 +54,15 @@ struct Region {
     std::vector<std::pair<int, int>> types;     // (MonStats row, rarity)
     std::vector<std::vector<Components>> components;   // per type
     int total = 0;                              // rarity sum
+    // The population's own types (the region's count +0x10): the first `spawns` of `types`. The rows
+    // region_sets joins after them count only in +0x12, so a pick (FUN_005bde80) never reaches them.
+    std::size_t spawns = 0;
 };
 Region monster_region(const Monsters& monsters, const LevelMon& level_mon, int difficulty, Rng& seed);
+// FUN_00547bc0: the sets a monster of row `type` takes its look from in its level's region. A row the
+// region lacks joins it (rarity 0, 13 rows at most) with sets rolled on `unit_seed` when its TotalPieces is
+// over 2. None (its look rolls every layer) for rows 0xc3, 0xc4, 0x126 and 0x128.
+const std::vector<Components>* region_sets(Region& region, const Monsters& monsters, int type, Rng& unit_seed);
 
 // An item a monster wears from the start (FUN_005d6b60 as it's made): its
 // code, body slot, quality and item level, and the two game seed steps

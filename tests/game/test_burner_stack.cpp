@@ -78,7 +78,13 @@ int main() try {
     put(2);
     flames(1);
     assert(lost(1) == one && lost(0) == 0);                         // one flame, one unit: the newest
-    std::printf("OK: one flame %d, two flames %d; a flame burns one unit\n", one, two);
+    // The newest on the player's side (a converted one, alignment 2): FUN_005a8730 passes it by
+    // (FUN_00554200), so the flame takes the other.
+    put(2);
+    fight.monsters[1].align = 2;
+    flames(1);
+    assert(lost(1) == 0 && lost(0) == one);
+    std::printf("OK: one flame %d, two flames %d; a flame burns one unit, not one on the player's side\n", one, two);
     return 0;
 } catch (const std::exception& error) {
     std::printf("FAIL: %s\n", error.what());

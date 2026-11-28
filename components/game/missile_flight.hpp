@@ -103,9 +103,12 @@ bool missile_fly(const Level& level, Missile& missile, Reach&& reach) {
 // A friendly one asks `hits_monster` (true: it struck one, spent), and
 // `flight_over` when its flight ends (FUN_00554ca0 gives 2: FUN_005adf10(0,
 // 1), its hit with no unit); a monster's hit spawn goes off there too.
-template <class Reach, class HitsMonster, class OwnerAlive, class FlightOver>
+// `owner_seed`: a monster owner's unit seed by its id when it isn't among the foes (nullptr none).
+struct NoOwnerSeed { d2d::rules::Rng* operator()(int /*owner*/) const { return nullptr; } };
+template <class Reach, class HitsMonster, class OwnerAlive, class FlightOver, class OwnerSeed = NoOwnerSeed>
 void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Foe> foes, d2d::rules::Rng& rng,
-                     std::uint32_t now_ms, Reach&& reach, HitsMonster&& hits_monster, OwnerAlive&& owner_alive, FlightOver&& flight_over) {
+                     std::uint32_t now_ms, Reach&& reach, HitsMonster&& hits_monster, OwnerAlive&& owner_alive, FlightOver&& flight_over,
+                     OwnerSeed&& owner_seed = {}) {
     std::vector<Missile> laid;
     const int frame = int(now_ms / 40);
     // FUN_005a8730, its unit filter: with an owner (EDI), only a unit hostile to it (FUN_00554200)
@@ -128,6 +131,26 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
             return true;
         }
         if (now_ms >= missile.dies || (!moving && level.blocked(missile.x, missile.y, 0x04))) return true;
+        // A monster's do 2 (FUN_005ae400: the viper's poison javelin): on a frame its flight entered a new
+        // subtile, SubMissile1 standing there (FUN_005a9720, flags 5), for Range + LevRange x level frames
+        // and its SubLoop's (trail_loops). Its record: a SrcDamage-0 row with SrcMissDmg takes the missile's
+        // stats 21 / 22 x SrcMissDmg / 128 (FUN_0064b860, 0x64bd07): its physical only, none of the
+        // missile's poison, elements or enchants. Then it strikes as do 1.
+        if (!missile.friendly && !missile.visual_only && missile.info && missile.info->srv_do == 2 && missile.info->subs[0]) {
+            const int at_x = int(std::floor(missile.x * 5)), at_y = int(std::floor(missile.y * 5));
+            if (at_x != missile.subtile_x || at_y != missile.subtile_y) {
+                missile.subtile_x = at_x; missile.subtile_y = at_y;
+                const auto& cloud_row = *missile.info->subs[0];
+                Missile cloud = missile_from(missile, cloud_row, (float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0, 0, now_ms);
+                cloud.dies += std::uint32_t(std::max(missile.trail_loops, 0)) * 40;
+                if ((cloud_row.src_damage & 0xff) == 0 && cloud_row.src_miss_dmg > 0) {
+                    cloud.src.a2_min = int(std::int64_t(missile.src.a2_min) * cloud_row.src_miss_dmg / 128);
+                    cloud.src.a2_max = int(std::int64_t(missile.src.a2_max) * cloud_row.src_miss_dmg / 128);
+                    cloud.src.unblockable = !(cloud.src.a2_min > 0 && cloud.src.a2_max > 0);
+                }
+                laid.push_back(std::move(cloud));
+            }
+        }
         // The client's do 55 (FUN_004d8260, "ancient death center"): every
         // third frame of its age an "ancient death cloud" (`sub`, flags 0x21)
         // from a subtile -1..0 off it each way, sent at that start's -10..9
@@ -348,7 +371,11 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
                 if (!foe.alive || !hostile(missile, foe) || !standing_struck(missile, foe.x, foe.y, foe.size) || std::ranges::contains(*missile.struck, key)) continue;
                 missile.struck->push_back(key);
                 const auto& row = *missile.row;
-                const int burn = d2d::rules::resisted_fine(rng.range(row.elo, row.ehi) - d2d::rules::frame_rate_flat(foe.fighter.mdr, missile.info->damage_rate),
+                // The record's element (FUN_005a8910): min + rand(max - min) on the missile's own seed, none unless both are over 0.
+                auto& own = missile.seed ? *missile.seed : rng;
+                const int row_low = std::min(row.elo, row.ehi), row_high = std::max(row.elo, row.ehi);
+                const int rolled = row_low > 0 ? row_low + own(row_high - row_low) : 0;
+                const int burn = d2d::rules::resisted_fine(rolled - d2d::rules::frame_rate_flat(foe.fighter.mdr, missile.info->damage_rate),
                                                            foe.fighter.res[std::size_t(std::clamp(row.etype, 0, 2))]);
                 const int dealt = burn >> 8;
                 foe.damage += dealt; foe.elemental += dealt; foe.frac += burn & 255;
@@ -382,7 +409,14 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
                 if (std::ranges::contains(*missile.struck, key)) continue;
                 missile.struck->push_back(key);
             }
-            const auto taken = d2d::rules::monster_blow(foe.fighter, foe.level, foe.motion(), missile.src, true, rng, true);
+            // Its to-hit on its owner's seed (FUN_0057d9b0, ECX the owner), its damage on its own, the block,
+            // avoid and evade on the struck unit's.
+            const auto owner_foe = std::ranges::find_if(foes, [&](const Foe& other) { return other.monster && other.monster->id == missile.owner; });
+            // The owner is a foe only while the monsters are (Fight::world's gate); else its seed by its id.
+            d2d::rules::Rng* const owner_unit = owner_foe != foes.end() && owner_foe->seed ? owner_foe->seed : owner_seed(missile.owner);
+            auto& owner_rng = owner_unit ? *owner_unit : rng;
+            const auto taken = d2d::rules::monster_blow(foe.fighter, foe.level, foe.motion(), missile.src, true, owner_rng, true, false, false, foe.seed,
+                                                        missile.seed ? &*missile.seed : nullptr);
             foe.take(taken, missile.owner);
             if (taken.hit && missile.owner >= 0) foe.shot_by.push_back(missile.owner);
             if (taken.hit && missile.info) foe.struck_by(missile.info->hit_class);

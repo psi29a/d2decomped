@@ -235,10 +235,15 @@ path test (`rules::path_found`) as the merc does.
   else 5 about the owner (`FUN_005df530`; with no owner `FUN_005de200(2)`),
   else stand 5. No line: stand 3.
   d2d starts it at -1, 1, 0 (`Fight::summon_one`, `rules::blade_sentinel_init`,
-  FUN_005ea510 read at 0x73d07c). Its think `blade_sentinel_think` is not
-  dispatched live: BladeCreeper isn't in `traced_pet_ai`, so the pet takes
-  the untraced stand-in in `Fight::pets_turn`. `tests/test_blade_sentinel_init.cpp`
-  holds the three values; nothing checks `summon_one`'s branch in play.
+  FUN_005ea510 read at 0x73d07c). The cast (do 44, `FUN_005d6020`, EDI the caster)
+  makes it through `FUN_005d5e10`, gives it the caster's level (stat 0xc, 0x5d60c3),
+  puts it on the caster's subtile (`FUN_00554ea0`, 0x5d60e7) and files its line
+  (`FUN_0058ef40`: +0xc / +0x10 the caster's subtile, +0x14 / +0x18 the point).
+  Its blade (0x5ea660) is `FUN_0056ede0` with EDX the owner, so its damage is the
+  player's, and `FUN_00621ce0` makes the pet the unit it rides (missile do 20).
+  d2d: `Fight::blade_sentinel`, `Fight::pet_blade`, `blade_sentinel_think` dispatched
+  in `pet_think_turn`; `tests/game/test_blade_sentinel.cpp` runs the cast in a game,
+  `tests/test_blade_sentinel_init.cpp` holds the three values.
 - **Raven** (`0x5ecc10`, init `0x5ecb70`: +0x14 -1, +0x18 aip3 + 1, +0x1c
   a seed step's low bit): +0x14 its hits (-1 at first: Skill1's
   `FUN_004efcb0`, else 3); 0 and it dies (`FUN_0057ccb0`). Over 50 from the
@@ -603,14 +608,19 @@ a null pet counts as -1):
 more byte to +0xb; a 0 last argument one more to +9, and 1 steps the
 owner's seed into +0xf / +0x10 instead. Rows 0 and 1 of 0x741940 are all
 zero; row 2 is 0, 1, 0, 0, 0, 0, 0, 0, 1 (read from game.exe's bytes,
-`tools/emu`). What the monster-data bytes draw (which component), state
-0x61 and stats 0x15e / 0x15f were not followed.
+`tools/emu`). The bytes are the pet's look (monster data +4 is the first
+of its 16 component picks, MonStats2 HD .. S8): +4..+8 HD, TR, LG, RA, LA,
++9 RH, +0xb SH, +0xc / +0xd S1 / S2, +0xf / +0x10 S4 / S5 (a mage's
+element parts pos, cld, fir, lht), written over what its stat init rolled.
+State 0x61 is skel_mastery (Skeleton Mastery's passivestate), stats 0x15e /
+0x15f its list's modifierlist_skill / modifierlist_level: the row index is
+Skeleton Mastery's level, so the skeletons wear more as it grows.
 
-d2d (`Fight::summon_one`) rolls `rng(4)` for every pet's variant and
-uses it only for a mage's missile (deviations.md approximation 18); it
-has no state 0x61 index and doesn't make a skeleton's Param1 roll, which
-steps the owner's seed in game.exe at a skill level above 2. Not
-compared: the look bytes, until what they draw is traced.
+d2d: `rules::raised_look` (`Fight::summon`), on the player's own seed
+(`Hero::seed`); a mage's element is its `Pet::variant`.
+`tools/emu/raised_look.py` runs FUN_005c4430 for real (4000 cases: both
+kinds, mastery 0..40, levels 1..35, Param1 0..100) against
+`test_raised_look`: the look and the owner's seed after.
 
 Re-check: `python3 tools/ghidra/fn.py 005c4430 005c4300 005c43d0 005c4180`,
 `uv run --project tools/emu python tools/emu/disasm.py 5c4430` (and

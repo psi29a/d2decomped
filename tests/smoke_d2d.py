@@ -190,12 +190,17 @@ try:
         def walk_to(name, done, dy=40, tries=12):
             """Click `name` (a step its way when off screen: the edge may
             be a wall), wait for the walk to end; again (it may patrol)
-            until done(state)."""
+            until done(state). A click the hero can't path from where it
+            stands (a corner the town's wanderers left it at) is tried
+            again a little to one side, then the other."""
+            stuck = 0
             for _ in range(tries):
                 x, y = npc_at(name)
                 y -= dy
                 f = min(1.0, 250 / max(abs(x - 400), 2 * abs(y - 292), 1))
                 x, y = int(400 + (x - 400) * f), int(292 + (y - 292) * f)
+                y += (0, 60, -60)[stuck % 3]
+                before = state()["cam"]
                 cmd(f"move {x} {y}"); frames(2); cmd(f"click {x} {y}"); frames(2)
                 for _ in range(60):
                     st = state()
@@ -205,6 +210,7 @@ try:
                 frames(6)
                 if done(state()):
                     return
+                stuck = stuck + 1 if state()["cam"] == before else 0
         walk_to("Warriv", lambda st: st["menu"] != "0")
         assert state()["menu"] in ("3", "4"), "Warriv's menu did not open"   # 4 with Go East (Andariel dead)
         # talk -> the talk submenu (talk, introduction, gossip, cancel);

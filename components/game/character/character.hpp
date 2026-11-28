@@ -102,7 +102,8 @@ struct PanelStats {
     // item_maxhp_percent / item_maxmana_percent (76, 77; ItemStatCost op 11):
     // a share of the own maximum plus the items' flat +life / +mana, not of
     // the attributes' (op 8) share. Fight::update_fighters adds it.
-    std::array<std::int64_t, 2> max_percent{}, max_flat{};
+    std::array<std::int64_t, 2> max_percent{};
+    std::array<std::int64_t, 3> max_flat{};              // the items' flat max life, mana and stamina (stats 7, 9, 11)
     std::array<d2d::rules::AttackLine, 2> attack{};   // the left / right skill's block, as the server sends it
     int block = 0;                               // the chance to block (FUN_00622720): the defence hover's first line (FUN_004a7180)
     std::uint8_t blue = 0, red = 0;              // the states' colours (rules::PanelColour bits)

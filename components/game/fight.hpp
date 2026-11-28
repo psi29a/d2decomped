@@ -98,6 +98,7 @@ struct Fight {
     // World's Player adds the rest of their state; `actor` is the one acting.
     struct Hero {
         int id = 0;                        // the player's unit id in the game (World::join): 1, 2 ...
+        d2d::rules::Rng seed;              // its unit seed (+0x20): the rolls game.exe makes on the player's own (player_joins)
         // Where the player is walking to: its path's target (+0x10, SP1); the target the
         // path was last worked out to (+0x18, SP3, FUN_00649970) is player.goal_x / goal_y.
         float target_x = 0, target_y = 0;
@@ -197,6 +198,9 @@ struct Fight {
             bool skill_damage = false;
             int skill_low = 0, skill_high = 0, skill_to_hit = 0;
             const Level* where = nullptr;              // the level it's on (pets follow the player across)
+            // A Blade Sentinel's line (FUN_0058ef40's record +0xc..+0x18): the caster's subtile, then the point.
+            std::array<std::pair<int, int>, 2> line{};
+            bool lined = false;
             std::uint32_t until = 0;                   // it goes then (Decoy, Revive, Hydra; 0 never)
             bool homing = false;                       // a revived monster on its walk back to its owner (FUN_005b0ff0)
             int variant = 0;                           // a skeletal mage's element (its +0xf, FUN_005ce0b0)
@@ -224,7 +228,7 @@ struct Fight {
         };
         // What a Shadow summons while the pets take their turns (traps, Blade
         // Sentinel), made once they're done.
-        struct PetSummon { int skill = 0, level = 0; float x = 0, y = 0; };
+        struct PetSummon { int skill = 0, level = 0; float x = 0, y = 0; float from_x = 0, from_y = 0; int caster_level = 1; };   // from: Blade Sentinel's caster
         std::vector<PetSummon> pet_summons;
         std::vector<Pet> pets;
         std::uint32_t aura_next = 0;           // its next pulse
@@ -282,7 +286,9 @@ struct Fight {
         int storm_last = -1;                            // the unit id Thunder Storm struck last (FUN_00644560)
         std::uint32_t blade_next = 0;                  // Blade Shield's next strike
         std::uint32_t armageddon_next = 0, hurricane_next = 0;   // their timer events (type 5) next
+        std::uint32_t armageddon_word = 0;     // its skill record's +0x18: each pulse's seed (FUN_005c8190, FUN_005c8520)
         std::int64_t bo_life = 0, bo_mana = 0;         // Battle Orders' life and mana on the maxima (256ths)
+        std::int64_t stamina_share = 0;                // stats 162 / 163's share of max stamina (256ths): op 1
         // What worn items (and passives) put on the maxima (256ths): the
         // character's own, as a save keeps them, are the maxima less these.
         std::array<std::int64_t, 3> item_max{};        // life, mana, stamina
@@ -433,8 +439,16 @@ struct Fight {
 
     // A fresh game at `difficulty`: its monsters, nothing in flight.
     void new_game(int difficulty);
-    // The save's merc joins: its fighting stats at its experience.
-    void merc_joins();
+    // The save's merc joins: its fighting stats at its experience. Its unit seed is made now (merc_seed)
+    // unless it comes with the save (`from_save`: player_joins makes it in the load's order).
+    void merc_joins(bool from_save = false);
+    // A merc unit's seed as FUN_005774f0 makes it (FUN_00555230 type 1): a game seed step, then its stat
+    // init's draws on it (make_monster: its look off the level's region, its life, MonProp, MonEquip).
+    void merc_seed();
+    // The player joins with `own_records` item records in its save (its list and its corpse's, a socketed
+    // item each a record) and `merc_records` in its merc's list: its unit seed is a game seed step, then
+    // each record made a unit takes two; its saved merc is made between the two lists (merc_seed).
+    void player_joins(std::size_t own_records, std::size_t merc_records = 0);
     // A player coming near the merc: its client is given it (FUN_00571f90),
     // SetStat(0x148, (x + y) & 0xffff); one gone off forgets it (merc_given).
     void merc_gives();
@@ -530,7 +544,7 @@ struct Fight {
     // The swing's animation: KK for kicks, S1 for Smite, else A1.
     [[nodiscard]] int swing_mode() const;
     [[nodiscard]] bool skill_in_use() const;     // the unit's mode holds a used skill (FUN_00620250 non-null): a swing or a cast
-    [[nodiscard]] bool hit_interrupts() const;   // a big hit may put the player in a get-hit now (FUN_005809d0: FUN_0057edd0 and FUN_0057eec0)
+    [[nodiscard]] bool hit_interrupts();   // a big hit may put the player in a get-hit now (FUN_005809d0: FUN_0057edd0 and FUN_0057eec0)
     // What the swing's skill adds to the blow.
     [[nodiscard]] d2d::rules::Swing swing();
     // A melee skill's hit at `lvl` with `env`'s calcs: swing()'s, and the merc's (Jab, Bash, Stun).
@@ -585,6 +599,10 @@ struct Fight {
     struct Caster { float x = 0, y = 0; int level = 1, target = -1; float to_x = 0, to_y = 0; bool merc = false, pet = false; int unit_id = -1; };
     [[nodiscard]] int striker_of(const Caster& caster) const { return caster.unit_id >= 0 ? caster.unit_id : caster.merc ? merc_foe_id() : player_foe_id(); }
     [[nodiscard]] Caster player_caster(int skill) const;
+    // The caster's unit seed: the merc's, the summon's (Caster::unit_id) or the player's.
+    d2d::rules::Rng& caster_seed(const Caster& caster);
+    // A blow's striker's (land's `striker`): the merc's, a pet's, a monster's or the player's.
+    d2d::rules::Rng& striker_seed(int striker);
     bool casting_merc = false;             // launch() marks what's fired as the merc's
     int flight_part = 3;                   // spot's Dragon Flight: 1 the flight, 2 the kick (one event's, FUN_005d7850), 3 both
     int casting_unit = -1;                 // ... and as a summon's (Missile::striker)
@@ -645,15 +663,18 @@ struct Fight {
     //      (FUN_0056d400), its range + calc1;
     //   39 (FUN_005d3f90): prgcalc n squared tries at points within that
     //      many subtiles (rules::release_scatter_offset), each a missile of
-    //      the count's (fire, ice cubes). game.exe draws them on a stepped
-    //      copy of the caster's seed, d2d on its rng (deviations.md
-    //      approximation 18);
+    //      the count's (fire, ice cubes), drawn on {a step of the caster's
+    //      seed, 666};
     //   40 / 41 (FUN_005d5010 / FUN_005d5080, Royal Strike's first and
     //      third) and 37 / 143 (FUN_005d4e70 / FUN_005d4f40): prg's notes.
     // The count's missile (FUN_005d3cf0): 1 srvmissilea, 2 b, 3 c.
-    void release(std::size_t monster_index, std::uint32_t now_ms) { release(actor->charges, monster_index, now_ms, true); }
-    void release(std::vector<Charge>& held, std::size_t monster_index, std::uint32_t now_ms, bool player_levels);
-    void prg(const d2d::rules::Skill& skill, ServerDoFunction func, int count, int lvl, float target_x, float target_y, std::uint32_t now_ms);
+    void release(std::size_t monster_index, std::uint32_t now_ms) { release(actor->charges, monster_index, now_ms, true, actor->seed); }
+    // `seed`: the releasing unit's (the player's, a Shadow's): the prg's rolls are on it.
+    void release(std::vector<Charge>& held, std::size_t monster_index, std::uint32_t now_ms, bool player_levels, d2d::rules::Rng& seed);
+    void prg(const d2d::rules::Skill& skill, ServerDoFunction func, int count, int lvl, float target_x, float target_y, std::uint32_t now_ms, d2d::rules::Rng& seed);
+    void prg(const d2d::rules::Skill& skill, ServerDoFunction func, int count, int lvl, float target_x, float target_y, std::uint32_t now_ms) {
+        prg(skill, func, count, lvl, target_x, target_y, now_ms, actor->seed);
+    }
     // Dragon Tail's kick hit.
     void dragon_tail(const d2d::rules::Skill& skill, std::size_t target, int phys, std::uint32_t now_ms);
 
@@ -663,7 +684,7 @@ struct Fight {
     void boss_missile(const Monster& monster, const char* name, float dx, float dy, const std::shared_ptr<std::vector<int>>& ring, std::uint32_t now_ms, int missile_level = -1);
     // Fire Enchanted's death blast (uniques.hpp fire_blast): physical and fire, each a 64th of the roll in
     // 256ths, on everyone within difficulty + 4 subtiles; the corpse's guts (monstercorpseexplode).
-    void fire_blast(const Monster& monster, std::span<Foe> foes, std::uint32_t now_ms);
+    void fire_blast(Monster& monster, std::span<Foe> foes, std::uint32_t now_ms);
     // Umod 33's (a suicide minion's) death blast: its A1 roll as physical
     // and its aip1's element, within its aip4 (fight/).
     void suicide_blast(Monster& monster, std::span<Foe> foes, std::uint32_t now_ms);
@@ -778,7 +799,10 @@ struct Fight {
     // Missiles from `from` on with no seed yet take their unit seed off the game seed, in order (a
     // visual-only one none): a monster's as its think returns, any left at the frame's missile tick.
     void seed_missiles(std::size_t from);
-    // A missile's unit seed off the game seed as it's made (FUN_0059fa30), unless it's visual only or seeded already.
+    // A friendly missile's owner's unit seed: the merc's, the summon's that cast it (Missile::striker) or the player's.
+    d2d::rules::Rng& owner_seed(const Missile& missile);
+    // A missile's unit seed off the game seed as it's made (FUN_0059fa30), unless it's visual only or seeded already;
+    // a friendly one taking the weapon's damage rolls its crit on its caster's seed then (Missile::crit).
     void seed_made(Missile& missile);
     Missile& launch(const GameData::MissileInfo& missile_info, const d2d::rules::Skill& skill, int lvl, float x, float y, float dx, float dy,
                     int range, std::uint32_t now_ms);
@@ -803,7 +827,12 @@ struct Fight {
     void missile_tick(std::uint32_t now_ms);
     // An element in 256ths a frame on monster i (a burner's): less its resistance, gathered until whole points
     // come off (no hit recovery: its record has result flag 1 alone).
+    // The element is the record's (FUN_005a8910: min + rand(max - min), none unless both are over 0): on the
+    // missile's own seed, then its damage function's soft hit (soft_hit), as FUN_005adf10 makes them; the
+    // first form rolls on the fight's rng with `soft` given.
+    void burn(std::size_t monster_index, const d2d::rules::MissileDamage& damage, std::uint32_t now_ms, Missile& missile);
     void burn(std::size_t monster_index, const d2d::rules::MissileDamage& damage, std::uint32_t now_ms, bool soft = false);
+    void burn_roll(std::size_t monster_index, int etype, int roll, std::uint32_t now_ms, bool soft);
     [[nodiscard]] std::array<int, 4> pierce() const;
     // A skill's missile reaching monster i.
     bool skill_missile_hits(Missile& missile, std::size_t monster_index, std::uint32_t now_ms);
@@ -816,14 +845,14 @@ struct Fight {
     // roll the attack rating); then the skill's damage (missile_blow).
     // `freeze`: a Glacial Spike's freeze, frames. `roll`: the burst's one
     // record, drawn by the first blow and resisted by each unit.
-    void strike(const Missile& missile, std::size_t monster_index, std::uint32_t now_ms, int freeze = 0, d2d::rules::MissileRoll* roll = nullptr);
+    void strike(Missile& missile, std::size_t monster_index, std::uint32_t now_ms, int freeze = 0, d2d::rules::MissileRoll* roll = nullptr);
     // A blow's freeze length on monster i: its chill goes on the blow; stand() then stands it for the freeze,
     // after the blow lands.
     [[nodiscard]] d2d::rules::Freeze freeze_on(std::size_t monster_index, const d2d::rules::Target& target, d2d::rules::Blow& blow, int freeze);
     void stand(std::size_t monster_index, const d2d::rules::Freeze& frozen, std::uint32_t now_ms);
     // Every monster within r subtiles of (x, y) takes the missile's damage;
     // `one_roll`: from one roll for all of them (hit functions 1 and 13).
-    void area(const Missile& missile, float x, float y, int radius, std::uint32_t now_ms, int freeze = 0, bool one_roll = false);
+    void area(Missile& missile, float x, float y, int radius, std::uint32_t now_ms, int freeze = 0, bool one_roll = false);
     // A missile's hit function where it is.
     // `struck`: the monster the missile struck, -1 none.
     void burst(Missile& missile, std::uint32_t now_ms, int struck = -1);
@@ -869,19 +898,23 @@ struct Fight {
     [[nodiscard]] const GameData::MissileInfo* pet_missile(const d2d::rules::Skill& skill, int variant = 0) const;
     void summon(const d2d::rules::Skill& skill, std::uint32_t now_ms) { summon(skill, skill_level ? skill_level(skill.id) : 1, actor->cast_x, actor->cast_y, now_ms); }
     void summon(const d2d::rules::Skill& skill, int lvl, float x, float y, std::uint32_t now_ms);
+    // Blade Sentinel's do 44: its bladecreeper on the caster (at `from`, of level `caster_level`), its line to the point.
+    void blade_sentinel(const d2d::rules::Skill& skill, int lvl, float from_x, float from_y, float to_x, float to_y, int caster_level, std::uint32_t now_ms);
+    void pet_blade(Pet& pet, std::uint32_t now_ms);   // its think's blade, riding it (do 20)
     [[nodiscard]] static int pet_buff_stat(const Pet& pet, int stat) { const auto found = pet.buff_stats.find(stat); return found == pet.buff_stats.end() ? 0 : found->second; }
     void pet_buffs(Pet& pet);
     // A Shadow's: the owner's fighter with its own damagepercent (a curse's) in.
     [[nodiscard]] static d2d::rules::Fighter shadow_fighter(const Pet& pet, d2d::rules::Fighter fighter);
     [[nodiscard]] d2d::rules::Fighter pet_swing(const Pet& pet) const;   // its own A1 blow, a curse's damagepercent in
-    void blade_shield(const d2d::rules::Skill& skill, int lvl, float x, float y, const d2d::rules::Fighter& fighter, bool by_player, int striker, std::uint32_t now_ms);
+    void blade_shield(const d2d::rules::Skill& skill, int lvl, float x, float y, const d2d::rules::Fighter& fighter, bool by_player, int striker, d2d::rules::Rng& seed,
+                      std::uint32_t now_ms);
     int summon_one(const d2d::rules::Skill& skill, int type, int lvl, const d2d::rules::CalcEnv& env, float x, float y, std::uint32_t now_ms, int corpse = -1);   // the pet's id; Revive's corpse
     // Iron Golem's item.
     [[nodiscard]] int golem_item_at(float x, float y) const;
     std::optional<d2d::d2s::Item> golem_item;   // the one do 57 took off the floor, for summon_one's golem to wear
     // A pet as the monsters see it: its defense, its MonStats resistances
     // (traps aren't there to hit).
-    [[nodiscard]] Foe pet_foe(const Pet& pet) const;
+    [[nodiscard]] Foe pet_foe(Pet& pet) const;
     void pet_hurt(Pet& pet, int damage, std::uint32_t now_ms, int hit_class = 0, bool marked = false, int fraction = 0);
     // A Crushing Blow on a pet (crushing_blow at `divisor` less `damage_resist`): off its life, no get-hit, no regen event.
     void pet_crushed(Pet& pet, int divisor, int damage_resist, std::uint32_t now_ms);
@@ -918,6 +951,8 @@ struct Fight {
     void shadow_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd, int dragon_part = 3);
     void shadow_sequence(Pet& pet, std::uint32_t now_ms);   // a Shadow's Dragon Flight: its MonSeq sequence starts
     void trap_fire(Pet& pet, std::size_t target, std::uint32_t now_ms);
+    // A breath under way (do 95, FUN_005cc4e0 re-run): a flame at its target every calc3 frames till its end.
+    void pet_breath(Pet& pet, std::uint32_t now_ms);
     // Holy Shield: the holyshield state for auralencalc ticks, its aurastats (toblock dm56) on the player.
     bool cast(int skill, std::uint32_t now_ms);
     // A cast's cost: a charged entry's (Hero::charge, for that skill) is a charge and no mana, else the skill's
@@ -995,7 +1030,10 @@ struct Fight {
     // Whether (x, y) is within 30 cells of a player (the rooms in play).
     [[nodiscard]] bool near_players(float x, float y) const;
     void hurt_side(std::span<Foe> side, std::uint32_t now_ms);
-    [[nodiscard]] Hero::Curse monster_curse(const Foe::Cast& cursed, std::uint32_t now_ms);
+    // The pet foes from `pet_foes` on (Foe::pet) back on their pets by id after pets_turn dropped or moved some:
+    // each one's seed its own pet's, one gone not alive.
+    static void rebind_pet_foes(std::span<Foe> pet_foes, std::vector<Pet>& pets);
+    [[nodiscard]] Hero::Curse monster_curse(const Foe::Cast& cursed, std::uint32_t now_ms, int curse_resistance = 0);
     // The stats a monster's curse puts on the player's side: its skill's
     // aurastats at its level, or a random curse's own by its pick.
     [[nodiscard]] std::vector<std::pair<int, int>> curse_stats(const Hero::Curse& curse, const d2d::rules::CalcEnv& env) const;

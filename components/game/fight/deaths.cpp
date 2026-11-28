@@ -419,9 +419,9 @@ auto Fight::blast_reaches(const Monster& monster, const Foe& foe, int radius) co
 // Fire Enchanted's death blast (uniques.hpp fire_blast): physical and
 // fire, each a 64th of the roll in 256ths, on everyone within
 // difficulty + 4 subtiles; the corpse's guts (monstercorpseexplode).
-auto Fight::fire_blast(const Monster& monster, std::span<Foe> foes, std::uint32_t now_ms) -> void {
+auto Fight::fire_blast(Monster& monster, std::span<Foe> foes, std::uint32_t now_ms) -> void {
         const auto [low, high] = d2d::rules::fire_blast(monster.stats.hit_points, monster.difficulty);
-        const int pts = (low + rng(std::max(high - low, 1))) * 64 / 256;
+        const int pts = (low + monster.seed(high - low)) * 64 / 256;   // FUN_005a2620: rand(high - low) on its seed (0x5a27d6)
         for (auto& foe : foes) {
             if (!blast_reaches(monster, foe, monster.difficulty + 4)) continue;
             d2d::rules::Taken taken;
@@ -536,7 +536,8 @@ auto Fight::merc_strike(std::size_t target, const d2d::rules::Swing& swing, std:
         // No steal divisor: FUN_0057c420 divides a player's leech by DifficultyLevels' LifeStealDivisor / ManaStealDivisor
         // (0x57c49e..0x57c4ce), a hireling's not (it joins that path at 0x57c4d1); land() heals the merc.
         const auto struck = merc_target(target);                   // its divisors 1
-        const auto blow = d2d::rules::player_blow(fighter, struck, actor->merc_st.level, rng, swing);
+        auto own = actor->merc ? &actor->merc->seed : &rng;              // the hireling's seed (+0x20)
+        const auto blow = d2d::rules::player_blow(fighter, struck, actor->merc_st.level, *own, swing, nullptr, &monsters[target].seed);
         merc_blow = true;
         const bool landed = land(target, blow, false, now_ms, merc_foe_id());
         merc_blow = false;

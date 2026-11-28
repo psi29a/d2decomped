@@ -17,6 +17,7 @@
 #include "npc.hpp"
 
 #include <d2s_items.hpp>
+#include <item_gen.hpp>
 #include <level_ids.hpp>
 #include <light.hpp>
 #include <monster_ids.hpp>
@@ -319,7 +320,7 @@ auto World::take_character(const Character& entering) -> void {
         // The save's maxima are its own (Fight::own_stats): the last game's
         // gear and Battle Orders shares go, or the next refresh adds none and
         // the next save takes them off again.
-        actor->item_max = {}; actor->bo_life = actor->bo_mana = 0;
+        actor->item_max = {}; actor->bo_life = actor->bo_mana = 0; actor->stamina_share = 0;
         actor->held.reset();
         actor->store = {};
     }
@@ -348,6 +349,13 @@ auto World::lay_save_corpse(const Character& entering) -> void {
 
 // The quests hear of them through their +0xd8s (join_more), not the
 // +0xd4s the game's first player ran (FUN_00546270).
+// The item records a save holds: its list's, the corpse's and the merc's, a socketed item each a record.
+static std::size_t saved_records(const std::vector<d2d::d2s::Item>& list) {
+    std::size_t records = 0;
+    for (const auto& item : list) records += 1 + item.socketed_items.size();
+    return records;
+}
+
 auto World::join(const Character& entering) -> Player& {
         Player& was = *actor;
         Player& player = add_player();
@@ -367,7 +375,11 @@ auto World::join(const Character& entering) -> Player& {
         player.target_x = player.player.x; player.target_y = player.player.y;
         player.player.goal_x = player.target_x; player.player.goal_y = player.target_y;   // the path's SP3 with it (Hero::target_x)
         player.player.dir = 4;
-        spawn_merc();
+        spawn_merc(true);
+        if (entering.fresh) {                          // FUN_00569f80, as World::enter: its seed, then its start items
+            fight.player_joins(0, 0);
+            start_items();
+        } else fight.player_joins(saved_records(entering.items) + saved_records(entering.corpse), saved_records(entering.merc_items));
         lay_save_corpse(entering);
         item_ids();
         d2d::log::info("{} joins the game (player {})", player.character.name, player.id);
@@ -432,14 +444,41 @@ auto World::enter(const Character& entering) -> void {
         if (level->start.first >= 0) std::tie(actor->player.x, actor->player.y) = level->nearest_free(level->start.first, level->start.second);
         actor->target_x = actor->player.x; actor->target_y = actor->player.y;
         actor->player.goal_x = actor->target_x; actor->player.goal_y = actor->target_y;   // the path's SP3 with it (Hero::target_x)
-        spawn_merc();
+        spawn_merc(true);
         lay_save_corpse(entering);                    // by the town's start, the player standing there
         new_game();
+        if (entering.fresh) {                          // FUN_00569f80: the player's seed (join init), then its start items
+            fight.player_joins(0, 0);
+            start_items();
+        } else fight.player_joins(saved_records(entering.items) + saved_records(entering.corpse), saved_records(entering.merc_items));
         act5_hide();                                  // a5q3's join: Anya home, Nihlathak gone (Anya's state grown in)
         grow_states(npc_states, *level);
         for (std::size_t i = 0; i < level->npcs.size() && i < npc_states.size(); ++i)
             if (level->npcs[i].quest == d2d::rules::CainQuest::kQuest) npc_states[i].hidden = !cain.camp_cain;
         show_palace();                                // a save left in act 2 starts in Lut Gholein
+    }
+
+// A fresh character's items are made in its first game, after its seed (FUN_00569f80 -> FUN_00534f10, in
+// CharStats slot order): each by FUN_00534c70 through FUN_00559ce0, the maker a drop's is (FUN_00558d90: its
+// two game seed steps, unit seed and own), normal at ilvl 1 (FUN_00558200, a level 1 player's), its record's
+// +0x80 bits 8 (no sockets: FUN_00556b60 still draws) and 2 (no ethereal: FUN_00556ca0 draws nothing) set by
+// its two 1s (0x534c95 / 0x534c97). Then the first slot's StartSkill stat, the stack full and the durability
+// at its max (FUN_00534d60), as new_character set them, and its place (new_character's).
+auto World::start_items() -> void {
+        auto& game_seed = fight.spawning.game;
+        for (auto& item : actor->character.items) {
+            d2d::rules::Rng unit_seed{ game_seed.next() }, own_seed{ game_seed.next() };
+            auto made = d2d::rules::generate_item(game_data->rules, item.code, 1, 2, own_seed, &unit_seed, nullptr, false, actor->character.header.active_difficulty(), 0,
+                                                  !actor->character.expansion, d2d::rules::kNoEthereal | d2d::rules::kNoSockets);
+            for (const auto& prop : item.props)
+                if (prop.stat == d2d::d2s::kSingleSkill) made.props.push_back(prop);
+            made.location = item.location; made.slot = item.slot; made.column = item.column; made.row = item.row; made.panel = item.panel;
+            if (item.quantity >= 0) made.quantity = item.quantity;
+            if (made.max_durability > 0) made.durability = made.max_durability;
+            made.id = -1;
+            item = std::move(made);
+        }
+        for (auto& item : actor->character.items) d2d::rules::replenish_arm(game_data->rules, item);
     }
 
 auto World::new_game() -> void {
@@ -508,7 +547,7 @@ auto World::new_game() -> void {
         actor->pick_item = -1;
     }
 
-auto World::spawn_merc() -> void {
+auto World::spawn_merc(bool from_save) -> void {
         actor->merc.reset();
         const auto& header = actor->character.header;
         if (const auto found = game_data->mercs.find(header.merc_type); header.merc_seed && !header.merc_dead && found != game_data->mercs.end()) {
@@ -519,7 +558,7 @@ auto World::spawn_merc() -> void {
             std::tie(actor->merc->unit.x, actor->merc->unit.y) = level->nearest_free(actor->player.x + 1, actor->player.y + 1);
             actor->merc_npc = &found->second.npc;
             actor->merc_listed = ++actor->list_serial;   // FUN_005b1900 (hire, join, FUN_00579aa0's revive): the newest in the player's list
-            fight.merc_joins();
+            fight.merc_joins(from_save);
         }
     }
 

@@ -81,7 +81,7 @@ int main() try {
     totem.monster.unit.x = 6.5f; totem.monster.unit.y = 8;    // 1.5 cells from the player, 2.5 from the merc
     totem.where = &open;
     totem.aura = kOakSage; totem.aura_level = 1;
-    actor.pets.push_back(totem);
+    actor.pets.push_back(std::move(totem));
 
     // The merc: its own aura's state, then the player's Might; the totem's out of its reach.
     assert(same(fight.aura_states_on(9, 8, kHolyFreeze), { "holywindcold", "might" }));

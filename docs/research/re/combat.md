@@ -848,9 +848,10 @@ V (`tools/emu/swing_start.py`, game.exe's functions run natively, 11,270 cells o
   cast branch, which has no such term). `seq_rate.py table` runs the function on each sequence record: Jab, Impale, Double Swing,
   Double Throw, Frenzy and the four Assassin finishers take the 30 points; Lightning and Chain Lightning are casts; Charge, Leap Attack,
   Whirlwind, Inferno and Arctic Blast (no UseAttackRate) take another stat's rate (U: not checked here). `rules::sequence_sias` is the term;
-  `Fight::start_sequence` adds it to the skill speed. U: Double Throw reaches d2d through `cast_missile` (mode SC), not `start_sequence`, so the term is not applied to it in play yet. A Jab at 0 IAS with bare hands lasts 19 ticks, not 13; Frenzy 25, not 17. U: the AnimData
-  speed game.exe counts a mode 0x12 sequence at (d2d keeps the class's A1 record: the Assassin's claws have 208 there; FUN_00620f00 gives the
-  `GH` record for mode 0x12, speed 256 for no weapon, other weapon classes not run) and the step count are unchanged by this rule.
+  `Fight::start_sequence` adds it to the skill speed. U: Double Throw reaches d2d through `cast_missile` (mode SC), not `start_sequence`, so the term is not applied to it in play yet. A Jab at 0 IAS with bare hands lasts 19 ticks, not 13; Frenzy 25, not 17. The AnimData
+  record a mode 0x12 sequence is counted at is the class's `GH` for the weapon class: FUN_00620f00 -> FUN_0066a9b0 -> FUN_0064f5b0, whose
+  override table (0x745900) gives player modes 0x12 and 0x13 the mode token `gh` (compcode.md). d2d: `Fight::start_sequence`'s record;
+  `seq_rate.py compare` agrees on all 7600 cells with it (the claws' GH speed, not A1's 208).
 - The end event's floor in game.exe is 2 ticks (`frame + max(n, 1) + 1`), not 1: the two differ only when one tick covers the whole rest of the
   animation (rate >= 256 (frames - start)), which no player record reaches; d2d's closed form gives the same for the real records.
 - U: which frames the client draws for a swing that starts in; d2d keeps drawing the whole animation over the shorter swing.

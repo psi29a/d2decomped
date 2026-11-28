@@ -378,7 +378,7 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         missile_info.skill = missiles_table.get(row_index, "Skill"); missile_info.lev_range = number("LevRange"); missile_info.hit_func = number("pSrvHitFunc"); missile_info.hit_par1 = number("sHitPar1");
         missile_info.prog_overlay = missiles_table.get(row_index, "ProgOverlay");
         missile_info.to_hit = number("ToHit") == 1; missile_info.collide_kill = number("CollideKill") == 1; missile_info.pierce = number("Pierce") == 1; missile_info.return_fire = number("ReturnFire") == 1;
-        missile_info.collide_friend = number("CollideFriend") == 1; missile_info.client_col = number("ClientCol") == 1;
+        missile_info.collide_friend = number("CollideFriend") == 1; missile_info.src_miss_dmg = number("SrcMissDmg"); missile_info.can_slow = number("CanSlow") == 1; missile_info.client_col = number("ClientCol") == 1;
         missile_info.clt_do = number("pCltDoFunc"); missile_info.srv_do = number("pSrvDoFunc"); missile_info.param1 = number("Param1"); missile_info.param2 = number("Param2"); missile_info.param3 = number("Param3"); missile_info.param4 = number("Param4"); missile_info.hit_par2 = number("sHitPar2"); missile_info.dmg_func = number("pSrvDmgFunc"); missile_info.dmg_par1 = number("dParam1"); missile_info.dmg_par2 = number("dParam2");
         missile_info.damage_rate = number("DamageRate");
         missile_info.hit_par3 = number("sHitPar3");
@@ -401,7 +401,7 @@ void load_monsters(GameData& game_data, const d2d::mpq::Stack& mpqs) {
         for (auto [column, into] : { std::pair{ "TravelSound", &missile_info.travel_sound }, std::pair{ "HitSound", &missile_info.hit_sound },
                                     std::pair{ "ProgSound", &missile_info.prog_sound } })
             if (const auto found = game_data.sound_index.find(std::string(missiles_table.get(row_index, column))); found != game_data.sound_index.end()) *into = found->second;
- missile_info.elen = number("ELen"); missile_info.dmg_sym_text = missiles_table.get(row_index, "DmgSymPerCalc"); missile_info.edmg_sym_text = missiles_table.get(row_index, "EDmgSymPerCalc"); missile_info.hit_calc_text = missiles_table.get(row_index, "SHitCalc1");
+ missile_info.elen = number("ELen"); missile_info.dmg_sym_text = missiles_table.get(row_index, "DmgSymPerCalc"); missile_info.edmg_sym_text = missiles_table.get(row_index, "EDmgSymPerCalc"); missile_info.hit_calc_text = missiles_table.get(row_index, "SHitCalc1"); missile_info.srv_calc_text = missiles_table.get(row_index, "SrvCalc1");
         for (int i = 0; i < 5; ++i) {
             missile_info.emin_lev[std::size_t(i)] = number("MinELev" + std::to_string(i + 1));
             missile_info.emax_lev[std::size_t(i)] = number("MaxELev" + std::to_string(i + 1));
@@ -719,6 +719,13 @@ void load_skills(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             missile_info.hit_calc = d2d::rules::compile_calc(missile_info.hit_calc_text, skill_tables.names, &err);
             ++calcs;
             if (!err.empty()) bad.push_back(name + " SHitCalc1: " + err);
+        }
+    for (auto& [name, missile_info] : game_data.missiles)
+        if (!missile_info.srv_calc_text.empty()) {
+            std::string err;
+            missile_info.srv_calc = d2d::rules::compile_calc(missile_info.srv_calc_text, skill_tables.names, &err);
+            ++calcs;
+            if (!err.empty()) bad.push_back(name + " SrvCalc1: " + err);
         }
     d2d::log::info("  Skills: {} rows, {} calcs, {} unreadable", skill_tables.rows.size(), calcs, bad.size());
     for (const auto& failed : bad) d2d::log::info("  not implemented: calc {}", failed);

@@ -19,8 +19,9 @@ its EDX, run after the path is set.
 - Row record (0x1a4 bytes): +0x96 Range, +0x98 LevRange (shorts), +0x9a
   Vel, +0x9b VelLev, +0x9c MaxVel (bytes), +0x9e Accel (short), +0x136
   Activate, +0x183 CollideType, +0x18a Size.
-- Velocity: ((Vel + VelLev × lvl / 8, C division) << 8), × stat-87 % with
-  that state (not built), then **× 75 / 100** for every missile (+0x7c).
+- Velocity: ((Vel + VelLev × lvl / 8, C division) << 8), × the owner's state 0x57
+  (Slow Missiles) stat 161 % when the row CanSlow (+4 bit 8; d2d:
+  `slow_missiles_pct`, `tests/game/test_slow_missiles.cpp`), then **× 75 / 100** for every missile (+0x7c).
   MaxVel << 8 (+0x84, **not** scaled) and Accel (+0x88) come after.
 - No target unit and target = start: target + (1, 1). Over 99 subtiles
   off on an axis: no missile.
@@ -46,7 +47,7 @@ its EDX, run after the path is set.
 - Flag 0x400 (FUN_0056ee90): range = (FUN_006417f0 distance << 16) /
   (velocity << 4), the frames to arrive.
 - Collision mask (path +0x50) = DAT_0073c724[CollideType]; the unit
-  filter DAT_0073c720[CollideType] (3: 0x184 and FUN_005a8850 →
+  filter DAT_0073c720[CollideType] (3: 0x184 and 0x5a8850 →
   FUN_005a8730: targetable, not the last unit hit, hostile unless
   CollideFriend). In FUN_005a8730 (ESI the unit, EDI the owner, EBX the
   row): unit +0xc4 bits 2 and 3 set; row +0x188 with the unit in state
@@ -58,7 +59,7 @@ its EDX, run after the path is set.
   monster's missile is made; `MissileInfo::collide_friend`), the monsters
   as foes past the players' side whenever any is aligned or cursed
   (Fight::world's `monster_foes`, again around `missiles_update`);
-  `tests/game/test_missile_sides.cpp`. Not read here: what row +0x188 is.
+  `tests/game/test_missile_sides.cpp`. Row +0x188 is NextHit (below).
 
 ## Unit vectors — FUN_0064fc60
 
@@ -133,7 +134,8 @@ An allied monster earlier in the walk is skipped before that choice.
 d2d: `Fight::missile_tick`'s do 5 builds the missile's `near_rooms` (this
 level), `Fight::restamp` keeps each room chain's newest-first order, and
 `rules::room_order` over the hostile, targetable monsters `standing_struck`
-takes gives the unit. Not traced: the step list `FUN_005ae1f0` walks (d2d tests
+takes gives the unit, none in state 0x56 when the row has NextHit (+0x188; no
+burner row does); no burner row is LastCollide, so no last unit is passed by. Not traced: the step list `FUN_005ae1f0` walks (d2d tests
 the missile's own position).
 `tools/emu/burner_room_order.py` runs the stock function on synthetic
 multi-room cases against that selection model; `--mutation-check` shows it
@@ -608,8 +610,23 @@ the emulator.
 - **`FUN_005ae400`** (ECX game, EDX missile): with a valid row whose +0x18
   (a short) is >= 0, evaluates the row's calc `FUN_0064b7c0` (missile, owner
   `FUN_00552fd0`, row +0x80, row index, level `FUN_0064a210`) and passes it
-  to `FUN_005a9720(row +0x18, 0, result)`, then `FUN_005ae1f0`. Neither the
-  call graph nor the data refs show who uses it: not placed in a table here.
+  to `FUN_005a9720(row +0x18, 0, result)`, then `FUN_005ae1f0`. It is missile
+  do 2 (table 0x73c768 + 2 x 4 = 0x73c770 holds 0x5ae400; read in tools/emu):
+  poisonjav, viper_poisjav and the two trap poison balls. `FUN_005a9720` (ECX
+  game, EDX missile, stack sub row, frames, calc) runs only on a frame the
+  path entered a new subtile (`FUN_006505c0`, path +0x34 & 8) and makes the
+  sub there by `FUN_0059fa30`: flags 5 (start subtile, velocity 0), 0x8000
+  with the frames over 0 (none here), 8 with the calc over 0; owner the
+  missile's (`FUN_00552fd0`), skill and level the missile's (`FUN_0064a280`,
+  `FUN_0064a210`). Its [0xd] takes the calc (0x5a9770) and then level x 2 - 2
+  (0x5a97fd), so with flag 8 and the sub's SubLoop its range runs on by
+  (SubStop - SubStart) x (level x 2 - 2). poisonjav's SrvCalc1 is 0: its
+  clouds last their Range, 60; viper_poisjav's is 3. A SrcDamage-0 sub with
+  SrcMissDmg (+0x12e: viper_poisjavcloud's 128) takes its parent's stats 21 /
+  22 x SrcMissDmg / 128 and its 25, 18 / 17, 121 / 122 (`FUN_0064b860`,
+  0x64bd07), not its poison or enchants. d2d: `Fight::missile_tick` (the
+  player's), `missiles_update` (a monster's, `Missile::trail_loops`);
+  `tests/game/test_poison_javelin_trail.cpp`, `tests/game/test_viper_trail.cpp`.
 - `FUN_00641cb0` (missile_touches) and `FUN_005ae1f0` read the same as
   d2d (`rules::missile_touches`, `standing_struck`) for missile sizes 1-3.
   Outside 1-3 `FUN_00641cb0` returns 0 (strikes no unit), while
@@ -653,8 +670,9 @@ Do 20 then sets the missile's frames left to 10 (`FUN_0064a330(missile,
 10)`, `0x5af564`) and strikes as do 1 (`FUN_005ae1f0`, `0x5af56d`), and
 returns 1; with no owner, or a dead one, `FUN_005adf10(0, 1)` and 2. So the
 blade creeper missile is put on its owner each time do 20 runs, and lasts
-as long as the owner does. Who that owner is (Blade Sentinel's bladecreeper
-monster, MonAI 102, is a lead) is not traced here, nor do 30's rest.
+as long as the owner does. That owner is Blade Sentinel's bladecreeper:
+its think makes the blade and records itself on it (`FUN_005ea540`,
+0x5ea66b `FUN_00621ce0`; pet-ai.md). Do 30's rest is not traced here.
 
 Checked: `tools/emu/missile_ride.py` runs `FUN_005a99e0` with the path
 readers, `FUN_00620bb0` and `FUN_00650be0` for real on owners of unit
@@ -662,8 +680,9 @@ types 0 to 7 and -1. Run on 2026-11-24 as `cd tools/emu && uv run python
 missile_ride.py --exe <game.exe> --mutation-check`: `ok: 3000 FUN_005a99e0
 cases`, then 7 `caught` lines (model defects). Hooked,
 not claimed: the owner lookup `FUN_00552fd0` and the move `FUN_00650910`.
-d2d's do 20 (`missiles.cpp`, "20 (Blade Sentinel)") moves the missile
-itself back and forth between the caster's spot and its point instead.
+d2d's do 20 (`missiles.cpp`, `Missile::rider`) puts the blade on its
+bladecreeper's subtile each frame, 10 frames left, and ends it once the
+pet is dead.
 
 ## d2d
 

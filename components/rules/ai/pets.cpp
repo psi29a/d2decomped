@@ -166,8 +166,8 @@ std::array<HydraHead, 3> hydra(int point_x, int point_y, bool town, const std::f
 }
 
 bool traced_pet_ai(std::string_view ai_name) {
-    static constexpr std::array<std::string_view, 11> kTraced{ "Hydra", "AssassinSentry", "DeathSentry", "Raven", "DruidWolf", "Totem", "Vines", "CycleOfLife", "DruidBear",
-                                                               "ShadowWarrior", "ShadowMaster" };
+    static constexpr std::array<std::string_view, 12> kTraced{ "Hydra", "AssassinSentry", "BladeCreeper", "DeathSentry", "Raven", "DruidWolf", "Totem", "Vines", "CycleOfLife",
+                                                               "DruidBear", "ShadowWarrior", "ShadowMaster" };
     return std::ranges::contains(kTraced, ai_name);
 }
 

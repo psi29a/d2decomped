@@ -80,10 +80,29 @@ Region monster_region(const Monsters& monsters, const LevelMon& level_mon, int d
         if (const auto* type = type_at(row); type && type->spawnable) {
             region.types.emplace_back(row, type->rarity);
             region.total += type->rarity;
+            ++region.spawns;
         }
     }
     for (const auto& [row, rarity] : region.types) region.components.push_back(roll_components(monsters.types[std::size_t(row)].choices, seed));
     return region;
+}
+
+// FUN_00547bc0 (ECX the game's regions by level, EDX the unit's room, the
+// unit): rows 0xc3, 0xc4, 0x126, 0x128 take none; else the level region's
+// entry for the row (+0x14, 0x34 bytes each, the count at +0x12). A row it
+// lacks with 13 there gets none; else one with MonStats2 TotalPieces (+0xec)
+// over 2 joins as the next entry, its sets rolled on the unit's seed
+// (FUN_005bdb20(unit +0x20, entry, 3)), before the stat init's look.
+const std::vector<Components>* region_sets(Region& region, const Monsters& monsters, int type, Rng& unit_seed) {
+    if (type == 0xc3 || type == 0xc4 || type == 0x126 || type == 0x128) return nullptr;
+    for (std::size_t i = 0; i < region.types.size() && i < region.components.size(); ++i)
+        if (region.types[i].first == type) return &region.components[i];
+    if (region.types.size() >= 13 || type < 0 || std::size_t(type) >= monsters.types.size()) return nullptr;
+    const auto& type_info = monsters.types[std::size_t(type)];
+    if (type_info.pieces <= 2) return nullptr;
+    region.types.emplace_back(type, 0);
+    region.components.push_back(roll_components(type_info.choices, unit_seed));
+    return &region.components.back();
 }
 
 std::vector<ObjectGroupPick> place_object_groups(const LevelMon& level_mon,
@@ -115,12 +134,14 @@ std::vector<ObjectGroupPick> place_object_groups(const LevelMon& level_mon,
     return picks;
 }
 
-// A type by rarity from the region (FUN_005bde80) on `seed`.
+// A type by rarity from the region (FUN_005bde80) on `seed`, among its own `spawns` (+0x10); -1 with none.
 int pick_type(const Region& reg, Rng& seed) {
+    const std::size_t count = std::min(reg.spawns, reg.types.size());
+    if (count == 0) return -1;
     int pick = seed(reg.total) + 1;
     std::size_t index = 0;
-    for (; index < reg.types.size(); ++index) { pick -= reg.types[index].second; if (pick < 1) break; }
-    return reg.types[std::min(index, reg.types.size() - 1)].first;
+    for (; index < count; ++index) { pick -= reg.types[index].second; if (pick < 1) break; }
+    return reg.types[std::min(index, count - 1)].first;
 }
 
 int swing_max_damage(const MonStats& stats, std::string_view swing_mode) {
@@ -275,7 +296,9 @@ MonStats monster_stats(const Monsters& monsters, int type, int difficulty, Rng& 
     const auto& per_difficulty = type_info.diff[std::size_t(difficulty_index)];
     auto pct = [&](int base, int percent) { return type_info.no_ratio ? percent : base * percent / 100; };
     const int hit_points = spawn_row.hit_points[std::size_t(difficulty_index)];
-    stats.hit_points  = rng.range(pct(hit_points, per_difficulty.min_hp), pct(hit_points, per_difficulty.max_hp));
+    // min + rand(max - min + 1) (0x573f83..0x573f8f): a roll of one still steps the seed.
+    const int min_hp = pct(hit_points, per_difficulty.min_hp);
+    stats.hit_points = min_hp + rng(pct(hit_points, per_difficulty.max_hp) - min_hp + 1);
     stats.hit_points = int(std::min<std::int64_t>(stats.hit_points + std::int64_t(stats.hit_points) * player_life_pct(players) / 100, 0x7fffff));
     stats.regen = monster_regen(stats.hit_points, type_info.damage_regen);   // a boss's mods come after
     stats.armor_class  = pct(spawn_row.armor_class[std::size_t(difficulty_index)], per_difficulty.armor_class);

@@ -1595,14 +1595,16 @@ int classic_set_pick(const Tables& tables, const std::string& code, Rng& rng, in
 // rule (weapon_base_damage in make_fighter; item_text.cpp's own copy).
 // dmg%'s +1 max damage on a weak weapon is a prop in game.exe too
 // (FUN_0065f010 -> FUN_0065ee80 -> FUN_0065ea50, the item's mod list).
-// ponytail: without a unit seed none of the other rolls above is made; a
-// new low weapon's stats keep FUN_005c2d40's rule until a save and load
-// (1 / 2 from a 0 byte, its throw pair through FUN_005c0d40), where d2d
+// Without a unit seed none of the other rolls above is made: only tests and
+// new_character (whose items its first game makes again, World::start_items)
+// call it so. `record_flags` are the create record's +0x80 bits 2 and 8.
+// ponytail: a new low weapon's stats keep FUN_005c2d40's rule until a save and
+// load (1 / 2 from a 0 byte, its throw pair through FUN_005c0d40), where d2d
 // uses the load's throughout. A code with no ItemBase row still gets the
 // old stand-in affix counts (game.exe has no such item).
 d2d::d2s::Item roll_item(const Tables& tables, const std::string& code, int ilvl, int quality, Rng& rng,
                          Rng* unit_seed, std::vector<bool>* found_uniques, bool bovine,
-                         int difficulty, int special_wanted, bool classic) {
+                         int difficulty, int special_wanted, bool classic, int record_flags) {
     d2d::d2s::Item item;
     item.code = code;
     item.version = classic ? 0 : 101;                      // item data +0x30 (FUN_0055a550: game +0x78)
@@ -1692,7 +1694,9 @@ d2d::d2s::Item roll_item(const Tables& tables, const std::string& code, int ilvl
         const int by_ilvl = item_type->max_sock[std::size_t(item.ilvl <= 25 ? 0 : item.ilvl <= 40 ? 1 : 2)];
         const int most = std::min(base->gem_sockets, by_ilvl);                             // FUN_0062bc20
         const int capped = std::min(most, std::array{ 3, 4, 6 }[std::size_t(std::clamp(difficulty, 0, 2))]);
-        if (capped <= 0 || (classic && type_is(tables, type, "tors")) || rng(100) >= 33) return;
+        if (capped <= 0 || (classic && type_is(tables, type, "tors"))) return;
+        // FUN_00556b60 draws, then a record with no sockets (+0x80 bit 8) stops there: the draw is spent.
+        if (const bool under = rng(100) < 33; (record_flags & kNoSockets) || !under) return;
         const int count = !classic ? int(start % std::uint32_t(capped)) + 1 : std::min(capped, type_is(tables, type, "helm") ? 2 : 3);
         item.socketed = true;                              // FUN_0062bcb0: at most the grid, 6
         item.sockets = std::min({ count, info->width * info->height, 6 });
@@ -1701,7 +1705,10 @@ d2d::d2s::Item roll_item(const Tables& tables, const std::string& code, int ilvl
     // affix (a classic item: the sockets only).
     auto finish = [&] {
         if (!unit_seed || !base) return std::move(item);
-        if (!classic && (kind == 1 || kind == 2) && item.quality != 1 && item.quality != 5 && !base->quest && has_durability() && rng(100) < 5) {
+        // FUN_00556ca0: a record with no ethereal (+0x80 bit 2) tests that first and draws nothing; one with bit 4
+        // is ethereal whatever the rand(100) it still draws.
+        if (!(record_flags & kNoEthereal) && !classic && (kind == 1 || kind == 2) && item.quality != 1 && item.quality != 5 && !base->quest && has_durability()
+            && (rng(100) < 5 || (record_flags & kForceEthereal))) {
             item.ethereal = true;                          // FUN_0065e4d0
             if (kind == 1) item.defense = item.defense * 3 / 2;
             if (has_durability()) { item.max_durability = item.max_durability / 2 + 1; item.durability = max_durability(); }
@@ -2083,7 +2090,7 @@ d2d::d2s::Item roll_item(const Tables& tables, const std::string& code, int ilvl
     const int shape = rng(4);                              // 0 prefix, 1 suffix, 2-3 both
     if (shape != 1) item.prefix = add(true);
     if (shape != 0) item.suffix = add(false);
-    if (!item.prefix && !item.suffix) return roll_item(tables, code, ilvl, 3, rng, unit_seed, found_uniques, bovine, difficulty, 0, classic);
+    if (!item.prefix && !item.suffix) return roll_item(tables, code, ilvl, 3, rng, unit_seed, found_uniques, bovine, difficulty, 0, classic, record_flags);
     return item;
 }
 
@@ -2093,9 +2100,9 @@ d2d::d2s::Item roll_item(const Tables& tables, const std::string& code, int ilvl
 // the seed goes on from where the making left it (Item::seed_kept).
 d2d::d2s::Item generate_item(const Tables& tables, const std::string& code, int ilvl, int quality, Rng& rng,
                              Rng* unit_seed, std::vector<bool>* found_uniques, bool bovine,
-                             int difficulty, int special_wanted, bool classic) {
+                             int difficulty, int special_wanted, bool classic, int record_flags) {
     const std::uint32_t fingerprint = unit_seed ? unit_seed->low : 0;
-    auto item = roll_item(tables, code, ilvl, quality, rng, unit_seed, found_uniques, bovine, difficulty, special_wanted, classic);
+    auto item = roll_item(tables, code, ilvl, quality, rng, unit_seed, found_uniques, bovine, difficulty, special_wanted, classic, record_flags);
     if (unit_seed) {
         item.uid = fingerprint;
         item.seed_low = unit_seed->low;
@@ -2145,11 +2152,14 @@ bool imbuable(const Tables& tables, const d2d::d2s::Item& item, bool expansion) 
 
 // The imbued item (FUN_00579d60, kind 0 at Charsi): the same base made
 // anew, rare (+0x30 = 6), item level player_ilvl plus 4 when that is past
-// 5, a fresh seed; ethereal stays so (flag 4 / 2) and a personalized name is kept.
-d2d::d2s::Item imbue_item(const Tables& tables, const d2d::d2s::Item& item, int clvl, Rng& rng) {
+// 5; ethereal stays so (its record's +0x80: 4 for an ethereal item, else 2; FUN_00579d60 0x579ea9) and a
+// personalized name is kept. It is made as a drop is (FUN_00558d90: FUN_00555230's two game seed steps, its
+// unit seed and its own, then FUN_00557ab0), its ethereal stats with the flag.
+d2d::d2s::Item imbue_item(const Tables& tables, const d2d::d2s::Item& item, int clvl, Rng& game_seed) {
     const int ilvl = player_ilvl(clvl);
-    auto made = generate_item(tables, item.code, ilvl > 5 ? ilvl + 4 : ilvl, 6, rng);
-    made.ethereal = item.ethereal;
+    Rng unit_seed{ game_seed.next() }, item_seed{ game_seed.next() };
+    auto made = generate_item(tables, item.code, ilvl > 5 ? ilvl + 4 : ilvl, 6, item_seed, &unit_seed, nullptr, false, 0, 0, false,
+                              item.ethereal ? kForceEthereal : kNoEthereal);
     made.personalized = item.personalized;
     made.owner = item.owner;
     return made;

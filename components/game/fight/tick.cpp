@@ -354,6 +354,7 @@ auto Fight::player_foe(std::uint32_t now_ms) -> Foe {
         foe.neutral = actor->pmode < 0 && actor->owner_mode == 1;   // mode 1: no swing, cast or get-hit, not moving
         foe.id = player_foe_id();
         foe.room_stamp = actor->player.room_stamp;
+        foe.seed = &actor->seed;
         foe.life_pct = int(std::int64_t(actor->character.stats.get(d2d::d2s::kLife)) * 100 / std::max<std::int64_t>(actor->character.stats.get(d2d::d2s::kMaxLife), 1));
         foe.max_life = int(actor->character.stats.values[d2d::d2s::kMaxLife]); foe.max_mana = int(actor->character.stats.values[d2d::d2s::kMaxMana]);
         // Diablo's score of the player (FUN_005e8530).
@@ -379,7 +380,7 @@ auto Fight::merc_foe(std::uint32_t now_ms) -> Foe {
                  actor->merc && actor->merc->unit.walking, merc_fighter() };
         foe.fighter.prime_evil_pct = 200;                // a hireling under a prime evil's blow (FUN_0057c060)
         foe.pet = true;                                  // the merc: its MonStats class's size
-        if (actor->merc) foe.room_stamp = actor->merc->unit.room_stamp;
+        if (actor->merc) { foe.room_stamp = actor->merc->unit.room_stamp; foe.seed = &actor->merc->seed; }
         foe.id = merc_foe_id();
         foe.listed = actor->merc ? actor->merc_listed : 0;
         foe.neutral = actor->merc && actor->merc->mode == "NU";
@@ -448,8 +449,13 @@ auto Fight::plain_missile_hits(Missile& missile, std::size_t monster_index, std:
         }
         auto struck = missile.by_merc ? merc_target(monster_index) : target_of(monster_index);
         struck.life_steal_divisor = struck.mana_steal_divisor = 1;   // a hireling's leech: no divisor (merc_target; the plain path's other owners too)
-        auto blow = missile.by_merc && actor->merc ? d2d::rules::player_blow(merc_fighter(), struck, actor->merc_st.level, rng, flight)
-                                                   : d2d::rules::player_blow(d2d::rules::simple_fighter(missile.min, missile.max, missile.attack_rating), struck, missile.by_merc ? actor->merc_st.level : missile.level, rng);
+        // The to-hit and the crits on its owner's seed, the physical on its own, the block on the struck unit's.
+        flight.crit = missile.crit;
+        auto& own_seed = missile.seed ? *missile.seed : rng;
+        auto& struck_seed = monsters[monster_index].seed;
+        auto blow = missile.by_merc && actor->merc ? d2d::rules::player_blow(merc_fighter(), struck, actor->merc_st.level, owner_seed(missile), flight, &own_seed, &struck_seed)
+                                                   : d2d::rules::player_blow(d2d::rules::simple_fighter(missile.min, missile.max, missile.attack_rating), struck, missile.by_merc ? actor->merc_st.level : missile.level,
+                                                                             owner_seed(missile), {}, &own_seed, &struck_seed);
         if (missile.info) blow.hit_class = missile.info->hit_class;   // an arrow's, not hand to hand's (as a skill's missile, Missiles.txt HitClass)
         land(monster_index, blow, false, now_ms, merc_foe_id());
         monster_return_fire(monster_index, missile, true, now_ms);
@@ -525,7 +531,7 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
             for (auto& side : sides) {
                 act_as(*side.hero);
                 side.pets = foes.size();
-                for (const auto& pet : actor->pets) foes.push_back(pet_foe(pet));
+                for (auto& pet : actor->pets) foes.push_back(pet_foe(pet));
                 for (std::size_t k = side.pets; k < foes.size(); ++k) foes[k].a3q5_done = zealots_spare();
             }
             // With Confuse or Attract about, every monster is a foe too, after
@@ -536,8 +542,9 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
             // The monsters' missiles fly with these foes too (missiles_update).
             // A monster's poison reaches a monster foe through take_blows, and
             // monster_blow uses that foe's block chance as it does a player's.
-            // ponytail: monsters keep no mana for Mana Burn; a poison kill has
-            // no state owner, so its experience is still the first player's.
+            // A monster has no mana (FUN_00573cb0 sets no stat 8), so a Mana Burn
+            // on one takes nothing, as here.
+            // A poison or bleeding kill is its state's owner's (Monster::poison_owner, monster_dots).
             const std::size_t allies = foes.size();
             // `for_missiles`: a monster's CollideFriend missile in flight (FUN_005a8730) strikes its owner's
             // friends, so the monsters are foes then too, aligned or not.
@@ -546,7 +553,7 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                     return missile.owner >= 0 && !missile.friendly && missile.info && missile.info->collide_friend;
                 });
                 if (collide_friend || std::ranges::any_of(monsters, [](const Monster& monster) { return monster.align || monster.set_kind; }))
-                    for (const auto& monster : monsters) {
+                    for (auto& monster : monsters) {
                         const auto target = monster.target(*game_data);
                         auto fighter = d2d::rules::simple_fighter(monster.stats.a1_min, monster.stats.a1_max, monster.stats.to_hit, target.armor_class);
                         fighter.block = target.block;
@@ -555,6 +562,7 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                         const auto& type_info = game_data->monsters.types[std::size_t(monster.type)];
                         Foe& foe = foes.emplace_back(Foe{ monster.unit.x, monster.unit.y, monster.stats.level, monster.targetable() && monster.mode != "DT", monster.unit.walking, fighter });
                         foe.size = type_info.size; foe.threat = type_info.threat; foe.monster = &monster; foe.id = monster.id; foe.room_stamp = monster.unit.room_stamp;
+                        foe.seed = &monster.seed;
                         monster_foe_props(*game_data, monster, foe);
                         foe.pick = unit_pick(*game_data, { target.res[0], target.res[1], target.res[2], target.res[3], target.res[4] }, monster.aura, monster.aura_lvl,
                                              d2d::rules::swing_max_damage(monster.swing_stats(), monster.swing_mode));
@@ -610,9 +618,9 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                         int at_x = 0, at_y = 0;
                         if (!spawn_spot(*game_data, *level, crowd, &spawning.levels[level], worm_type, int(std::floor(monster.unit.x * 5)), int(std::floor(monster.unit.y * 5)), 1,
                                         room_of(*level, monster.unit.x, monster.unit.y), at_x, at_y)) continue;
-                        auto young = make_monster(*game_data, worm_type, (float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, rng, monster.difficulty, true, game_players(), level->id);
+                        auto young = make_monster(*game_data, worm_type, (float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, rng, monster.difficulty, true, game_players(), level->id,
+                                                  d2d::rules::Rng{ spawning.game.next() }, spawning.region(level->id));
                         young.aware = true;
-                        young.seed = d2d::rules::Rng{ rng.next() };
                         set_mode(*game_data, young, impregnate->summode.empty() ? "NU" : impregnate->summode, now_ms);
                         d2d::log::info("a painworm comes out of {}", monster.npc.name);
                         born.push_back(std::move(young));
@@ -661,6 +669,9 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                     foes[side.pets + k].knocked_from.reset();
                 }
                 pets_turn(now_ms, elapsed, crowd);
+                // pets_turn may drop pets (and shift the rest): each pet foe's seed back on its own pet, found by
+                // id; one gone is no longer there to strike (CodeRabbit on #815).
+                rebind_pet_foes(std::span(foes).subspan(side.pets), actor->pets);
                 player_shots(now_ms);
             }
             missile_tick(now_ms);
@@ -722,6 +733,9 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                 if (Hero* caster = hero_of(missile.caster)) act_as(*caster);
                 merc_blow = casting_merc = missile.by_merc;
                 burst(missile, now_ms);
+            }, [&](int owner) -> d2d::rules::Rng* {                     // a monster shooter not among the foes: its own seed
+                const int index = monster_index(owner);
+                return index >= 0 ? &monsters[std::size_t(index)].seed : nullptr;
             });
             war_cry_reach(*game_data, *level, missiles, monsters, now_ms);   // a monster's nova on its allies (hit 18): the subtiles it just crossed
             merc_blow = casting_merc = false;
@@ -793,14 +807,29 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
 // this frame: the merc's life and flinch, then the player's poison, chill,
 // stun, knockback, curses, Mana Burn, block, armour wear and life.
 // A monster's curse as it takes hold: its auralen, dimvision's and terror's
-// over AiCurseDivisor, 25 frames at least; skill -1 for none.
-auto Fight::monster_curse(const Foe::Cast& cursed, std::uint32_t now_ms) -> Hero::Curse {
+// over AiCurseDivisor, 25 frames at least; skill -1 for none. Then the
+// target's curse_resistance (stat 0x6d) as FUN_0056e970 puts a curse state
+// (FUN_0063a420): 100 or more none, else the length less that % of it
+// (d2d_rules_mul_div).
+auto Fight::rebind_pet_foes(std::span<Foe> pet_foes, std::vector<Pet>& pets) -> void {
+        for (auto& foe : pet_foes) {
+            if (!foe.pet) break;
+            const auto owned = std::ranges::find(pets, foe.id, [](const Pet& pet) { return pet.monster.id; });
+            foe.seed = owned != pets.end() ? &owned->monster.seed : nullptr;
+            if (owned == pets.end()) foe.alive = false;
+        }
+    }
+
+auto Fight::monster_curse(const Foe::Cast& cursed, std::uint32_t now_ms, int curse_resistance) -> Hero::Curse {
         const auto* skill = game_data->skills.get(cursed.skill);
         if (!skill) return {};
         int length = calc(*skill, skill->auralen, cursed.level);
         if (const int divisor = game_data->curse_divisor[std::size_t(std::clamp(game_difficulty, 0, 2))]; divisor != 0 && (skill->auratarget == "dimvision" || skill->auratarget == "terror"))
             length /= divisor;
-        return { skill->id, cursed.level, now_ms + std::uint32_t(std::max(length, 25)) * 40, cursed.pick };
+        length = std::max(length, 25);
+        if (curse_resistance > 99) return {};
+        if (curse_resistance != 0) length -= int(std::int64_t(length) * curse_resistance / 100);
+        return { skill->id, cursed.level, now_ms + std::uint32_t(std::max(length, 0)) * 40, cursed.pick };
     }
 
 auto Fight::curse_stats(const Hero::Curse& curse, const d2d::rules::CalcEnv& env) const -> std::vector<std::pair<int, int>> {
@@ -827,14 +856,23 @@ auto Fight::skill_in_use() const -> bool {
         return attack_mode(actor->pmode) || actor->pmode == kModeA2 || actor->pmode == kModeSC || actor->pmode == kModeTH;
     }
 
-auto Fight::hit_interrupts() const -> bool {
+auto Fight::hit_interrupts() -> bool {
         if (uninterruptable()) return false;   // state 0x36 is FUN_0057eec0's first test (0x57eec7): a Leap, Leap Attack or Whirlwind under way refuses every new mode
         if (!skill_in_use()) return true;
         const auto* used = game_data->skills.get(actor->swing_skill);
         // The barrel kick (World::operate) swings KK with no skill id; game.exe starts it with the unit's skill 1, Kick (FUN_005868a0 -> FUN_00580a70), whose `interrupt` is blank.
         if (actor->pmode == kModeKK && actor->swing_skill == 0)
             if (const auto kick = game_data->skills.by_name.find("Kick"); kick != game_data->skills.by_name.end()) used = game_data->skills.get(kick->second);
-        return !used || used->interrupt;
+        if (!used) return true;
+        if (!used->interrupt) return false;
+        // Under the Concentration aura's state (0x2a, 0x57ef51) a rand(100) on the unit's seed (+0x20, 0x57ef72)
+        // under that state's stat 164 (skill_concentration: its Param5) holds the swing; else Concentrate's state
+        // (0xf, its swing's aurastate: self_state) does (0x57ef85). A monster is cut all the same (0x57ef94).
+        if (const auto hold = actor->psum[d2d::d2s::kSkillConcentration]; hold > 0 && std::int64_t(actor->seed(100)) < hold) return false;
+        return std::ranges::none_of(actor->self_states, [&](const SelfState& state) {
+            const auto* skill = game_data->skills.get(state.skill);
+            return skill && skill->aurastate == "concentrate";
+        });
     }
 
 // A swing or cast that a get-hit cut off: nothing of it goes on (its repeats, sequence and movement), as when it ends.
@@ -967,7 +1005,7 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
             }
         }
         for (std::size_t k = 0; k < 2; ++k)
-            if (const auto curse = monster_curse(side[k].cursed, now_ms); curse.skill >= 0) {
+            if (const auto curse = monster_curse(side[k].cursed, now_ms, k == 0 ? int(actor->psum[d2d::d2s::kCurseResistance]) : 0); curse.skill >= 0) {
                 actor->curses[k] = curse;
                 d2d::log::info("{} cursed: skill {} level {}", k ? "the merc" : "the player", curse.skill, curse.level);
             }
@@ -1048,12 +1086,12 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
         // is refused. A hit inside a get-hit or block starts no new one,
         // stunned or not (FUN_0057edd0 refuses mode 4 from modes 4 and 9).
         // Else the size test per landed blow (rules::struck_big).
-        // The rolls are the fight's rng, not the player's own seed (deviations.md approximation 18).
-        const bool big = d2d::rules::struck_big(foe.blows, actor->character.stats.get(kMaxLife), rng);
+        // The rolls are on the player's own seed (FUN_0057cb00: the struck unit's +0x20, 0x57cbb8).
+        const bool big = d2d::rules::struck_big(foe.blows, actor->character.stats.get(kMaxLife), actor->seed);
         // A real get-hit refuses another (FUN_0057edd0: GH from GH); a knockback slide is drawn as GH but is game.exe's
         // mode 0x13, which allows it (0x57ee0b), and the get-hit then ends the slide. A swing or cast is cut only if its skill allows it (FUN_0057eec0).
         const bool get_hit_running = actor->pmode == kModeGH && !actor->knock;
-        if (!died && (big || (foe.hits > 0 && now_ms < actor->stunned)) && hit_interrupts() && actor->pmode != kModeBL && !get_hit_running && !knocked_now) {
+        if (!died && (big || (foe.hits > 0 && now_ms < actor->stunned)) && actor->pmode != kModeBL && !get_hit_running && !knocked_now && hit_interrupts()) {
             if (skill_in_use()) cancel_swing();   // the swing's queued strike is gone with its mode
             actor->knock.reset();
             set_pmode(kModeGH, now_ms);
@@ -1113,7 +1151,8 @@ auto Fight::monster_auras(std::vector<Foe>& foes, std::uint32_t now_ms) -> void 
             const int high = std::max(d2d::rules::elem_damage(game_data->skills, *skill, env, aura_monster.aura_lvl, true) >> 8, low);
             for (auto& foe : foes)
                 if (foe.alive && in_range(foe.x, foe.y)) {
-                    const int dealt = std::max(d2d::rules::resisted(rng.range(low, high), foe.fighter.res[std::size_t(skill->etype)]) - foe.fighter.mdr, 0);
+                    // FUN_0056e0c0: low + rand(high - low) on the aura's monster's seed.
+                    const int dealt = std::max(d2d::rules::resisted(low + aura_monster.seed(high - low), foe.fighter.res[std::size_t(skill->etype)]) - foe.fighter.mdr, 0);
                     foe.damage += dealt; foe.elemental += dealt;
                     foe.blows.push_back({ dealt, 0, true, 0, dealt });
                     foe.blows.back().striker = aura_monster.id;

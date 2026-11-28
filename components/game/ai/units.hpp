@@ -275,6 +275,9 @@ struct Monster {
     // Damage over time (life a millisecond, until when) and a chill.
     double poison_rate = 0, bleed_rate = 0, dot_acc = 0;
     std::uint32_t poison_until = 0, bleed_until = 0, chill_until = 0;
+    // Its poison's and bleeding's owner (their state lists', FUN_0057ac50): the player whose hit put them
+    // (Hero::id; -1 a monster's), who a death to them credits (FUN_005a6920 -> FUN_0057e7b0).
+    int poison_owner = 0, bleed_owner = 0;
     bool shatter = false;                     // state 107 (FUN_0057af80's roll on a chill)
     std::uint32_t no_heal_until = 0;          // ms: state 0x34 (preventheal, FUN_0057d810)
     std::uint32_t stunned_until = 0;          // ms: a stun's end (state 21)
@@ -395,7 +398,9 @@ struct Monster {
     // the Dark Wanderer, the compelling orb. No one targets or hits it.
     bool killable = true;
     float leap_from_x = 0, leap_from_y = 0, leap_to_x = 0, leap_to_y = 0;
-    std::uint32_t leap_until = 0;             // Leap Attack's landing (its sequence's row 11), else the mode's end
+    std::uint32_t leap_until = 0;             // a leap's landing (its sequence's second event-1 row), else the mode's end
+    std::uint32_t leap_takeoff = 0;           // its takeoff (the first event-1 row): the flight starts there
+    int leap_target = -1;                     // the foe it leapt at (the skill record's +0x24): FUN_005da020 asks for it
     // The wait at the landing (FUN_005da120 with the unit not there yet): the sequence row it shows while it waits (-1 none),
     // and the ms its rows run behind the mode's start once it has landed (Leap Attack's, `leap_hold`).
     int leap_hold_row = -1;
@@ -444,7 +449,8 @@ struct Monster {
     std::optional<std::pair<int, int>> chamber_portal;
     int point_x = 0, point_y = 0;
     std::uint32_t laid_until = 0;
-    // Its unit seed (+0x20) as its look left it: what its thinks draw. A
+    std::array<std::uint8_t, 16> look{};      // its component picks (monster data +4..+0x13: make_monster)
+    // Its unit seed (+0x20) as its stat init left it: what its thinks draw. A
     // special AI (AI control [0], FUN_005b0e00: the Countess's 0xd, Dim
     // Vision's / Cloak's 10, Terror's / Howl's 11) or its MonAI row's other
     // think (`other`, rules::ai_toggle), its map AI's points (subtiles),
@@ -593,15 +599,16 @@ struct Foe {
         if (taken.poison > 0 && taken.poison >= poison) { poison = taken.poison; poison_ticks = taken.poison_ticks; }   // the stronger (FUN_0057ac50)
         chill_ticks = std::max(chill_ticks, taken.chill_ticks);
     }
+    d2d::rules::Rng* seed = nullptr;          // its unit seed (+0x20): a blow's block, dodge, avoid and evade roll on it
 };
 
 // A missile in flight (a quill rat's spike): straight on at its Missiles.txt
 // velocity until it hits the foe, a wall, or runs out of range.
 // A missile's seed (Missile::seed, unit +0x20, {low, high}): the draws
-// game.exe takes from it (pSrvDmgFunc 3's soft hit, FUN_005ad220) step it,
-// not the fight's rng.
-// ponytail: a missile Fight::missile_tick has not seeded (a client-made or
-// bare one) takes one step of the fight's rng for its first value (soft_hit).
+// game.exe takes from it (pSrvDmgFunc 3's soft hit, FUN_005ad220; its
+// damage, FUN_005a89a0) step it, not the fight's rng. The fight seeds each
+// as it's made (Fight::seed_made, a game seed step); only a bare one a test
+// makes takes its first value off the rng it's given (soft_hit).
 struct Missile {
     const GameData::MissileInfo* info = nullptr;
     float x = 0, y = 0, velocity_x = 0, velocity_y = 0;       // cells, cells/s
@@ -621,6 +628,10 @@ struct Missile {
     // (FUN_00555230 type 3 -> FUN_00552df0 -> FUN_00650e40). Fight::missile_tick
     // gives it to all but a visual-only one.
     std::optional<d2d::rules::Rng> seed;
+    // A player's or merc's that takes the weapon's damage: its record's crit (+0 flag 2), rolled on the
+    // caster's seed as it is made (FUN_0064b860 -> FUN_0064a850: Fight::seed_made).
+    std::optional<bool> crit;
+    std::uint32_t data = 0;                   // its data +0x28 (FUN_0064a710 / FUN_0064a730): a Volcano's throw seed
     int skill = -1;                           // the player's: the skill whose damage it carries
     // A shrine's thrown potion: its Missiles.txt row damage, bursting over
     // `burst` subtiles where it lands (sHitPar1).
@@ -639,7 +650,8 @@ struct Missile {
     int target_id = -1;                       // its target's Foe::id: the foes are rebuilt each frame, pets come and go
     int anim_rate = 0;                        // its animation in 256ths of a frame a tick (unit +0x4c, FUN_00621780), 0 its row's AnimSpeed
     float target_x = 0, target_y = 0;                     // where it was sent (Molten Boulder), a spiral's centre
-    float origin_x = 0, origin_y = 0;                     // where it came from (Blade Sentinel goes back and forth)
+    int trail_loops = 0;                      // a monster's do 2: the frames its trail's SubLoop adds (FUN_0059fa30's [0xd] x the sub's loop)
+    int rider = -1;                           // the unit it rides (do 20, FUN_005a99e0: Blade Sentinel's blade on its bladecreeper), a Monster::id
     int turn = 0;                             // Frozen Orb's direction index (do 15)
     int subtile_x = 0, subtile_y = 0;         // a Bone Wall maker's (do 13) subtile as it last laid or started; `hops` its pieces left, `target_id` the first piece
     std::array<int, 2> clt_count{};           // client do 26's frames to its next CltSubMissile1 / 2 (missile data +0x28 / +0x2c); a rock's [0], its hit 33's count

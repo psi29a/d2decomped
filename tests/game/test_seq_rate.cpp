@@ -4,7 +4,7 @@
 // Blades of Ice, Dragon Claw): Fight::start_sequence ticks the skill's steps at the attack rate. Double Throw is in the grid, but in play it
 // goes through cast_missile (mode SC) and never reaches start_sequence: the grid does not cover that path (ponytail note in cast_missile).
 //   `--seq-rate`: every class x sequence skill x main-hand weapon x IAS x weapon speed (WSM) x skill speed, one line each
-//   `D class skill_id skill weapon ias wsm sias steps speed ticks`: the steps the sequence has for that weapon, the AnimData A1 speed it
+//   `D class skill_id skill weapon ias wsm sias steps speed ticks`: the steps the sequence has for that weapon, the AnimData GH speed (mode 0x12's record, FUN_0064f5b0's "gh" override) it
 //   is counted at and the ticks it lasts (-1: the skill moves the unit and the hold is open ended), as
 //   `tools/emu/seq_rate.py compare` reads them for game.exe.
 //   no argument: the rule (rules::attack_ticks) and, with the game data, the frozen cells game.exe's answers were printed for
@@ -45,12 +45,12 @@ namespace {
 // the sequence's ticks; the comment: what d2d gave before the sequence took 30 points off its rate.
 struct Frozen { int cls; const char* skill; const char* weapon; int ias, wsm, sias, steps, speed, ticks; };
 constexpr Frozen kFrozen[] = {
-    { 6, "Blades of Ice", "ktr", 80, 30, 40, 12, 208, 12 },   // parent 10
+    { 6, "Blades of Ice", "ktr", 80, 30, 40, 12, 256, 10 },   // parent 10
     { 6, "Blades of Ice", "", 80, 10, 0, 12, 256, 12 },   // parent 9
     { 6, "Blades of Ice", "", 200, 30, 40, 12, 256, 8 },   // parent 7
-    { 6, "Blades of Ice", "ktr", 200, -30, 40, 12, 208, 9 },   // parent 9
+    { 6, "Blades of Ice", "ktr", 200, -30, 40, 12, 256, 7 },   // parent 9
     { 6, "Claws of Thunder", "", 0, 10, 20, 12, 256, 16 },   // parent 11
-    { 6, "Claws of Thunder", "ktr", 20, 10, 20, 12, 208, 16 },   // parent 12
+    { 6, "Claws of Thunder", "ktr", 20, 10, 20, 12, 256, 13 },   // parent 12
     { 6, "Claws of Thunder", "", 80, 0, -50, 12, 256, 18 },   // parent 13
     { 6, "Claws of Thunder", "", 100, -30, 40, 12, 256, 7 },   // parent 7
     { 4, "Double Swing", "ssd", 80, 30, 40, 17, 256, 14 },   // parent 11
@@ -61,14 +61,14 @@ constexpr Frozen kFrozen[] = {
     { 4, "Double Throw", "spr", 20, -30, 40, 12, 256, 8 },   // parent 7
     { 4, "Double Throw", "sbw", 0, 0, -50, 12, 256, 61 },   // parent 24
     { 4, "Double Throw", "ssd", 200, -30, 20, 12, 256, 7 },   // parent 7
-    { 6, "Dragon Claw", "ktr", 60, 0, 40, 12, 208, 10 },   // parent 9
+    { 6, "Dragon Claw", "ktr", 60, 0, 40, 12, 256, 8 },   // parent 9
     { 6, "Dragon Claw", "", 80, 0, -50, 12, 256, 18 },   // parent 13
     { 6, "Dragon Claw", "", 0, -10, 20, 12, 256, 12 },   // parent 10
     { 6, "Dragon Claw", "", 200, -10, 40, 12, 256, 7 },   // parent 7
-    { 6, "Fists of Fire", "ktr", 10, -10, 0, 12, 208, 17 },   // parent 13
+    { 6, "Fists of Fire", "ktr", 10, -10, 0, 12, 256, 14 },   // parent 13
     { 6, "Fists of Fire", "", 100, 0, 0, 12, 256, 10 },   // parent 8
     { 6, "Fists of Fire", "", 40, 10, -50, 12, 256, 31 },   // parent 18
-    { 6, "Fists of Fire", "ktr", 150, -30, 0, 12, 208, 9 },   // parent 9
+    { 6, "Fists of Fire", "ktr", 150, -30, 0, 12, 256, 8 },   // parent 9
     { 4, "Frenzy", "ssd", 100, -10, 20, 17, 256, 12 },   // parent 10
     { 4, "Frenzy", "", 100, 10, 0, 17, 256, 15 },   // parent 12
     { 4, "Frenzy", "ssd", 60, -30, 0, 17, 256, 13 },   // parent 11
@@ -164,7 +164,7 @@ int main(int argc, char** argv) try {
         now += 1000;
         actor.player_combat.ias = ias; actor.player_combat.wsm = wsm; actor.player_combat.sias = sias;
         actor.swing_skill = skill_id;
-        const auto& anim = world.fight.player_anim(kModeA1);
+        const auto& anim = world.fight.player_anim(kModeGH);
         if (!anim.frames) return cell;
         world.fight.set_pmode(kModeA1, now);
         world.fight.start_sequence(now);

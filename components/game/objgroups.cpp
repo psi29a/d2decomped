@@ -633,18 +633,7 @@ struct ObjectRooms {
         if (info) pop.uniques += d2d::rules::act_boss(type, info->base) ? 1 : 0;
         const auto value = game.next();
         d2d::rules::Rng own{ value };
-        const std::vector<d2d::rules::Components>* sets = nullptr;
-        for (std::size_t i = 0; i < region.types.size() && i < region.components.size(); ++i)
-            if (region.types[i].first == type) sets = &region.components[i];
-        // FUN_00547bc0: a type the region lacks joins it (13 at most) with
-        // its sets on this seed (FUN_005bdb20) when TotalPieces > 2
-        // (MonStats2 +0xec); else its look rolls every layer.
-        const bool special = type == 0xc3 || type == 0xc4 || type == 0x126 || type == 0x128;
-        if (!sets && !special && region.types.size() < 13 && type_at(type) && types[std::size_t(type)].pieces > 2) {
-            region.types.emplace_back(type, 0);
-            region.components.push_back(d2d::rules::roll_components(types[std::size_t(type)].choices, own));
-            sets = &region.components.back();
-        }
+        const auto* sets = d2d::rules::region_sets(region, game_data.monsters, type, own);   // FUN_00547bc0
         if (type_at(type)) (void)d2d::rules::monster_look(sets, types[std::size_t(type)].choices, own);
         (void)d2d::rules::monster_variant(type, own);
         own.next();
@@ -805,7 +794,7 @@ struct ObjectRooms {
             area = { room_area.left * 5, room_area.top * 5, (room_area.right - room_area.left) * 5, (room_area.bottom - room_area.top) * 5, room_area.id };
             for (int tries = (area.h / 3) * (area.w / 3); tries > 0; --tries) {
                 if (int(game.next() % 100000) > density) continue;
-                if (region.types.empty()) { area = {}; return; }
+                if (region.spawns == 0) { area = {}; return; }   // FUN_005bde80: the region's own count (+0x10)
                 const int type = pick(20);
                 bool boss = false;                                      // FUN_005be020: its 1 and 2 both a group
                 if (pop.uniques < pop.umin) boss = seed(100) < pop.rooms_done * 100 / pop.rooms_total;
@@ -1181,7 +1170,7 @@ struct ObjectRooms {
                 }
             }
             else if ((code == 0x02 || code == 0x03) && pop.difficulty > 0) {                             // FUN_005bde80 (1, 0): NM / hell's off the region
-                if (!region.types.empty()) monster(pick(0), unit.x, unit.y, 0, -1, code);
+                if (region.spawns != 0) monster(pick(0), unit.x, unit.y, 0, -1, code);
             }
             else if ((code == 0x02 || code == 0x03) && !level.mon.umon.empty())                         // normal's pick is a umon
                 monster(level.mon.umon[std::size_t(seed(int(level.mon.umon.size())))], unit.x, unit.y, 0, -1, code);

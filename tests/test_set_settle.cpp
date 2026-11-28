@@ -19,6 +19,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <exception>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -42,7 +43,7 @@ std::vector<d2d::d2s::Item> worn(const Case& one) {
         item.flags = std::uint32_t(one.flags[slot]);
         item.location = d2d::d2s::item_location::kEquipped;
         item.slot = d2d::d2s::body_location::kFirst + slot;
-        items.push_back(item);
+        items.push_back(std::move(item));
     }
     return items;
 }

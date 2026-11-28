@@ -12,6 +12,7 @@
 #include <cstdio>
 #include <exception>
 #include <span>
+#include <utility>
 #include <vector>
 
 int main() try {
@@ -44,7 +45,7 @@ int main() try {
     shade_button_art(pressed, width, height, 4, 4, 24, 24, ButtonState::Pressed);
     assert(pressed[pixel(16, 16)] < normal[pixel(16, 16)]);
     assert(pressed[pixel(16, 6)] == normal[pixel(16, 6)]); // rim is preserved
-    auto disabled = normal;
+    auto disabled = std::move(normal);   // its last use
     shade_button_art(disabled, width, height, 4, 4, 24, 24, ButtonState::Disabled);
     assert(disabled[pixel(16, 16)] < pressed[pixel(16, 16)]);
     std::vector<std::uint8_t> clipped(width * height * 4, 220);

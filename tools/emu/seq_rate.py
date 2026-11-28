@@ -13,7 +13,7 @@ a record with neither falls through to the other-animation branch. In the attack
 0x12; sub esi, 0x1e) before the clamp to 15..175; the rate is `AnimData speed x percent / 100`.
 
 `d2d.tsv` is test_seq_rate's grid: `D class skill_id skill weapon ias wsm sias steps speed ticks`: Fight::start_sequence's length in ticks for the
-`steps` steps the weapon's sequence has, counted at the AnimData speed `speed` (the class's A1 record, d2d's own choice). The game's
+`steps` steps the weapon's sequence has, counted at the AnimData speed `speed` (the class's GH record: mode 0x12's COF name takes "gh", FUN_0064f5b0's override table). The game's
 ticks are `max(1, ceil(256 steps / rate))` with the rate FUN_00623f50 prints for stat 93 = ias and stat 68 = 100 - wsm + sias (the
 convention of the merged rate checks: tools/emu/player_attack_rate.py). Only skills game.exe times in the attack branch are compared; the
 others are listed by name (CHECK lines), never dropped silently.

@@ -55,14 +55,16 @@ auto Fight::summon_skill(const d2d::rules::Skill& skill) const -> bool {
                 || (skill.srvdofunc == ServerDoFunction::kTrap && trap_shot(skill) >= 0));
     }
 
-// A trap's shooting skill: the first of its sumskills that fires a
+// A trap's shooting skill: the first of its sumskills that breathes (do 95: Inferno Sentry's 'mon inferno
+// sentry', its MonStats infernosentry Skill1; its flames are srvmissilea) or fires a
 // missile d2d builds (the monster skills 'sentry lightning',
 // 'BoltSentry', 'death sentry ltng'); -1 for the others (Wake of Fire's
-// and Inferno's do 125 / 95, Death Sentry's corpse blast do 55).
+// do 125, Death Sentry's corpse blast do 55).
 auto Fight::trap_shot(const d2d::rules::Skill& skill) const -> int {
         for (const auto& name : skill.sumskill)
             if (const auto found = game_data->skills.by_name.find(name); !name.empty() && found != game_data->skills.by_name.end())
-                if (const auto* trap_skill = game_data->skills.get(found->second); trap_skill && skill_missile(*trap_skill, true)) return trap_skill->id;
+                if (const auto* trap_skill = game_data->skills.get(found->second);
+                    trap_skill && (skill_missile(*trap_skill, true) || trap_skill->srvdofunc == ServerDoFunction::kMonsterBreath)) return trap_skill->id;
         return -1;
     }
 
@@ -155,9 +157,7 @@ auto Fight::skill_named(std::string_view name) const -> const d2d::rules::Skill*
 // The missile row a pet's skill shoots: its srvmissile, else
 // srvmissilea — NecromageMissile's do 149 (FUN_005ce0b0) adds the mage's
 // variant (+0xf of its monster data) to it: necromage1..4, rolled at
-// the raise (FUN_005c4180: the caster's seed & 3).
-// d2d's rng(4) is that step on Fight::rng (summon_one): deviations.md
-// approximation 18.
+// the raise (FUN_005c4180: the caster's seed & 3, rules::raised_look).
 auto Fight::pet_missile(const d2d::rules::Skill& skill, int variant ) const -> const GameData::MissileInfo* {
         std::string name = skill.srvmissile.empty() ? skill.srvmissilea : skill.srvmissile;
         if (skill.srvdofunc == ServerDoFunction::kVariantMissile && !name.empty() && name.back() == '1') name.back() = char('1' + std::clamp(variant, 0, 3));
@@ -263,6 +263,22 @@ auto Fight::summon(const d2d::rules::Skill& skill, int lvl, float x, float y, st
         summon_one(skill, type, lvl, env, x, y, now_ms, corpse);
     }
 
+// Blade Sentinel (do 44, FUN_005d6020; EDI the caster): its bladecreeper through FUN_005d5e10 (as a
+// trap's, so summon_one's levelled), its level then the caster's (stat 0xc, 0x5d60c3), put on the caster's
+// subtile in its room (FUN_00554ea0, 0x5d60e7), and its line (FUN_0058ef40's record: +0xc / +0x10 the
+// caster's subtile, +0x14 / +0x18 the point), which its think (MonAI 102) walks.
+auto Fight::blade_sentinel(const d2d::rules::Skill& skill, int lvl, float from_x, float from_y, float to_x, float to_y, int caster_level, std::uint32_t now_ms) -> void {
+        const int type = game_data->monsters.row(skill.summon);
+        if (type < 0) return;
+        const int from_sub_x = int(std::floor(from_x * 5)), from_sub_y = int(std::floor(from_y * 5));
+        const int id = summon_one(skill, type, lvl, calc_env(), (float(from_sub_x) + 0.5f) / 5, (float(from_sub_y) + 0.5f) / 5, now_ms);
+        const auto made = std::ranges::find(actor->pets, id, [](const Pet& pet) { return pet.monster.id; });
+        if (made == actor->pets.end()) return;
+        made->monster.stats.level = caster_level;
+        made->line = { std::pair{ from_sub_x, from_sub_y }, std::pair{ int(std::floor(to_x * 5)), int(std::floor(to_y * 5)) } };
+        made->lined = true;
+    }
+
 // Makes one pet of monster row `type` for `skill` at a spot: its AI control
 // starts as the AI's init does (the traced inits in the body), returns its id.
 auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const d2d::rules::CalcEnv& env, float x, float y, std::uint32_t now_ms, int corpse) -> int {
@@ -278,7 +294,7 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
         const bool forced_calc2 = skill.srvdofunc == ServerDoFunction::kRaven || skill.srvdofunc == ServerDoFunction::kDruidSummon;
         const bool levelled = forced_calc2 || skill.srvdofunc == ServerDoFunction::kRaiseSkeleton || skill.srvdofunc == ServerDoFunction::kGolem
                               || skill.srvdofunc == ServerDoFunction::kIronGolem || skill.srvdofunc == ServerDoFunction::kDecoy || skill.srvdofunc == ServerDoFunction::kValkyrie
-                              || skill.srvdofunc == ServerDoFunction::kTrap;
+                              || skill.srvdofunc == ServerDoFunction::kTrap || skill.srvdofunc == ServerDoFunction::kBladeSentinel;
         const int forced = forced_calc2 ? std::max(d2d::rules::eval_calc(game_data->skills, skill.calc[1], env, skill.id, lvl), 1) : 0;
         const int plvl = d2d::rules::summon_level(clvl, forced, levelled ? lvl : 0);
         Pet pet;
@@ -287,8 +303,6 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
         monster.npc = game_data->mon_npc[std::size_t(type)];
         monster.unit.shape = monster.npc.shape.owned();   // a pet: +0xc4 bit 31 (FUN_0056d8d0)
         const auto& type_info = game_data->monsters.types[std::size_t(type)];
-        for (std::size_t layer = 0; layer < 16; ++layer)
-            if (!type_info.parts[layer].empty()) monster.npc.comp[layer] = type_info.parts[layer].front();
         monster.difficulty = std::clamp(actor->character.header.active_difficulty(), 0, 2);
         monster.row_align = type_info.align; monster.classic = !game_expansion;   // a revived one swings as a classic game's (summons are Align 1)
         // Revive (do 58, FUN_005c56c0) raises the corpse itself (FUN_00553540: the unit cast at), so it keeps
@@ -301,18 +315,30 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
             monster.props = body.props;
             monster.seed = body.seed;
             monster.sighted = body.sighted;                       // the corpse's own AI control: its flag 8 stays (the unit is raised, not made)
+            monster.npc.comp = body.npc.comp;                     // and its look
+            pet.variant = std::max(body.variant, 0);
         } else {
             // A made one's unit seed (+0x20): {a game seed step, 666} (FUN_00555230 -> FUN_00552df0 ->
             // FUN_00650e40), as every unit but a player's gets as it's made (drops.md "the unit seed").
             monster.seed = d2d::rules::Rng{ spawning.game.next() };
-            // Valkyrie's MonStats2 TotalPieces is 2, so FUN_005739d0 takes the no-region path. Its sixteen variant
-            // counts (+0x15) are zero: the bound-zero calls draw nothing. FUN_00573cb0 then rolls life on the unit
-            // seed, and FUN_005c4470's MonEquip walk sees that earlier draw.
-            if (skill.srvdofunc == ServerDoFunction::kValkyrie) {
-                const auto look = d2d::rules::monster_look(nullptr, type_info.choices, monster.seed);
-                for (std::size_t layer = 0; layer < look.size(); ++layer)
-                    if (look[layer] < type_info.parts[layer].size()) monster.npc.comp[layer] = type_info.parts[layer][look[layer]];
+            // Made as any monster (FUN_00555230 type 1 -> FUN_00574250): its look off the level's region
+            // (FUN_00547bc0: a skeleton, a mage, the wolves and the bear join it, TotalPieces over 2), else
+            // each layer with a choice rolled (a one-part layer too; the Valkyrie's has none), on the unit
+            // seed; then FUN_00573cb0 rolls life on it, and FUN_005c4470's MonEquip walk sees both.
+            auto* region = level ? spawning.region(level->id) : nullptr;
+            const auto* sets = region ? d2d::rules::region_sets(*region, game_data->monsters, type, monster.seed) : nullptr;
+            auto look = d2d::rules::monster_look(sets, type_info.choices, monster.seed);
+            // A raised skeleton's or mage's look and a mage's element (its S4 / S5, FUN_005ce0b0's +0xf: pos,
+            // cld, fir, lht) after that: Raise's FUN_005c4430, on the owner's seed (rules::raised_look).
+            if (skill.srvdofunc == ServerDoFunction::kRaiseSkeleton && (type == 0x16b || type == 0x16c)) {
+                const auto* mastery = skill_named("Skeleton Mastery");
+                const auto raise_look = d2d::rules::raised_look(look, type == 0x16c, mastery && skill_level ? skill_level(mastery->id) : 0, lvl, skill.par[0], actor->seed);
+                look = raise_look.look;
+                pet.variant = raise_look.element;
             }
+            monster.look = look;
+            for (std::size_t layer = 0; layer < look.size(); ++layer)
+                if (look[layer] < type_info.parts[layer].size()) monster.npc.comp[layer] = type_info.parts[layer][look[layer]];
             monster.stats = d2d::rules::monster_stats(game_data->monsters, type, monster.difficulty, monster.seed);
         }
         // Its life and damage straight from MonStats' columns (a Raise
@@ -488,7 +514,6 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
         pet.skill = skill.id;
         pet.level = lvl;
         pet.where = level;
-        pet.variant = int(rng(4));
         switch (skill.srvdofunc) {
             case ServerDoFunction::kRevive: pet.until = now_ms + std::uint32_t(std::max(calc(skill, skill.calc[1], lvl), 1)) * 40; break;   // Revive: calc2 frames
             case ServerDoFunction::kHydra:   // Hydra: FUN_004e6ca0's Param1 + (lvl - 1) x Param2 frames (Param2 0), it stands
@@ -569,27 +594,71 @@ auto Fight::summon_one(const d2d::rules::Skill& skill, int type, int lvl, const 
         return actor->pets.back().monster.id;
     }
 
+// FUN_005cc4e0: a flame (srvmissilea) at the target, its range FUN_005cc2e0's: calc1, or under 1 its row's
+// Param2 + level - 1, 1..255 (its animation that many frames, FUN_00621780); while the frame is before the
+// end and state 0xc holds it runs again calc3 frames on (at least 1), else the mode ends (FUN_005cc3b0).
+auto Fight::pet_breath(Pet& pet, std::uint32_t now_ms) -> void {
+        auto& monster = pet.monster;
+        if (monster.breath < 0) return;
+        if (now_ms >= monster.breath_until || !monster.breath_state) { monster.breath = -1; monster.breath_state = false; return; }
+        if (now_ms < monster.breath_next) return;
+        const auto* skill = game_data->skills.get(monster.breath);
+        const auto found = skill ? game_data->missiles.find(skill->srvmissilea) : game_data->missiles.end();
+        if (!skill || found == game_data->missiles.end()) { monster.breath = -1; return; }
+        const int lvl = pet.shot_level;
+        monster.breath_next = now_ms + std::uint32_t(std::max(d2d::rules::eval_calc(game_data->skills, skill->calc[2], calc_env(), skill->id, lvl), 1)) * 40;
+        if (pet.target < 0 || std::size_t(pet.target) >= monsters.size() || !monsters[std::size_t(pet.target)].alive()) return;
+        const auto& missile_info = found->second;
+        int range = d2d::rules::eval_calc(game_data->skills, skill->calc[0], calc_env(), skill->id, lvl);
+        if (range < 1) range = missile_info.param2 - 1 + lvl;
+        range = std::clamp(range, 1, 255);
+        const auto& foe = monsters[std::size_t(pet.target)];
+        const float dx = foe.unit.x - monster.unit.x, dy = foe.unit.y - monster.unit.y, dist = std::max(std::hypot(dx, dy), 0.01f);
+        const float speed = missile_speed(missile_info, lvl);
+        Missile flame{ &missile_info, monster.unit.x, monster.unit.y, dx / dist * speed, dy / dist * speed, missile_facing(monster.unit.x, monster.unit.y, dx, dy), now_ms,
+                       now_ms + std::uint32_t(range) * 40, {} };
+        flame.friendly = true; flame.caster = actor->id; flame.level = lvl; flame.striker = monster.id;
+        const auto owner = game_data->skills.by_name.find(missile_info.skill);
+        flame.skill = owner != game_data->skills.by_name.end() ? owner->second : skill->id;
+        flame.anim_rate = missile_info.anim_len * 256 / range;
+        seed_made(flame);
+        missiles.push_back(std::move(flame));
+    }
+
 // A trap's shot (its shot skill's missile) at monster `target`.
 auto Fight::trap_fire(Pet& pet, std::size_t target, std::uint32_t now_ms) -> void {
         auto& monster = pet.monster;
         const auto* skill = game_data->skills.get(pet.shot_skill);
         if (!skill) return;
-        const auto& missile_info = *skill_missile(*skill, true);
+        // Inferno Sentry's breath (srvst FUN_005cc240: its end calc2 frames on, at least 1, the skill record's
+        // +0x18, state 0xc; do 95, FUN_005cc4e0): its first flame now, the rest pet_breath's.
+        if (skill->srvdofunc == ServerDoFunction::kMonsterBreath) {
+            if (monster.breath >= 0) return;                         // one under way: its mode holds
+            monster.breath = skill->id;
+            monster.breath_until = now_ms + std::uint32_t(std::max(d2d::rules::eval_calc(game_data->skills, skill->calc[1], calc_env(), skill->id, pet.shot_level), 1)) * 40;
+            monster.breath_state = true;
+            monster.breath_next = now_ms;
+            pet.target = int(target);
+            pet_breath(pet, now_ms);
+            return;
+        }
+        const auto* shot_info = skill_missile(*skill, true);
+        if (!shot_info) return;
+        const auto& missile_info = *shot_info;
         const auto owner = game_data->skills.by_name.find(missile_info.skill);
         const float dx = monsters[target].unit.x - monster.unit.x, dy = monsters[target].unit.y - monster.unit.y, dist = std::max(std::hypot(dx, dy), 0.01f);
         const float speed = missile_speed(missile_info, pet.shot_level);
-        // Inferno Sentry's (do 95, FUN_005cc4e0) is a stream of flames:
-        // here eight at once, their reach staggered.
-        const int count = skill->srvdofunc == ServerDoFunction::kScatteredBolts ? std::max(d2d::rules::eval_calc(game_data->skills, skill->calc[0], calc_env(), skill->id, pet.shot_level), 1)
-                    : skill->srvdofunc == ServerDoFunction::kMonsterBreath ? 8 : 1;
+        const int count = skill->srvdofunc == ServerDoFunction::kScatteredBolts ? std::max(d2d::rules::eval_calc(game_data->skills, skill->calc[0], calc_env(), skill->id, pet.shot_level), 1) : 1;
+        // A bolt sentry's do 17 is Charged Bolt's (FUN_005c9300): calc1 bolts all at the target, each wandering on
+        // its index (Missile::bolt, FUN_005c9290's path type 10).
+        const bool bolts = skill->srvdofunc == ServerDoFunction::kScatteredBolts;
         for (int j = 0; j < count; ++j) {
-            const float angle = count > 1 ? (float(rng(81)) - 40) * 3.14159265f / 180 : 0.f;
-            const float aim_x = dx * std::cos(angle) - dy * std::sin(angle), aim_y = dx * std::sin(angle) + dy * std::cos(angle);
+            const float aim_x = dx, aim_y = dy;
             Missile x{ &missile_info, monster.unit.x, monster.unit.y, aim_x / dist * speed, aim_y / dist * speed, missile_facing(monster.unit.x, monster.unit.y, aim_x, aim_y), now_ms,
                        now_ms + std::uint32_t(std::max(missile_info.range, 1)) * 40, {} };
             x.friendly = true; x.caster = actor->id; x.level = pet.shot_level;
             x.skill = owner != game_data->skills.by_name.end() ? owner->second : skill->id;
-            if (skill->srvdofunc == ServerDoFunction::kMonsterBreath) { x.velocity_x = dx / dist * speed; x.velocity_y = dy / dist * speed; x.dies = now_ms + std::uint32_t(4 + 3 * j) * 40; }
+            if (bolts) { x.bolt = j; x.aim_at = std::pair{ monsters[target].unit.x, monsters[target].unit.y }; }
             seed_made(x);
             missiles.push_back(std::move(x));
         }

@@ -568,6 +568,13 @@ matter for the maxima:
   raw × pct / 100. Here raw is the no-op sum above, and pct is the % stat's
   total, so the items' % and Battle Orders' state % add up into one
   percentage of one base. The op 8 share is not in raw.
+- op 1 (skill_staminapercent 162, skill_passive_staminapercent 163, onto
+  maxstamina): the same `d2d_rules_mul_div(raw, pct, 100)` of the no-op
+  sum, for a unit that isn't an item (an item's list takes its own value,
+  `FUN_006253b0`), each entry on its own. Battle Orders, Vigor and Werewolf
+  give 162 by their states, Increased Stamina 163 as a passive. d2d:
+  `Fight::update_fighters` (`stamina_share`), the case in
+  `tests/game/test_game.cpp`.
 
 Checked live 2026-10-19: Miriam (sorceress, 409 own max mana, +466 flat
 from charms, rings, belt and boots, +27 energy, +42% from belt and

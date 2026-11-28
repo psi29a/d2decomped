@@ -322,10 +322,34 @@ int main() try {
     tables.rare_suffix_names = { { .itypes = { "axe" } } };
     d2d::d2s::Item axe{ .code = "hax", .quality = 2 };
     assert(imbuable(tables, axe));
+    // Made as a drop (FUN_00558d90 -> FUN_00555230): two game seed steps, the first its unit seed (the fingerprint).
+    auto two_steps = rng;
+    const auto fingerprint = two_steps.next();
+    two_steps.next();
     const auto imbued = imbue_item(tables, axe, 8, rng);
     assert(imbued.code == "hax" && imbued.quality == 6 && imbued.ilvl == 12 && !imbuable(tables, imbued));
+    assert(rng.low == two_steps.low && rng.high == two_steps.high && imbued.uid == fingerprint);
     Rng imbue_low{ 1 };
     assert(imbue_item(tables, axe, 5, imbue_low).ilvl == 5);
+    {   // Its record's +0x80 (FUN_00579d60): 2 for a plain item, no ethereal draw; 4 for an ethereal one, ethereal
+        // with its stats (FUN_00556ca0), not the flag copied onto a plain roll (CodeRabbit on #815).
+        auto tough = tables;
+        tough.item_base["hax"].durability = 40;
+        int plain_eth = 0;
+        for (std::uint32_t seed = 1; seed <= 400; ++seed) {
+            Rng game_seed{ seed };
+            const auto made = imbue_item(tough, axe, 30, game_seed);
+            plain_eth += made.ethereal || made.max_durability < 40;      // no ethereal stats either (its halved 21)
+        }
+        assert(plain_eth == 0);
+        auto eth_axe = axe;
+        eth_axe.ethereal = true;
+        for (std::uint32_t seed = 1; seed <= 50; ++seed) {
+            Rng game_seed{ seed };
+            const auto made = imbue_item(tough, eth_axe, 30, game_seed);
+            assert(made.ethereal && made.max_durability == 40 / 2 + 1);
+        }
+    }
     axe.quality = 4;
     assert(!imbuable(tables, axe));
     // FUN_0062c590: flag 0x1000 refused; a throwable type only in a classic game.

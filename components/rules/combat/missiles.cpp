@@ -20,8 +20,12 @@ namespace d2d::rules {
 
 // A frame moves it velocity / 4096 subtiles (FUN_006502d0: x 0x400 >> 6,
 // then x the unit vector >> 12).
-int missile_velocity(int vel, int vel_lev, int level) {
-    return ((vel + vel_lev * level / 8) << 8) * 75 / 100;
+// FUN_0059fa30: (Vel + VelLev x lvl / 8) << 8, x the owner's Slow Missiles % (0x59fb5d) when its state
+// 0x57 is on and the row CanSlow (+4 bit 8), then x 75 / 100.
+int missile_velocity(int vel, int vel_lev, int level, int slow_pct) {
+    int velocity = (vel + vel_lev * level / 8) << 8;
+    if (slow_pct >= 0) velocity = velocity * slow_pct / 100;
+    return velocity * 75 / 100;
 }
 
 // Its life in frames, Range + LevRange x lvl (FUN_0064a330 keeps it a short).
@@ -68,6 +72,16 @@ int aim_direction(std::uint32_t x, std::uint32_t y, std::uint32_t to_x, std::uin
 
 // Each axis is a step of `seed` modulo 0x28, then less 0x14, so
 // -20..19. A (0, 0) pair is stored as x = 0x14.
+// FUN_005afb80 0x5afcae..0x5afceb: FUN_0064a730's data +0x28 into FUN_00650e40, two FUN_0045c390(2r + 1), FUN_00650e50's
+// low word back through FUN_0064a710.
+std::pair<int, int> volcano_throw(Rng& missile_seed, std::uint32_t& data, int radius) {
+    missile_seed = Rng{ data };
+    const int offset_x = missile_seed(2 * radius + 1) - radius;
+    const int offset_y = missile_seed(2 * radius + 1) - radius;
+    data = missile_seed.low;
+    return { offset_x, offset_y };
+}
+
 std::pair<int, int> release_spread_offset(Rng& seed) {
     const int offset_x = seed(0x28) - 0x14;
     const int offset_y = seed(0x28) - 0x14;

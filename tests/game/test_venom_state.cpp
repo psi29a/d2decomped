@@ -59,6 +59,17 @@ int main() try {
     assert(world.actor->player_combat.poison_len == length);
     assert(world.actor->player_combat.elem[3] == expected && expected.second > 0);
     std::printf("OK: Venom contributes %d-%d poison over %d ticks\n", expected.first, expected.second, length);
+    // Without Venom, two poison mods' lengths over their poison_count (326, one each; 0x57bb9b..).
+    world.actor->self_states.clear();
+    for (const int len : { 100, 50 }) {
+        d2d::d2s::Item charm;
+        charm.code = "cm1"; charm.panel = 1; charm.identified = true;
+        charm.props = { { d2d::d2s::kPoisonMinDamage, 0, 256 }, { d2d::d2s::kPoisonMaxDamage, 0, 256 }, { d2d::d2s::kPoisonLength, 0, len }, { d2d::d2s::kPoisonCount, 0, 1 } };
+        world.actor->character.items.push_back(std::move(charm));
+    }
+    fight.update_fighters(kNow);
+    assert(world.actor->player_combat.poison_len == 75);
+    std::printf("OK: two poison mods' 150 frames over their count of 2: %d\n", world.actor->player_combat.poison_len);
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_venom_state: %s\n", error.what());

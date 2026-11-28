@@ -68,6 +68,7 @@ struct Fighter {
     int crushing = 0, deadly = 0, critical = 0, open_wounds = 0;   // chances, %
     int item_slow = 0;                    // item_slow (stat 150): gear's event 19 (FUN_005c0310) slows the unit a landed hit strikes
     int mastery_crit = 0;                           // stat 344, the weapon's mastery (FUN_00645830)
+    int bypass = 0;                                 // the record's 0x100 / 0x200 / 0x400: skill_bypass_undead / _demons / _beasts (103, 104, 106; Sanctuary's)
     int weapon_block = 0;                           // stat 348, two claws only (FUN_0057dca0)
     bool knockback = false;
     bool prevent_heal = false;                      // stat 117 (item_preventheal)
@@ -351,6 +352,9 @@ struct Target {
     bool boss = false, superunique = false, hireling = false;
     [[nodiscard]] std::int64_t paired(std::int64_t field) const { return field > 0 && pair_pct != 100 ? field * pair_pct / 100 : field; }
 };
+// The target as a blow with `bypass` (Fighter::bypass) strikes it: on an undead (0x100), a demon (0x200), a monster
+// that's neither or a player (0x400), each element's resistance only below 0 (FUN_0057c1e0 -> FUN_0057bf80).
+[[nodiscard]] Target bypassed(const Target& target, int bypass);
 // A player's attack rating (before its %) and the target's defense as the gear changes them: ignore target's
 // defense, -n% target defense, attack rating against demons and the undead.
 void target_defense(const Fighter& fighter, const Target& target, int& attack, int& defense);
@@ -366,6 +370,9 @@ struct Blow {
     int damage = 0, poison = 0, poison_ticks = 0, chill_ticks = 0;
     int life = 0, mana = 0;              // leeched life and mana in 256ths (FUN_0057c420), what the attacker gains
     int phys = 0;                        // the physical rolled, before resistance (Dragon Tail's fire is a share of it)
+    std::int64_t rolled = -1;            // the physical's draw itself (256ths, before any %): what a burst hands its other units
+    bool no_get_hit = false;             // the record's result flags lack 4: no get-hit is rolled (record_gets_hit)
+    bool soft = false;                   // result flag 0x4000: the struck monster's event 4, as a soft hit (FUN_0057cee0)
     int phys_fine = 0;                   // the physical after resistance, in 256ths (the record's +8 field)
     int crush_fine = 0;                  // the Crushing Blow's share of `damage` and `frac`, 256ths: not in the record's total (+0x4c), so not in the get-hit's size
     int frac = 0;                        // 256ths of a point the physical (a blow's fine value after resistance) and a missile's element dealt beyond `damage`; may pass 255 (game.exe keeps life in 256ths)
@@ -405,6 +412,9 @@ int corpse_blast_fine(int life_fine, int low_pct, int high_pct, Rng& corpse_seed
 // calc3 % (0..100) of that blow goes to the skill's EType when it has one, the rest stays physical: {physical,
 // element}, 256ths.
 std::pair<int, int> corpse_blast_split(int fine, int element_pct, bool elemental);
+// A monster's blast on one foe as monster_blow takes it: `caster` with only the physical (none past its reach)
+// and the element as its A1 fire (MonStats::El type 0), a sure hit.
+[[nodiscard]] MonStats corpse_blast_record(MonStats caster, int phys_fine, int fire_fine, bool in_reach);
 // The walk (FUN_0056b7e0) takes its aurafilter within (aurarange + 1) / 2
 // subtiles of the corpse; the physical reaches only aurarange / 2
 // (FUN_005c4d10's FUN_006492a0 against its square): {walk, reach}.
@@ -494,7 +504,14 @@ struct Swing {
     // no SrcDam scale after the crit, and Crushing Blow's divisor doubled (event 6, FUN_005bffc0).
     bool missile = false;
     bool half_2h_src = false;             // the missile row's Half2HSrc: srcdam halved from a two-hander (missile_physical)
+    std::optional<bool> crit;             // a missile's crit, rolled as it was made (missile_crit), not at the hit
+    std::optional<std::int64_t> rolled;   // a burst's physical as its first unit drew it (Blow::rolled): no draw
 };
+
+// A missile's record's crit (FUN_0064b860 -> FUN_0064a850), rolled as it is made on the caster's seed:
+// critical strike (always a draw), then deadly strike (a draw when the stat isn't 0), then the weapon
+// mastery's crit (a draw when it isn't 0 and the missile takes the weapon's damage).
+bool missile_crit(Rng& caster, int critical, int deadly, int mastery);
 
 // A player's leech of a blow, in 256ths.
 int leech_fine(int physical_fine, const Target& target, int steal, int divisor);
@@ -502,9 +519,12 @@ int leech_fine(int physical_fine, const Target& target, int steal, int divisor);
 // The player's melee hit on `t` (hit chance, then the monster's block):
 // critical or deadly strike doubles the physical damage; physical resistance cuts it;
 // leech is the physical damage dealt x steal % x Drain %; crushing blow
-// takes the life left / the target's divisor (less physical resistance). `damage_rng`
-// is the attacker's unit seed when its physical roll is separate from the fight rolls.
-Blow player_blow(const Fighter& fighter, const Target& target, int clvl, Rng& rng, const Swing& swing = {}, Rng* damage_rng = nullptr);
+// takes the life left / the target's divisor (less physical resistance). Its rolls are the
+// attacker's seed, `rng` (+0x20: the to-hit FUN_0057d9b0, the crits, Crushing Blow, Open Wounds);
+// `damage_rng` a missile's own (its physical and elements, FUN_005a89a0); the block the defender's
+// (`defender_rng`, FUN_0057dd60). Either missing rolls on `rng`.
+Blow player_blow(const Fighter& fighter, const Target& target, int clvl, Rng& rng, const Swing& swing = {}, Rng* damage_rng = nullptr,
+                 Rng* defender_rng = nullptr);
 
 // A melee blow's record enhanced damage % (FUN_0057b7d0's +0xc before FUN_0057b420): the swing's, + the demons' and
 // the undead's against such a monster.
@@ -535,8 +555,11 @@ struct Taken { bool hit = false, blocked = false, dodged = false; int damage = 0
              std::array<int, 5> element_raw{}, element_dealt{}, element_fine{}, element_took{};   // element_took: what the gear's absorb took off each field (256ths, signed)
              std::optional<int> sum; };   // element_fine: each field after the reduction in 256ths, under 0 kept; sum: the record total before the clamp; `damage` / `frac` are it clamped   // by element type: the rolls before the resistance and what they dealt after it (whole points)
 enum class Motion : std::uint8_t { standing, walking, running };
+// `rng` is the attacker's seed (the to-hit, the damage), `defender_rng` the defender's (the block,
+// Weapon Block, dodge, avoid, evade: FUN_0057dd60), `damage_rng` a missile's own (its damage rolls,
+// FUN_005a89a0); either missing rolls on `rng`.
 Taken monster_blow(const Fighter& defender, int dlvl, Motion motion, const MonStats& attacker, bool second_attack, Rng& rng,
-                   bool missile = false, bool sure = false, bool exact = false);
+                   bool missile = false, bool sure = false, bool exact = false, Rng* defender_rng = nullptr, Rng* damage_rng = nullptr);
 
 
 // A kill's experience by the level difference, in 256ths.

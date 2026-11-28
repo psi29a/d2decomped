@@ -69,10 +69,11 @@ def monstats_ids():
 
 
 class Game:
-    def __init__(self, area=False):
+    def __init__(self, area=False, real=()):
         import drlg
         from unicorn.x86_const import UC_X86_REG_EDX
         e = self.e = drlg.boot()
+        e.real = set(e.real) | set(real)   # left as game.exe's (unit_seed_init.py)
         self.edx = UC_X86_REG_EDX
         self.stats, self.hit = {}, {}
         self.level_now = 0

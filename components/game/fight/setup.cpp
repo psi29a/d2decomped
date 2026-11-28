@@ -138,7 +138,7 @@ auto Fight::monsters_cross(const Level* destination, float dx, float dy) -> void
 auto Fight::own_stats() const -> d2d::d2s::Stats {
         using namespace d2d::d2s;
         auto stats = actor->character.stats;
-        stats.values[kMaxLife] -= actor->bo_life + actor->item_max[0]; stats.values[kMaxMana] -= actor->bo_mana + actor->item_max[1]; stats.values[kMaxStamina] -= actor->item_max[2];
+        stats.values[kMaxLife] -= actor->bo_life + actor->item_max[0]; stats.values[kMaxMana] -= actor->bo_mana + actor->item_max[1]; stats.values[kMaxStamina] -= actor->item_max[2] + actor->stamina_share;
         return stats;
     }
 
@@ -173,8 +173,38 @@ auto Fight::new_game(int difficulty) -> void {
         actor->struck_class = actor->shown_class = 0;   // a new game's unit: no hit class yet
     }
 
-auto Fight::merc_joins() -> void {
-        const auto& header = actor->character.header;
+// player_join_init (FUN_00569f20) seeds the player's unit off the game seed
+// (FUN_00552df0 with EDX game +0xd0, 0x569f4b) as its save's header is read
+// (FUN_0056a090); its save's items follow, each a unit FUN_00558cb0 makes
+// through FUN_00555230 type 4: FUN_00552df0 then FUN_00552e90, two game seed
+// steps whatever the record (its own seed comes from its fingerprint after,
+// FUN_0062cbe0). A socketed item is a record of its own (FUN_005335e0's
+// inner loop), as are the corpse's and the merc's lists'.
+// The save's merc (FUN_00533c70 -> FUN_005774f0) is made after the player's lists, its own list
+// (FUN_005337f0) after it.
+auto Fight::player_joins(std::size_t own_records, std::size_t merc_records) -> void {
+        actor->seed = d2d::rules::Rng{ spawning.game.next() };
+        for (std::size_t record = 0; record < own_records; ++record) { spawning.game.next(); spawning.game.next(); }
+        if (actor->merc) merc_seed();
+        for (std::size_t record = 0; record < merc_records; ++record) { spawning.game.next(); spawning.game.next(); }
+    }
+
+// FUN_005774f0 makes the merc unit (FUN_00555230(0, 0, game, 0, 1, ...): type 1, FUN_00574250's
+// init) and FUN_00573270 sets it up as a hireling; nothing reseeds it: the save's merc seed (+0xb3)
+// is the hire record's, not the unit's.
+auto Fight::merc_seed() -> void {
+        if (!actor->merc) return;
+        d2d::rules::Rng unit{ spawning.game.next() };
+        if (actor->merc->type >= 0) {
+            d2d::rules::Rng unused;
+            const auto made = make_monster(*game_data, actor->merc->type, actor->merc->unit.x, actor->merc->unit.y, unused, actor->merc->difficulty, true, 1,
+                                           level ? level->id : -1, unit, level ? spawning.region(level->id) : nullptr);
+            unit = made.seed;
+        }
+        actor->merc->seed = unit;
+    }
+
+auto Fight::merc_joins(bool from_save) -> void {
         actor->merc_target = -1; actor->merc_chase = false;
         actor->merc_hurt = 0; actor->merc_poison_rate = actor->merc_poison_acc = 0; actor->merc_poison_until = 0; actor->merc_heal_rate = actor->merc_heal_acc = 0; actor->merc_heal_until = 0; actor->merc_potion_states = {};
         actor->merc_growth = 0; actor->merc_aura = -1; actor->merc_skill = -1; actor->merc_seq = nullptr; actor->merc_buff = {}; actor->merc_cry = {}; actor->leap.reset(); actor->knock.reset();
@@ -182,8 +212,8 @@ auto Fight::merc_joins() -> void {
         if (!actor->merc) return;
         actor->merc->hit_points = merc_max_life();
         actor->merc->mode = "NU"; actor->merc->next_act = 0; actor->merc->move_pct = 0;
-        actor->merc->seed = d2d::rules::Rng(header.merc_seed);
         actor->merc->type = actor->merc_npc ? game_data->monsters.row(actor->merc_npc->id) : -1;
+        if (!from_save) merc_seed();
         // Given to the client (FUN_00571f90, a monster): SetStat(0x148, (x + y) & 0xffff), its subtile spot (FUN_00620870).
         const auto& joined = actor->merc->unit;
         actor->merc_pierce_idx = std::uint32_t(int(std::floor(joined.x * 5)) + int(std::floor(joined.y * 5))) & 0xffffu;
@@ -232,9 +262,8 @@ auto Fight::revive(std::uint32_t now_ms) -> void {
 // what's left of the last one; a rejuvenation its percentages at once
 // (FUN_005beac0, no bonus).
 
-// The doubling rolls on the drinker's seed (unit +0x20) in game.exe,
-// on d2d's rng here (rules::potion_amount): deviations.md
-// approximation 18.
+// The doubling rolls on the drinker's seed (unit +0x20, Hero::seed;
+// rules::potion_amount).
 auto Fight::drink(int col, std::uint32_t now_ms) -> void {
         if (!dead()) potion(d2d::rules::drink_belt(game_data->rules, actor->character.items, col), now_ms);
     }
@@ -318,7 +347,7 @@ auto Fight::potion(const std::string& code, std::uint32_t now_ms) -> void {
         } else {                                       // FUN_005be3f0: into the healthpot / manapot state, with what's left of it
             const bool life = potion.life > 0;
             const int stat = int(actor->character.stats.get(life ? kVit : kEne) + actor->character.panel.bonus[life ? kVit : kEne]);
-            const int amount = d2d::rules::potion_amount(life ? potion.life : potion.mana, actor->character.character_class, life, stat, rng);
+            const int amount = d2d::rules::potion_amount(life ? potion.life : potion.mana, actor->character.character_class, life, stat, actor->seed);
             auto state = std::ranges::find_if(actor->regen, [&](const Regen& regen_entry) { return !regen_entry.poison && (life ? regen_entry.life > 0 : regen_entry.mana > 0); });
             if (state == actor->regen.end()) state = actor->regen.insert(actor->regen.end(), Regen{});
             const int left = state->until > now_ms ? int((state->until - now_ms) / 40) : 0;

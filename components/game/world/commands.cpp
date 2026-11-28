@@ -471,7 +471,7 @@ auto World::deal(const Command& command, std::uint32_t now_ms) -> bool {
             }
             if (service_npc != d2d::rules::monster_ids::kCharsi) return true;
             if (!d2d::rules::quest::bit(quests(), d2d::rules::ToolsQuest::kQuest, 1) || !d2d::rules::imbuable(item_rules, *actor->held, actor->character.expansion)) return answer(false);
-            auto made = d2d::rules::imbue_item(item_rules, *actor->held, int(actor->character.stats.get(d2d::d2s::kLevel)), rng);
+            auto made = d2d::rules::imbue_item(item_rules, *actor->held, int(actor->character.stats.get(d2d::d2s::kLevel)), fight.spawning.game);
             made.location = actor->held->location; made.panel = actor->held->panel; made.column = actor->held->column; made.row = actor->held->row;
             actor->held = std::move(made);
             tools.imbued(quests());

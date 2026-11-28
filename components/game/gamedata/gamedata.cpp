@@ -426,7 +426,7 @@ void populate(const GameData& game_data, Spawning& spawning, const Level& level,
     if (state.rooms_up.empty()) {
         state.rooms_up.assign(level.rooms.size(), false);
         level.region[std::size_t(difficulty)].clear();
-        for (const auto& [row, rarity] : region.types) level.region[std::size_t(difficulty)].push_back(row);
+        for (std::size_t k = 0; k < region.spawns && k < region.types.size(); ++k) level.region[std::size_t(difficulty)].push_back(region.types[k].first);
     }
     if (made_index >= level.rooms.size() || state.rooms_up[made_index] || level.walk.empty()) return;
     state.rooms_up[made_index] = true;

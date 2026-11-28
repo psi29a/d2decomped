@@ -178,6 +178,8 @@ Fighter make_fighter(const Tables& tables, const d2d::d2s::Item* weapon, const d
     fighter.cold_len = int(stat(kColdLength)); fighter.poison_len = int(stat(kPoisonLength));
     fighter.stun_len = int(stat(kStunLength));
     fighter.crushing = int(stat(kCrushingBlow)); fighter.deadly = int(stat(kDeadlyStrike) + stat(kDeadlyStrikePerLevel) * clvl / 8); fighter.critical = int(stat(kPassiveCriticalStrike));
+    // FUN_0057b7d0 (a player's or hireling's record) / FUN_0064b860 (a SrcDamage missile's, 0x64bcbb..0x64bcf3).
+    fighter.bypass = (stat(kBypassUndead) != 0 ? 0x100 : 0) | (stat(kBypassDemons) != 0 ? 0x200 : 0) | (stat(kBypassBeasts) != 0 ? 0x400 : 0);
     fighter.mastery_crit = int(stat(kPassiveMasteryMeleeCritical)); fighter.weapon_block = int(stat(kPassiveWeaponBlock));
     fighter.open_wounds = int(stat(kOpenWounds));
     fighter.item_slow = int(stat(kItemSlow));
@@ -692,6 +694,13 @@ std::pair<int, int> corpse_blast_split(int fine, int element_pct, bool elemental
     return { mul_div(fine, 100 - element_pct, 100), mul_div(fine, element_pct, 100) };
 }
 
+MonStats corpse_blast_record(MonStats caster, int phys_fine, int fire_fine, bool in_reach) {
+    caster.a1_min = caster.a1_max = in_reach ? phys_fine >> 8 : 0;
+    for (auto& element : caster.elements) element = {};
+    caster.elements[0] = { 0, 100, fire_fine >> 8, fire_fine >> 8, 0, "A1" };   // El type 0: fire
+    return caster;
+}
+
 MissileDamage influenced(MissileDamage damage, int influence) {
     if (influence == 0) return damage;
     damage.elo = mul_div(damage.elo, 100 + influence, 100);
@@ -705,7 +714,10 @@ Blow missile_blow(const MissileDamage& damage, const Target& target, const std::
         // FUN_005a89a0 rolls the physical in 256ths and FUN_0057bf80 resists that fine
         // value, the life stat takes it as is: keep the part under a point in Blow::frac
         // as the element below does.
-        const int roll = shared && shared->phys >= 0 ? shared->phys : rng.range(damage.phys_lo, damage.phys_hi);
+        // The lower end + rand(the gap): the top is never rolled (FUN_005a89a0 0x5a89e8..0x5a89fd, a skill's
+        // own FUN_0056e170 0x56e1c1).
+        const int phys_low = std::min(damage.phys_lo, damage.phys_hi), phys_high = std::max(damage.phys_lo, damage.phys_hi);
+        const int roll = shared && shared->phys >= 0 ? shared->phys : phys_low + rng(phys_high - phys_low);
         if (shared) shared->phys = roll;
         blow.phys += roll >> 8;
         // FUN_0057be00 floors a monster's resistance at -100 (no upper cap but the immunity at 100).
@@ -803,7 +815,7 @@ int melee_record_pct(const Fighter& fighter, const Target& target, const Swing& 
 // only Properties.txt's dmg-mon% sets it, and no 1.14d UniqueItems, SetItems, Sets, Runes, MagicPrefix,
 // MagicSuffix, Automagic, Gems, CubeMain, MonProp, MonUMod, States, Skills or Hireling row uses it. The row's
 // +0x12e (SrcMissDmg) branch (0x64bd07), the parent missile's damage, is only viper_poisjavcloud's (Missiles.txt
-// row 649, 128), which d2d never makes. The halved value also scales the owner's elemental share
+// row 649, 128): a monster missile's trail's (missiles_update). The halved value also scales the owner's elemental share
 // (missile_owner_share). phys_lo / phys_hi carry stat 111
 // and make_fighter's floors (at least a point; phys_pct at least -90 before the missile's terms join).
 namespace {
@@ -870,18 +882,39 @@ void row_into_record(MissileDamage& damage, Swing& swing) {
     damage.phys_lo = damage.phys_hi = 0;
 }
 
+// FUN_0064a850 (ESI the caster, the weapon on the stack; FUN_0064b860 at 0x64bad1 for a missile taking
+// the weapon's damage, at 0x64bd15 without one): critical strike's % 100 on the caster's seed whatever
+// the stat, then deadly strike's when it isn't 0, then FUN_00645830's mastery crit with a weapon; any passes.
+bool missile_crit(Rng& caster, int critical, int deadly, int mastery) {
+    if (int(caster.next() % 100) < critical) return true;
+    if (deadly != 0 && int(caster.next() % 100) < deadly) return true;
+    return mastery != 0 && int(caster.next() % 100) < mastery;
+}
+
+// FUN_0057c1e0: a monster struck that's undead with 0x100, a demon with 0x200, or neither with 0x400, or any other
+// unit with 0x400, passes FUN_0057bf80 its bypass: no flat cut nor absorb, and a resistance over 0 counts as none.
+Target bypassed(const Target& target, int bypass) {
+    const bool bypasses = target.unit_type != 1 ? (bypass & 0x400) != 0
+                                          : (target.undead && (bypass & 0x100)) || (target.demon && (bypass & 0x200)) || (!target.undead && !target.demon && (bypass & 0x400));
+    if (!bypasses) return target;
+    Target out = target;
+    for (auto& res : out.res) res = std::min(res, 0);
+    return out;
+}
+
 // A player's blow: melee's record (FUN_0057b7d0 -> FUN_0057b420), a missile's from its record
 // at the hit (FUN_0064b860 -> FUN_005a89a0): the roll, the %, the crit, the blow's events. A missile's
 // gear elements and leech are the owner's share (missile_owner_share).
-Blow player_blow(const Fighter& attacker, const Target& target, int clvl, Rng& rng, const Swing& swing, Rng* damage_rng) {
+Blow player_blow(const Fighter& attacker, const Target& struck, int clvl, Rng& rng, const Swing& swing, Rng* damage_rng, Rng* defender_rng) {
     std::optional<Fighter> shared;
     if (swing.missile) shared = missile_owner_share(attacker, swing);
     const Fighter& fighter = shared ? *shared : attacker;
+    const Target target = bypassed(struck, fighter.bypass);
     Blow blow{ .hit_class = fighter.hit_class | swing.hit_class };
     const auto [attack_rating, defense] = player_to_hit(fighter, target, swing.ar_pct);
     if (!swing.smite && rng(100) >= hit_chance(attack_rating, defense, clvl, target.level)) return blow;
     blow.prevent_heal = !swing.smite && fighter.prevent_heal;
-    if (target.block > 0 && rng(100) < target.block) {
+    if (target.block > 0 && (defender_rng ? *defender_rng : rng)(100) < target.block) {
         blow.blocked = true;
         if (!swing.smite) return blow;      // FUN_005ce9f0 sets the hit bit again after the block check (0x5cebb0): Smite lands
     }
@@ -914,13 +947,15 @@ Blow player_blow(const Fighter& attacker, const Target& target, int clvl, Rng& r
         high = fighter.phys_hi + fighter.phys_hi * physical_pct / 100;
     }
     Rng& physical_rng = damage_rng ? *damage_rng : rng;
-    std::int64_t damage = high > low ? low + physical_rng(int(high - low)) : low;
+    std::int64_t damage = swing.rolled ? *swing.rolled : high > low ? low + physical_rng(int(high - low)) : low;
+    blow.rolled = damage;
     if (swing.missile) damage = missile_scaled(damage, missile_pct);
     const int rolled = int(damage >> 8);                       // before crit: what Vengeance's elements are a share of
     // The mastery crit, critical strike and deadly strike are separate
     // rolls in that order; any one doubles (FUN_0057b7d0). Not kicks.
     const auto roll = [&](int chance) { return chance > 0 && rng(100) < chance; };
-    if (!swing.kick && !swing.smite && (roll(fighter.mastery_crit) || roll(fighter.critical) || roll(fighter.deadly))) { damage *= 2; blow.deadly = true; }
+    const bool crit = swing.crit ? *swing.crit : roll(fighter.mastery_crit) || roll(fighter.critical) || roll(fighter.deadly);
+    if (!swing.kick && !swing.smite && crit) { damage *= 2; blow.deadly = true; }
     if (!swing.missile) damage = damage * swing.srcdam / 128;   // a missile's record took its SrcDamage before the roll
     // A skill's own damage beside the weapon's SrcDam share (Blade Shield:
     // FUN_0056e170 then FUN_0057b7d0); kicks and Smite took theirs above.
@@ -963,7 +998,7 @@ Blow player_blow(const Fighter& attacker, const Target& target, int clvl, Rng& r
         // (FUN_0057b7d0: +0x30 when +0x24 > 0, before resistance), and
         // FUN_0057c6c0 chills on it untested: cold resisted under a point
         // still chills; so does a conversion to cold, at least 50 frames (case 4).
-        const int element_roll = rng.range(elo, ehi);
+        const int element_roll = physical_rng.range(elo, ehi);
         const int element_damage = resisted(int(target.paired(element_roll)), target.res[std::size_t(kRes[element])]);
         if (element == 3) { blow.poison = element_damage; blow.poison_ticks = std::max(fighter.poison_len, 1); continue; }
         if (element == 2 && element_roll > 0) blow.chill_ticks = std::max(blow.chill_ticks, resisted(fighter.cold_len, target.res[4]));   // the length less cold resist too (FUN_0057c1e0)
@@ -984,7 +1019,8 @@ Blow player_blow(const Fighter& attacker, const Target& target, int clvl, Rng& r
     if (fighter.crushing > 0 && rng(100) < fighter.crushing) {
         blow.crushing = true;
         crushing_fine = (target.life_fine >= 0 ? target.life_fine : target.hit_points * 256) / (target.crush_divisor * (swing.missile ? 2 : 1));
-        if (target.res[0] > 0) crushing_fine -= mul_div(crushing_fine, std::min(target.res[0], 100), 100);
+        // The unit's own damage resist: FUN_005bffc0 runs apart from FUN_0057c1e0, so no bypass (`struck`, not `target`).
+        if (struck.res[0] > 0) crushing_fine -= mul_div(crushing_fine, std::min(struck.res[0], 100), 100);
     }
     // The leech cuts the physical to the life the crush left: FUN_0057c6c0 reads stat 6 at 0x57c7f8, after the strike events.
     Target after_crush = target;
@@ -1034,16 +1070,18 @@ int chill_length(const Fighter& defender, int len) {
 }
 
 Taken monster_blow(const Fighter& defender, int dlvl, Motion motion, const MonStats& attacker, bool second_attack, Rng& rng,
-                   bool missile, bool sure, bool exact) {
+                   bool missile, bool sure, bool exact, Rng* defender_rng, Rng* damage_rng) {
     Taken taken;
     const bool moving = motion != Motion::standing, running = motion == Motion::running;
+    Rng& defence = defender_rng ? *defender_rng : rng;
+    Rng& rolled = damage_rng ? *damage_rng : rng;         // a missile's damage: its own seed (FUN_005a89a0)
     if (!sure) {
         if (!(running && !missile) && !attacker.no_hit_roll && rng(100) >= hit_chance(attacker.to_hit, defender.defense + (missile ? defender.def_missile : defender.def_melee), attacker.level, dlvl))
             return taken;
-        if (!(missile && attacker.unblockable) && defender.block > 0 && rng(100) < (running ? defender.block / 3 : defender.block)) { taken.blocked = true; return taken; }
-        if (!moving && defender.weapon_block > 0 && rng(100) < defender.weapon_block) { taken.blocked = true; return taken; }
+        if (!(missile && attacker.unblockable) && defender.block > 0 && defence(100) < (running ? defender.block / 3 : defender.block)) { taken.blocked = true; return taken; }
+        if (!moving && defender.weapon_block > 0 && defence(100) < defender.weapon_block) { taken.blocked = true; return taken; }
         const int dodge = moving ? defender.evade : missile ? defender.avoid : defender.dodge;
-        if (dodge > 0 && rng(100) < dodge) { taken.dodged = true; return taken; }
+        if (dodge > 0 && defence(100) < dodge) { taken.dodged = true; return taken; }
     }
     taken.hit = true;
     // FUN_0057b420: min << 8 + rand((max - min) << 8) on the attacker's seed, the top never rolled; FUN_0057c1e0
@@ -1054,7 +1092,7 @@ Taken monster_blow(const Fighter& defender, int dlvl, Motion motion, const MonSt
     // are added, no clamp and no draw; the reduction and the absorbs still apply (57c6c0 calls 57c1e0 at 57c7a0).
     int low = second_attack ? attacker.a2_min : attacker.a1_min, high = second_attack ? attacker.a2_max : attacker.a1_max;
     if (!missile && !exact) { low = std::max(low, 1); high = std::max(high, low + 1); }   // min at least 1, max at least min + 1: an empty range still draws
-    taken.raw = exact ? low * 256 : low * 256 + rng((high - low) * 256);
+    taken.raw = exact ? low * 256 : low * 256 + rolled((high - low) * 256);
     // FUN_0057c060 (0x57c060), the attacker / defender pair's percent: a prime
     // evil (MonStats +0xc & 0x80) on a player's pet (unit +0xc4 bit 31), 200
     // a hireling, else 400. FUN_0057c1e0 takes each damage field above 0 to
@@ -1078,7 +1116,7 @@ Taken monster_blow(const Fighter& defender, int dlvl, Motion motion, const MonSt
     std::int64_t total = physical_fine;
     for (const auto& element : attacker.elements) {
         if (element.type < 0 || element.mode != (second_attack ? "A2" : "A1") || (element.pct < 100 && rng(100) >= element.pct)) continue;
-        const int roll = rng.range(element.min, element.max);
+        const int roll = rolled.range(element.min, element.max);
         switch (element.type) {
             case 2: if (roll > 0) taken.chill_ticks = std::max(taken.chill_ticks, chill_length(defender, element.dur)); [[fallthrough]];
             case 0: case 1: case 4: if (roll > 0) taken.element_raw[std::size_t(element.type)] += roll; break;
@@ -1088,7 +1126,7 @@ Taken monster_blow(const Fighter& defender, int dlvl, Motion motion, const MonSt
     }
     for (std::size_t type = 0; type < attacker.enchants.size(); ++type)      // a boss's enchants and its gear's elements, after its elements
         if (const auto& enchant = attacker.enchants[type]; enchant && type != 3) {
-            const int roll = rng.range(enchant->first, enchant->second);
+            const int roll = rolled.range(enchant->first, enchant->second);
             if (roll <= 0) continue;
             if (type == 2) taken.chill_ticks = std::max(taken.chill_ticks, chill_length(defender, attacker.enchant_len));
             taken.element_raw[type] += roll;
@@ -1111,7 +1149,7 @@ Taken monster_blow(const Fighter& defender, int dlvl, Motion motion, const MonSt
     taken.damage = int(total >> 8);
     taken.frac = int(total & 255);
     if (attacker.poison_max > 0)
-        if (const int per = resisted(pair_scaled(rng.range(attacker.poison_min, attacker.poison_max)), defender.res[3]); per >= taken.poison) {
+        if (const int per = resisted(pair_scaled(rolled.range(attacker.poison_min, attacker.poison_max)), defender.res[3]); per >= taken.poison) {
             taken.poison = per; taken.poison_ticks = resisted(attacker.poison_len, defender.plr);
         }
     return taken;
