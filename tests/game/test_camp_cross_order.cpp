@@ -66,6 +66,10 @@ int main(int argc, char** argv) try {
     const bool oracle = argc == 4 && std::string_view(argv[1]) == "--oracle";
     const int first = oracle ? std::atoi(argv[2]) : 3;
     const int last = oracle ? std::atoi(argv[3]) : first;
+    if (first < 0 || last < first || last - first > 100000) {   // a bounded run of seeds
+        std::fprintf(stderr, "test_camp_cross_order: --oracle FIRST LAST: 0 <= FIRST <= LAST, at most 100000 seeds\n");
+        return 1;
+    }
     for (int seed = first; seed <= last; ++seed) {
         const auto result = camp_after_moor(data_dir, patch, std::uint32_t(seed));
         if (!result) { std::puts("SKIP: these checks need 1.14d (set D2_PATCH_INSTALLER)"); return D2D_TEST_SKIPPED; }
