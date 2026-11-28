@@ -61,6 +61,14 @@ int main(int argc, char** argv) try {
     assert(leap_hold(leaper, 0x21c, 40));
     leaper.leap_until = 1000 + 61 * 40;
     assert(!leap_hold(leaper, 0x21c, 40));
+    // Measured from the takeoff row, as the flight is: off on row 5, the landing event on row 11, 2 cells at 0.2 a
+    // frame (Run 16) is 1.2 cells flown, so it waits; counted from the mode's start (11 frames, 2.2) it would land.
+    leaper.leap_to_x = leaper.leap_from_x + 2.f;
+    leaper.leap_pace = leap_cells_per_frame(16);
+    leaper.leap_takeoff = 1000 + 5 * 40;
+    leaper.leap_until = 1000 + 11 * 40;
+    assert(leap_hold(leaper, 0x21c, 40));
+    leaper.leap_takeoff = 0; leaper.leap_to_x = 20.1f;
     // The real update path (monster_update): Korlic's Leap Attack (ancientbarb1's BaseId 0x21c, seq_ancientleap, made-up rows) in the
     // air at the landing event, row 11. On the old logic it snaps to the landing there and its mode ends on row 17; now it waits a
     // tick at a time (FUN_005da120) till the flight is done (80 frames at pace 0.125 cells), its row held, its mode's end moved on as far.

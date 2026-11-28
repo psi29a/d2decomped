@@ -3613,7 +3613,8 @@ float leap_done(const Monster& monster, std::uint32_t elapsed_ms, std::uint32_t 
 // cut of the length (+0x48) is the caller's.
 bool leap_hold(Monster& monster, int base_id, std::uint32_t step_ms) {
     if (monster.leap_pace <= 0) return false;
-    const float flown = leap_done(monster, monster.leap_until - monster.unit.mode_ms, 1);
+    const std::uint32_t off = std::max(monster.unit.mode_ms, monster.leap_takeoff);   // flown from its takeoff row, as the flight is
+    const float flown = leap_done(monster, monster.leap_until > off ? monster.leap_until - off : 0, 1);
     if (flown >= 1.f) return false;
     const auto subtile = [](float cells) { return int(std::floor(cells * 5)); };
     const float at_x = monster.leap_from_x + (monster.leap_to_x - monster.leap_from_x) * flown, at_y = monster.leap_from_y + (monster.leap_to_y - monster.leap_from_y) * flown;
