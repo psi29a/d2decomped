@@ -253,3 +253,42 @@ The time-zone state: `_timezone` at `0x0074ace8` (seconds west of UTC),
 | `FUN_0069edda` | `_store_str` | copies the string at `EDX` to `*ECX` while the count at `*EAX` lasts, advancing both. Caller `FUN_0069eea9` |
 | `FUN_0069eea9` | `_expandtime` | one `strftime` conversion in `AL`: checks the `tm` field's range (`EINVAL` and `_invalid_parameter` out of it) and writes it with `_store_num` (`FID_conflict:__store_num`) or `_store_str`; `%` itself; `c`, `x` and `X` through `FUN_0069f28f`; `z` and `Z` the time-zone name after `___tzset`; codes 4 and 13 return without writing. Callers `__Strftime_l`, `FUN_0069f28f` |
 | `FUN_0069f28f` | `_store_winword` | (from its calls; the 1,117-byte body was not followed) a date or time picture expanded with `GetDateFormatA` / `GetTimeFormatA`, with `_expandtime` for its pieces. Caller `FUN_0069eea9` |
+
+## Exceptions, RTTI and the name undecorator
+
+The `std::exception` classes are named by the RTTI locator before each
+vtable (the type descriptor's name at +8): `exception` `0x006f911c`,
+`bad_exception` `0x006f310c`, `bad_cast` `0x006f913c`, `bad_typeid`
+`0x006f9148`, `__non_rtti_object` `0x006f9154`; slot 0 is the deleting
+destructor, slot 1 `what`. The undecorator's nodes the same way: `charNode`
+`0x006fa98c`, `DNameStatusNode` `0x006fa9ac`, `pcharNode` `0x006fa9bc`
+(slot 0 `length`, 1 `getLastChar`, 2 `getString`).
+Only the vtables reach these.
+
+| Address | Name | What it does |
+|---|---|---|
+| `FUN_00686a49` | `` `eh vector constructor iterator' ``'s `__finally` | when the loop did not finish (`[ebp-0x20]` 0), `__ArrayUnwind` of the elements built so far |
+| `FUN_00686b1c` | `` `eh vector destructor iterator' ``'s `__finally` | the same for the destructor loop (`[ebp-0x1c]`) |
+| `FUN_0068799e` | `_unwind_handler` | an SEH handler: `EBP` from the registration record, then `__local_unwind2(record +0x18, +0x1c)`; `ret 4`. No caller |
+| `FUN_0068b45a` | `_unwind_handler4` | the same with `__local_unwind4(record +0x28, +0x18, +0x1c)`. No caller |
+| `FUN_0068c263` | the C++ unhandled-exception filter | an exception record with code 0xE06D7363 (a C++ throw), 3 parameters and magic 0x19930520, 0x19930521, 0x19930522 or 0x01994000: `terminate`; else 0 |
+| `FUN_0068eb66` | `bad_exception`'s deleting destructor | stores its vtable, `~exception`, then `FUN_004053f0` on itself when bit 0 of the flag is set |
+| `FUN_0068ecee` | `___FrameUnwindToState`'s `__finally` | decrements `__getptd()` +0x90 (the throw-in-progress count) when above 0 |
+| `FUN_0068f382` | `CallCatchBlock`'s `__finally` | unlinks the catch frame (`__FindAndUnlinkFrame`), restores the thread's current exception and context (`__getptd()`), and destroys a C++ exception object no longer referenced (`__IsExceptionObjectToBeDestroyed`, `___DestructExceptionObject`) |
+| `FUN_006980a8` | `_NLG_Call` | `call eax; ret`: the local-unwind call of a `__finally` block. Callers `__local_unwind4`, `__local_unwind2` |
+| `FUN_0069d36a` | `exception::what` | the stored message (+4), else `"Unknown exception"` (`0x006f9124`) |
+| `FUN_0069d42a` | `exception`'s deleting destructor | `~exception`, then `FUN_004053f0` when flagged |
+| `FUN_0069d446` | `bad_cast`'s deleting destructor | as `FUN_0068eb66` with vtable `0x006f913c` |
+| `FUN_0069d468` | `bad_typeid`'s deleting destructor | the same with `0x006f9148` |
+| `FUN_0069d48a` | `__non_rtti_object`'s deleting destructor | the same, resetting to `bad_typeid`'s vtable `0x006f9148`, its base |
+| `FUN_006a39c3` | `charNode::length` | 1 |
+| `FUN_006a39c7` | `charNode::getLastChar` | the character (+8) |
+| `FUN_006a39cb` | `charNode::getString` | with a buffer and a length, writes the character and returns the buffer; else 0 |
+| `FUN_006a39e6` | `pcharNode::length` | +0xc |
+| `FUN_006a3a3e` | `DNameStatusNode::length` | +0xc |
+| `FUN_006a3a42` | `DNameStatusNode::getLastChar` | `' '` (0x20) when the status (+8) is 2, else 0 |
+| `FUN_006a3eea` | `pcharNode::getLastChar` | the last character of the string (+8, length +0xc), 0 when empty |
+| `FUN_006a4363` | `DName::DName(__int64)` | the number in decimal, a `-` for a negative, through `doPchar`. Caller `getDimension` |
+| `FUN_006a4489` | `DName::operator+=(DName *)` | a null argument changes nothing; an empty name takes the argument; an argument whose status is neither 0 nor 2 adds that status; else a `pDNameNode` (from the undecorator's heap `0x0096e228`) appended to a clone of the node list; out of memory sets the status to 3. Caller `FUN_006a4688` |
+| `FUN_006a4688` | `DName::operator+(DName *) const` | a copy, then `FUN_006a4489`, or the argument when the copy is empty. No caller Ghidra lists |
+| `FUN_006a7ed2` | an `UnDecorator` type step | (866 bytes, not followed) builds `DName`s; callers `getArrayType`, `getPtrRefDataType`, `getPrimaryDataType` and itself |
