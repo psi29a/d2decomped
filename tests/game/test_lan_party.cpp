@@ -69,6 +69,7 @@ int main() try {
     auto& cid = world.add_player();
     auto& dan = world.add_player();
     amy.character.name = "Amy"; bob.character.name = "Bob"; cid.character.name = "Cid"; dan.character.name = "Dan";
+    bob.own_screen = cid.own_screen = dan.own_screen = true;              // LAN joiners, each on their own screen
     const auto click = [&](World::Player& from, World::Player& toward, int action, std::uint32_t bits = 0) {
         world.act_as(from);
         world.party_action(toward, action, bits, 1000);
@@ -184,6 +185,27 @@ int main() try {
         assert(fay.party < 0);
         auto& pad = joined.join(joiner, false);
         assert(pad.party == 3);
+        // Two on the host's screen: local co-op stays one party (deviations.md 7);
+        // the joiner can still leave.
+        joined.act_as(pad);
+        joined.party_action(pad, 9, 0, 1000);
+        joined.party_action(joined.lead(), 4, 8, 1000);
+        assert(pad.party == 3 && joined.lead().party == 3 && pad.relations.get(pad.id, joined.lead().id, 8) == 0);
+        // At level 9 in town: the host can't declare on the joiner in its party (it would leave,
+        // and its partner turn hostile with the joiner's party); the joiner can, and leaves.
+        auto& host = joined.lead();
+        for (auto* player : { &host, &pad, &eve }) player->character.stats.values[d2d::d2s::kLevel] = 9;
+        joined.act_as(host);
+        joined.party_action(eve, 4, 8, 1000);
+        assert(host.party == 3 && host.relations.get(host.id, eve.id, 8) == 0 && pad.relations.get(pad.id, eve.id, 8) == 0);
+        joined.act_as(eve);
+        joined.party_action(host, 4, 8, 1000);
+        assert(eve.party < 0 && host.party == 3 && pad.party == 3);
+        assert(eve.relations.get(eve.id, host.id, 8) == 8 && eve.relations.get(eve.id, pad.id, 8) == 8);
+        joined.act_as(eve);
+        joined.party_action(eve, 9, 0, 1000);
+        assert(eve.party < 0 && pad.party == 3);
+        joined.act_as(joined.lead());
         // A leaver: out of the party and every node toward them gone (FUN_0055b790).
         const int eve_id = eve.id;
         (void)joined.leave(eve_id);

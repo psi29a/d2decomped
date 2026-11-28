@@ -30,6 +30,7 @@ int main() try {
     auto& target = world.add_player();
     auto& member = world.add_player();
     auto& low_member = world.add_player();
+    for (auto* player : { &target, &member, &low_member }) player->own_screen = true;   // other clients, not local co-op
     for (auto* player : { &declarer, &target, &member }) player->character.stats.values[d2d::d2s::kLevel] = 9;
     low_member.character.stats.values[d2d::d2s::kLevel] = 8;
     target.party = member.party = low_member.party = 7;

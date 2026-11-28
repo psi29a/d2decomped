@@ -47,8 +47,15 @@ auto World::player_by_id(int id) -> Player* {
 // actor in EDX, the other and the packet's `on` byte on the stack. Entry 0, 5 and 10 do nothing
 // here (0 and 5 are null; 10 reads past the table). The handlers refuse first when bit 16 of
 // game +0x1d28's +8 is set (FUN_0053fd10): not modelled, as d2d's games never set it.
+// d2d's own (deviations.md 7): while two or more share the host's screen, local co-op stays one
+// party, so a screen player neither leaves, nor turns hostile on a partner, nor declares on
+// anyone in its party (toggle_hostility would leave it, and turn the partner hostile with the
+// target's party).
 auto World::party_action(Player& other, int action, std::uint32_t bits, std::uint32_t now_ms) -> void {
     Player& self = *actor;
+    if (!self.own_screen && screen_players() > 1
+        && (action == kLeave || (action == kHostile && (!other.own_screen || (bits != 0 && same_party(self, other))))))
+        return;
     switch (action) {
     case kLoot:
     case kHear:
