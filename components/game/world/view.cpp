@@ -142,8 +142,13 @@ auto World::view() const -> View {
         const auto roster_row = [&](const Player& player) {
             if (&player == actor) return;
             const Level* theirs = level_of(player);
+            // 0x7f's life % (FUN_0053cdf0's FUN_00621f20): stat 6's and the
+            // maximum's whole points, 0 with no whole maximum.
+            const auto& values = player.character.stats.values;
+            const auto most = values[d2d::d2s::kMaxLife] >> 8;
+            const int life = most != 0 ? int((values[d2d::d2s::kLife] >> 8) * 100 / most) : 0;
             view.roster.push_back({ std::uint32_t(player.id), player.character.name, std::max(player.character.character_class, 0), int(player.character.stats.get(d2d::d2s::kLevel)),
-                                    player.party, same_party(player, *actor) && theirs ? theirs->id : 0, actor->relations.party_state(actor->id, player.id),
+                                    player.party, same_party(player, *actor) && theirs ? theirs->id : 0, actor->relations.party_state(actor->id, player.id), life,
                                     actor->relations.get(actor->id, player.id, 0xffff) });
         };
         for (const auto& player : players) roster_row(*player);

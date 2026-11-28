@@ -904,6 +904,9 @@ auto ClientSession::draw_portraits(std::vector<std::uint8_t>& framebuffer, bool 
                 if (unit.type != 0 || unit.id == net_game->self_id || unit.party != self->second.party || unit.cls < 0 || unit.cls > 6) continue;
                 portrait(&scene->class_icons[std::size_t(unit.cls)], unit.party_life, unit.name, 0);
             }
+    if (lan_game() && view.party >= 0)                                // a LAN game's: the host's roster (its 0x7f life %)
+        for (const auto& row : view.roster)
+            if (row.party == view.party && row.cls >= 0 && row.cls <= 6) portrait(&scene->class_icons[std::size_t(row.cls)], row.life, row.name, 0);
     const auto& game_data = *world.game_data;
     const auto icon_of = [&](const GameData::PetType& type, int monster_class) {
         for (std::size_t i = 0; i < type.class_icons.size(); ++i)

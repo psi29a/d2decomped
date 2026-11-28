@@ -9,6 +9,7 @@
 // roster and the click over the wire. tools/emu/party_buttons.py runs game.exe's
 // functions on the same steps and checks the same states.
 #include <character.hpp>
+#include <d2s_items.hpp>
 #include <ds1.hpp>
 #include <gamedata.hpp>
 #include <level.hpp>
@@ -179,6 +180,9 @@ int main() try {
         const auto& got = std::get<cmd::PartyScreen>(*decoded);
         assert(got.action == sent.action && got.player == sent.player && got.bits == sent.bits);
     }
+    // A portrait's life % (0x7f, FUN_00621f20): whole points, 30 of 80 is 37; no maximum, 0.
+    cid.character.stats.values[d2d::d2s::kMaxLife] = 80 << 8;
+    cid.character.stats.values[d2d::d2s::kLife] = (30 << 8) + 200;
     world.act_as(dan);
     const View view = world.view();
     assert(view.party == 4 && view.roster.size() == 3);
@@ -187,6 +191,7 @@ int main() try {
         assert(other && row.name == other->character.name && row.party == other->party);
         assert(row.button == button(dan, *other));
         assert(row.area == (other == &cid ? town.id : 0));                 // a party member's level alone
+        assert(row.life == (other == &cid ? 37 : 0));
     }
     {   // the roster, our party and a party line through the view codec
         GameData wire_data;
@@ -194,6 +199,7 @@ int main() try {
         sent.level = &wire_data.town;
         sent.party = 4;
         sent.roster = view.roster;
+        sent.roster.front().life = 37;
         sent.events.push_back(ev::Message{ ev::Message::party, "Cid", {}, 7 });
         ViewEncoder encoder;
         View received;
@@ -203,7 +209,7 @@ int main() try {
             const auto& got = received.roster[i];
             const auto& had = sent.roster[i];
             assert(got.id == had.id && got.name == had.name && got.cls == had.cls && got.level == had.level && got.party == had.party
-                   && got.area == had.area && got.button == had.button && got.flags == had.flags);
+                   && got.area == had.area && got.button == had.button && got.life == had.life && got.flags == had.flags);
         }
         assert(received.events.size() == 1);
         const auto* line = std::get_if<ev::Message>(&received.events[0]);

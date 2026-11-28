@@ -124,7 +124,7 @@ std::vector<std::uint8_t> encode_view(const GameData& game_data, const View& vie
         }
         chunk.i32(view.party).u16(int(view.roster.size()));
         for (const auto& row : view.roster)
-            chunk.u32(row.id).str(row.name).u8(row.cls).i32(row.level).i32(row.party).i32(row.area).u8(row.button).u32(row.flags);
+            chunk.u32(row.id).str(row.name).u8(row.cls).i32(row.level).i32(row.party).i32(row.area).u8(row.button).i32(row.life).u32(row.flags);
         wire::section(out, enc.section[1], std::move(chunk.bytes));
     }
     {
@@ -396,7 +396,7 @@ bool apply_view(const GameData& game_data, std::span<const std::uint8_t> bytes, 
         view.roster.clear();
         for (int count = u16(); count > 0 && input.ok; --count) {
             View::RosterRow row;
-            row.id = u32(); row.name = input.str(); row.cls = byte(); row.level = i32(); row.party = i32(); row.area = i32(); row.button = byte(); row.flags = u32();
+            row.id = u32(); row.name = input.str(); row.cls = byte(); row.level = i32(); row.party = i32(); row.area = i32(); row.button = byte(); row.life = i32(); row.flags = u32();
             view.roster.push_back(std::move(row));
         }
     });

@@ -202,8 +202,9 @@ struct View {
     // The Party screen's roster: every other player in the game, on any level, as game.exe's
     // client keeps them (S->C 0x5b, 0x8b, 0x8c, 0x8d; party.md "The roster"): the party button's
     // state toward them (0x8b), our relation flags toward them (0x8c: 1 loot, 2 not heard, 4
-    // squelched, 8 hostile), and a party member's level (0x7f goes to the party alone, FUN_005406a0).
-    struct RosterRow { std::uint32_t id = 0; std::string name; int cls = 0, level = 0, party = -1, area = 0, button = 0; std::uint32_t flags = 0; };
+    // squelched, 8 hostile), and a party member's level and life % (0x7f goes to the party alone,
+    // FUN_005406a0), for the portraits.
+    struct RosterRow { std::uint32_t id = 0; std::string name; int cls = 0, level = 0, party = -1, area = 0, button = 0, life = 100; std::uint32_t flags = 0; };
     std::vector<RosterRow> roster;
     int party = -1;                        // our own party (-1 none)
     // Local co-op's death (docs/design/local-coop.md): the screen's player a
