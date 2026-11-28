@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // test-links: game
-// A player's death (FUN_0057f330 -> FUN_00639fb0) takes off the skill states States.txt does not mark
-// plrstaydeath, through the REAL Fight::die: every skill with an aurastate is started, the player dies,
-// and its state is still on exactly when plrstaydeath is 1. Needs the 1.14d data (else SKIP).
+// A player's death (FUN_0057f330 -> FUN_00639fb0) takes a skill/self state off when its
+// States.txt row does not mark plrstaydeath, checked against every real 1.14d skill row.
+// test_death_states_containers.cpp covers the other modeled player-state containers and
+// the merc control without game data. Needs 1.14d data (else SKIP).
 
 #include <character.hpp>
 #include <character_store.hpp>
-#include <d2s_items.hpp>
 #include <fight.hpp>
 #include <gamedata.hpp>
 #include <gamedata_load.hpp>
@@ -24,6 +24,7 @@
 #include <exception>
 #include <filesystem>
 #include <memory>
+#include <string_view>
 #include <vector>
 
 using namespace d2d::game;
@@ -69,6 +70,10 @@ struct Rig {
 
 }  // namespace
 
+// Replay every skill's state row through Fight::die (FUN_0057f330 -> FUN_00639fb0)
+// against the real 1.14d plrstaydeath flags. The separately modeled player-state
+// containers and the merc control are covered without game data in
+// test_death_states_containers.cpp.
 int main() try {
     const char* mpq_dir = std::getenv("D2_MPQ_DIR");
     const char* home = std::getenv("HOME");
@@ -95,6 +100,14 @@ int main() try {
         }
         (still_on ? stayed : dropped)++;
     }
+    const auto state_drops = [&](std::string_view name) {
+        const auto found = data->states.find(std::string(name));
+        assert(found != data->states.end() && found->second.row >= 0);
+        return !found->second.plr_stay_death;
+    };
+    for (const std::string_view name : { "healthpot", "manapot", "shrine_stamina", "antidote", "thawing", "staminapot",
+                                         "cold", "inferno", "stunned", "nomanaregen", "skilldelay" })
+        assert(state_drops(name));
     std::printf("test_death_states: ok (%d states ended with the death, %d stayed)\n", dropped, stayed);
     assert(dropped > 0);
     return 0;
