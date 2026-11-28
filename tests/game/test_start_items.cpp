@@ -79,6 +79,31 @@ int main() try {
         }
     }
     std::printf("OK: each class's start items made on the game seed after the player's, normal, unsocketed, not ethereal\n");
+    // A fresh character joining a game under way (World::join) makes its start items the same way: its seed step,
+    // then two a start item, from where the game's seed stands (CodeRabbit on #815).
+    {
+        d2d::rules::Rng rng(7);
+        auto made = new_character(*data, 1, "Joiner", false, true, rng);
+        Character character;
+        character.character_class = 1;
+        character.name = "Joiner";
+        character.header = made.header;
+        character.stats = made.stats;
+        character.items = made.items;
+        World world(&*data, -1, -1);
+        world.enter(character);
+        character.fresh = true;
+        auto expected = world.fight.spawning.game;
+        const auto seed_step = expected.next();
+        auto& joined = world.join(character);
+        assert(joined.seed.low == seed_step);
+        for (const auto& item : joined.character.items) {
+            assert(item.uid == expected.next() && !item.socketed && !item.ethereal);
+            expected.next();
+        }
+        assert(world.fight.spawning.game.low == expected.low);
+        std::printf("OK: a fresh character joining makes its %zu start items on the game seed\n", joined.character.items.size());
+    }
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_start_items: %s\n", error.what());

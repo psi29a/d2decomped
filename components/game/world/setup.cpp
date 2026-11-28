@@ -376,7 +376,10 @@ auto World::join(const Character& entering) -> Player& {
         player.player.goal_x = player.target_x; player.player.goal_y = player.target_y;   // the path's SP3 with it (Hero::target_x)
         player.player.dir = 4;
         spawn_merc(true);
-        fight.player_joins(saved_records(entering.items) + saved_records(entering.corpse), saved_records(entering.merc_items));
+        if (entering.fresh) {                          // FUN_00569f80, as World::enter: its seed, then its start items
+            fight.player_joins(0, 0);
+            start_items();
+        } else fight.player_joins(saved_records(entering.items) + saved_records(entering.corpse), saved_records(entering.merc_items));
         lay_save_corpse(entering);
         item_ids();
         d2d::log::info("{} joins the game (player {})", player.character.name, player.id);
