@@ -108,3 +108,14 @@ and `__isindst`; 7 `_tzset_nolock` and `__getcwd`; 8 exit (`__onexit`,
 | `FUN_0069ac8f` | `__alloc_osfhnd`'s second `__finally` | `_unlock(0xb)` |
 | `FUN_0069afde` | `FUN_0069aecf`'s `__finally` | `_unlock_fhandle` of its frame's handle |
 | `FUN_006a7e26` | `___unDName`'s `__finally` | `_unlock(5)` |
+
+## Exit and the heap
+
+| Address | Name | What it does |
+|---|---|---|
+| `FUN_00681ac8` | `_initterm` | calls each non-null function pointer from `ESI` up to (not including) its stack argument. Caller `FUN_00681d27` (`doexit`, unnamed-frontier.md) |
+| `FUN_00683700` | `__onexit_nolock` | decodes the atexit table's start (`DAT_00994c98`) and end (`DAT_00994c94`) with `FUN_00688bbd`; when the block (`__msize`) is full, grows it with `__realloc_crt` by its own size up to 0x800 bytes, or else by 0x10, and stores the new start encoded (`FUN_00688b46`); writes the encoded function at the end and the new end; returns the function, or 0 when the table can't grow. Caller `__onexit` |
+| `FUN_00683dc0` | `_recalloc` | count × size (over 0xffffffe0 / size: `errno` 0xc (`ENOMEM`), `_invalid_parameter`, 0); `_realloc` to it and zero the bytes past the old `__msize` |
+| `FUN_0068fd4c` | the allocators' retry wait | `Sleep(n)`; returns n + 1000, or -1 when that passes `DAT_0096dfbc` (the longest wait). No caller Ghidra lists |
+| `FUN_0069004a` | `__sbh_find_block` | the small-block heap's region headers from `DAT_00993b34`, 0x14 bytes each, `DAT_00993b30` of them: returns the first whose +0xc base is within 0x100000 bytes below the argument, else 0. The loop is at `0x0069005c`; Ghidra makes a separate function of its tail. Callers `_realloc`, `_free`, `__msize` |
+| `FUN_0069006e` | `__sbh_find_block`'s loop tail | the end test of `FUN_0069004a`'s loop: back to `0x0069005c` while below the end, else 0 (its only caller is Ghidra's thunk of the same tail) |
