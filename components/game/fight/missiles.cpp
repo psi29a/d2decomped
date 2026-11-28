@@ -1307,7 +1307,9 @@ auto Fight::strike(Missile& missile, std::size_t monster_index, std::uint32_t no
             blow.hit = int(owner(100)) < d2d::rules::hit_chance(attack_rating, defense, clvl, target.level);
             blow.prevent_heal = blow.hit && fighter.prevent_heal;
         }
-        if (blow.hit) blow = d2d::rules::missile_blow(damage, target, pierce(), own_seed, blow, roll);
+        // The record's bypass flags (FUN_0064b860 sets them on its SrcDamage path, 0x64bcbb..) take its every
+        // field in FUN_0057c1e0, the skill's elements as the weapon's.
+        if (blow.hit) blow = d2d::rules::missile_blow(damage, damage.srcdam > 0 ? d2d::rules::bypassed(target, fighter.bypass) : target, pierce(), own_seed, blow, roll);
         blow.hit_class = missile.info->hit_class | skill->hit_class;
         const auto frozen = freeze_on(monster_index, target, blow, freeze);
         land(monster_index, blow, true, now_ms, missile.striker >= 0 ? missile.striker : missile.by_merc ? merc_foe_id() : player_foe_id());
