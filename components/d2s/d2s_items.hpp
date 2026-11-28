@@ -247,6 +247,7 @@ enum StatId { kStr = 0, kEne = 1, kDex = 2, kVit = 3, kStatPts = 4, kSkillPts = 
               kFasterBlockRate = 102,
               kFasterCastRate = 105,
               kSingleSkill = 107,                   // item_singleskill: +n to one skill (param)
+              kCurseResistance = 109,               // curse_resistance (Fade's): a curse's length less that %, none at 100
               kPoisonLengthReduction = 110,         // item_poisonlengthresist
               kNormalDamage = 111, kStupidity = 113,
               kIgnoreTargetDefense = 115,           // item_ignoretargetac

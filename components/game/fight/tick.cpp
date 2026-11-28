@@ -802,14 +802,20 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
 // this frame: the merc's life and flinch, then the player's poison, chill,
 // stun, knockback, curses, Mana Burn, block, armour wear and life.
 // A monster's curse as it takes hold: its auralen, dimvision's and terror's
-// over AiCurseDivisor, 25 frames at least; skill -1 for none.
-auto Fight::monster_curse(const Foe::Cast& cursed, std::uint32_t now_ms) -> Hero::Curse {
+// over AiCurseDivisor, 25 frames at least; skill -1 for none. Then the
+// target's curse_resistance (stat 0x6d) as FUN_0056e970 puts a curse state
+// (FUN_0063a420): 100 or more none, else the length less that % of it
+// (d2d_rules_mul_div).
+auto Fight::monster_curse(const Foe::Cast& cursed, std::uint32_t now_ms, int curse_resistance) -> Hero::Curse {
         const auto* skill = game_data->skills.get(cursed.skill);
         if (!skill) return {};
         int length = calc(*skill, skill->auralen, cursed.level);
         if (const int divisor = game_data->curse_divisor[std::size_t(std::clamp(game_difficulty, 0, 2))]; divisor != 0 && (skill->auratarget == "dimvision" || skill->auratarget == "terror"))
             length /= divisor;
-        return { skill->id, cursed.level, now_ms + std::uint32_t(std::max(length, 25)) * 40, cursed.pick };
+        length = std::max(length, 25);
+        if (curse_resistance > 99) return {};
+        if (curse_resistance != 0) length -= int(std::int64_t(length) * curse_resistance / 100);
+        return { skill->id, cursed.level, now_ms + std::uint32_t(std::max(length, 0)) * 40, cursed.pick };
     }
 
 auto Fight::curse_stats(const Hero::Curse& curse, const d2d::rules::CalcEnv& env) const -> std::vector<std::pair<int, int>> {
@@ -976,7 +982,7 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
             }
         }
         for (std::size_t k = 0; k < 2; ++k)
-            if (const auto curse = monster_curse(side[k].cursed, now_ms); curse.skill >= 0) {
+            if (const auto curse = monster_curse(side[k].cursed, now_ms, k == 0 ? int(actor->psum[d2d::d2s::kCurseResistance]) : 0); curse.skill >= 0) {
                 actor->curses[k] = curse;
                 d2d::log::info("{} cursed: skill {} level {}", k ? "the merc" : "the player", curse.skill, curse.level);
             }

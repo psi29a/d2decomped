@@ -1030,7 +1030,7 @@ struct Fight {
     // Whether (x, y) is within 30 cells of a player (the rooms in play).
     [[nodiscard]] bool near_players(float x, float y) const;
     void hurt_side(std::span<Foe> side, std::uint32_t now_ms);
-    [[nodiscard]] Hero::Curse monster_curse(const Foe::Cast& cursed, std::uint32_t now_ms);
+    [[nodiscard]] Hero::Curse monster_curse(const Foe::Cast& cursed, std::uint32_t now_ms, int curse_resistance = 0);
     // The stats a monster's curse puts on the player's side: its skill's
     // aurastats at its level, or a random curse's own by its pick.
     [[nodiscard]] std::vector<std::pair<int, int>> curse_stats(const Hero::Curse& curse, const d2d::rules::CalcEnv& env) const;
