@@ -466,6 +466,7 @@ struct World {
     Cues  cues{ game_data };                   // world sounds due later
     Loot  loot{ game_data, level, rng, cues };          // on the ground (loot.hpp)
     Fight fight{ game_data, level, rng, loot, cues };   // the fight (fight.hpp)
+    bool direct_casts = false;              // host opt-in; only flagged touch/controller commands
     bool dismiss_effects = false;           // optional deviation, controlled by the host
     bool  autoloot_gold = true;            // d2d: gold walked over goes into the purse (deviations.md #5, --toggle autoloot)
     std::vector<int> not_there;            // levels walked toward that aren't built (logged once)

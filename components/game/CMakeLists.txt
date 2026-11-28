@@ -19,6 +19,7 @@ add_library(game STATIC
     client_ask.cpp
     effect_policy.cpp
     fight/deaths.cpp
+    fight/direct.cpp
     fight/merc.cpp
     fight/missiles.cpp
     fight/pets.cpp

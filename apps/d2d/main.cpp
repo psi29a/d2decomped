@@ -410,6 +410,7 @@ static fs::path    g_user_dir;
 static pad::Config g_pad_config;          // d2d.cfg pad_* (gamepad_map.hpp load_config)
 static std::array<int, 6> g_automap_options{ 0, 0, 1, 1, 1, 0 };   // d2d.cfg automap_mode/fade/center/party/names/left (game.exe's registry)
 static bool        g_pad_controls = true;
+static bool        g_direct_casts = false;    // host opt-in for touch/controller location casts
 static bool        g_dismiss_effects = false;   // host opt-in for effect dismissal
 static bool        g_click_keys = true;   // Configure Controls' Attack / Use and Right-hand Skill keys (deviations.md); off: --toggle click_keys=off
 static keys::Clicks g_click_bindings = keys::kNoClicks;   // d2d.cfg click_attack / click_skill
@@ -831,6 +832,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
     const CharacterStore characters{ save_dir, scene && scene->item_tables ? &*scene->item_tables : nullptr };
     session.world.characters = g_no_save ? nullptr : &characters;
     session.world.autoloot_gold = g_autoloot;
+    session.world.direct_casts = g_direct_casts;
     session.world.dismiss_effects = g_dismiss_effects;
     if (!g_no_save) {
         session.cfg_file = g_user_dir / "d2d.cfg";
@@ -2223,7 +2225,7 @@ int main(int argc, char** argv) {
     // d2d's own changes to game.exe (deviations.md), each on by default:
     // --toggle trans_roof=off,... Names in kToggles.
     std::string toggles;
-    app.add_option("--toggle", toggles, "Turn d2d's deviations on/off: name=on|off[,...] (trans_roof, autoloot, autoparty, pad_controls, click_keys, coop_lobby, light_grid, splash_centre, unit_slide, hwcursor, dismiss_effects, touch_classic_hud); scalemode=pixelart|nearest|linear");
+    app.add_option("--toggle", toggles, "Turn d2d's deviations on/off: name=on|off[,...] (trans_roof, autoloot, autoparty, pad_controls, click_keys, coop_lobby, light_grid, splash_centre, unit_slide, hwcursor, direct_casts, dismiss_effects, touch_classic_hud); scalemode=pixelart|nearest|linear");
     app.add_flag  ("--no-video", no_video, "Skip the startup cinematics");
     int fps_cap = cfg.contains("fps_cap") ? std::atoi(cfg["fps_cap"].c_str()) : 0;
     app.add_option("--fps-cap", fps_cap, "Frames a second at most, 0 = the display's refresh (also `fps_cap =` in d2d.cfg)")
@@ -2346,6 +2348,7 @@ int main(int argc, char** argv) {
     {
         static const std::pair<std::string_view, bool*> kToggles[] = {
             { "trans_roof", &g_roof_cutout },   // the see-through circle in roofs round the player
+            { "direct_casts", &g_direct_casts }, // optional, touch/controller location casts
             { "dismiss_effects", &g_dismiss_effects }, // optional, validated effect dismissal
             { "autoloot", &g_autoloot },        // gold walked over goes into the purse
             { "autoparty", &g_autoparty },      // a joined game: invite the others, accept their invites
@@ -2373,7 +2376,7 @@ int main(int argc, char** argv) {
             }
             const auto toggle = std::ranges::find(kToggles, name, &std::pair<std::string_view, bool*>::first);
             if (toggle == std::end(kToggles) || (value != "on" && value != "off")) {
-                d2d::log::warn("--toggle: unknown '{}' (known: trans_roof, autoloot, autoparty, pad_controls, click_keys, coop_lobby, light_grid, splash_centre, unit_slide, hwcursor, dismiss_effects, touch_classic_hud; values on|off; scalemode=pixelart|nearest|linear)", std::string(item));
+                d2d::log::warn("--toggle: unknown '{}' (known: trans_roof, autoloot, autoparty, pad_controls, click_keys, coop_lobby, light_grid, splash_centre, unit_slide, hwcursor, direct_casts, dismiss_effects, touch_classic_hud; values on|off; scalemode=pixelart|nearest|linear)", std::string(item));
                 continue;
             }
             *toggle->second = value == "on";

@@ -238,6 +238,7 @@ struct Fight {
         // this swing uses (Attack when it's not built or can't be paid for),
         // and the strikes still to come (Dragon Talon's kicks, Zeal's hits).
         int   attack_skill = 0, swing_skill = 0, kicks_left = 0;
+        bool direct_swing = false;   // this active swing came from a touch/controller location cast
         ChargedSkill item_charge;             // the charged entry the cast came from (UseSkill::item; item -1 none): its level, a charge for its cost
         ChargedSkill attack_charge;           // the queued attack's (attack_skill's) entry, item_charge once its swing starts
         int   struck_class = 0;               // the last hit on the player's hit class (unit +0xb0): its impact on GH / DT
@@ -261,7 +262,7 @@ struct Fight {
         // A skill that moves the player (Whirlwind, Charge, Leap Attack):
         // toward (tx, ty) at `speed` cells/s while `on`; `fly` ignores walls
         // (a leap); whirl_next is Whirlwind's next hit time (FUN_005d9320).
-        struct SkillMove { float target_x = 0, target_y = 0, speed = 0; bool active = false, fly = false; std::vector<std::pair<float, float>> route; };   // route: Whirlwind's points, cells
+        struct SkillMove { float target_x = 0, target_y = 0, speed = 0; bool active = false, fly = false; std::vector<std::pair<float, float>> route; bool at_point = false; };   // route: Whirlwind's points, cells
         SkillMove smove;
         float move_x = 0, move_y = 0;          // where the click sent a moving skill
         std::uint32_t whirl_next = 0;
@@ -518,6 +519,8 @@ struct Fight {
     // A swing starts: the skill in use when it's built, paid for from mana; short of mana, a skill with
     // AttackNoMana swings a plain attack instead, any other doesn't swing.
     bool start_swing(std::uint32_t now_ms, bool shown = false);
+    // Start an explicit touch/controller location swing without changing pointer casts.
+    bool start_direct_swing(std::uint32_t now_ms);
     // Short of mana for a skill (the client's FUN_00647960 reason 1:
     // FUN_00647540's cost, FUN_006440f0's startmana) the class says so: message
     // 0x15 (table 0x711ddc) -> FUN_004cb9c0, the class table's +0xc,

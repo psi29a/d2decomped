@@ -14,13 +14,13 @@
 namespace d2d::game {
 
 // A command's bytes: its opcode, then its fields in order (UseSkill ends with
-// its stand byte and its target's unit type, 0 a player, 1 a monster).
+// its stand byte, target unit type, and opt-in touch/controller direct byte).
 std::vector<std::uint8_t> encode(const Command& command) {
     wire::Out out;
     std::visit([&](const auto& message) {
         using T = std::decay_t<decltype(message)>;
         if constexpr (std::is_same_v<T, cmd::Move>) out.u8(opcode::kMove).f32(message.x).f32(message.y).u8(message.fresh);
-        else if constexpr (std::is_same_v<T, cmd::UseSkill>) out.u8(message.left ? opcode::kLeftSkill : opcode::kRightSkill).i32(message.skill).f32(message.x).f32(message.y).i32(message.unit).i32(message.item).u8(message.stand ? 1 : 0).u8(message.unit_type);
+        else if constexpr (std::is_same_v<T, cmd::UseSkill>) out.u8(message.left ? opcode::kLeftSkill : opcode::kRightSkill).i32(message.skill).f32(message.x).f32(message.y).i32(message.unit).i32(message.item).u8(message.stand ? 1 : 0).u8(message.unit_type).u8(message.direct);
         else if constexpr (std::is_same_v<T, cmd::Interact>) out.u8(opcode::kInteract).i32(message.npc);
         else if constexpr (std::is_same_v<T, cmd::Pickup>) out.u8(opcode::kPickup).i32(message.item);
         else if constexpr (std::is_same_v<T, cmd::Resurrect>) out.u8(opcode::kResurrect);
@@ -79,7 +79,7 @@ std::optional<Command> decode(std::span<const std::uint8_t> bytes) {
     std::optional<Command> command;
     switch (bytes[0]) {
         case opcode::kMove: { const float x = f32(), y = f32(); command = cmd::Move{ x, y, byte() != 0 }; break; }
-        case opcode::kLeftSkill: case opcode::kRightSkill: { const int skill = i32(); const float x = f32(), y = f32(); const int unit = i32(); const int item = i32(); const bool stand = byte() != 0; command = cmd::UseSkill{ skill, x, y, unit, bytes[0] == opcode::kLeftSkill, item, stand, byte() }; break; }
+        case opcode::kLeftSkill: case opcode::kRightSkill: { const int skill = i32(); const float x = f32(), y = f32(); const int unit = i32(); const int item = i32(); const bool stand = byte() != 0; const int unit_type = byte(), direct = byte(); if (direct > 1) return std::nullopt; command = cmd::UseSkill{ skill, x, y, unit, bytes[0] == opcode::kLeftSkill, item, stand, unit_type, direct != 0 }; break; }
         case opcode::kInteract: command = cmd::Interact{ i32() }; break;
         case opcode::kPickup: command = cmd::Pickup{ i32() }; break;
         case opcode::kResurrect: command = cmd::Resurrect{}; break;

@@ -20,6 +20,7 @@
 #include "panels/panels.hpp"
 #include "panels/store.hpp"
 #include "scene.hpp"
+#include "skills/direct.hpp"
 #include "skills/pad.hpp"
 #include "skills/tree.hpp"
 #include "ui.hpp"
@@ -240,7 +241,7 @@ void ClientSession::cast_resolved(PadPlayer& player_pad, const touch::Target& ta
         send(cmd::SelectSkill{ choice.next, false });
     } else {
         const auto cast = touch_stationary(target.skill) ? touch::caster_target(target.skill, view.player.x, view.player.y) : target;
-        send(cmd::UseSkill{ cast.skill, cast.x, cast.y, cast.unit, cast.left, -1, cast.unit < 0 });
+        send(skillpad::direct_cast(cast.skill, cast.x, cast.y, cast.unit, cast.left));
     }
 }
 
