@@ -152,6 +152,19 @@ std::array<PrisonPiece, 12> bone_prison(int point_x, int point_y, const std::fun
     return pieces;
 }
 
+// FUN_005ca910 (do 144): none when the point's room is a town's (FUN_00463740 -> FUN_0061ab00); else head k of the
+// summon row plus k (hydra1..3) at the point plus 0x6e312c[k] (x) / 0x6e3120[k] (y), each through FUN_0056d940 with
+// request kind 1 (radius -1, then 4). tools/emu/hydra.py runs it.
+std::array<HydraHead, 3> hydra(int point_x, int point_y, bool town, const std::function<std::optional<std::pair<int, int>>(int, int, int)>& make) {
+    static constexpr std::array<int, 3> kHeadX{ -1, 0, 1 };
+    static constexpr std::array<int, 3> kHeadY{ -1, 0, -1 };
+    std::array<HydraHead, 3> heads{};
+    if (town) return heads;
+    for (std::size_t k = 0; k < heads.size(); ++k)
+        if (const auto landed = make(int(k), point_x + kHeadX[k], point_y + kHeadY[k])) heads[k] = { true, landed->first, landed->second };
+    return heads;
+}
+
 bool traced_pet_ai(std::string_view ai_name) {
     static constexpr std::array<std::string_view, 11> kTraced{ "Hydra", "AssassinSentry", "DeathSentry", "Raven", "DruidWolf", "Totem", "Vines", "CycleOfLife", "DruidBear",
                                                                "ShadowWarrior", "ShadowMaster" };

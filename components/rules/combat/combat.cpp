@@ -1184,16 +1184,19 @@ std::vector<std::int64_t> party_shares(int exp, std::span<const int> levels) {
 // when above it unsigned (0x57e545 JBE); stat 29 takes the gain (the capped sum less the old), stat 13 the sum; a
 // level other than the one before (FUN_00611860) runs the level-up (FUN_00570880, FUN_005c0c30 event 0xc). Every
 // class's MaxLvl is 99 and its row 98 3520485254 in 1.14d's Experience.txt. tools/emu/exp_add.py.
-// ponytail: stat 29 (lastexp) isn't kept.
 std::uint32_t exp_after_award(std::uint32_t exp, std::int32_t award, std::uint32_t cap) {
     return std::min(exp + std::uint32_t(award), cap);
 }
 
+// Adds an award and its lastexp stat, then applies FUN_0057e510's level-up effects.
 int gain_exp(d2d::d2s::Stats& stats, std::int64_t exp, const std::vector<std::int64_t>& exp_next, const ClassGains& gains, int max_level) {
     using namespace d2d::d2s;
     const auto cap_row = std::size_t(std::max(max_level - 1, 0));
     const std::uint32_t cap = cap_row < exp_next.size() && exp_next[cap_row] > 0 ? std::uint32_t(exp_next[cap_row]) : 0xffffffffu;
-    stats.values[kExp] = exp_after_award(std::uint32_t(stats.values[kExp]), std::int32_t(exp), cap);
+    const std::uint32_t old_exp = std::uint32_t(stats.values[kExp]);
+    const std::uint32_t new_exp = exp_after_award(old_exp, std::int32_t(exp), cap);
+    stats.values[kLastExperience] = std::int32_t(new_exp - old_exp);
+    stats.values[kExp] = new_exp;
     int gained = 0;
     for (;;) {
         const auto lvl = stats.get(kLevel);

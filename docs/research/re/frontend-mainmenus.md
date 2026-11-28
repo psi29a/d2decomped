@@ -232,8 +232,9 @@ and 0x7f, else 0. Its only caller `FUN_00432400` reads the realm server
 connection:
 
 - 1 when `DAT_00779994` is set;
-- 2 with no event (the call at `0x43240f` returns 0), or when
-  `WaitForSingleObject(event, 0)` fails;
+- 2 with no connect thread (`FUN_00449ac0` at `0x43240f` returns 0;
+  `FUN_0044a130` starts it, mcp-connect.md), or when
+  `WaitForSingleObject(thread, 0)` fails;
 - 3 on a timeout (0x102);
 - once signalled, 2 when `mcp_result` (`FUN_00449c00`) is one of those
   codes, else 0.

@@ -507,11 +507,12 @@ auto World::tower_treasure(std::uint32_t now_ms) -> void {
 // Its other steps act on records d2d's Cain doesn't carry: no aura
 // (unit +0xa4), leader or targeters (FUN_0058f6c0, FUN_005b1a90), and AI
 // events 2, 3 (FUN_005738d0), 8 and 9 dropped, event 2 set again by the
-// idle (cain_walk.next).
-// ponytail: the thinks' idles (1, 20 frames) stand in for the AI's own
-// tick (ai.cpp); the death steps' unit flags (+0xc4), death states
-// (FUN_00639fb0) and corpse grid (FUN_00649f70(unit, 1)) aren't made,
-// nor anything that reads his life.
+// idle (cain_walk.next). FUN_00649f70(unit, 1) clears the ordinary unit
+// footprint and leaves a 3x3 0x8000 corpse-grid stamp; the same think's
+// NU start stamps the ordinary footprint again, so both remain. The
+// normal portal-entry branch also takes life and starts DD, without NU.
+// ponytail: the death start's +0xc4 flags and FUN_00639fb0 state-list
+// move have no counterpart on a world NPC. Cain carries no d2d states.
 auto World::cain_step(std::uint32_t now_ms, float /* elapsed: a step is a frame */) -> void {
         if (cain_walk.npc < 0 || level->id != d2d::rules::CainQuest::kTristram || std::size_t(cain_walk.npc) >= npc_states.size()) return;
         const auto& npc = level->npcs[std::size_t(cain_walk.npc)];
@@ -527,13 +528,27 @@ auto World::cain_step(std::uint32_t now_ms, float /* elapsed: a step is a frame 
         const auto walk = [&](int x, int y) {
             unit.walking = set_off(*level, unit, cell(x), cell(y), false);
         };
+        // FUN_005a6520 -> FUN_00649f70(unit, 1): the corpse mark is a
+        // persistent grid bit, separate from the ordinary footprint NU
+        // puts back. Its only d2d reader is a door's 0x8000 blocker test.
+        const auto death_start = [&] {
+            cain_walk.lifeless = true;                              // FUN_00627260(unit, 6, 0, 0)
+            const int width = level->ds1.width() * 5, height = level->ds1.height() * 5;
+            if (!npc.composite_death)                                                                   // FUN_00649f70: compositeDeath skips the stamp
+                for (int row = -1; row <= 1; ++row)
+                    for (int column = -1; column <= 1; ++column) {
+                        const int corpse_x = at_x + column, corpse_y = at_y + row;
+                        if (corpse_x >= 0 && corpse_y >= 0 && corpse_x < width && corpse_y < height)
+                            level->walk[std::size_t(corpse_y) * std::size_t(width) + std::size_t(corpse_x)] |= 0x8000;
+                    }
+        };
         const auto off = [&](int x, int y) { return d2d::rules::ai_distance(x - at_x, y - at_y); };
         if (cain_walk.stage < 0) {
             unit.hidden = false;
             if (cain.note_spot(at_x, at_y)) { cain_walk.spot_x = at_x; cain_walk.spot_y = at_y; }   // FUN_005944b0, else FUN_005944f0 (FUN_005e77a0)
             else {                                                                                      // the spot noted before stays
                 cain_walk.spot_x = cain.spot_x; cain_walk.spot_y = cain.spot_y;
-                cain_walk.lifeless = true;                                                              // FUN_00627260(unit, 6, 0, 0); DD, then NU (FUN_005de080)
+                death_start();                                                                           // FUN_00627260, DD, then NU (FUN_005de080)
                 face(unit, missile_direction(0, 16));                                                   // FUN_005a6520: the request's +0x14, 0 (FUN_005a7e60)
             }
             cain_walk.x = at_x + 3; cain_walk.y = at_y + 3;
@@ -558,6 +573,7 @@ auto World::cain_step(std::uint32_t now_ms, float /* elapsed: a step is a frame 
         const bool opened = cain_portal.level == level;
         if (++cain_walk.stage < 8 && opened && off(cain_walk.spot_x, cain_walk.spot_y) != 0) { walk(cain_walk.spot_x, cain_walk.spot_y); return; }
         cain.portal_entered();
+        death_start();                                                                                   // FUN_005e7880: life 0, DD; no following idle
         if (opened) cain_portal_closes = cain_portal.born + std::uint32_t(d2d::rules::CainQuest::portal_closed_frame(int((now_ms - cain_portal.born) / kTickMs))) * kTickMs;
         unit.hidden = true;
         cain_walk.npc = -1;

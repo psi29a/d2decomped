@@ -922,6 +922,36 @@ runs from the local do (`client_skill_guard`); startmana's state inferno is `Her
   the throw masteries for thrown weapons, Summon Resist for summons,
   Increased Stamina (no stamina yet), the +0x80 state check.
 
+### Self-state aurastats and Venom
+
+`FUN_005c6cc0` takes the unit in ECX and its state stat list in EDX, with
+the Skills row (or null), skill id and level following. A null unit or list
+returns. With no explicit row, an id outside the Skills table returns;
+otherwise the function walks all six `aurastat` words at row `+0x54` with
+their calc dwords at `+0x68`. A stat id must be nonnegative, below the
+ItemStatCost row count and name a non-null row. The function evaluates it
+with `FUN_00646ca0(unit, calc, skill, level)` and adds a nonzero result to
+layer 0 with `FUN_006270b0`. Stat 68 (`attackrate`) also sets stat 69
+(`other_animrate`) to the same value with `FUN_00627150`. Every accepted
+call ends by refreshing the unit through `FUN_00623f50`; the six-slot walk,
+guards, writes and final call are checked by
+`tools/emu/skills_combat_helpers.py --mutation-check`.
+
+The resulting list is part of the unit's ordinary stat total. In the melee
+record builder `FUN_0057b7d0`, poison min/max are stats 57/58. Once their
+roll is nonzero, stat 101 (`skill_poison_override_length`) is read first: a
+positive value becomes record `+0x2c`, while only a nonpositive value falls
+back to stat 59 (`poisonlength`, divided by stat 326 when that count exceeds
+one). Venom (Skills id 278) supplies stats 57, 58 and 101, so its state
+changes both the poison damage and the duration of the player's melee hit.
+`Fight::player_fighter` now substitutes positive stat 101 for stat 59 in the
+copy handed to `make_fighter`, while leaving the actual summed stats intact.
+`tools/emu/venom_length.py --mutation-check` checks the original branch and
+record write; `test_venom_state` checks the loaded Venom row through d2d.
+
+Not traced here: the consumers of the implicit stat 69, Fade's stat 109
+(`curse_resistance`) and stat 162 (`skill_staminapercent`).
+
 ### Shots and ammo
 - **The plain attack** (do 1, `FUN_0056f070`): with a bow or crossbow
   (the unit's weapon class 1 / 7, `FUN_0064f460`) it fires the weapon's
@@ -1388,7 +1418,8 @@ hooked: `tools/emu/skills_combat_helpers.py`. No d2d comparison.
   none there and the request's flag 4 clear (0x56d9bb), again at radius 4,
   0x56d9cb; else none), marks it a pet (+0xc4 |= 0x20000) and ties it to
   its owner.
-  Hydra's three (hydra1..3 are SizeX 0) share the subtile.
+  Hydra's three (hydra1..3) stand a subtile apart round the target
+  (FUN_005ca910: 0x6e312c / 0x6e3120).
 - **FUN_005c49e0**(game, owner; pet, forced, bonus): the pet's level
   (stat 12) = a forced level above 0 as it is, else min(max(owner's × 3 /
   4 + bonus, 1), owner's level). Raise, the golems, the Decoy and the
@@ -1652,8 +1683,13 @@ repeat skill.
   for a row with no A1 damage; SkillDamage itself isn't loaded.
 - Do 149 (**FUN_005ce0b0**, NecromageMissile): srvmissilea + the mage's
   byte +0xf (necromage1..4: poison, cold, fire, lightning).
-- Do 144 (**FUN_005ca910**, Hydra): three at the target, sumskills at
-  level (HydraMissile, whose row 'hydra' carries the Hydra skill).
+- Do 144 (**FUN_005ca910**, Hydra): none when the target's room is a town's
+  (FUN_00463740 -> FUN_0061ab00); else three, head k of the summon row plus
+  k (hydra1..3) at the target plus 0x6e312c[k] (x: -1, 0, 1) / 0x6e3120[k]
+  (y: -1, 0, -1), each through FUN_0056d940 with request kind 1 (radius -1,
+  then 4), sumskills at level (HydraMissile, whose row 'hydra' carries the
+  Hydra skill). d2d: `rules::hydra`; tools/emu/hydra.py runs FUN_005ca910
+  (0 of 20,024 differ on each of seeds 1 and 2, 2026-11-27).
 - The corpse tests (`tools/emu/corpse_tests.py`, `rules::raise_takes`,
   `blast_takes`, `revive_takes`; d2d's `Fight::corpse_near` by the skill's
   srvstfunc). Raise Skeleton / Skeletal Mage (st 15, LAB_005c3070) and

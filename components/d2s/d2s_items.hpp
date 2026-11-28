@@ -226,7 +226,7 @@ enum StatId { kStr = 0, kEne = 1, kDex = 2, kVit = 3, kStatPts = 4, kSkillPts = 
               kToHit = 19, kToBlock = 20,
               kMinDamage = 21, kMaxDamage = 22, kSecondaryMinDamage = 23, kSecondaryMaxDamage = 24,   // one-handed, two-handed
               kDamagePercent = 25, kManaRecovery = 26,
-              kManaRecoveryBonus = 27, kStaminaRecoveryBonus = 28, kNextExperience = 30,
+              kManaRecoveryBonus = 27, kStaminaRecoveryBonus = 28, kLastExperience = 29, kNextExperience = 30,
               kArmorClass = 31, kArmorClassVsMissile = 32, kArmorClassVsHandToHand = 33,
               kNormalDamageReduction = 34, kMagicDamageReduction = 35, kDamageResist = 36, kMagicResist = 37,
               kFireResist = 39, kLightningResist = 41, kColdResist = 43, kPoisonResist = 45,
@@ -242,7 +242,9 @@ enum StatId { kStr = 0, kEne = 1, kDex = 2, kVit = 3, kStatPts = 4, kSkillPts = 
               kGoldFind = 79, kMagicFind = 80,      // item_goldbonus, item_magicbonus
               kKnockback = 81, kAddExperience = 85, kReducedPrices = 87, kLightRadius = 89,
               kRequirementPercent = 91, kLevelRequirement = 92,   // item_req_percent, item_levelreq
-              kFasterAttackRate = 93, kFasterMoveVelocity = 96, kFasterGetHitRate = 99, kFasterBlockRate = 102,
+              kFasterAttackRate = 93, kFasterMoveVelocity = 96, kFasterGetHitRate = 99,
+              kPoisonOverrideLength = 101,          // skill_poison_override_length: Venom replaces poison length
+              kFasterBlockRate = 102,
               kFasterCastRate = 105,
               kSingleSkill = 107,                   // item_singleskill: +n to one skill (param)
               kPoisonLengthReduction = 110,         // item_poisonlengthresist
@@ -473,10 +475,12 @@ inline std::optional<NetItem> parse_net_item(std::span<const std::byte> bits_byt
 // of ItemStatCost CSvBits width, until 0x1ff; then "if" + 30 skill bytes,
 // then the items. Life/mana/stamina (6..11) are 8.8 fixed point.
 struct Stats {
-    std::array<std::int64_t, 16> values{};   // by stat id 0..15 (strength .. goldbank)
+    // The save stores ids 0..15; live rules also keep stat 29 (lastexp).
+    std::array<std::int64_t, 30> values{};
     std::size_t items_at = 0;           // byte offset of the item list's "JM"
     std::array<std::uint8_t, 30> skills{};   // "if": the class's 30 skills in Skills.txt order, base levels
-    [[nodiscard]] std::int64_t get(int id) const { return id >= 0 && id < 16 ? values[std::size_t(id)] : 0; }
+    // Returns a live stat value, or zero for an id d2d does not keep.
+    [[nodiscard]] std::int64_t get(int id) const { return id >= 0 && std::size_t(id) < values.size() ? values[std::size_t(id)] : 0; }
     [[nodiscard]] std::int64_t fixed(int id) const { return get(id) >> 8; }   // life/mana/stamina
 };
 

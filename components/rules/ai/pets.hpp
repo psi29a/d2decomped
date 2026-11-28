@@ -322,6 +322,10 @@ BoneWallMakers bone_wall_makers(int caster_x, int caster_y, int piece_x, int pie
 struct PrisonPiece { bool made = false; int x = 0, y = 0, dir = 0; };
 std::array<PrisonPiece, 12> bone_prison(int point_x, int point_y, const std::function<bool(int, int)>& town,
                                         const std::function<std::optional<std::pair<int, int>>(int, int)>& make);
+// Hydra's three heads round the point (subtiles), none in a town: head k is of the summon row plus k, and `make(k, x,
+// y)` spawns it for its spot and gives the subtile it got (none: no room).
+struct HydraHead { bool made = false; int x = 0, y = 0; };
+std::array<HydraHead, 3> hydra(int point_x, int point_y, bool town, const std::function<std::optional<std::pair<int, int>>(int, int, int)>& make);
 bool traced_pet_ai(std::string_view ai_name);
 
 // What the other pets' thinks read (tools/emu/pet_ais.py feeds game.exe the

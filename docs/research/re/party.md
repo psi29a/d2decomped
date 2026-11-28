@@ -257,11 +257,20 @@ compared unsigned (`JBE`, 0x57e547). Stat 29 takes new - old (less than 0
 when the old was already over the cap), stat 13 new (`FUN_00627260`); when
 `FUN_00611860` (the level the new experience reaches) is not the level
 before, `FUN_00570880` (full life, mana, stamina) and `FUN_005c0c30` (event
-0xc) run. Callers FUN_0057e6c0, FUN_0057e990 (kills), FUN_0057eab0 and
+0xc) run. `FUN_00611830`, `FUN_00611800` and `FUN_00611860` read the
+Experience table pointer at `0x96c8a8`; an out-of-range class uses class 0.
+`FUN_00627260` updates the unit's base stat list and queues a changed stat
+for a player. `FUN_00570880` also writes level, next experience, stat and
+skill points, maximum life, mana and stamina, fills the three resources,
+settles equipment, refreshes the unit and calls the game's level callback
+at `DAT_00883d50 + 0x2c` when present. The event walk may invoke or unlink
+matching event-0xc records from unit `+0x90`.
+
+Callers are FUN_0057e6c0, FUN_0057e990 (kills), FUN_0057eab0 and
 FUN_0057eb10. d2d: rules::exp_after_award, which rules::gain_exp adds with
-(capped at exp_next[max_level - 1]); stat 29 isn't kept and the level-up is
-gain_exp's own loop. Oracle tools/emu/exp_add.py (20000 cases, all of the
-body reached), fixture tests/exp_add_cases.inc.
+(capped at exp_next[max_level - 1]); gain_exp keeps stat 29 and performs
+the level-up with its own loop. The 20000-case tools/emu/exp_add.py
+coverage run reports 0 instructions missed; fixture tests/exp_add_cases.inc.
 
 ### FUN_0057e6c0
 
