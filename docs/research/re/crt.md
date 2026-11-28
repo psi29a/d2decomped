@@ -229,7 +229,7 @@ pole, 7 a quiet NaN), unless `DAT_0096d6c4` is set.
 | `FUN_0068870f` | `cos`'s x87 entry from the SSE2 body | the same into `FUN_00688718` (`fcos`, cited). Caller `FUN_0069a01e` |
 | `FUN_006986f0` | the two-argument error start | the error type and the stack arguments into its frame, then joins `__startOneArgErrorHandling`'s body. Callers `FUN_00687c6d`, `FUN_00698839` |
 | `FUN_00698750` | 2^x | `ST0` split by `frndint`, `f2xm1` of the fraction, `fscale` by the integer part. Caller `FUN_00687c6d` |
-| `FUN_00698765` | the control-word load | loads a control word of the argument's precision and rounding bits (0x300) with every exception masked (0x7f) |
+| `FUN_00698765` | the control-word load | keeps the argument's precision bits (0x300); the rounding bits come out 0 (round to nearest); every exception masked (0x7f) |
 | `FUN_0069877c` | the NaN case | a quiet NaN (bit 19 of `EAX`) returns 7; else adds 1.0 (`DAT_006f3330`) to `ST0` and returns 1 |
 | `FUN_006987d8` | the exponent test | the double's high word when its exponent is all ones (Inf or NaN), else its exponent bits. Callers `__CIsqrt` and the wrappers but `pow` |
 | `FUN_006987ee` | the x87 exit | reloads the saved control word unless it is the default 0x27f, pops it and returns |
