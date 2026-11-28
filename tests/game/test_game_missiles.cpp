@@ -214,8 +214,9 @@ int main() try {
     world.enter(character);
     for (std::uint32_t tick = 1; tick <= 25; ++tick) world.tick({}, tick * kTickMs, (tick - 1) * kTickMs);
 
-    // A monster's Hydra (FUN_005ca910 -> FUN_0056d940 -> FUN_005b2f20, radius -1): three heads on
-    // the target's subtile; hydra1 is SizeX 0, so none blocks another.
+    // A monster's Hydra (FUN_005ca910, the player's: rules::hydra): none when the target's room is a
+    // town's; else head k of hydra1 + k at the target plus (-1, -1), (0, 0), (1, -1), each through
+    // FUN_0056d940 at radius -1, then 4 (hydra1..3 are SizeX 0, so none blocks another).
     {
         Spawning::LevelState camp;
         bool kept = false;
@@ -224,23 +225,45 @@ int main() try {
         camp.rooms_up.assign(camp.room_seeds.size(), true);
         const auto council_row = data->monsters.by_id.find("councilmember1");
         const auto hydra_skill = data->skills.by_name.find("Hydra");
-        assert(council_row != data->monsters.by_id.end() && hydra_skill != data->skills.by_name.end());
-        const float foe_x = world.actor->player.x, foe_y = world.actor->player.y;
-        d2d::rules::Rng hydra_rng{ 11 };
-        std::vector<Monster> pack{ make_monster(*data, int(council_row->second), foe_x - 2, foe_y, hydra_rng, 0) };
-        pack[0].skill = hydra_skill->second;
-        set_mode(*data, pack[0], "S1", 0);                                // its Sk1mode
-        std::array<Foe, 1> foes{};
-        foes[0].x = foe_x; foes[0].y = foe_y;
+        const auto hydra1 = data->monsters.by_id.find("hydra1");
+        assert(council_row != data->monsters.by_id.end() && hydra_skill != data->skills.by_name.end() && hydra1 != data->monsters.by_id.end());
+        const auto cast_hydra = [&](const Level& where, Spawning::LevelState& rooms, float foe_x, float foe_y) {
+            d2d::rules::Rng hydra_rng{ 11 };
+            std::vector<Monster> pack{ make_monster(*data, int(council_row->second), foe_x - 2, foe_y, hydra_rng, 0) };
+            pack[0].skill = hydra_skill->second;
+            set_mode(*data, pack[0], "S1", 0);                            // its Sk1mode
+            std::array<Foe, 1> foes{};
+            foes[0].x = foe_x; foes[0].y = foe_y;
+            const Crowd crowd;
+            std::vector<Missile> missiles;
+            std::vector<Monster> born;
+            for (std::uint32_t frame = 1; frame <= 100 && born.empty(); ++frame)
+                monster_update(*data, where, pack[0], foes, hydra_rng, frame * 40, 0.04f, crowd, missiles, pack, &born, nullptr, nullptr, &rooms);
+            return born;
+        };
+        assert(cast_hydra(data->town, camp, world.actor->player.x, world.actor->player.y).empty());
+        std::printf("OK: a monster's Hydra makes no head in a town\n");
+
+        const auto* plains = data->level(d2d::rules::level_ids::kBloodMoor);
+        assert(plains && !plains->rooms.empty());
+        Spawning::LevelState plains_rooms;
+        plains_rooms.rooms_up.assign(plains->rooms.size(), true);
+        for (std::size_t room = 0; room < plains->rooms.size(); ++room) plains_rooms.room_seeds.push_back(d2d::rules::Rng{ std::uint32_t(room + 1) });
+        const auto& centre_room = plains->rooms[plains->rooms.size() / 2];
+        const auto [foe_x, foe_y] = plains->nearest_free(float(centre_room.x) + float(centre_room.width) / 2, float(centre_room.y) + float(centre_room.height) / 2);
+        const auto heads = cast_hydra(*plains, plains_rooms, foe_x, foe_y);
+        const auto subtile = [](float cells) { return int(std::floor(cells * 5)); };
+        constexpr std::array<std::pair<int, int>, 3> kOff{ { { -1, -1 }, { 0, 0 }, { 1, -1 } } };   // 0x6e312c / 0x6e3120
+        assert(heads.size() == 3);
+        for (std::size_t head = 0; head < heads.size(); ++head) {
+            assert(heads[head].type == int(hydra1->second) + int(head));
+            const int spot_x = subtile(foe_x) + kOff[head].first, spot_y = subtile(foe_y) + kOff[head].second;
+            assert(std::abs(subtile(heads[head].unit.x) - spot_x) <= 4 && std::abs(subtile(heads[head].unit.y) - spot_y) <= 4);
+        }
+        std::printf("OK: a monster's Hydra: hydra1, hydra2, hydra3 round the target, as the player's\n");
         const Crowd crowd;
         std::vector<Missile> missiles;
         std::vector<Monster> born;
-        for (std::uint32_t frame = 1; frame <= 100 && born.empty(); ++frame)
-            monster_update(*data, data->town, pack[0], foes, hydra_rng, frame * 40, 0.04f, crowd, missiles, pack, &born, nullptr, nullptr, &camp);
-        const auto subtile = [](float cells) { return int(std::floor(cells * 5)); };
-        assert(born.size() == 3);
-        assert(std::ranges::all_of(born, [&](const Monster& head) { return subtile(head.unit.x) == subtile(foe_x) && subtile(head.unit.y) == subtile(foe_y); }));
-        std::printf("OK: a monster's three hydras stand on the target's subtile\n");
 
         // Teleportation (mod 26, FUN_005b11f0, the driver's step 3): under 30 % life it casts
         // MonTeleport (S1) at a spot FUN_0054dc40 found in its room, and lands there (FUN_005ccc80).

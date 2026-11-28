@@ -2878,19 +2878,28 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                         born->push_back(std::move(tentacle));
                     }
                 } else if (cast->srvdofunc == ServerDoFunction::kHydra) {
-                    // FUN_005ca910: three heads, head k of its summon's row plus k (hydra1..3) a subtile apart round the
-                    // target (0x6e312c / 0x6e3120: rules::hydra), each through FUN_0056d940 at radius -1, then 4; none
-                    // when the target's room is a town's; each gone Param1 frames on (AI control +0x14).
-                    // ponytail: a monster's are three of hydra1 on the target, radius -1 alone (a player's: summons.cpp).
-                    if (const auto summoned = game_data.monsters.by_id.find(cast->summon); born && summoned != game_data.monsters.by_id.end())
-                        for (int head = 0; head < 3; ++head) {
+                    // FUN_005ca910, the player's: none when the target's room is a town's (FUN_00463740 ->
+                    // FUN_0061ab00); else head k of its summon's row plus k (hydra1..3) at the target plus
+                    // 0x6e312c[k] / 0x6e3120[k] (rules::hydra), each through FUN_0056d940 at radius -1, then 4;
+                    // each gone Param1 frames on (AI control +0x14). Its only caster test is a hireling's, cast as
+                    // its owner's. A head (hydra1..3: SizeX 0) stamps nothing, so none blocks the next.
+                    if (const auto summoned = game_data.monsters.by_id.find(cast->summon); born && summoned != game_data.monsters.by_id.end()) {
+                        const auto make = [&](int head, int spot_x, int spot_y) -> std::optional<std::pair<int, int>> {
+                            const int type = int(summoned->second) + head;
+                            const int room = room_of(level, (float(spot_x) + 0.5f) / 5, (float(spot_y) + 0.5f) / 5);
                             int at_x = 0, at_y = 0;
-                            if (!spawn_spot(game_data, level, crowd, rooms_in_play, summoned->second, subtile(foe.x), subtile(foe.y), -1, room_of(level, foe.x, foe.y), at_x, at_y)) continue;
-                            auto hydra = make_monster(game_data, summoned->second, (float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, rng, monster.difficulty, true, d2d::rules::game_players(players_in(foes), players_counted), level.id, d2d::rules::Rng{ game_seed.next() }, level_region);
+                            if (!spawn_spot(game_data, level, crowd, rooms_in_play, type, spot_x, spot_y, -1, room, at_x, at_y)
+                                && !spawn_spot(game_data, level, crowd, rooms_in_play, type, spot_x, spot_y, 4, room, at_x, at_y))
+                                return std::nullopt;
+                            auto hydra = make_monster(game_data, type, (float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, rng, monster.difficulty, true, d2d::rules::game_players(players_in(foes), players_counted), level.id, d2d::rules::Rng{ game_seed.next() }, level_region);
                             hydra.aware = true;
                             hydra.ai_state = int(now_ms / 40) + cast->par[0];
                             born->push_back(std::move(hydra));
-                        }
+                            return std::pair{ at_x, at_y };
+                        };
+                        // A d2d level is a town or not as a whole (FUN_0061ab00 asks the point's room).
+                        (void)d2d::rules::hydra(subtile(foe.x), subtile(foe.y), d2d::rules::level_ids::is_town(level.id), make);
+                    }
                 } else {
                     andariel_missile(game_data, monster, cast->srvmissile, dx, dy, now_ms, missiles, lvl, cast);
                 }

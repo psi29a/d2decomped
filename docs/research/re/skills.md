@@ -1701,7 +1701,9 @@ repeat skill.
   k (hydra1..3) at the target plus 0x6e312c[k] (x: -1, 0, 1) / 0x6e3120[k]
   (y: -1, 0, -1), each through FUN_0056d940 with request kind 1 (radius -1,
   then 4), sumskills at level (HydraMissile, whose row 'hydra' carries the
-  Hydra skill). d2d: `rules::hydra`; tools/emu/hydra.py runs FUN_005ca910
+  Hydra skill). Its one caster test is a hireling's (cast as its owner's),
+  so a monster's (the Council, baalhighpriest) is the same at its target.
+  d2d: `rules::hydra`, for both; tools/emu/hydra.py runs FUN_005ca910
   (0 of 20,024 differ on each of seeds 1 and 2, 2026-11-27).
 - The corpse tests (`tools/emu/corpse_tests.py`, `rules::raise_takes`,
   `blast_takes`, `revive_takes`; d2d's `Fight::corpse_near` by the skill's
