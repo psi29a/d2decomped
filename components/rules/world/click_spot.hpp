@@ -72,6 +72,21 @@ inline constexpr int kUnitWarp = 5;
     return !((flags & kClickHeld) && (flags & kClickLeft) && !(flags & kClickShift) && moving);
 }
 
+// FUN_00464600 (the local player, its skill): may a press or a held frame send
+// its skill now (FUN_004629a0 / FUN_00462a20 / FUN_00462ba0 / FUN_00462c20 drop
+// the click on false)? Not with an item in hand or for a non-player; else by the
+// mode: SQ (0x12) by its skill's seqinput (FUN_004645b0); tools/emu/press_gate.py.
+struct PressIn {
+    bool hand_item = false;
+    bool player = true;
+    int mode = 1;                 // the unit's mode (+0x10); d2d's -1 (stand or walk) as NU
+    int char_class = 0;
+    bool sq_skill = false;        // the current skill's anim is SQ (row +0x10 0x12)
+    int seqinput = 0;             // its Skills.txt seqinput (row +0x16)
+    int frame = 0;                // the mode's frame in 256ths (unit +0x38)
+};
+[[nodiscard]] bool press_goes(const PressIn& press) noexcept;
+
 // FUN_00461dc0's warp (type 5, LAB_00461fb7): refused till 0x7a04c8 (an
 // unsigned compare against 0x7a048c, GetTickCount's ms); a click that goes
 // sets it 500 ms on (LAB_00462022), as the queue step's 0x13 does
