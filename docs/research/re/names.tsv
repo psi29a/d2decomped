@@ -175,6 +175,7 @@ address	name	evidence
 004237d0	sbig_copy	dst, src (ret 8): dst = src, digits via FUN_004215c0 unless the same number, then +0xc and +0x10 (source-sbig-api.md)
 00423800	sbig_dec	dst, a (ret 8): dst = a - 1 via FUN_00422fc0 with EAX = 1 (source-sbig-api.md)
 00423870	sbig_from_str	dst, text (ret 8): dst = the text read as decimal, each byte minus '0' with no digit check, via FUN_004234b0 (source-sbig-api.md)
+00423890	sbig_from_bytes	a0, a1, a2, a3 (ret 0x10): forwards to FUN_004234f0 with EAX = a1, ECX = a2, stack[0] = a0, stack[1] = a3; returns the callee's EAX (source-sbig-api.md)
 004238b0	sbig_from_unsigned	dst, u (ret 8): dst = the dword u via FUN_00423540 (source-sbig-api.md)
 004238d0	sbig_inc	dst, a (ret 8): dst = a + 1 via FUN_004221f0 with ECX = 1 (source-sbig-api.md)
 004238f0	sbig_is_odd	a (ret 4): 1 for an odd number, else 0, via FUN_00422710 (source-sbig-api.md)
