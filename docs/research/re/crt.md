@@ -232,3 +232,24 @@ pole, 7 a quiet NaN), unless `DAT_0096d6c4` is set.
 | `FUN_0069d0be` | the exception raiser | for each flag bit of its argument, an x87 operation that raises it: 1 `fistp` of the long double at `0x0074af48`, 8 and 0x10 `fstp` of the ones at `0x0074af48` and `0x0074af54` to a double, 4 1/0, 0x20 `fldpi` stored to a double. Caller `__handle_exc` |
 | `FUN_006aa6f2` | `_logb` | Inf or NaN through `__sptype` / `__handle_qnan1`; 0 gives -Inf through `__except1` (operation 0x25); else `_decomp`'s exponent less 1. No caller |
 | `FUN_006aa7d5` | `_nextafter` | two doubles; Inf, NaN and the error case through `__handle_qnan2` / `__except2` (operation 0x26); the step through `_decomp` and `__set_exp`. No caller |
+
+## Time
+
+The time-zone state: `_timezone` at `0x0074ace8` (seconds west of UTC),
+`_daylight` at `0x0074acec`, `_dstbias` at `0x0074acf0`, `_tzname` at
+`0x0074ad78` (two pointers to 64-byte names).
+
+| Address | Name | What it does |
+|---|---|---|
+| `FUN_006856e9` | `_localtime64_s` | null `tm`: `EINVAL`; fills it with 0xff; a time below 0 or past `0x793406fff` is `EINVAL`; `___tzset`, then the three settings through their getters (a failure is `__invoke_watson`); past 3 days (0x3f480 s), `_gmtime64_s` of the time less `_timezone`, and again less `_dstbias` with `tm_isdst` = 1 when `__isindst`; nearer 1970, `_gmtime64_s` of the time itself and the offset carried through seconds, minutes, hours and days by hand. Called from game code (game-calls.tsv) |
+| `FUN_00696a38` | `_tzset_nolock` | under lock 7: no `TZ` variable (`__getenv_helper_nolock`): `GetTimeZoneInformation` into `0x0096e020`, `_timezone` = the bias × 60, plus the standard bias × 60 when a standard date is set, `_daylight` and `_dstbias` from the daylight date and bias, the two names through `WideCharToMultiByte` in the locale's code page; a `TZ` like `PST8PDT`: a copy kept in `DAT_0096e0d0` (an unchanged one is not parsed again), the first 3 letters the standard name, the offset as hours`:`minutes`:`seconds with a sign, and 3 more letters the daylight name, `_daylight` = whether there are any. Caller `___tzset` |
+| `FUN_00696f76` | `_isindst_nolock` | with `_daylight` set: for a new year (`tm_year` +0x14), the start and end of daylight time from the `GetTimeZoneInformation` dates (`cvtdate`), or a built-in rule with one set of dates before `tm_year` 0x6b (2007) and another from it; then whether `tm_yday` (and the time of day in ms on the change days) falls between them. Caller `__isindst` |
+| `FUN_00697474` | `_get_daylight` | null: `EINVAL`; else `*out = _daylight`, 0 |
+| `FUN_006974dc` | `_get_timezone` | the same for `_timezone` |
+| `FUN_006975b2` | `__daylight` | returns `&_daylight` |
+| `FUN_006975b8` | `__dstbias` | returns `&_dstbias` |
+| `FUN_006975be` | `__timezone` | returns `&_timezone` |
+| `FUN_006975c4` | `__tzname` | returns `&_tzname` |
+| `FUN_0069edda` | `_store_str` | copies the string at `EDX` to `*ECX` while the count at `*EAX` lasts, advancing both. Caller `FUN_0069eea9` |
+| `FUN_0069eea9` | `_expandtime` | one `strftime` conversion in `AL`: checks the `tm` field's range (`EINVAL` and `_invalid_parameter` out of it) and writes it with `_store_num` (`FID_conflict:__store_num`) or `_store_str`; `%` itself; `c`, `x` and `X` through `FUN_0069f28f`; `z` and `Z` the time-zone name after `___tzset`; codes 4 and 13 return without writing. Callers `__Strftime_l`, `FUN_0069f28f` |
+| `FUN_0069f28f` | `_store_winword` | (from its calls; the 1,117-byte body was not followed) a date or time picture expanded with `GetDateFormatA` / `GetTimeFormatA`, with `_expandtime` for its pieces. Caller `FUN_0069eea9` |
