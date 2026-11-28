@@ -266,6 +266,17 @@ int main(int argc, char** argv) try {
     d2d::d2s::Stats stats;
     stats.values[d2d::d2s::kStr] = 20; stats.values[d2d::d2s::kDex] = 20; stats.values[d2d::d2s::kLevel] = 1;
     StatSum sum{}, wsum{};
+    {   // A monster's Corpse Explosion on a foe (FUN_005c4df0 -> FUN_005c4d10): its element is fire (MonStats::El type 0),
+        // so fire resistance takes it and lightning resistance doesn't (CodeRabbit on #815).
+        const MonStats blast = corpse_blast_record({}, 10 << 8, 20 << 8, true);
+        assert(blast.a1_min == 10 && blast.a1_max == 10 && blast.elements[0].type == 0 && blast.elements[0].min == 20);
+        assert(corpse_blast_record({}, 10 << 8, 20 << 8, false).a1_max == 0);
+        Fighter fire_proof; fire_proof.res = { 100, 0, 0, 0 };
+        Fighter shock_proof; shock_proof.res = { 0, 100, 0, 0 };
+        Rng blast_rng{ 5 };
+        assert(monster_blow(fire_proof, 1, Motion::standing, blast, false, blast_rng, false, true, true).element_dealt[0] == 0);
+        assert(monster_blow(shock_proof, 1, Motion::standing, blast, false, blast_rng, false, true, true).element_dealt[0] == 20);
+    }
     {   // Sanctuary's skill_bypass_undead (103) and kin: the record's 0x100 / 0x200 / 0x400 (FUN_0057b7d0); on such a
         // target each resistance counts only below 0 (FUN_0057c1e0 -> FUN_0057bf80).
         StatSum sanctified{};

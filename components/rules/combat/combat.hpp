@@ -412,6 +412,9 @@ int corpse_blast_fine(int life_fine, int low_pct, int high_pct, Rng& corpse_seed
 // calc3 % (0..100) of that blow goes to the skill's EType when it has one, the rest stays physical: {physical,
 // element}, 256ths.
 std::pair<int, int> corpse_blast_split(int fine, int element_pct, bool elemental);
+// A monster's blast on one foe as monster_blow takes it: `caster` with only the physical (none past its reach)
+// and the element as its A1 fire (MonStats::El type 0), a sure hit.
+[[nodiscard]] MonStats corpse_blast_record(MonStats caster, int phys_fine, int fire_fine, bool in_reach);
 // The walk (FUN_0056b7e0) takes its aurafilter within (aurarange + 1) / 2
 // subtiles of the corpse; the physical reaches only aurarange / 2
 // (FUN_005c4d10's FUN_006492a0 against its square): {walk, reach}.

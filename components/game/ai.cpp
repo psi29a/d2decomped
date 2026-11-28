@@ -2630,10 +2630,7 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                         for (auto& near_foe : foes) {
                             const int apart = (subtile(near_foe.x) - corpse_x) * (subtile(near_foe.x) - corpse_x) + (subtile(near_foe.y) - corpse_y) * (subtile(near_foe.y) - corpse_y);
                             if (!near_foe.alive || apart > walk * walk) continue;
-                            auto stats = monster.stats;
-                            stats.a1_min = stats.a1_max = apart <= phys_reach * phys_reach ? phys_fine >> 8 : 0;
-                            for (auto& element : stats.elements) element = {};
-                            stats.elements[0] = { 1, 100, fire_fine >> 8, fire_fine >> 8, 0, "A1" };   // fire
+                            const auto stats = d2d::rules::corpse_blast_record(monster.stats, phys_fine, fire_fine, apart <= phys_reach * phys_reach);
                             const auto taken = d2d::rules::monster_blow(near_foe.fighter, near_foe.level, near_foe.motion(), stats, false, monster.seed, false, true, true);   // FUN_005c4d10: the record straight to FUN_0057c6c0
                             near_foe.take(taken, monster.id);
                         }

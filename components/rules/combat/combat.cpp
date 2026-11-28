@@ -694,6 +694,13 @@ std::pair<int, int> corpse_blast_split(int fine, int element_pct, bool elemental
     return { mul_div(fine, 100 - element_pct, 100), mul_div(fine, element_pct, 100) };
 }
 
+MonStats corpse_blast_record(MonStats caster, int phys_fine, int fire_fine, bool in_reach) {
+    caster.a1_min = caster.a1_max = in_reach ? phys_fine >> 8 : 0;
+    for (auto& element : caster.elements) element = {};
+    caster.elements[0] = { 0, 100, fire_fine >> 8, fire_fine >> 8, 0, "A1" };   // El type 0: fire
+    return caster;
+}
+
 MissileDamage influenced(MissileDamage damage, int influence) {
     if (influence == 0) return damage;
     damage.elo = mul_div(damage.elo, 100 + influence, 100);
