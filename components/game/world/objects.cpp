@@ -299,12 +299,13 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
             // (0x59a040; local co-op is one party) in Act 2, their share and
             // voice; an amulet each who wants one (LAB_0059a770).
             const int operator_id = actor->id;
+            const Player& operating = *actor;
             int amulets = use.amulets;
             bool took_part = use.took_part;
             if (use.took_part) class_cue("act2_complete_tainted", d2d::rules::quest_line_due(0x34, now_ms));
             each_player([&](Player& player) {
                 if (player.id == operator_id) return;
-                if (tainted.open && (near_room(object.x, object.y, player.player.x, player.player.y) || act() == 1) && d2d::rules::TaintedSunQuest::credit(quests())) {
+                if (tainted.open && (near_room(object.x, object.y, player.player.x, player.player.y) || (act() == 1 && same_party(player, operating))) && d2d::rules::TaintedSunQuest::credit(quests())) {
                     class_cue("act2_complete_tainted", d2d::rules::quest_line_due(0x34, now_ms));
                     took_part = true;
                 }
@@ -412,10 +413,10 @@ auto World::operate(int npc_index, std::uint32_t now_ms, int force ) -> void {  
             take_carried(d2d::rules::KhalimQuest::kWillCode);
             // The party (FUN_005bb850): one done loses Khalim's pieces; one in act 3
             // gets bits 0 and 13, the pieces gone, and with word 0x15 bit 4 its bit 0.
-            const int breaker = actor->id;
+            const Player& breaker = *actor;
             each_player([&](Player& player) {
                 namespace quest = d2d::rules::quest;
-                if (player.id == breaker) return;
+                if (&player == &breaker || !same_party(player, breaker)) return;
                 auto& bits = quests();
                 const auto take_pieces = [&] { for (const char* code : { "qey", "qhr", "qbr", "qf1", "qf2" }) while (carries(code)) take_carried(code); };
                 if (quest::bit(bits, 0x12, 0)) { take_pieces(); return; }
@@ -696,10 +697,10 @@ auto World::object_item(const cmd::ObjectItem& given, std::uint32_t now_ms) -> v
         const auto staff_missile = game_data->missiles.find("horadricstaff");   // Missiles.txt 338
         tombs.staff_in(quests(), d2d::rules::SevenTombsQuest::staff_ticks(staff_missile != game_data->missiles.end() ? staff_missile->second.range : 440));
         // The party in act 2 not done (FUN_0059dbd0): bits 0 and 13, their staff and parts gone.
-        const int placer = actor->id;
+        const Player& placer = *actor;
         each_player([&](Player& player) {
             auto& bits = quests();
-            if (player.id == placer || act() != 1 || d2d::rules::quest::bit(bits, 10, 0)) return;
+            if (&player == &placer || !same_party(player, placer) || act() != 1 || d2d::rules::quest::bit(bits, 10, 0)) return;
             d2d::rules::quest::set(bits, 10, 0); d2d::rules::quest::set(bits, 10, 13);
             for (const char* code : { "hst", "vip", "msf" }) while (carries(code)) take_carried(code);
         });

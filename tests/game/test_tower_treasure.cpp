@@ -25,6 +25,7 @@
 #include <cstdlib>
 #include <exception>
 #include <filesystem>
+#include <utility>
 #include <variant>
 
 namespace fs = std::filesystem;
@@ -137,6 +138,31 @@ int main() try {
     world.actor->on_level = nullptr;
     world.level = cellar;
     std::printf("OK: the line reaches the cellar's player from another level's turn\n");
+
+    // Her party anywhere in Act 1 (LAB_005953d0 -> LAB_00595370): a partner in
+    // camp, on another level's turn (World::tick's stage 9), takes bits 13 and 0.
+    {
+        World party_world(&*data, -1, -1);
+        party_world.enter(character);
+        auto& partner = party_world.join(character, true);              // a joiner: in the lead's party
+        assert(partner.party >= 0 && partner.party == party_world.lead().party);
+        populate_level(*data, party_world.fight.spawning, *cellar);
+        party_world.level = cellar;
+        party_world.npc_states = npc_start(*cellar);
+        party_world.split_levels = true;
+        party_world.lead().on_level = cellar;
+        partner.on_level = &data->town;
+        auto away = std::move(party_world.players.back());
+        party_world.players.pop_back();
+        party_world.elsewhere.push_back(away.get());
+        party_world.act_as(party_world.lead());
+        party_world.countess_died(0);
+        party_world.elsewhere.clear();
+        party_world.players.push_back(std::move(away));
+        const auto& theirs = partner.character.header.quests[std::size_t(partner.character.header.active_difficulty())];
+        assert(d2d::rules::quest::bit(theirs, Tower::kQuest, 13) && d2d::rules::quest::bit(theirs, Tower::kQuest, 0));
+    }
+    std::printf("OK: her party in camp takes the quest from another level's turn\n");
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "%s\n", error.what());

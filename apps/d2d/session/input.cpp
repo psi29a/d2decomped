@@ -242,9 +242,9 @@ auto ClientSession::shift_pick(int skill) const -> int {
 // relation bit 8, or FUN_00464f70's TargetAlly party pass), and one picked goes as a type 0 target.
 // The ground items go by the order they arrived in their room's list (ground_arrival; only Iron
 // Golem's search sees them).
-// ponytail: local co-op keeps no hostile relation nodes (and a hosted World reads UseSkill::unit as a
-// monster's id); View's local-co-op pets carry no unit id/owner, so the TargetPet / TargetAlly passes
-// cannot put them in this search; SelectProcs 4 and 6 also require MonStats2 soft, which the loaded
+// ponytail: a hosted World strikes no player (a hostile one named goes as its spot: no PvP);
+// View's local-co-op pets carry no unit id/owner, so the TargetPet / TargetAlly passes cannot put
+// them in this search; SelectProcs 4 and 6 also require MonStats2 soft, which the loaded
 // MonType does not retain; the stamps are the ones the last Fight::restamp left; Iron Golem's
 // item goes as its spot, and the World takes the one there (Fight::golem_item_at), not by its id.
 auto ClientSession::near_pick(int skill, int& unit, int& unit_type, float& at_x, float& at_y) const -> bool {
@@ -266,6 +266,10 @@ auto ClientSession::near_pick(int skill, int& unit, int& unit_type, float& at_x,
         units.reserve(view.monsters.size() + view.others.size() + (iron_golem ? view.ground.size() : 0));
         listed.reserve(units.capacity());
         const auto same_party = [&](std::uint32_t player_id) {
+            if (lan_game()) {                                          // a d2d LAN game: the View's roster
+                const auto row = std::ranges::find(view.roster, player_id, &View::RosterRow::id);
+                return row != view.roster.end() && view.party >= 0 && row->party == view.party;
+            }
             if (!net_game) return true;
             const auto self = net_game->units.find(std::uint64_t(net_game->self_id));
             const auto other = net_game->units.find(std::uint64_t(player_id));

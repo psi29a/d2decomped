@@ -345,7 +345,7 @@ auto ClientSession::drive_strip(const pad::Actions& actions) -> void {
         case 3: automap.open = !automap.open; break;
         case 4: toggle_quest_log(); break;
         case 5:
-            if (net_game || coop_hud_hidden()) toggle_party();
+            if (net_game || lan_game() || coop_hud_hidden()) toggle_party();
             break;
         case 6:
             if (character.expansion && view.merc_sheet) {

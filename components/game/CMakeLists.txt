@@ -40,6 +40,7 @@ add_library(game STATIC
     skill_text.cpp
     world/commands.cpp
     world/objects.cpp
+    world/party.cpp
     world/quests/act1.cpp
     world/quests/act2.cpp
     world/quests/act3.cpp

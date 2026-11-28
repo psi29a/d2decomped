@@ -30,6 +30,13 @@ a LAN of d2d machines lacks is only the transport.
    30 minute four-player soak with devctl-driven clients.
 5. Host cost with players on different levels: profile, then thread.
 6. The TCP/IP menu's Host / Join for d2d hosts.
+7. Parties and hostility: the Party screen (the wide mini-panel's button, P)
+   in a LAN game, its clicks as `cmd::PartyScreen` (C->S 0x5d / 0x5e) to
+   the host's `World::party_action`, the roster back in the View (protocol
+   17); rewards follow the party (party.md "The party buttons on the
+   host"). The party's portraits top left, each with 0x7f's life %
+   (`FUN_00621f20`) in the roster. Joiners start in the host's party
+   (deviations.md 7). No player strikes another yet (PvP).
 
 ## Open questions
 

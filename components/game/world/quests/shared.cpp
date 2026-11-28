@@ -118,10 +118,10 @@ auto World::andariel_died(const Fight::Kill& kill, std::uint32_t now_ms) -> void
         // and 13 their act1_complete_andariel (0x596170, unit event 0x21).
         const bool killer_took_part = quest::bit(quests(), kQuest, 13);
         each_player([&](Player& player) { if (level->id == d2d::rules::level_ids::kCatacombsLevel4) andy.in_lair(quests(), player.id); });
-        const int killer = actor->id;
+        const Player& killer = *actor;
         each_in_game([&](Player& player, int their_act) {      // the party in Act 1, whatever level they're on
             auto& bits = quests();
-            if (player.id == killer || !killer_took_part || their_act != 0 || quest::bit(bits, kQuest, 0) || quest::bit(bits, kQuest, 1)) return;
+            if (&player == &killer || !same_party(player, killer) || !killer_took_part || their_act != 0 || quest::bit(bits, kQuest, 0) || quest::bit(bits, kQuest, 1)) return;
             andy.cain.add(player.id); andy.akara.add(player.id); andy.kashya.add(player.id);
             quest::set(bits, kQuest, 13); quest::set(bits, kQuest, 1);
             open_act(1);
@@ -394,15 +394,19 @@ auto World::kashya_merc() -> void {
 // Her drop is her SuperUniques TC's (negative picks: an item and a rune roll).
 auto World::countess_died(std::uint32_t now_ms) -> void {
         bool quest_kill = false;
+        std::vector<const Player*> took_part;
         each_player([&](Player& player) {
             if (!tower.killed(quests(), level->id == d2d::rules::TowerQuest::kCellar, player.id)) return;
+            took_part.push_back(&player);
             player.tower_line_held = now_ms;
             player.events.push_back(ev::MusicCue{ .back_ms = d2d::rules::quest_music_event(0x25)->back * 40 });   // 0x4cbaad: no jingle, the music off 1500 ticks
             quest_kill = true;
         });
         if (quest_kill && act() == 0)
-            each_player([&](Player&) {
+            each_in_game([&](Player& player, int their_act) {   // the party anywhere in Act 1 (another level's turn too)
+                if (their_act != 0) return;
                 auto& bits = quests();
+                if (std::ranges::none_of(took_part, [&](const Player* one) { return one == &player || same_party(*one, player); })) return;
                 if (d2d::rules::quest::bit(bits, d2d::rules::TowerQuest::kQuest, 0)) return;
                 d2d::rules::quest::set(bits, d2d::rules::TowerQuest::kQuest, 13);
                 d2d::rules::quest::set(bits, d2d::rules::TowerQuest::kQuest, 0);

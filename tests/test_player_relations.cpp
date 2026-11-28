@@ -24,7 +24,7 @@ int main() try {
         relations.hostile_stamp(10, 20, row.stamp);
         assert(relations.entries().size() == 1);
         assert(relations.entries()[0].player == 20);
-        assert(relations.entries()[0].was_in_party);
+        assert(relations.entries()[0].party_state == 1);
         assert(relations.entries()[0].flags == row.flags);
         assert(relations.get(10, 20, row.query_mask) == row.query);
         assert(relations.hostile_stamp(10, 20) == row.stamp);

@@ -74,8 +74,11 @@ void right_skill_set(Fight::Hero& hero, int skill) {
 // FUN_005a5e50 after C->S 0x5d action 4 has resolved both player units.
 // FUN_005a5dc0 makes the declarer hostile both ways with the target, or with
 // every level-9+ member of the target's party. FUN_005a5d20 removes the
-// declarer when both players were in that party. FUN_00535430 closes the
-// declarer's town-portal pair before the party comparison.
+// declarer when both players were in that party (its members told, type 9).
+// FUN_00535430 closes the declarer's town-portal pair before the party
+// comparison. The notices are 0x5a event 7: type 3 to each one made hostile
+// (FUN_005a5dc0, 0x5a5e0a), type 4 to the other when cleared.
+// ponytail: the cooldown's voice line (event 0x13) and 0x5a 0x10 aren't sent.
 auto World::toggle_hostility(Player& other, std::uint32_t requested, std::uint32_t now_ms) -> d2d::rules::HostileToggle {
     const Level* const actor_level = level_of(*actor);
     const int self_level = int(actor->character.stats.get(d2d::d2s::kLevel));
@@ -97,6 +100,7 @@ auto World::toggle_hostility(Player& other, std::uint32_t requested, std::uint32
     other.relations.add(other.id, actor->id, actor->party >= 0);
     if (result == d2d::rules::HostileToggle::kCleared) {
         actor->relations.set(actor->id, other.id, d2d::rules::kRelationHostile, false);
+        other.events.push_back(ev::Message{ ev::Message::party, actor->character.name, {}, 4 });   // FUN_005a5690 type 4, to the other
         return result;
     }
     if (result != d2d::rules::HostileToggle::kDeclared) return result;
@@ -108,6 +112,7 @@ auto World::toggle_hostility(Player& other, std::uint32_t requested, std::uint32
         member.relations.add(member.id, actor->id, actor->party >= 0);
         actor->relations.set(actor->id, member.id, d2d::rules::kRelationHostile, true);
         member.relations.set(member.id, actor->id, d2d::rules::kRelationHostile, true);
+        member.events.push_back(ev::Message{ ev::Message::party, actor->character.name, {}, 3 });   // type 3, to each made hostile
     };
     if (other.party < 0) {
         set_both(other);
@@ -116,11 +121,10 @@ auto World::toggle_hostility(Player& other, std::uint32_t requested, std::uint32
             if (&member != actor && member.party == other.party
                 && member.character.stats.get(d2d::d2s::kLevel) >= d2d::rules::kHostileMinLevel) set_both(member);
         };
-        for (auto& member : players) party_member(*member);
-        for (Player* member : elsewhere) party_member(*member);
+        each_player_anywhere(party_member);
     }
     close_portal_pair(actor->portal_pair);
-    if (actor->party >= 0 && actor->party == other.party) actor->party = -1;
+    if (same_party(*actor, other)) party_action(other, 9, 0, now_ms);   // FUN_005a5d20, as the leave button
     return result;
 }
 
@@ -581,8 +585,13 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             if (removed) fight.update_fighters(now_ms);
             return;
         }
+        if (const auto* click = std::get_if<cmd::PartyScreen>(&command)) {   // C->S 0x5d / 0x5e (world/party.cpp)
+            Player* other = click->action == 9 ? actor : player_by_id(click->player);   // LEAVE: the sender (d2d's wire names no one)
+            if (other && click->action >= 0 && click->action <= 10) party_action(*other, click->action, click->bits, now_ms);
+            return;
+        }
         if (const auto* say = std::get_if<cmd::Say>(&command)) {   // typed chat: to everyone in the game
-            if (!say->text.empty()) announce({ ev::Message::chat, actor->character.name, say->text.substr(0, 255) });
+            if (!say->text.empty()) announce({ ev::Message::chat, actor->character.name, say->text.substr(0, 255), 0, actor->id });
             d2d::log::info("chat: {}: {}", actor->character.name, say->text);
             return;
         }
@@ -994,7 +1003,9 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
         }
         if (actor->pmode < 0) actor->item_charge = entry;
         const auto* skill = game_data->skills.get(use_skill.skill);
-        const int monster_index = fight.monster_index(use_skill.unit);
+        // ponytail: no player strikes another (PvP): a hostile player named (unit_type 0, the client's
+        // SearchEnemyNear) is cast at as its spot, never looked up as a monster's id.
+        const int monster_index = use_skill.unit_type == 0 ? -1 : fight.monster_index(use_skill.unit);
         // A converted monster is the player's side: the cursor never picks it, so no attack.
         // FUN_00467a10 gives a converted monster as a null target, so the click walks (attacks in
         // place with shift) and a held attack never targets it (cursor-units.md "The click's own

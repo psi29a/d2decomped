@@ -148,14 +148,18 @@ auto ClientSession::update(std::vector<std::uint8_t>& framebuffer, const Mouse& 
         // An NPC's item panel (UI 0xe) takes the clicks and Esc first (session/use_item.cpp).
         if (!gold_box && !game_menu.open) drive_use_item(mouse, keys_this_frame, audio);
         // The Party screen's clicks (FUN_0049bb60 / FUN_0049bdd0).
-        if (party.open && (net_game || coop_hud_hidden() || (pad_playing && pad_config.skill_buttons)) && !help.open && !controls.open && !game_menu.open) {
+        if (party.open && (net_game || lan_game() || coop_hud_hidden() || (pad_playing && pad_config.skill_buttons)) && !help.open && !controls.open && !game_menu.open) {
             const auto click = party.input(mouse, party_rows(), party_own());
+            if (lan_game()) lan_party_click(click);
             if (net_game && click.kind == PartyPanel::Click::kButton) net_game->party_button(click.player);
             if (net_game && click.kind == PartyPanel::Click::kFlag) net_game->relation(click.player, click.flag);
             if (net_game && click.kind == PartyPanel::Click::kLeave) net_game->leave_party();
-            if (mouse.x >= 80 && mouse.x < 400 && mouse.y >= 60 && mouse.y < 492) mouse.press_this_frame = mouse.release_this_frame = mouse.rpress_this_frame = false;
+            if (mouse.x >= 80 && mouse.x < 400 && mouse.y >= 60 && mouse.y < 492) {   // the window's: a held press walks no one
+                if (mouse.press_this_frame) press_on_ui = true;
+                mouse.press_this_frame = mouse.release_this_frame = mouse.rpress_this_frame = false;
+            }
         }
-        if (party.open && !net_game && !coop_hud_hidden() && party_preview.empty() && !(pad_playing && pad_config.skill_buttons)) party.open = false;
+        if (party.open && !net_game && !lan_game() && !coop_hud_hidden() && party_preview.empty() && !(pad_playing && pad_config.skill_buttons)) party.open = false;
         // The merc's portrait (FUN_00493760 / FUN_004936e0 / FUN_004938e0): 700 ms
         // on it (x .. x + 0x2e, y 0x18 .. 0x3c) with nothing in hand lights it
         // and shows its hint; a right-click opens the Hireling screen; a
@@ -334,7 +338,7 @@ auto ClientSession::update(std::vector<std::uint8_t>& framebuffer, const Mouse& 
             if (fires(keys::kMessageLog)) message_log = !message_log;
             if (fires(keys::kHelp)) toggle_help();
             // 0x468960: UI 0x16, in a multiplayer game only (FUN_0044db30), local co-op's too; a left-hand panel.
-            if (fires(keys::kParty) && (net_game || coop_hud_hidden())) toggle_party();
+            if (fires(keys::kParty) && (net_game || lan_game() || coop_hud_hidden())) toggle_party();
             // 0x469170: UI 0x24, an expansion game with a merc; a left-hand panel.
             if (fires(keys::kHireling) && character.expansion && view.merc_sheet) {
                 hireling.open = !hireling.open;
@@ -420,7 +424,7 @@ auto ClientSession::update(std::vector<std::uint8_t>& framebuffer, const Mouse& 
         // The game menu takes every click while it's up; Exit saves and goes
         // to the roster. Its volumes go to d2d.cfg.
         bool hud_click = false;
-        mini.party = net_game != nullptr;                // a joined game (game type 9): the wide mini-panel with Party (FUN_0047f0c0)
+        mini.party = net_game != nullptr || lan_game();  // a multiplayer game (game type 9; a d2d LAN game's too): the wide mini-panel with Party (FUN_0047f0c0)
         if (game_menu.open) {
             const auto action = game_menu.input(*scene, audio, mouse, keys_this_frame, frame_ms);
             if (game_menu.volume_changed && !cfg_file.empty()

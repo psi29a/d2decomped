@@ -63,8 +63,7 @@ auto ClientSession::lan_poll() -> void {
                 const bool hardcore_game = hero.character.header.hardcore();
                 if (joining->header.hardcore() && joining->header.died()) { lan_host->kick(event.client, string_id(*scene, 0x14ef)); continue; }
                 if (joining->header.hardcore() != hardcore_game) { lan_host->kick(event.client, string_id(*scene, hardcore_game ? 0x14f2 : 0x14f1)); continue; }
-                auto& seated = world.join(*joining);
-                seated.own_screen = true;                 // on their own machine: their own level (World::split_levels), the host's party stays one screen
+                auto& seated = world.join(*joining, true);   // on their own machine: their own level (World::split_levels), the host's screen stays one
                 const int seat_id = seated.id;
                 const auto& raw = event.hello.save;
                 lan_players.push_back({ .client = event.client, .id = seat_id, .view_enc = {}, .orders = {},

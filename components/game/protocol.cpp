@@ -60,6 +60,10 @@ std::vector<std::uint8_t> encode(const Command& command) {
         else if constexpr (std::is_same_v<T, cmd::Run>) out.u8(message.running ? opcode::kRunOn : opcode::kRunOff);
         else if constexpr (std::is_same_v<T, cmd::Chat>) out.u8(opcode::kChat).i32(message.npc);
         else if constexpr (std::is_same_v<T, cmd::Say>) out.u8(opcode::kSay).str(message.text);
+        else if constexpr (std::is_same_v<T, cmd::PartyScreen>) {
+            if (message.action <= 4) out.u8(opcode::kRelation).u8(message.action).u8(std::uint8_t(message.bits)).i32(message.player);
+            else out.u8(opcode::kPartyButton).u8(message.action).i32(message.player);
+        }
         else if constexpr (std::is_same_v<T, cmd::QuestMessage>) out.u8(opcode::kQuestMessage).i32(message.npc).i32(message.string);
         else if constexpr (std::is_same_v<T, cmd::Caravan>) out.u8(opcode::kNpcDeal).u8(npc_deal::kCaravan).i32(message.npc);
         else if constexpr (std::is_same_v<T, cmd::Imbue>) out.u8(opcode::kNpcDeal).u8(npc_deal::kImbue).i32(message.npc).i32(message.item);
@@ -132,6 +136,8 @@ std::optional<Command> decode(std::span<const std::uint8_t> bytes) {
         case opcode::kRunOn: case opcode::kRunOff: command = cmd::Run{ bytes[0] == 0x53 }; break;
         case opcode::kChat: command = cmd::Chat{ i32() }; break;
         case opcode::kSay: command = cmd::Say{ input.str() }; break;
+        case opcode::kRelation: { const int action = byte(); const auto bits = std::uint32_t(byte()); command = cmd::PartyScreen{ action, i32(), bits }; break; }
+        case opcode::kPartyButton: { const int action = byte(); command = cmd::PartyScreen{ action, i32(), 0 }; break; }
         case opcode::kQuestMessage: { const int quest = i32(); command = cmd::QuestMessage{ quest, i32() }; break; }
         case opcode::kWaypoint: { const int npc = i32(); command = cmd::Waypoint{ npc, i32() }; break; }
         default: return std::nullopt;

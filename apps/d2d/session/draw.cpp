@@ -560,7 +560,7 @@ auto ClientSession::draw_view(std::vector<std::uint8_t>& framebuffer, std::vecto
                     scene->font_small.draw(framebuffer, kScreenWidth, kScreenHeight, scene->pal, 12, 34, "Finish or cancel the item action to switch panels");
             }
         }
-        if (party.open && (net_game || coop_hud_hidden() || !party_preview.empty() || (pad_playing && pad_config.skill_buttons))) party.draw(framebuffer, *scene, party_rows(), party_own(), mouse.x, mouse.y);
+        if (party.open && (net_game || lan_game() || coop_hud_hidden() || !party_preview.empty() || (pad_playing && pad_config.skill_buttons))) party.draw(framebuffer, *scene, party_rows(), party_own(), mouse.x, mouse.y);
         if (hireling.open && view.merc_sheet)
             hireling.draw(framebuffer, *scene, *view.merc_sheet, merc_label, character.merc_items, held, mouse.x, mouse.y);
         if (scroll.open) scroll_sound = scroll.draw(framebuffer, *scene, now_ms) || scroll_sound;
@@ -729,6 +729,18 @@ auto ClientSession::draw_pad_hint(std::vector<std::uint8_t>& framebuffer) -> voi
 // (SOJs sold, 0x2afc) format their string with +3 (FUN_005269d0's %d /
 // %u); 0x12 is 0x2afd as is (its eclipse, quake and sound: update.cpp's
 // event loop).
+// A party line (0x5a event 7, FUN_0049e8f0): `sub` 1..11 by its table, naming `who`; "" else.
+auto ClientSession::party_text(int sub, std::string who) const -> std::string {
+    static constexpr std::array<std::uint16_t, 11> kParty{ 0x277a, 0x277b, 0xfba, 0xfbb, 0xfbc, 0xfbd, 0xfbe, 0xfbf, 0xfc0, 0x277c, 0x277d };
+    if (sub < 1 || sub > 11 || who.empty()) return {};
+    auto line = string_id(*scene, kParty[std::size_t(sub - 1)]);
+    if (sub <= 2 || sub >= 10) {                              // "%s permits you to loot his corpse."
+        if (const auto spot = line.find("%s"); spot != std::string::npos) line.replace(spot, 2, who);
+        return line;
+    }
+    return sub == 8 ? line + who : who + line;                // "You are now allied with " / " has left your party."
+}
+
 auto ClientSession::event_text(const NetGame::Event& event) const -> std::string {
     auto text = [&](std::uint16_t id) { return string_id(*scene, id); };
     auto format = [](std::string pattern, std::initializer_list<std::string> values) {
@@ -773,11 +785,7 @@ auto ClientSession::event_text(const NetGame::Event& event) const -> std::string
         std::string who;
         if (net_game)
             if (const auto found = net_game->units.find(std::uint64_t(event.argument)); found != net_game->units.end()) who = found->second.name;
-        static constexpr std::array<std::uint16_t, 11> kParty{ 0x277a, 0x277b, 0xfba, 0xfbb, 0xfbc, 0xfbd, 0xfbe, 0xfbf, 0xfc0, 0x277c, 0x277d };
-        if (event.sub < 1 || event.sub > 11 || who.empty()) return {};
-        const auto line = text(kParty[std::size_t(event.sub - 1)]);
-        if (event.sub <= 2 || event.sub >= 10) return format(line, { std::move(who) });   // "%s permits you to loot his corpse."
-        return event.sub == 8 ? line + who : who + line;      // "You are now allied with " / " has left your party."
+        return party_text(event.sub, std::move(who));
     }
     case 8: return event.name + text(0xfcc);                   // " is busy"
     case 9: return text(0xfcf);
@@ -896,6 +904,9 @@ auto ClientSession::draw_portraits(std::vector<std::uint8_t>& framebuffer, bool 
                 if (unit.type != 0 || unit.id == net_game->self_id || unit.party != self->second.party || unit.cls < 0 || unit.cls > 6) continue;
                 portrait(&scene->class_icons[std::size_t(unit.cls)], unit.party_life, unit.name, 0);
             }
+    if (lan_game() && view.party >= 0)                                // a LAN game's: the host's roster (its 0x7f life %)
+        for (const auto& row : view.roster)
+            if (row.party == view.party && row.cls >= 0 && row.cls <= 6) portrait(&scene->class_icons[std::size_t(row.cls)], row.life, row.name, 0);
     const auto& game_data = *world.game_data;
     const auto icon_of = [&](const GameData::PetType& type, int monster_class) {
         for (std::size_t i = 0; i < type.class_icons.size(); ++i)

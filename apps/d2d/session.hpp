@@ -299,6 +299,7 @@ struct ClientSession {
     std::uint32_t merc_hover_at = 0;                        // since when the cursor's been on it (DAT_007beee8), 0 not
     bool merc_hovered = false;                              // 700 ms on it with nothing in hand: drawn mode 7, its hint shown
     auto event_text(const NetGame::Event& event) const -> std::string;
+    auto party_text(int sub, std::string who) const -> std::string;
     auto draw_chat(std::vector<std::uint8_t>& framebuffer, bool left_open, bool right_open) const -> void;
     auto wrap_chat(const std::string& text, int width) const -> std::vector<std::string>;
     std::optional<std::string> chat_typing;                 // a chat message, being typed (Enter)
@@ -409,6 +410,10 @@ struct ClientSession {
     // --connect: this d2d plays in a d2d host's game. Its World doesn't tick; the host's Views
     // come in and are taken as publish takes the local one, its commands go out over the socket.
     std::optional<d2d::net::lan::Client> lan_client;
+    // A d2d-to-d2d LAN game, hosting or joined: a multiplayer game (the wide mini-panel, the Party screen).
+    [[nodiscard]] bool lan_game() const { return lan_host.has_value() || lan_client.has_value(); }
+    // A Party screen click in a LAN game: its command to the host (World::party_action).
+    void lan_party_click(const PartyPanel::Click& click);
     std::string lan_lost;                         // why the host's game ended for us ("" while it's on)
     const CharacterStore* lan_store = nullptr;    // where the host's Saves of our character go
     bool lan_resyncing = false;                   // asked the host for a whole View, none applied since

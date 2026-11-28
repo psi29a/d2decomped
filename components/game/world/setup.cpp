@@ -71,7 +71,7 @@ World::World(const GameData* loaded_data, int start_x, int start_y) : game_data(
     loot.gold_sharers = [this] {
         std::vector<Character*> others;
         for (const auto& player : players)
-            if (player.get() != actor && player->pmode != kModeDT && player->pmode != kModeDD) others.push_back(&player->character);
+            if (player.get() != actor && same_party(*player, *actor) && player->pmode != kModeDT && player->pmode != kModeDD) others.push_back(&player->character);   // FUN_005405a0: the party on the level
         return others;
     };
     loot.class_voice = [this](std::string_view name, std::uint32_t now_ms) { fight.class_voice(name, now_ms); };
@@ -356,9 +356,10 @@ static std::size_t saved_records(const std::vector<d2d::d2s::Item>& list) {
     return records;
 }
 
-auto World::join(const Character& entering) -> Player& {
+auto World::join(const Character& entering, bool own_screen) -> Player& {
         Player& was = *actor;
         Player& player = add_player();
+        player.own_screen = own_screen;
         act_as(player);
         take_character(entering);
         // They play the game's difficulty (the first player's), in its act.
@@ -383,6 +384,13 @@ auto World::join(const Character& entering) -> Player& {
         lay_save_corpse(entering);
         item_ids();
         d2d::log::info("{} joins the game (player {})", player.character.name, player.id);
+        // d2d (deviations.md 7): as if the first player invited them and they accepted (world/party.cpp).
+        if (!own_screen || auto_party) {
+            act_as(lead());
+            party_action(player, 6, 0, now);
+            act_as(player);
+            party_action(lead(), 8, 0, now);
+        }
         act_as(was);
         return player;
     }
@@ -399,6 +407,11 @@ auto World::leave(int id) -> std::string {
         const auto why = save();
         d2d::log::info("{} leaves the game (player {})", actor->character.name, id);
         close_portal_pair((*found)->portal_pair);   // their town portal closes
+        // FUN_00555600 -> FUN_005407a0: out of their party; FUN_005349d0 -> FUN_0055b790: every
+        // player's node toward them goes (FUN_0055b1e0), then their own.
+        party_remove(**found);
+        each_player_anywhere([&](Player& other) { other.relations.remove(other.id, id); });
+        (*found)->relations = {};
         if (found == players.begin()) {
             // The first player: the next one takes their place (slot [0], what
             // the client's `hero` is), the game goes on.
