@@ -965,7 +965,17 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             if (npc.operate_fn == d2d::rules::operate_fn::kStash || npc.operate_fn == d2d::rules::operate_fn::kWaypoint || npc.operate_fn == d2d::rules::ToolsQuest::kStand || usable || quest_object(npc.operate_fn) || (npc.root == "monsters" && menu)) actor->interact_npc = interact->npc;
             return;
         }
-        const auto& use_skill = std::get<cmd::UseSkill>(command);
+        auto use_skill = std::get<cmd::UseSkill>(command);
+        // Native direct input carries its own policy; pointer commands never enter here.
+        if (direct_casts && use_skill.direct) {
+            if (!std::isfinite(use_skill.x) || !std::isfinite(use_skill.y)) return;
+            const auto* row = game_data->skills.get(use_skill.skill);
+            if (row && (self_cast(*row) || row->srvdofunc == ServerDoFunction::kNova || row->srvdofunc == ServerDoFunction::kWarCry
+                || row->srvdofunc == ServerDoFunction::kStaticField || row->srvdofunc == ServerDoFunction::kStateAroundCaster)) {
+                use_skill.x = actor->player.x; use_skill.y = actor->player.y;
+                use_skill.unit = -1; use_skill.unit_type = 1;
+            }
+        }
         // A charged entry's cast (UseSkill::item): only while the entry is
         // there, its item active with charges left (FUN_00647840; a client
         // with none starts nothing, FUN_004c6140). Its level and cost go
@@ -1057,6 +1067,14 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
         // FUN_004f6190 only sleeps a frame out to 5 ms, and FUN_00478350 exempts skill packets (0x05..0x11) from its
         // 200 ms repeat drop; so the count follows the frame rate, game.exe's too (deviations.md #16).
         if (goes >= 0) ++actor->pierce_idx;
+        // Only direct input cancels a stale approach for an accepted location cast.
+        const bool direct = direct_casts && use_skill.direct && use_skill.unit < 0 && use_skill.unit_type == 1
+            && skill && !skill->passive && !skill->aura;
+        if (direct && goes == use_skill.skill && actor->pmode < 0) {
+            actor->attack_mon = actor->interact_npc = actor->pick_item = -1;
+            actor->player.walking = false;
+            actor->player.path.clear();
+        }
         if (goes != use_skill.skill) {
             // Attack in the skill's place goes at the spot; a refusal swings nothing.
             actor->attack_mon = -1;
@@ -1066,6 +1084,14 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             else class_cue("not_in_town_2", now_ms);
         } else if (skill && self_cast(*skill)) {                                            // Holy Shield: where the player stands
             if (fight.cast(use_skill.skill, now_ms)) { actor->player.walking = false; actor->interact_npc = -1; }
+        } else if (skill && direct && (skill->srvdofunc == ServerDoFunction::kCharge || skill->srvdofunc == ServerDoFunction::kLeapAttack)) {
+            if (actor->pmode >= 0 || (skill->srvdofunc == ServerDoFunction::kLeapAttack && level->unit_blocked(use_skill.x, use_skill.y))) return;
+            actor->move_x = use_skill.x; actor->move_y = use_skill.y;
+            actor->attack_skill = use_skill.skill;
+            actor->attack_charge = entry;
+            if (use_skill.x != actor->player.x || use_skill.y != actor->player.y)
+                actor->player.dir = direction16(use_skill.x - actor->player.x, use_skill.y - actor->player.y);
+            (void)fight.start_direct_swing(now_ms);
         } else if (skill && skill->srvdofunc == ServerDoFunction::kWhirlwind && monster_index < 0) {                      // Whirlwind to that point (FUN_005d8f50)
             actor->move_x = use_skill.x; actor->move_y = use_skill.y;
             actor->attack_mon = -1;
@@ -1077,10 +1103,22 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             (void)fight.start_swing(now_ms);
         } else if (skill && !live && (fight.missile_skill(*skill) || fight.spot_skill(*skill)) && (in_moor || skill->in_town)) {
             actor->interact_npc = actor->pick_item = -1;                                   // a missile, Teleport, Corpse Explosion at the spot
-            if (fight.cast_missile(use_skill.skill, use_skill.x, use_skill.y, now_ms)) actor->player.walking = false;
+            const int facing = actor->player.dir;
+            if (fight.cast_missile(use_skill.skill, use_skill.x, use_skill.y, now_ms)) {
+                actor->player.walking = false;
+                if (direct && use_skill.x == actor->player.x && use_skill.y == actor->player.y) actor->player.dir = facing;
+            }
         } else if (skill && !live && fight.summon_skill(*skill) && in_moor) {        // Raise Skeleton: the corpse there
             actor->interact_npc = actor->pick_item = -1;
             if (fight.cast_summon(use_skill.skill, use_skill.x, use_skill.y, now_ms)) actor->player.walking = false;
+        } else if (skill && direct && !skill->passive && !skill->target_corpse && !skill->target_ally && !skill->target_pet
+                   && skill->range == "h2h" && skill_built(*skill)) {
+            if (actor->pmode >= 0) return;
+            actor->attack_skill = use_skill.skill;
+            actor->attack_charge = entry;
+            if (use_skill.x != actor->player.x || use_skill.y != actor->player.y)
+                actor->player.dir = direction16(use_skill.x - actor->player.x, use_skill.y - actor->player.y);
+            (void)fight.start_direct_swing(now_ms);
         } else if (skill && !live && use_skill.skill == 0 && use_skill.unit < 0) {
             attack_spot();
         } else if (zeal && !live && use_skill.unit < 0) {

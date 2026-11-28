@@ -21,7 +21,8 @@ off with `--toggle name=off[,name=off...]` (apps/d2d/main.cpp `kToggles`):
 `light_grid` (improvement 1), `trans_roof` (improvement 4), `autoloot` (improvement 5),
 `autoparty` (improvement 7), `pad_controls` (improvement 11), `coop_lobby` (improvement 12),
 `splash_centre` (improvement 14), `click_keys` (improvement 15), `unit_slide` (improvement 16),
-`hwcursor` (improvement 19), `touch_classic_hud` (improvement 20).
+`hwcursor` (improvement 19), `touch_classic_hud` (improvement 20),
+`direct_casts` (improvement 23, off by default).
 `--toggle scalemode=pixelart|nearest|linear` picks the upscale filter (Additions).
 
 ## Improvements
@@ -51,6 +52,7 @@ off with `--toggle name=off[,name=off...]` (apps/d2d/main.cpp `kToggles`):
 | 20 | Touch input prototype | No touch adapter | Opt-in `--touch-controls` / `touch_controls = 1`: corner thumb layout, attack-only primary button, contextual Interact, four skills per I/II page, native framed life/mana globes near the bottom, stamina/XP beneath the top-left chips; game.exe's bottom bar, belt strip and mini menu row hidden there (`--toggle touch_classic_hud=on` restores them). Map opens full-screen; skill tree pins left on touch. Drag-to-aim, cancel region, `.touchskills` sidecars. Off by default, on by default on Android and iOS | Mobile-style field HUD across the logical viewport, with centered legacy panels | yes, once enabled | touch/input.hpp, session/touch.cpp; docs/design/controller-touch.md |
 | 21 | CONVERT TO EXPANSION on a long save | Reads and rewrites only the save's first 0x2000 bytes, the checksum over those (`FUN_0043caa0`, bugs.md #122): a longer file keeps its tail and fails its checksum | The whole file, its checksum over all of it | A large character survives the conversion | only for saves over 8 KiB | d2s_write.hpp `convert_to_expansion` |
 | 22 | The TCP/IP screen's own address | `FUN_0040df60`: the host name's first `gethostbyname` address; the UDP route (24.105.29.30:7, `getsockname`) only when there is none. On Windows the name maps to the LAN address | The host name's first non-loopback address; the UDP route also when the name maps only to loopback (127/8); loopback with no route shows 127.0.0.1. No toggle | Android's host name is "localhost" and Debian's maps to 127.0.1.1: game.exe's rule showed "Cannot detect a valid TCP/IP address." (or 127.0.1.1) with Wi-Fi up, and HOST and JOIN dark | yes, off Windows: the real address, HOST and JOIN live | net/tcp.cpp `pick_own_address` |
+| 23 | Touch/controller location casts | Pointer and keyboard skills retain the existing retail targeting and start rules | With host `--toggle direct_casts=on` (off by default), explicitly flagged touch/controller commands can aim Charge and Leap Attack at ground and swing built melee skills without a target. Accepted location casts clear stale approaches; centered missile casts retain facing. Pointer/keyboard commands never opt in, including Shift-click | Let fingers and sticks aim without requiring a mouse-picked unit | yes, only flagged input on an opted-in host | skills/direct.hpp, world/commands.cpp, fight/direct.cpp; test_direct_cast |
 
 ## Approximations
 

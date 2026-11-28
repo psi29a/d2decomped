@@ -424,3 +424,24 @@ original-game touch/controller parity. Device play testing remains required.
 
 These are optional d2d input/UI decisions, not original-game parity claims.
 The iOS port and engine movement-skill changes are outside this batch.
+
+## Optional directed combat
+
+The host may enable `--toggle direct_casts=on` (off by default). Touch and both
+controller layouts then explicitly mark their skill commands for direct input.
+A ground-aimed Charge runs to the point or a wall; Leap Attack lands at an
+unblocked aimed point. Built melee skills may swing in place without a unit,
+retaining mana and readiness checks. Accepted location casts discard an old
+approach, and caster-centered missile skills retain facing.
+
+Mouse and keyboard commands, including Shift-click, do not carry this flag and
+keep the existing retail behavior even while the host enables the option.
+The host flag is checked separately for every command, so another player's
+controller does not change a mouse player's commands. These are optional d2d
+input rules, not new game.exe parity claims.
+
+Native LAN protocol 16 carries the direct-input intent; older peers are refused
+by the version handshake. A game.exe/D2GS host receives only its usual packets
+and does not implement this d2d-only policy. Re-check with `test_direct_cast`,
+`test_protocol` and `test_stand_attack`; device and live LAN play testing remain
+necessary.
