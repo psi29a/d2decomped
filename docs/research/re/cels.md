@@ -62,3 +62,31 @@ cmake --build build --target test_cel_anchor && build/tests/test_cel_anchor
 including cels clipped at the top and bottom of an 800x600 screen. It
 hooks only the row writer. `test_cel_anchor` draws the same cels with
 `blit_at_anchor` and checks the left column and the first and last rows.
+
+## DCC cell decode and DC6 RLE pack (`SRC/Codec.cpp`)
+
+`FUN_0060bff0` decodes a DCC direction using the 16-entry bit-width table
+at `0x6e5f70` (`0, 1, 2, 4, 6, 8, 10, 12, 14, 16, 20, 24, 26, 28, 30, 32`,
+matching `components/dcc/dcc.hpp`), the LSB bit-mask table at `0x6e6030`,
+and two helpers:
+
+- **`FUN_0060b7b0`** (ESI = dst cell `{pb_entry, pixels, pitch, w, h}`,
+  ECX = `&pb_ptr`, EDX = equal-cells bit reader or 0, stack =
+  `(pixel_reader, prev_cell)`, `ret 8`): when the equal-cells reader is
+  present, `prev_cell[0] != 0`, and its next bit is 1, copies `prev_cell`
+  into `dst` through a 25-byte stack buffer (overlap-safe, no-op when
+  `dst == src`) if `(w, h)` match, or zeroes `dst` if dimensions differ.
+  Otherwise computes `bits_per_pixel` (`0` if `pb[1] == pb[0]`, `1` if
+  `pb[2] == pb[1]`, else `2`), fills with `pb[0]` for 0-bit or reads
+  `bits_per_pixel` LSB-first per pixel via `FUN_0060b200`, and advances
+  `*pb_ptr += 4`.
+- **`FUN_0060bdb0`** (ECX = frame record, EDX = cel header, stack =
+  `out_buf`, `ret 4`): packs the decoded frame (`+4` width, `+8` height,
+  `+0x20` pixels, `+0x24` pitch, `+0x28` bottom-up) into DC6-style RLE
+  (flipping rows bottom-to-top when `bottom_up == 0`, transparent runs
+  `0x80 | min(len, 0x7f)`, opaque runs `min(len, 0x7f)` + pixel bytes,
+  row terminator `0x80`). Returns 1 if the end pointer equals
+  `cel_hdr + 0x20 + *(cel_hdr + 0x1c)`, else logs `"Sprite Decompression
+  Error"` (`0x6e6138`) via `FUN_00410610` and returns 0.
+
+Re-check: `cd tools/emu && uv run python dcc_decode_helpers.py --exe /path/to/Game.exe --mutation-check` (13 synthetic cases, 6 mutations; `FUN_0060b200`, `memcpy` and `memset` run for real; `FUN_00410610` hooked).
