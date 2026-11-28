@@ -3021,13 +3021,13 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
             // cuts a row off what's left of its sequence (+0x48 & ~0xff, less 0x100), so it ends a row sooner.
             if (type_info.base != 0x4e && monster.mode_until > now_ms) monster.mode_until -= std::min(leap_step, monster.mode_until - now_ms);
             // sandleaper1's (FUN_005da020): with the unit it leapt at still there (FUN_00552f60 on its id), the
-            // sequence goes to row 12 (FUN_006212c0) and its length to that many rows and one more (+0x48: its
-            // whole rows + 0x100), so rows 10 and 11 (11's event) are passed by; its type 8 path from there is
-            // to the landing it stands on.
+            // sequence goes to row 12 (FUN_006212c0, so rows 10 and 11, 11's event, are passed by) and the length
+            // it has left keeps its whole rows and takes one more (+0x48 = (+0x48 & ~0xff) + 0x100, FUN_005da020); its
+            // type 8 path from there is to the landing it stands on (FUN_005da120 passes the landing, +0x18 / +0x1c).
             if (type_info.base == 0x4e && std::ranges::any_of(foes, [&](const Foe& other) { return other.id == monster.leap_target && other.alive; })) {
-                const auto rows = std::uint32_t(std::max<std::size_t>(skill_seq(game_data, type_info, monster.skill) ? skill_seq(game_data, type_info, monster.skill)->size() : 0, 13));
+                const std::uint32_t left_rows = monster.mode_until > now_ms ? (monster.mode_until - now_ms) / leap_step : 0;
                 monster.seq_shift_ms = int(now_ms - unit.mode_ms) - 12 * int(leap_step);
-                monster.mode_until = now_ms + (rows + 1 - 12) * leap_step;
+                monster.mode_until = now_ms + (left_rows + 1) * leap_step;
             }
         }
         if (mode_over()) {

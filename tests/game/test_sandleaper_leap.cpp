@@ -2,9 +2,9 @@
 // test-links: game
 // A Sand Leaper's Leap (do 77, seq_leaperleap: event 1 on rows 1, 9 and 11): it takes off on row 1 (FUN_005d9f70),
 // standing till then, and lands on row 9 (FUN_005da120). On it, with the unit it leapt at still there, FUN_005da020
-// takes the sequence to row 12 and its length to that and one row more (+0x48), so rows 10 and 11 are passed by and
-// the mode ends a row after row 12's start; with that unit gone the sequence runs on as it was. The real
-// monster_update on made-up rows.
+// takes the sequence to row 12 (rows 10 and 11 passed by) and keeps the length it has left, its whole rows and one
+// more (+0x48 = (+0x48 & ~0xff) + 0x100): at row 9 of 20, 11 left, so the mode ends 12 rows on; with that unit gone
+// the sequence runs on as it was. The real monster_update on made-up rows.
 
 #include <ai.hpp>
 #include <ai/units.hpp>
@@ -78,7 +78,7 @@ int main() try {
     };
     const auto jumped = run(true), ran_on = run(false);
     std::printf("Sand Leaper's landing: ends %u ms on with its target there, %u without\n", jumped - start, ran_on - start);
-    assert(jumped == start + 9 * tick_ms + (20 + 1 - 12) * tick_ms);
+    assert(jumped == start + 9 * tick_ms + (20 - 9 + 1) * tick_ms);
     assert(ran_on == start + 20 * tick_ms);
     std::puts("OK: a Sand Leaper takes off on row 1, lands on row 9, and goes to row 12 when its target's there");
     return 0;
