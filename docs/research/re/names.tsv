@@ -1912,6 +1912,7 @@ address	name	evidence
 005fd7b0	monster_skill_from_row	Fastcall (monster, 0): its MonStats row's skill (+0x10c) as its skill node; the row's +0x10b (under 16). Only caller FUN_005ccb10 (unnamed-frontier.md)
 005fd9c0	skill_corpse_target	FUN_00553540(ECX, EDX); a corpse from the search FUN_0056e390(stack 1, stack 2): none returns 0; else FUN_00620c10(EDX, corpse) and, when the out pointers (stack 3, ... (frontier-ring.md)
 005fde10	lru_cache_end	When DAT_0088cb14: a nonzero argument runs FUN_006093e0; zeroes 0x88cae0 (0x34 bytes) and DAT_0088cb18 (frontier-ring.md)
+005fdf80	dt1_header_prefix_size	ECX file name: reads the 0x114-byte header and returns 0x114 + its +0x10c tile count * 0x60; open failure returns 0, failed or short read is fatal (dt1.md)
 005fe060	clear_88cb0c	0x88cb10, 0x88cb0c = 0. Only caller FUN_00477c00 (unnamed-frontier.md)
 005fe070	client_end_6093e0	FUN_006093e0() (frontier-ring.md)
 005fe120	lru_cache_start	DAT_0088cb18 = stack 2; zeroes 0x88cae0 and sets up the LRU cache (lru_init) with limit stack 2, the evict callback LAB_005fde50 and 0x1000 entries; DAT_0088cb14 = 1 (frontier-ring.md)
@@ -1927,6 +1928,7 @@ address	name	evidence
 005ffe90	sprite_cache_add_layer	(entry, group, count) with the layer record in ESI: FUN_005ffc40 node, 0xb8-byte cache record filled from the layer, FUN_005ff760, FUN_0060adc0 (error 0x5d1), FUN_005fec90; result FUN_005fec50 into layer +0x3c
 006000b0	sprite_cache_load_layer	(entry ECX, layer EDX, group, count, path buffer, flag; stem EAX): +0x40 direction scale, FUN_0060ace0 lookup, FUN_005fe2b0 / FUN_005fe610 for the path, then FUN_005ffe90 (flag 0) or FUN_005fffa0
 006004e0	sprite_cache_ensure_layer	(layer): +0x34 set gives +0x3c = FUN_00601840; else FUN_005fe990 loads the DCC, FUN_0060ace0 lookup (a failed one sets +0x44 bit 2), FUN_00600cb0 rescales +0x40, FUN_005fffa0 links it
+00600710	dt1_cache_find	ESI name: exact case-sensitive strcmp against each node's stored name; nodes follow +0x10c from DAT_008adbb4; returns the matching node or 0 (dt1.md)
 00600b80	free8_6009c0	FUN_006009c0 eight times (its arguments are in registers) (frontier-ring.md)
 00604c20	tile_get_20	A tile record's +0x20 (null asserts). FUN_0066d440 walks frames by it; FUN_0066d820 sums it as pick weights (src-frontier.md)
 00604cb0	tile_get_8	A tile record's +8. Only caller the automap FUN_004dd7c0 (src-frontier.md)

@@ -5,6 +5,84 @@ to screen coordinates when drawing. d2d's `y_shift = max(0, -min(block.y))`
 is therefore an **internal pixel-buffer packing rule**, not an offset computed
 by game.exe.
 
+## Tile-project cache
+
+### Name lookup
+
+`FUN_00600710` is the lookup for the process-wide DT1 cache headed by
+`DAT_008adbb4`. Its ESI argument is a NUL-terminated file name. Each cache node
+stores its name at offset `+0x00`, the loaded DT1 at `+0x104`, the tile-search
+index at `+0x108`, and the next node at `+0x10c`.
+
+The function walks that link and compares the query directly with the name at
+the start of each node. The comparison is an inlined `strcmp`: it compares two
+bytes per iteration but stops at the first unequal byte or the shared NUL. It
+therefore requires an exact, case-sensitive, whole-string match; there is no
+hash or path normalisation. A match returns the node and exhausting the list
+returns 0. `FUN_00600790` uses the result to return the cached fields at
+`+0x104` and `+0x108`; `FUN_00600760` is the other wrapper and returns only
+`+0x108` (or 0 on a miss).
+
+This lookup is reached in retail play: `FUN_0061fae0` loads each LvlTypes DT1
+through `FUN_00604a40` and `FUN_00600790`, and `FUN_0066f240` repeats that path
+when a room acquires its DT1 set. d2d's `load_room_dt1s` and `load_level_dt1s`
+instead own parsed DT1 records with the level and map those records directly;
+they do not expose the stock cache node, its traversal order, or its identity.
+Repeated names can consequently cause extra reads and parsed copies in d2d,
+but no tile-selection or gameplay result depends on those cache details. There
+is no behaviour to port for this lookup.
+
+Re-check the body and its call paths with
+`python3 tools/ghidra/fn.py 00600710 00600760 00600790 00604a40 0061fae0 0066f240`.
+
+### Header-prefix size
+
+`FUN_005fdf80` takes a DT1 file name in ECX. It opens that name with
+`FUN_00516e46(name, &handle, 0)`. A failed open reports the file error and the
+helper returns 0. On success it reads exactly `0x114` bytes into a local buffer
+with `FUN_00516f85(handle, buffer, 0x114)` and closes the handle with
+`FUN_00516e84`. The read wrapper makes a failed or short read fatal, and the
+close wrapper makes a null handle fatal.
+
+The helper reads the tile count at header offset `+0x10c` and returns, with
+unchecked 32-bit arithmetic:
+
+```text
+0x114 + tile_count * 0x60
+```
+
+This is the size of the DT1 header plus its tile records, not the complete
+file. On a cache miss `FUN_00600790` allocates that many bytes, opens the same
+name again, reads exactly that prefix, and closes it. `FUN_0060a390` then
+checks version 7, rebases the tile-record array, copies the name, gives every
+tile its owning DT1 pointer, and rejects tile records whose lazy block fields
+are already set. `FUN_0060a440` builds the accompanying tile-search index; the
+two objects become the cache node's `+0x104` and `+0x108` fields.
+`FUN_00600790` zeroes a new `0x110`-byte node, sets its `+0x10c` link to the
+old `DAT_008adbb4`, copies the name to `+0x00`, and replaces the global with
+the new node. Cache misses are therefore prepended, not appended.
+
+The three calls (`FUN_00516e46`, `FUN_00516f85`, `FUN_00516e84`) are therefore file open/read/close plumbing.
+There is no format id, argument list, localised-string lookup, or formatted
+text on this path: the 0 is the open wrapper's missing-file reporting flag,
+and the `0x114` is its raw read size. Direct runs of the stock helper return
+`0x1d4` for Blank.dt1 (two tiles) and `0x1f74` for Warp.dt1 (81 tiles), exactly
+the formula above. Apart from reading the stack-cookie global `DAT_00749de0`,
+`FUN_005fdf80` itself has no persistent data effect.
+
+This cache-miss path is reached by the ordinary retail loaders named in the
+previous section. d2d instead asks the MPQ stack for the complete file and
+`d2d::dt1::Archive` validates and parses its header and tile records directly.
+For valid retail DT1s that subsumes the prefix-size calculation; the stock
+allocation size is not gameplay state and needs no separate port. Missing or
+malformed-file handling differs (some d2d loaders warn and skip where stock
+code reports or terminates), but that is damaged-data handling rather than a
+missing stock gameplay rule, and it is not changed here.
+
+Re-check with `python3 tools/ghidra/fn.py 005fdf80 00516e46 00516f85
+00516e84 00600790 0060a390 0060a440` and inspect `FUN_005fdf80`'s return
+arithmetic in the disassembly.
+
 ## Loading and block fixup
 
 - `FUN_00600790` caches a DT1 and calls `FUN_0060a390` to validate its header.
