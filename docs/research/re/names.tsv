@@ -2675,7 +2675,7 @@ address	name	evidence
 00681d27	crt_exit	The CRT's doexit: the atexit and terminator tables (d2d_crt_decode_pointer), then ExitProcess. Callers the exits FUN_00681e09 and two more (unnamed-frontier.md)
 00683006	crt_ftol	The CRT's float-to-integer rounding helper. Callers d2d_click_spot_click_spot and one more (unnamed-frontier.md)
 00684782	crt_fread	fread_s with no buffer limit. 5 callers (unnamed-frontier.md)
-00687ac0	crt_log	log (crt.md "Math"): the SSE2 path when the FPU and MXCSR masks allow, else the x87 one. Callers the sound mix FUN_00516830 and two more (unnamed-frontier.md)
+00687ac0	crt_log	log (crt.md "Math"): the SSE2 path when DAT_00994c84 is set and the FPU and MXCSR masks allow, else the x87 one. Callers the sound mix FUN_00516830 and two more (unnamed-frontier.md)
 00687c10	crt_pow	pow, as crt_log with two operands. 5 callers, among them FUN_00516830, d2d_palette_make_ramp (unnamed-frontier.md)
 00687ea0	crt_log10	log10, as crt_log. Only caller FUN_005165f0 (unnamed-frontier.md)
 00688590	crt_sin	sin, as crt_log. Only caller d2d_light_act4_light (unnamed-frontier.md)
