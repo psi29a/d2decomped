@@ -669,6 +669,9 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                     foes[side.pets + k].knocked_from.reset();
                 }
                 pets_turn(now_ms, elapsed, crowd);
+                // pets_turn may drop pets (and shift the rest): each pet foe's seed back on its own pet, found by
+                // id; one gone is no longer there to strike (CodeRabbit on #815).
+                rebind_pet_foes(std::span(foes).subspan(side.pets), actor->pets);
                 player_shots(now_ms);
             }
             missile_tick(now_ms);
@@ -805,6 +808,15 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
 // target's curse_resistance (stat 0x6d) as FUN_0056e970 puts a curse state
 // (FUN_0063a420): 100 or more none, else the length less that % of it
 // (d2d_rules_mul_div).
+auto Fight::rebind_pet_foes(std::span<Foe> pet_foes, std::vector<Pet>& pets) -> void {
+        for (auto& foe : pet_foes) {
+            if (!foe.pet) break;
+            const auto owned = std::ranges::find(pets, foe.id, [](const Pet& pet) { return pet.monster.id; });
+            foe.seed = owned != pets.end() ? &owned->monster.seed : nullptr;
+            if (owned == pets.end()) foe.alive = false;
+        }
+    }
+
 auto Fight::monster_curse(const Foe::Cast& cursed, std::uint32_t now_ms, int curse_resistance) -> Hero::Curse {
         const auto* skill = game_data->skills.get(cursed.skill);
         if (!skill) return {};
