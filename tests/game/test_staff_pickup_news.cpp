@@ -4,8 +4,9 @@
 // The scroll with bit 3 unset, the amulet, the Cube or the shaft sends the log to the picker (FUN_00544190 at
 // 0x599acb, or FUN_00599570 for the shaft) when FUN_00599510 passes (rules::quest_log_goes_to): World::item_event
 // raises ev::QuestNews{10}. A corpse uses fresh quest bits and FUN_0057f700 / FUN_00533850 attach its owner's
-// client, so its event sends there too. The staff, a read scroll, a done quest and a record FUN_00544410 closed
-// send none. tools/emu/staff_pickup_news.py and staff_corpse_news.py check game.exe's side. Needs the game data.
+// client, so its event sends there too (the rule over made-up corpse rows: test_staff_corpse_news.cpp).
+// The staff, a read scroll, a done quest and a record FUN_00544410 closed send none.
+// tools/emu/staff_pickup_news.py and staff_corpse_news.py check game.exe's side. Needs the game data.
 
 #include <character.hpp>
 #include <character_store.hpp>
@@ -68,24 +69,6 @@ int main() try {
         std::printf("FAIL: %.*s: %td news, want %td\n", int(what.size()), what.data(), got, want);
         ++failures;
     };
-
-    struct CorpseCase {
-        const char* code;
-        unsigned owner_bits;
-        int events;
-    };
-    static constexpr CorpseCase kCorpseCases[]{
-#include "../staff_corpse_news_cases.inc"
-    };
-    for (const auto& row : kCorpseCases) {
-        world.quests() = {};
-        for (int bit = 0; bit < 16; ++bit)
-            if (row.owner_bits & (1u << bit)) quest::set(world.quests(), Staff::kQuest, bit);
-        const auto got = news(row.code, true);
-        if (got == row.events) continue;
-        std::printf("FAIL: corpse %s, owner bits %#x: %td news, want %d\n", row.code, row.owner_bits, got, row.events);
-        ++failures;
-    }
 
     world.quests() = {};
     expect("vip", news("vip"), 1);
