@@ -64,6 +64,8 @@ struct Fighter {
     int demon_tohit = 0, undead_tohit = 0;          // stats 123 / 124: attack rating against demons / the undead
     std::array<std::pair<int, int>, 5> elem{};      // added damage (poison: its total over poison_len)
     int cold_len = 0, poison_len = 0;               // ticks
+    std::pair<int, int> poison_rate{};             // stats 57 / 58 (256ths a frame), before poison_len and the mastery
+    int poison_mastery = 0;                         // stat 332, the % on the poison's total
     int stun_len = 0;                               // stat 66 (gear), ticks
     int crushing = 0, deadly = 0, critical = 0, open_wounds = 0;   // chances, %
     int item_slow = 0;                    // item_slow (stat 150): gear's event 19 (FUN_005c0310) slows the unit a landed hit strikes

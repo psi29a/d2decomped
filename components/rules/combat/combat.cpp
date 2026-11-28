@@ -176,6 +176,7 @@ Fighter make_fighter(const Tables& tables, const d2d::d2s::Item* weapon, const d
     fighter.elem = { { { scaled(stat(kFireMinDamage), kPassiveFireMastery), scaled(stat(kFireMaxDamage), kPassiveFireMastery) }, { scaled(stat(kLightningMinDamage), kPassiveLightningMastery), scaled(stat(kLightningMaxDamage), kPassiveLightningMastery) }, { scaled(stat(kColdMinDamage), kPassiveColdMastery), scaled(stat(kColdMaxDamage), kPassiveColdMastery) },
                  { scaled(stat(kPoisonMinDamage) * stat(kPoisonLength) / 256, kPassivePoisonMastery), scaled(stat(kPoisonMaxDamage) * stat(kPoisonLength) / 256, kPassivePoisonMastery) }, { scaled(stat(kMagicMinDamage), kPassiveMagicMastery), scaled(stat(kMagicMaxDamage), kPassiveMagicMastery) } } };
     fighter.cold_len = int(stat(kColdLength)); fighter.poison_len = int(stat(kPoisonLength));
+    fighter.poison_rate = { int(stat(kPoisonMinDamage)), int(stat(kPoisonMaxDamage)) }; fighter.poison_mastery = int(stat(kPassivePoisonMastery));
     fighter.stun_len = int(stat(kStunLength));
     fighter.crushing = int(stat(kCrushingBlow)); fighter.deadly = int(stat(kDeadlyStrike) + stat(kDeadlyStrikePerLevel) * clvl / 8); fighter.critical = int(stat(kPassiveCriticalStrike));
     // FUN_0057b7d0 (a player's or hireling's record) / FUN_0064b860 (a SrcDamage missile's, 0x64bcbb..0x64bcf3).
