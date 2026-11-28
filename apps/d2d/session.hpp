@@ -410,6 +410,10 @@ struct ClientSession {
     // --connect: this d2d plays in a d2d host's game. Its World doesn't tick; the host's Views
     // come in and are taken as publish takes the local one, its commands go out over the socket.
     std::optional<d2d::net::lan::Client> lan_client;
+    // A d2d-to-d2d LAN game, hosting or joined: a multiplayer game (the wide mini-panel, the Party screen).
+    [[nodiscard]] bool lan_game() const { return lan_host.has_value() || lan_client.has_value(); }
+    // A Party screen click in a LAN game: its command to the host (World::party_action).
+    void lan_party_click(const PartyPanel::Click& click);
     std::string lan_lost;                         // why the host's game ended for us ("" while it's on)
     const CharacterStore* lan_store = nullptr;    // where the host's Saves of our character go
     bool lan_resyncing = false;                   // asked the host for a whole View, none applied since

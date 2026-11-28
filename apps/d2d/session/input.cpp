@@ -266,6 +266,10 @@ auto ClientSession::near_pick(int skill, int& unit, int& unit_type, float& at_x,
         units.reserve(view.monsters.size() + view.others.size() + (iron_golem ? view.ground.size() : 0));
         listed.reserve(units.capacity());
         const auto same_party = [&](std::uint32_t player_id) {
+            if (lan_game()) {                                          // a d2d LAN game: the View's roster
+                const auto row = std::ranges::find(view.roster, player_id, &View::RosterRow::id);
+                return row != view.roster.end() && view.party >= 0 && row->party == view.party;
+            }
             if (!net_game) return true;
             const auto self = net_game->units.find(std::uint64_t(net_game->self_id));
             const auto other = net_game->units.find(std::uint64_t(player_id));

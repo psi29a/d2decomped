@@ -560,7 +560,7 @@ auto ClientSession::draw_view(std::vector<std::uint8_t>& framebuffer, std::vecto
                     scene->font_small.draw(framebuffer, kScreenWidth, kScreenHeight, scene->pal, 12, 34, "Finish or cancel the item action to switch panels");
             }
         }
-        if (party.open && (net_game || coop_hud_hidden() || !party_preview.empty() || (pad_playing && pad_config.skill_buttons))) party.draw(framebuffer, *scene, party_rows(), party_own(), mouse.x, mouse.y);
+        if (party.open && (net_game || lan_game() || coop_hud_hidden() || !party_preview.empty() || (pad_playing && pad_config.skill_buttons))) party.draw(framebuffer, *scene, party_rows(), party_own(), mouse.x, mouse.y);
         if (hireling.open && view.merc_sheet)
             hireling.draw(framebuffer, *scene, *view.merc_sheet, merc_label, character.merc_items, held, mouse.x, mouse.y);
         if (scroll.open) scroll_sound = scroll.draw(framebuffer, *scene, now_ms) || scroll_sound;

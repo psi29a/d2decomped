@@ -21,7 +21,10 @@
 #include <d2s_items.hpp>
 #include <level_ids.hpp>
 #include <log.hpp>
+#include <player_relations.hpp>
+#include <protocol.hpp>
 #include <userdir.hpp>
+#include <world.hpp>
 
 #include <algorithm>
 #include <array>
@@ -185,7 +188,8 @@ auto ClientSession::clear_screen() -> void {
 // The Party screen's roster (FUN_0049a640): the other players of the
 // joined game, from the roster's own records in the list's order, which NetGame
 // regroups as game.exe does (NetGame::roster, PartyRoster::regroup). A player
-// whose unit the host removed (0x0a) keeps its row until 0x5c.
+// whose unit the host removed (0x0a) keeps its row until 0x5c. A d2d LAN game's
+// come from the View's roster (World::view), grouped the same way by name.
 auto ClientSession::party_rows() const -> std::vector<PartyPanel::Row> {
         std::vector<PartyPanel::Row> rows;
         const auto area_name = [&](int area) -> std::string {
@@ -195,6 +199,13 @@ auto ClientSession::party_rows() const -> std::vector<PartyPanel::Row> {
             const auto text = lookup_string(*scene, std::string_view(found->second));
             return text ? u16_to_latin1(*text) : found->second;
         };
+        if (lan_game()) {                             // a d2d LAN game: the host's roster (local partners and joiners alike)
+            for (const auto& member : view.roster)
+                rows.push_back({ member.id, member.name, member.cls, member.level, member.party < 0 ? 0xffff : member.party, member.button, int(member.flags),
+                                 area_name(member.area), (member.flags & d2d::rules::kRelationHostile) != 0, 0 });
+            PartyPanel::regroup(rows, 0, view.party < 0 ? 0xffff : view.party, false);
+            return rows;
+        }
         if (coop_hud_hidden()) {                      // local co-op: everyone else on the screen, all in its one party
             for (const auto& member : world.players)
                 if (member->id != focus_id())
@@ -218,11 +229,29 @@ auto ClientSession::party_rows() const -> std::vector<PartyPanel::Row> {
  */
 auto ClientSession::party_own() const -> PartyPanel::Own {
         PartyPanel::Own own{ character.name, int(character.stats.get(d2d::d2s::kLevel)), party_preview.empty() ? 0xffff : 1, level && d2d::rules::level_ids::is_town(level->id) };
+        if (lan_game()) { own.party = view.party < 0 ? 0xffff : view.party; return own; }   // a d2d LAN game: the host's word
         if (coop_hud_hidden()) { own.party = 1; own.fixed = true; }   // the screen's player (`character`), in local co-op's one party
         if (!net_game) own.fixed = true;  // offline controller Party page is informational
         if (net_game)
             if (const auto self = net_game->units.find(std::uint64_t(net_game->self_id)); self != net_game->units.end()) own.party = self->second.party;
         return own;
+    }
+
+// The panel's click as game.exe's client sends it (party.md "Clicks"): the party button by its
+// state, 0 -> 6 invite, 4 -> 7 cancel, 2 -> 8 accept, 3 -> 9 leave (FUN_00479eb0); a box with its
+// flag's new bits (FUN_00479d30 / FUN_00478740: 1 loot, 2 hear, 4 squelch, 8 hostile as actions
+// 1..4); LEAVE 9 (FUN_00479fc0, d2d names no one: the host takes the sender).
+auto ClientSession::lan_party_click(const PartyPanel::Click& click) -> void {
+        if (click.kind == PartyPanel::Click::kLeave) { send(cmd::PartyScreen{ 9, -1, 0 }); return; }
+        const auto row = std::ranges::find(view.roster, click.player, &View::RosterRow::id);
+        if (row == view.roster.end()) return;
+        if (click.kind == PartyPanel::Click::kButton) {
+            const int action = row->button == 0 ? 6 : row->button == 4 ? 7 : row->button == 2 ? 8 : row->button == 3 ? 9 : 0;
+            if (action) send(cmd::PartyScreen{ action, int(row->id), 0 });
+        } else if (click.kind == PartyPanel::Click::kFlag) {
+            const int action = click.flag == 1 ? 1 : click.flag == 2 ? 2 : click.flag == 4 ? 3 : click.flag == 8 ? 4 : 0;
+            if (action) send(cmd::PartyScreen{ action, int(row->id), (row->flags ^ std::uint32_t(click.flag)) & std::uint32_t(click.flag) });
+        }
     }
 
 auto ClientSession::toggle_help() -> void {

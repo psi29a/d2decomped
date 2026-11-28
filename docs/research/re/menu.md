@@ -336,10 +336,10 @@ each, from `tools/emu/minipanel_layout.py` (game.exe's layout at 640 ×
   2 skills, 3 the Party screen (only when the game type isn't 0), 4
   automap, 5 messages, 6 quests, 7 the game menu.
 - d2d (apps/d2d/panels/mini_panel.hpp): a joined game (`net_game`, game.exe's
-  type 9) takes the wide form, where its Party screen is; single player,
-  local co-op (the HUD hidden) and d2d's own `--host` / `--connect` LAN
-  games keep the single-player bar, as the P key opens the Party screen
-  only in a joined game or local co-op.
+  type 9) and d2d's own `--host` / `--connect` LAN games (multiplayer, as
+  game.exe's TCP/IP games are) take the wide form, where the Party screen
+  is (party.md "The party buttons on the host"); single player and local
+  co-op (the HUD hidden) keep the single-player bar.
 - HUD menu button `FUN_004977c0` (`PANEL\menubutton`):
   - at (W/2-8, bottom H-16), frames 0/1 closed, 2/3 open;
   - hit `FUN_00497780`: x [W/2-8, W/2+5], y [H-0x27, H-0xd];
