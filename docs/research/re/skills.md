@@ -953,8 +953,14 @@ A Shadow's Venom (its `Pet::buffs`) goes through the same branch:
 poison and runs the whole over its stat 101 (`test_shadow_venom`), its kick
 included.
 
-Not traced here: the consumers of the implicit stat 69, Fade's stat 109
-(`curse_resistance`) and stat 162 (`skill_staminapercent`).
+The implicit stat 69 (also written for a 68 by the friendly aura's
+`FUN_005cedc0`, and -50 by chill's `FUN_0057af80`) is read by
+`FUN_00623f50`'s last branch: the modes no earlier branch takes (a
+player's NU and TN) at stat 69 (100 from `FUN_00460bf0`) clamped 15..175
+%. d2d: `Hero::other_rate`, the stand's draw rate (`test_stance_rate`).
+
+Not traced here: Fade's stat 109 (`curse_resistance`) and stat 162
+(`skill_staminapercent`).
 
 ### Shots and ammo
 - **The plain attack** (do 1, `FUN_0056f070`): with a bow or crossbow

@@ -163,6 +163,7 @@ struct Fight {
         bool two_hands = false;
         int blow_hand = -1;                    // a blow that names its hand (Whirlwind's each weapon), -1 by the skill
         d2d::rules::StatSum psum{};            // the player's stats (gear, passives, masteries, states) as of this frame
+        int other_rate = 100;                  // stat 69 other_animrate: its stance's (NU, TN) animation %, unclamped
         // Stat 0x148 (pierce_idx, not saved): each skill command adds 1 (C->S 0x05 / 0x06 / 0x0c / 0x0d,
         // FUN_00549d00), the seed of its missiles' pierce charges (FUN_0059f940).
         std::uint32_t pierce_idx = 0;

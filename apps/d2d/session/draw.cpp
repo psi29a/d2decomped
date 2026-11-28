@@ -328,6 +328,8 @@ auto ClientSession::draw_view(std::vector<std::uint8_t>& framebuffer, std::vecto
         if (pmode < 0 && !view.ghost && (mode == kModeWL || mode == kModeRN || mode == kModeTW))
             if (const auto& walk_anim = scene->composite(cls, mode, view.gfx); walk_anim.speed || walk_anim.cof_speed)
                 rate = float(d2d::rules::moving_anim_rate(mode == kModeRN, view.walk_percent)) / float(walk_anim.speed ? walk_anim.speed : walk_anim.cof_speed);
+        // A stand plays at stat 69's % (FUN_00623f50's last branch): Fanaticism's quicker, a chill's slower.
+        if (pmode < 0 && !view.ghost && (mode == kModeNU || mode == kModeTN)) rate = float(view.stance_rate) / 100.f;
         if (!view.seq.empty() && (attack_mode(pmode) || pmode == kModeSC)) { std::tie(mode, mode_ms) = view_seq(*scene, int(cls), view, frame_ms); rate = 1.f; }   // an SQ skill's frame
         // A get-hit as game.exe's client draws it (FUN_00463390, combat.md "Drawn frame"): its frame steps at the
         // get-hit rate (rules::get_hit_frame), once through and held, and the client's mode ends a tick before the

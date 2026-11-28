@@ -207,8 +207,11 @@ auto Fight::player_fighter(d2d::rules::Fighter* kick ,
 // getters in game.exe) but lifedrainmaxdam (61: no reader in game.exe), bonearmormax (133: only the
 // client's FUN_004d8b90 / FUN_004d8e60, which stage the state's overlays 1..3 by bonearmor against its thirds,
 // stat 0x163) and the player's other_animrate.
-// ponytail: those overlay stages aren't drawn; the player's other_animrate (69, also written for
-// attackrate by FUN_005c6cc0) is not consumed here.
+// The player's other_animrate (69): 100 (FUN_00460bf0) plus the self states' and friendly auras'
+// (FUN_005c6cc0 and FUN_005cedc0 write a 68 as 69 too) and chill's -50 (FUN_0057af80), its stance's
+// pace (FUN_00623f50: NU, TN reach its last branch, 15..175 %); a curse's 68 is 68's alone.
+// ponytail: those overlay stages aren't drawn; a boss's enemy aura on the player (its 68) isn't
+// read for 69.
 auto Fight::update_fighters(std::uint32_t now_ms) -> void {
         using namespace d2d::d2s;
         std::erase_if(actor->self_states, [&](const SelfState& state) { return now_ms >= state.until; });
@@ -221,8 +224,11 @@ auto Fight::update_fighters(std::uint32_t now_ms) -> void {
         for (const auto& state : states) {
             const auto* skill = game_data->skills.get(state.skill);
             for (std::size_t i = 0; skill && i < skill->aurastat.size(); ++i)
-                if (const int id = skill->aurastat[i]; id >= 0 && id != kLife && std::size_t(id) < st_sum.size())
-                    st_sum[std::size_t(id)] += d2d::rules::eval_calc(game_data->skills, skill->aura_calc[i], env, skill->id, state.level);
+                if (const int id = skill->aurastat[i]; id >= 0 && id != kLife && std::size_t(id) < st_sum.size()) {
+                    const auto value = d2d::rules::eval_calc(game_data->skills, skill->aura_calc[i], env, skill->id, state.level);
+                    st_sum[std::size_t(id)] += value;
+                    if (id == kAttackRate) st_sum[kOtherAnimRate] += value;   // FUN_005c6cc0: 0x44 also as 0x45
+                }
         }
         // A boss's enemy aura over the player (Aura Enchanted's Holy Freeze):
         // its velocitypercent and attackrate as stats; resists and defense go
@@ -238,8 +244,11 @@ auto Fight::update_fighters(std::uint32_t now_ms) -> void {
         }
         for (const auto& aura : friendly_auras(actor->player.x, actor->player.y))
             for (std::size_t i = 0; i < aura.skill->aurastat.size(); ++i)
-                if (const int id = aura.skill->aurastat[i]; id >= 0 && id != kLife && std::size_t(id) < st_sum.size())
-                    st_sum[std::size_t(id)] += d2d::rules::eval_calc(game_data->skills, aura.skill->aura_calc[i], aura.env, aura.skill->id, aura.level);
+                if (const int id = aura.skill->aurastat[i]; id >= 0 && id != kLife && std::size_t(id) < st_sum.size()) {
+                    const auto value = d2d::rules::eval_calc(game_data->skills, aura.skill->aura_calc[i], aura.env, aura.skill->id, aura.level);
+                    st_sum[std::size_t(id)] += value;
+                    if (id == kAttackRate) st_sum[kOtherAnimRate] += value;   // FUN_005cedc0: 0x44 also as 0x45
+                }
         if (now_ms < actor->curses[0].until)                    // a monster's curse on the player
             for (const auto& [id, value] : curse_stats(actor->curses[0], env))
                 if (id != kLife && std::size_t(id) < st_sum.size()) st_sum[std::size_t(id)] += value;
@@ -319,6 +328,7 @@ auto Fight::update_fighters(std::uint32_t now_ms) -> void {
             if (const auto value = st_sum[std::size_t(kRes[k])], more = st_sum[std::size_t(kRes[k] + 1)]; value != 0 || more != 0)
                 actor->player_combat.res[k] = int(std::min<std::int64_t>(actor->player_combat.res[k] + value, std::min<std::int64_t>(actor->character.panel.res_cap[kPanelRes[k]] + more, 95)));
         actor->player_combat.sias += int(st_sum[kAttackRate]);   // SIAS, raw (FUN_00623f50 adds stat 68 as it is)
+        actor->other_rate = 100 + int(st_sum[kOtherAnimRate]) + chill_rate(now_ms);   // FUN_00460bf0's 100, the lists', chill's -50 (FUN_0057af80)
         actor->player_combat.velocity_pct += int(st_sum[kVelocityPercent]);
         for (const auto& passive : passives) if (passive.stat == kVelocityPercent && passive.itype.empty()) actor->player_combat.velocity_pct += passive.value;   // Increased Speed
         actor->player_combat.defense += int(actor->player_combat.defense * st_sum[kSkillArmorPercent] / 100);
