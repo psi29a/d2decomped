@@ -21,6 +21,7 @@
 #include <light.hpp>
 #include <merc.hpp>
 #include <monsters.hpp>
+#include <player_relations.hpp>
 #include <quests.hpp>
 #include <rules.hpp>
 #include <skills.hpp>
@@ -45,8 +46,8 @@
 
 namespace d2d::game {
 
-// What a client draws this frame. Another local player is never hostile:
-// no hosted World keeps FUN_004dc440's relation nodes yet.
+// What a client draws this frame. Another player is hostile as our relation
+// flag 8 toward them says (FUN_004dc440).
 auto World::view() const -> View {
         View view;
         view.level = level;
@@ -130,13 +131,24 @@ auto World::view() const -> View {
                     if (const auto* skill = now < state.until ? game_data->skills.get(state.skill) : nullptr) states.push_back(skill->aurastate);
                 view.others.push_back({ player->player, cls, player->character.name, std::uint32_t(player->id),
                                         player->character.appearance ? *player->character.appearance : game_data->starting_gear[std::size_t(cls)],
-                                        player->ghost ? -1 : player->pmode, running(*player), std::move(states), player->ghost, false, false, walk_percent(*player, now),
+                                        player->ghost ? -1 : player->pmode, running(*player), std::move(states), player->ghost,
+                                        actor->relations.get(actor->id, player->id, d2d::rules::kRelationHostile) != 0, false, walk_percent(*player, now),
                                         player->one_shots });
             }
         for (const auto& player : players)
             if (player->body && player->body->level == level)
                 view.bodies.push_back({ player->body->x, player->body->y, player->body->dir, player->body->gfx, player->id, std::max(player->character.character_class, 0),
                                         player->body->raised, player->body->raisers });
+        const auto roster_row = [&](const Player& player) {
+            if (&player == actor) return;
+            const Level* theirs = level_of(player);
+            view.roster.push_back({ std::uint32_t(player.id), player.character.name, std::max(player.character.character_class, 0), int(player.character.stats.get(d2d::d2s::kLevel)),
+                                    player.party, same_party(player, *actor) && theirs ? theirs->id : 0, actor->relations.party_state(actor->id, player.id),
+                                    actor->relations.get(actor->id, player.id, 0xffff) });
+        };
+        for (const auto& player : players) roster_row(*player);
+        for (const Player* player : elsewhere) roster_row(*player);
+        view.party = actor->party;
         view.ghost = actor->ghost;
         view.all_dead = shared_screen() && !anyone_alive();
         if (level == fight.mon_level) {

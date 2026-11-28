@@ -446,10 +446,10 @@ auto Fight::killed(std::size_t monster_index, std::uint32_t now_ms, bool credit)
             return;
         }
         // Who gets the experience (FUN_0057e990): alone, the killer; in a
-        // party (local co-op: everyone), its members alive within 80
-        // subtiles of the dead (dx² + dy² <= 0x1900, FUN_0057e5a0) share it
-        // by level (rules::party_shares) — one of them leaves it all the
-        // killer's, none nobody's.
+        // party (FUN_005405a0: the killer's party on its level; local co-op is
+        // one), its members alive within 80 subtiles of the dead (dx² + dy²
+        // <= 0x1900, FUN_0057e5a0) share it by level (rules::party_shares) —
+        // one of them leaves it all the killer's, none nobody's.
         Hero& killer = *actor;
         if (!monster.no_exp) merc_share(monster);
         if (monster.no_exp) {
@@ -460,6 +460,7 @@ auto Fight::killed(std::size_t monster_index, std::uint32_t now_ms, bool credit)
             std::vector<int> levels;
             const auto subtile = [](float value) { return int(std::floor(value * 5)); };
             for (Hero* hero : heroes) {
+                if (hero != &killer && (killer.party < 0 || hero->party != killer.party)) continue;
                 act_as(*hero);
                 const int dx = subtile(monster.unit.x) - subtile(hero->player.x), dy = subtile(monster.unit.y) - subtile(hero->player.y);
                 if (dead() || std::uint32_t(dx * dx + dy * dy) > 0x1900u || members.size() >= 8) continue;
@@ -504,13 +505,18 @@ auto Fight::merc_share(const Monster& monster) -> void {
     }
 
 // The players in the game (game_players: the /players count when it's
-// larger) and those of them alive (the party on the level: one screen),
-// for NoDrop (Loot::drop); alone, game_players() and 1.
+// larger) and those of the killer's party alive on the level (FUN_005405a0
+// with FUN_005404f0; no party, the killer), for NoDrop (Loot::drop); alone,
+// game_players() and 1.
 auto Fight::drop_counts() -> std::pair<int, int> {
         if (heroes.size() == 1) return { game_players(), 1 };
         Hero& was = *actor;
         int alive = 0;
-        for (Hero* hero : heroes) { act_as(*hero); alive += dead() ? 0 : 1; }
+        for (Hero* hero : heroes) {
+            if (hero != &was && (was.party < 0 || hero->party != was.party)) continue;
+            act_as(*hero);
+            alive += dead() ? 0 : 1;
+        }
         act_as(was);
         return { game_players(), std::max(alive, 1) };
     }

@@ -122,6 +122,9 @@ std::vector<std::uint8_t> encode_view(const GameData& game_data, const View& vie
             chunk.f32(body.x).f32(body.y).u8(body.dir).i32(body.id).u8(body.cls).f32(body.raised).u8(body.raisers);
             for (const auto look_byte : body.gfx) chunk.u8(look_byte);
         }
+        chunk.i32(view.party).u16(int(view.roster.size()));
+        for (const auto& row : view.roster)
+            chunk.u32(row.id).str(row.name).u8(row.cls).i32(row.level).i32(row.party).i32(row.area).u8(row.button).u32(row.flags);
         wire::section(out, enc.section[1], std::move(chunk.bytes));
     }
     {
@@ -254,7 +257,7 @@ std::vector<std::uint8_t> encode_view(const GameData& game_data, const View& vie
         else if (const auto* refused = std::get_if<ev::TradeResult>(&event)) out.u8(8).u8(int(refused->result)).i32(refused->npc);
         else if (const auto* dip = std::get_if<ev::AmbientDip>(&event)) out.u8(9).i32(dip->fade_in).i32(dip->hold).i32(dip->back).i32(dip->level);
         else if (const auto* service = std::get_if<ev::ServiceResult>(&event)) out.u8(10).i32(service->npc).u8(service->kind);
-        else if (const auto* said = std::get_if<ev::Message>(&event)) out.u8(11).u8(int(said->kind)).str(said->name).str(said->text);
+        else if (const auto* said = std::get_if<ev::Message>(&event)) out.u8(11).u8(int(said->kind)).str(said->name).str(said->text).u8(said->sub);
         else if (const auto* stones = std::get_if<ev::StoneOrder>(&event)) { out.u8(12); for (const int stone : stones->order) out.u8(stone); }
         else if (const auto* unique = std::get_if<ev::UniqueEvent>(&event)) out.u8(13).u8(unique->event);
         else {
@@ -388,6 +391,13 @@ bool apply_view(const GameData& game_data, std::span<const std::uint8_t> bytes, 
             lying.x = f32(); lying.y = f32(); lying.dir = byte(); lying.id = i32(); lying.cls = byte(); lying.raised = f32(); lying.raisers = byte();
             for (auto& look_byte : lying.gfx) look_byte = std::uint8_t(byte());
             view.bodies.push_back(lying);
+        }
+        view.party = i32();
+        view.roster.clear();
+        for (int count = u16(); count > 0 && input.ok; --count) {
+            View::RosterRow row;
+            row.id = u32(); row.name = input.str(); row.cls = byte(); row.level = i32(); row.party = i32(); row.area = i32(); row.button = byte(); row.flags = u32();
+            view.roster.push_back(std::move(row));
         }
     });
     body([&] {
@@ -544,9 +554,10 @@ bool apply_view(const GameData& game_data, std::span<const std::uint8_t> bytes, 
             view.events.push_back(ev::UniqueEvent{ byte() });
         } else if (kind_byte == 11) {
             const auto kind = byte();
-            if (kind > ev::Message::slain) return false;
+            if (kind > ev::Message::party) return false;
             auto name = input.str();
-            view.events.push_back(ev::Message{ ev::Message::Kind(kind), std::move(name), input.str() });
+            auto text = input.str();
+            view.events.push_back(ev::Message{ ev::Message::Kind(kind), std::move(name), std::move(text), byte() });
         } else {
             const auto kind = ev::OpenUI::Kind(byte());
             ev::OpenUI open_ui{ kind, i32() };

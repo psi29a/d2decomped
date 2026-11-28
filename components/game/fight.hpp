@@ -99,6 +99,7 @@ struct Fight {
     struct Hero {
         int id = 0;                        // the player's unit id in the game (World::join): 1, 2 ...
         d2d::rules::Rng seed;              // its unit seed (+0x20): the rolls game.exe makes on the player's own (player_joins)
+        int party = -1;                    // their party's id (World::parties; FUN_00540710), -1 none (game.exe's 0xffff)
         // Where the player is walking to: its path's target (+0x10, SP1); the target the
         // path was last worked out to (+0x18, SP3, FUN_00649970) is player.goal_x / goal_y.
         float target_x = 0, target_y = 0;

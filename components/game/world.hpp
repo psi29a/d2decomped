@@ -113,8 +113,10 @@ struct ServiceResult { int npc = -1; int kind = 1; };
 // the deciphered scroll (S->C 0x50 subtype 4, FUN_00593cb0).
 struct StoneOrder { std::array<int, 5> order{}; };
 // A line for everyone in the game, wherever they are (a LAN game's chat
-// and news): typed chat, who joined or left, who was slain.
-struct Message { enum Kind : std::uint8_t { chat, joined, left, slain } kind = chat; std::string name, text; };
+// and news): typed chat, who joined or left, who was slain; or for one
+// player, a party line (S->C 0x5a event 7, FUN_005a5690): `sub` its type
+// (FUN_0049e8f0's table), `name` the player it names.
+struct Message { enum Kind : std::uint8_t { chat, joined, left, slain, party } kind = chat; std::string name, text; int sub = 0; };
 // A unique event (S->C 0x89 {event}, FUN_00545760 to every client): the
 // client's quest event table 0x7129d8 runs it; 3, the staff in the orifice
 // (FUN_0059dd80): its light show (0x46b100).
@@ -197,6 +199,13 @@ struct View {
     struct OtherPlayer { UnitState unit; int cls = 0; std::string name; std::uint32_t id = 0; GameData::Appearance gfx{}; int mode = -1; bool running = false;
                         std::vector<std::string_view> states; bool ghost = false, hostile = false, dead = false; int walk_percent = 100; d2d::rules::OneShots one_shots; };   // id: the host's unit; mode: an act, -1 walk / stand; states: the host's on it (States.txt names); ghost: local co-op's dead; hostile: relation flag 8 from this client; dead: a joined game's, dying or dead on the host (0x0d command 8 / 9; not replicated); walk_percent: as View's (a joined game's: its class's run or walk and chill, no FRW); flash: as View's
     std::vector<OtherPlayer> others;
+    // The Party screen's roster: every other player in the game, on any level, as game.exe's
+    // client keeps them (S->C 0x5b, 0x8b, 0x8c, 0x8d; party.md "The roster"): the party button's
+    // state toward them (0x8b), our relation flags toward them (0x8c: 1 loot, 2 not heard, 4
+    // squelched, 8 hostile), and a party member's level (0x7f goes to the party alone, FUN_005406a0).
+    struct RosterRow { std::uint32_t id = 0; std::string name; int cls = 0, level = 0, party = -1, area = 0, button = 0; std::uint32_t flags = 0; };
+    std::vector<RosterRow> roster;
+    int party = -1;                        // our own party (-1 none)
     // Local co-op's death (docs/design/local-coop.md): the screen's player a
     // ghost; everyone dead (the death screen, Esc back to town); the bodies
     // on the level (a player's id, what they wore, the Resurrect channel's
@@ -295,7 +304,6 @@ struct World {
         std::optional<std::uint32_t> hostile_at;
         void declare_hostile(std::uint32_t now_ms) { hostile_at = now_ms; }   // FUN_0055b720's store
         d2d::rules::PlayerRelations relations;       // FUN_0055b140 family: one-way flags and pair stamps
-        int party = -1;                              // FUN_00540710 / FUN_00554630: 0xffff means no party
         // Talk records (by hc_idx) whose menu greeting has played since the
         // player was last out of town: FUN_004b66b0 clears the record's +0x15
         // as it greets, FUN_004b3e10 sets all again as the player leaves town.
@@ -338,6 +346,31 @@ struct World {
     Player& add_player();
     // Apply the host's party-screen hostile action to `other`.
     d2d::rules::HostileToggle toggle_hostility(Player& other, std::uint32_t requested, std::uint32_t now_ms);
+    // A Party screen click of the actor's on the host (C->S 0x5d / 0x5e through FUN_005a6000's
+    // table 0x6e2218): 1 loot, 2 hear, 3 squelch, 4 hostile (`bits` the flag's new bits), 6 invite,
+    // 7 cancel, 8 accept, 9 leave the party.
+    void party_action(Player& other, int action, std::uint32_t bits, std::uint32_t now_ms);
+    // `player` out of their party (FUN_005407a0); a party left with one is disbanded.
+    void party_remove(Player& player);
+    // A player by unit id on any level (`players`, then `elsewhere`), or null.
+    [[nodiscard]] Player* player_by_id(int id);
+    // Both in one party.
+    [[nodiscard]] static bool same_party(const Player& one, const Player& other) { return one.party >= 0 && one.party == other.party; }
+    // game.exe's party control (game +0x1d2c, party.md "Party membership"): the next id's
+    // counter and the parties, newest first, each its members' ids newest first.
+    struct Party { int id = 0; std::vector<int> members; };
+    std::vector<Party> parties;
+    std::uint16_t party_counter = 0;
+    int new_party();                                  // FUN_00540100 / FUN_005400b0: its id
+    void add_to_party(int party, Player& player);     // FUN_00540320
+    // `each` for every player in the game, on any level (FUN_005538d0's walk), not acting as them.
+    template <class Each> void each_player_anywhere(Each&& each) {
+        for (auto& player : players) each(*player);
+        for (Player* player : elsewhere) each(*player);
+    }
+    // d2d (deviations.md 7, `autoparty`): a joiner goes into the first player's party as if
+    // invited and accepting; local co-op's partners always do (one screen, one party).
+    bool auto_party = true;
     // `each` for every player in turn, acting as them; the one acting
     // before acts again after.
     template <class Each> void each_player(Each&& each) {
@@ -381,24 +414,27 @@ struct World {
     // does, and are left alone; what's left is an act's travel (words 7,
     // 0xf, 0x17, 0x1c), which the one screen takes everyone on.
     static constexpr std::array<int, 30> kOwnCredit{ 1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 12, 13, 14, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x18, 0x19, 0x1a, 0x1b, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28 };   // Act 1, the opening and Act 2, the opening and Act 3, the opening and Act 4, Act 5
-    // Every player in the act neither done nor due gets `bits` (a party pass
-    // with no one left out: the mover's own taken already).
+    // Each player with bit 13 brings their party (LAB_0058dd90: FUN_00540510 per
+    // player): its members in the act, neither done nor due, get `bits`.
     void party_bits_all(int quest, std::initializer_list<int> bits) {
         const int in_act = act();
-        each_in_game([&](Player&, int their_act) {
+        std::vector<int> credited;
+        each_in_game([&](Player& player, int) { if (player.party >= 0 && d2d::rules::quest::bit(quests(), quest, 13)) credited.push_back(player.party); });
+        each_in_game([&](Player& player, int their_act) {
             auto& theirs = quests();
-            if (their_act != in_act || d2d::rules::quest::bit(theirs, quest, 0) || d2d::rules::quest::bit(theirs, quest, 1)) return;
+            if (!std::ranges::contains(credited, player.party) || their_act != in_act || d2d::rules::quest::bit(theirs, quest, 0) || d2d::rules::quest::bit(theirs, quest, 1)) return;
             for (const int bit : bits) d2d::rules::quest::set(theirs, quest, bit);
         });
     }
     // The party's share of a step (FUN_00540510; local co-op is one party):
-    // each other player in the act (the quest's own act; Act 1's here),
-    // neither done nor due, gets `bits`.
+    // each other member in the act (the quest's own act; Act 1's here),
+    // neither done nor due, gets `bits`. No party: no one.
     void party_bits(int quest, std::initializer_list<int> bits) {
-        const int mover = actor->id, in_act = act();
+        const int in_act = act();
+        const Player& mover = *actor;
         each_in_game([&](Player& player, int their_act) {
             auto& theirs = quests();
-            if (player.id == mover || their_act != in_act || d2d::rules::quest::bit(theirs, quest, 0) || d2d::rules::quest::bit(theirs, quest, 1)) return;
+            if (&player == &mover || !same_party(player, mover) || their_act != in_act || d2d::rules::quest::bit(theirs, quest, 0) || d2d::rules::quest::bit(theirs, quest, 1)) return;
             for (const int bit : bits) d2d::rules::quest::set(theirs, quest, bit);
         });
     }
@@ -411,16 +447,15 @@ struct World {
     template <class Near, class TookPart, class Heard>
     void kill_credit(int quest, int in_act, std::initializer_list<int> party_bits, Near&& is_near, TookPart&& took_part, Heard&& heard) {
         namespace quest_bit = d2d::rules::quest;
-        std::vector<int> passed;
-        bool any = false;
+        std::vector<int> passed, parties_credited;
         each_player([&](Player& player) {
             if (!is_near(player)) return;
             took_part(player);
             passed.push_back(player.id);
-            any |= quest_bit::bit(quests(), quest, 13);
+            if (quest_bit::bit(quests(), quest, 13) && player.party >= 0) parties_credited.push_back(player.party);
         });
         each_in_game([&](Player& player, int their_act) {      // the party: in the act, wherever in it (another level's turn too)
-            if (!any || their_act != in_act || std::ranges::contains(passed, player.id)) return;
+            if (!std::ranges::contains(parties_credited, player.party) || their_act != in_act || std::ranges::contains(passed, player.id)) return;
             auto& bits = quests();
             if (quest_bit::bit(bits, quest, 0) || quest_bit::bit(bits, quest, 1)) return;
             for (const int bit : party_bits) quest_bit::set(bits, quest, bit);
@@ -435,7 +470,7 @@ struct World {
         step();
         const auto& after = mover.character.header.quests[difficulty];
         for (auto& other : players) {
-            if (other.get() == &mover) continue;
+            if (other.get() == &mover || !same_party(*other, mover)) continue;
             auto& theirs = other->character.header.quests[difficulty];
             for (std::size_t word = 0; word + 1 < theirs.size(); word += 2) {
                 const int quest = int(word / 2);
@@ -806,8 +841,9 @@ struct World {
     // difficulty, no loot about.
     void enter(const Character& entering);
     // Another player joins the game under way (docs/design/local-coop.md): their character (full life, as
-    // entering), beside the first player, their merc along.
-    Player& join(const Character& entering);
+    // entering), beside the first player, their merc along. `own_screen`: a LAN joiner (Player::own_screen).
+    // They go into the first player's party: local co-op's always, a LAN joiner's with `auto_party`.
+    Player& join(const Character& entering, bool own_screen = false);
     // A later player's quest joins, each act's.
     void join_more();
     // A player leaves: their character saved (save's message, "" written), gone from the game.

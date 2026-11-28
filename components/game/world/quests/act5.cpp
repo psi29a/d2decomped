@@ -268,8 +268,8 @@ auto World::act5_kill(const Fight::Kill& kill, std::uint32_t now_ms) -> void {
             const auto killer = std::ranges::find(players, kill.killer, [](const auto& player) { return player->id; });
             const bool first = killer != players.end() && !d2d::rules::quest::bit((*killer)->character.header.quests[std::size_t(std::clamp((*killer)->character.header.active_difficulty(), 0, 2))], d2d::rules::EveQuest::kQuest, 0);
             // The passes (FUN_0058dea0, LAB_0058dd90, LAB_0058dde0): those in the
-            // Chamber; then, with one of them done, the party's in Act 5 bits 0 and
-            // 13 (FUN_0058dc60); then the rest bit 14.
+            // Chamber; then each with bit 13 brings their party in Act 5, bits 0
+            // and 13 (LAB_0058dd90 -> FUN_00540510 -> FUN_0058dc60); then the rest bit 14.
             int done_here = 0;
             const bool in_chamber = level->id == d2d::rules::EveQuest::kChamber;
             each_player([&](Player&) { if (in_chamber && d2d::rules::EveQuest::reward(quests(), true)) { open_act(5); ++done_here; } });

@@ -91,12 +91,12 @@ math already described below and in net-host.md:
   found in the unit table, sends S→C 0x7F (AllyPartyInfo /
   PartyAutoMapInfo) to pUnit's own client — the automap's ally markers.
 
-d2d is a client only — it never allocates a `D2UnitPartyControl`; this is
-the host's own party bookkeeping, which d2d doesn't run (net-host.md:
-hosting is design, not yet built). `apps/d2d/netgame.cpp` only mirrors the
-wire results (S→C 0x8b/0x8d/0x75/0x7f) into `NetGame::Unit::party` /
-`party_life` / `area` / `relation` (`apps/d2d/netgame.hpp:40-44`). Nothing
-here ports into `components/` until hosting exists.
+A d2d host (`d2d --host`, lan-host.md) keeps the control as `World::parties`
+and `World::party_counter` (world/party.cpp: `new_party`, `add_to_party`,
+`party_remove`); "The party buttons on the host" below. Joined to a
+game.exe host, `apps/d2d/netgame.cpp` only mirrors the wire results (S→C
+0x8b/0x8d/0x75/0x7f) into `NetGame::Unit::party` / `party_life` / `area` /
+`relation` (`apps/d2d/netgame.hpp`).
 
 ## The unit relation list (server) — `.\UNIT\PlayerList.cpp`
 
@@ -141,8 +141,11 @@ confirmed by disassembling the call sites (`CallArgs.java` from
   from the call sites at `005a5861`/`005a5ebb`/`005a617b`, not from the
   decompile.)
 - **`FUN_0055b350`** returns the node's low 16 flag bits, or zero without a
-  node. `FUN_0055b3a0` writes the node's +0xc party bool. `FUN_0055b3f0`
-  reads that bool (self is always true; no node is false).
+  node. `FUN_0055b3a0` writes the node's +0xc, the party button's state
+  as self sees other (0 INVITE, 1 none, 2 ACCEPT, 4 asked: "The party
+  buttons on the host" below); `FUN_0055b140` starts it at 1 when other is
+  in a party, else 0 (`0x55b1bb`). `FUN_0055b3f0` reads it (self gives 1;
+  no node gives 0).
 - **`FUN_0055b440`** sends the node's low +0xc byte through
   `FUN_0053ddc0`; `FUN_0055b4c0` sends the low 16 relation flags through
   `FUN_0053de20` (S→C 0x8c). Both are no-ops without a node.
@@ -173,9 +176,10 @@ existing one — matching that bullet's "PARTYSCREEN_ClearHostileRelation"
 by behaviour, not by name (not confirmed as the game's own symbol).
 
 d2d: `rules::PlayerRelations` ports the node layout, prepend/deduplicate,
-remove, flag set/clear/test, and pair stamp used by hostility. The stock
-state-7 add gate and the +0xc party-info packet are not modelled there;
-the hosted World applies party membership separately. The S→C 0x8c / 0x8d
+remove, flag set/clear/test, the pair stamp used by hostility and the +0xc
+state (`party_state`). The stock state-7 add gate and the +0xc packet
+(0x8b) are not modelled there; the hosted World sends the states in its
+View (`View::roster`). The S→C 0x8c / 0x8d
 emission remains with the not-yet-ported hosted-client packet layer.
 `tools/emu/player_relations.py` runs the six ported functions for real over
 synthetic units, including allocation/free and packet boundaries, and
@@ -611,4 +615,90 @@ checks the directions, party walks, level gate and removal. d2d's
 `World::toggle_hostility` ports the relation, stamp, portal and party data
 effects; `rules::hostile_toggle` supplies branches 1 and 3..7. Not ported:
 the state-7 add gate, voice line, and the S→C 0x8c / 0x5a / 0x8d notices.
-C→S 0x5d cannot be wired without the excluded `protocol.*` / apps transport.
+The notices are now sent as party lines: type 3 to each one made hostile
+(`FUN_005a5dc0` at `0x5a5e0a`, `FUN_005a5d50` at `0x5a5d9f`), type 4 to the
+other when cleared. A d2d LAN game sends the click as `cmd::PartyScreen`
+(below).
+
+## The party buttons on the host
+
+C→S 0x5d (`FUN_0054c2a0`, size 7: action, `on`, player) and 0x5e
+(`FUN_0054c300`, size 6: action, player; `on` passed as 0) both refuse when
+bit 16 of game `+0x1d28`'s `+8` is set (`FUN_0053fd10`; not traced further)
+or the action is above 10, then call `FUN_005a6000`: the other player
+(`FUN_00552f60`), then entry `action` of the table at `0x6e2218` as
+`(game ECX, actor EDX, other, on, &out)`. Its entries, read from memory:
+0 none, 1 `FUN_005a57b0` loot, 2 `FUN_005a5840` hear, 3 `FUN_005a58a0`
+squelch, 4 `FUN_005a5e50` hostile (above), 5 none, 6 `FUN_005a5be0`
+invite, 7 `FUN_005a5b30` cancel, 8 `FUN_005a5a30` accept, 9
+`FUN_005a5d20` leave. Slot 10 holds a string's bytes, not a pointer. Each
+handler first adds a relation node each way (`FUN_0055b140`) and ends by
+resending both +0xc states (`FUN_0055b440`, S→C 0x8b). Read from the
+disassembly; a "state" is node +0xc as one side sees the other.
+
+- **Invite** (`FUN_005a5be0`): when the actor's state toward the other is
+  0, it becomes 4 and the other's toward the actor 2; the other is told
+  (type 5). Otherwise nothing.
+- **Cancel** (`FUN_005a5b30`): when the actor's state is 4, the actor's
+  becomes 1 if the other is in a party, else 0, and the other's the same by
+  the actor's party; the other is told (type 6).
+- **Accept** (`FUN_005a5a30`, the actor taking the other's invitation):
+  only from state 2. The inviter's party is read first; with none, a new
+  party (`FUN_00540100`), the inviter added (`FUN_00540320`), then the
+  actor, then `FUN_0055b650` for the inviter; else the actor is added to
+  it. Then `FUN_0055b650` for the actor, the actor told (type 8, naming the
+  inviter), and `FUN_005538d0` runs `FUN_005a5970` for every player with
+  {inviter, accepter, party} (a struct in the caller's frame).
+- `FUN_0055b650` (one who just joined): each of their nodes in state 2
+  whose other still exists becomes 1 if that other is in a party, else 0.
+- `FUN_005a5970` (each player P): nodes each way with both, then
+  `FUN_005a5900` (ESI P, EDI the joined one) for the inviter and the
+  accepter; a member of the party other than the accepter is told (type 7,
+  naming the accepter). `FUN_005a5900` skips P itself. P in no party: if
+  the joined one's state toward P is 4, P's toward them becomes 2;
+  otherwise theirs toward P 0 and P's toward them 1. P in a party: both 1.
+- **Leave** (`FUN_005a5d20`): the actor's party walked (`FUN_00540510` with
+  `FUN_005a5c70`: type 9 to each member but the actor), then
+  `FUN_005407a0`.
+- `FUN_005407a0` (above) runs `FUN_005a5cb0` for every player through
+  `FUN_005a5ff0`, after the member is unlinked: for each other P, P's state
+  toward the one removed becomes 0, and theirs toward P 1 if P is in a
+  party, else 0. A party left under two: `FUN_00540220` unlinks it, then
+  `FUN_00540180` does the same for its last member.
+- `FUN_005400b0` (a new party's id): the counter, at least 3, raised past
+  any id a party has (16 bits, back to 3 on a wrap), then the counter is
+  left one past it.
+- **Hear, squelch** (`FUN_005a5840`, `FUN_005a58a0`): when the actor's
+  masked flag toward the other (`FUN_0055b300`) isn't `on`, `FUN_0055b260`
+  sets it (`on` nonzero) or clears it. Both 0x75s are resent
+  (`FUN_0053da90`).
+- **Loot** (`FUN_005a57b0`): only when the actor's client `+0xa` has bit 4
+  (`FUN_00538670`; the save's status word, net-join.md: hardcore); then
+  `FUN_005a5750` as above with mask 1, and the other is told: type 1 on, 10
+  off, or 2 / 11 when the actor's class (unit `+4`) is 0, 1 or 6.
+- The party line (`FUN_005a5690`: S→C 0x5a event 7, `+3` the player named,
+  `+7` the type) carries a colour byte by type (its jump table `0x5a5720`):
+  1, 2 → 4; 3 → 8; 4 → 0; 5, 7, 8 → 2; 6, 9, 10, 11 → 9; else 3.
+- A player leaving the game (`FUN_00555600`, type 0): their portal closed,
+  `FUN_005407a0`, and `FUN_005349d0`, whose `FUN_0055b790` runs
+  `FUN_0055b1e0` (through `FUN_0055b780`) for every player, removing each
+  one's node toward them, then frees their own list.
+- Baal's death (`LAB_0058dd90`): each player with quest 0x28's bit 13
+  brings their party in Act 5 (`FUN_00540510` with `FUN_0058dc60`).
+
+d2d: `World::party_action` (world/party.cpp) for entries 1..4 and 6..9,
+`World::party_remove`, `World::leave`; the client's click is
+`cmd::PartyScreen` (protocol.hpp, sent as 0x5d or 0x5e), the states and
+flags go back in `View::roster`, the lines as `ev::Message::party`.
+`tools/emu/party_buttons.py` runs the handlers, `FUN_005a5970`,
+`FUN_005a5900`, `FUN_005a5cb0`, `FUN_0055b650` and the relation list for
+real over four players and checks the states, party ids, flags and lines
+that `tests/game/test_lan_party.cpp` checks (the removal and the disband
+are the oracle's own walk of `FUN_005407a0` as read above). Rewards follow
+the party: the experience share (`FUN_0057e990` through `FUN_005405a0`),
+NoDrop's count, the gold split (`FUN_00540900`) and the quests' party
+passes (`FUN_00540510`). A d2d join puts a joiner in the first player's
+party (deviations.md 7). Not ported: the 0x75 / 0x8d / 0x7f packets
+themselves (the View carries what they say), the state-7 gates, and the
+walk's order (game.exe's player hash, here join order), which orders only
+the lines.

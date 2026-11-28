@@ -814,6 +814,7 @@ int run_windowed(std::vector<std::uint8_t>& framebuffer,
     ClientSession session(scene ? &*scene : nullptr, character, g_start_cam_x, g_start_cam_y);
     session.set_pad_config(g_pad_config);
     session.touch_enabled = g_touch_controls;
+    session.world.auto_party = g_autoparty;   // a d2d host: LAN joiners into the first player's party (deviations.md 7)
     if (g_touch_controls) session.last_device = touch::LastDevice::Touch;
     if (g_lan_host_port > 0) {
         if (auto listening = d2d::net::lan::Host::listen(std::uint16_t(g_lan_host_port))) {
@@ -2351,7 +2352,7 @@ int main(int argc, char** argv) {
             { "direct_casts", &g_direct_casts }, // optional, touch/controller location casts
             { "dismiss_effects", &g_dismiss_effects }, // optional, validated effect dismissal
             { "autoloot", &g_autoloot },        // gold walked over goes into the purse
-            { "autoparty", &g_autoparty },      // a joined game: invite the others, accept their invites
+            { "autoparty", &g_autoparty },      // a joined game: invite the others, accept their invites; a d2d host: its joiners partied
             { "pad_controls", &g_pad_controls },   // Configure Controls' gamepad page
             { "click_keys", &g_click_keys },       // Attack / Use and Right-hand Skill on more keys (Mouse 3..5)
             { "coop_lobby", &g_coop_lobby },       // SINGLE PLAYER / COOP, partners pick their characters on character select

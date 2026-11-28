@@ -522,6 +522,12 @@ auto ClientSession::handle(const Event& event, Audio& audio, std::uint32_t frame
             case ev::Message::joined: if (message->name != character.name) add_chat(named(0xe39), 4); break;             // "%s joined our world..."
             case ev::Message::left: add_chat(named(0xe3a), 4); break;                                                      // "%s left our world..."
             case ev::Message::slain: add_chat(message->name + (message->text.empty() ? text(0xe41) : text(0xe3f) + message->text), 4); break;   // " was slain." / " was slain by " + the killer
+            case ev::Message::party: {                                                                                    // 0x5a event 7: its colour byte by type (FUN_005a5690, jump table 0x5a5720)
+                const int sub = message->sub;
+                const int colour = sub == 1 || sub == 2 ? 4 : sub == 3 ? 8 : sub == 4 ? 0 : sub == 5 || sub == 7 || sub == 8 ? 2 : sub == 6 || (sub >= 9 && sub <= 11) ? 9 : 3;
+                if (auto line = party_text(sub, message->name); !line.empty()) add_chat(line, colour);
+                break;
+            }
             }
             return;
         }

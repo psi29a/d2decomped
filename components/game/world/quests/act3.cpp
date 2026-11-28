@@ -138,8 +138,8 @@ auto World::act3_said(int hc_idx, int message_string) -> void {
         if (blade_heard.takes_gidbinn) {
             class_cue("act3_complete_blade", now);   // FUN_005b9520: unit event 0x41
             take_carried(Blade::kGidbinn);
-            const int giver = actor->id;           // the party's share (local co-op: everyone's the party)
-            each_player([&](Player& player) { if (player.id != giver) Blade::party_credit(quests(), d2d::rules::level_act(level->id) == 2); });
+            const Player& giver = *actor;          // the party's share (local co-op: everyone's the party)
+            each_player([&](Player& player) { if (&player != &giver && same_party(player, giver)) Blade::party_credit(quests(), d2d::rules::level_act(level->id) == 2); });
             d2d::log::info("The Blade of the Old Religion: the Gidbinn to Ormus");
         }
         if (blade_heard.ring) {

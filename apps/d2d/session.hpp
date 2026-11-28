@@ -299,6 +299,7 @@ struct ClientSession {
     std::uint32_t merc_hover_at = 0;                        // since when the cursor's been on it (DAT_007beee8), 0 not
     bool merc_hovered = false;                              // 700 ms on it with nothing in hand: drawn mode 7, its hint shown
     auto event_text(const NetGame::Event& event) const -> std::string;
+    auto party_text(int sub, std::string who) const -> std::string;
     auto draw_chat(std::vector<std::uint8_t>& framebuffer, bool left_open, bool right_open) const -> void;
     auto wrap_chat(const std::string& text, int width) const -> std::vector<std::string>;
     std::optional<std::string> chat_typing;                 // a chat message, being typed (Enter)

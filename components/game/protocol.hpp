@@ -139,13 +139,17 @@ struct DismissEffect { int kind = 0; std::uint64_t instance = 0; };
 // 0x15: a typed chat line, to everyone in the game (a LAN game's; game.exe's
 // C→S 0x15 carries a whisper's target too).
 struct Say { std::string text; };
+// The Party screen's clicks (C->S 0x5d {action, on, player}: 1 loot, 2 hear,
+// 3 squelch, 4 hostile, `on` the flag's new bits; 0x5e {action, player}: 6
+// invite, 7 cancel, 8 accept, 9 leave). `player` is the row's unit id.
+struct PartyScreen { int action = 0; int player = -1; std::uint32_t bits = 0; };
 }  // namespace cmd
 
 using Command = std::variant<cmd::Move, cmd::UseSkill, cmd::Interact, cmd::Pickup, cmd::Resurrect,
                              cmd::StatPoint, cmd::SkillPoint, cmd::SelectSkill, cmd::UseBelt, cmd::UseItem, cmd::ReadScroll,
                              cmd::ToCursor, cmd::Drop, cmd::ToGrid, cmd::ToBody, cmd::ToBelt, cmd::Socket, cmd::ScrollToBook,
                              cmd::OpenTrade, cmd::OpenHire, cmd::Buy, cmd::Sell, cmd::Repair, cmd::Identify, cmd::IdentifyWith, cmd::Hire, cmd::ResurrectMerc, cmd::CloseTrade, cmd::Respec,
-                             cmd::Run, cmd::Chat, cmd::QuestMessage, cmd::Waypoint, cmd::Caravan, cmd::Imbue, cmd::ObjectItem, cmd::Transmute, cmd::StashGold, cmd::DropGold, cmd::SwapWeapons, cmd::MercItem, cmd::AutoBelt, cmd::EquipFromBag, cmd::DismissEffect, cmd::Say>;
+                             cmd::Run, cmd::Chat, cmd::QuestMessage, cmd::Waypoint, cmd::Caravan, cmd::Imbue, cmd::ObjectItem, cmd::Transmute, cmd::StashGold, cmd::DropGold, cmd::SwapWeapons, cmd::MercItem, cmd::AutoBelt, cmd::EquipFromBag, cmd::DismissEffect, cmd::Say, cmd::PartyScreen>;
 
 // The wire form of a command (what a transport carries): its id byte —
 // game.exe's packet id where there's one to match — then its fields,
@@ -233,6 +237,8 @@ inline constexpr std::uint8_t kWaypoint = 0x49;
 inline constexpr std::uint8_t kDropGold = 0x50;
 inline constexpr std::uint8_t kRunOn = 0x53;
 inline constexpr std::uint8_t kRunOff = 0x54;
+inline constexpr std::uint8_t kRelation = 0x5d;     // the Party screen's boxes
+inline constexpr std::uint8_t kPartyButton = 0x5e;  // its party button and LEAVE
 inline constexpr std::uint8_t kSwapWeapons = 0x60;
 inline constexpr std::uint8_t kMercItem = 0x61;
 inline constexpr std::uint8_t kAutoBelt = 0x63;
