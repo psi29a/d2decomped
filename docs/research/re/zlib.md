@@ -40,8 +40,8 @@ in address order.
   the three functions' only references.
 - **The users.** Outside zlib, only `inflateInit_`, `inflate`, `inflateEnd`,
   `deflateInit_`, `deflate` and `deflateEnd` are called: by Storm's
-  SCOMP.CPP compressor and unpacker (the unpacker core is `FUN_0041e250`,
-  storm-file.md "SCOMP.CPP") and by the Warden module loader's inflate
+  SCOMP.CPP compressor and unpacker (the cores `FUN_0041e100` and
+  `FUN_0041e250`, storm-file.md "SCOMP.CPP: the zlib compressor") and by the Warden module loader's inflate
   `FUN_006c79c0` (unnamed-frontier.md). The call sites are in
   `game-calls.tsv`.
 
