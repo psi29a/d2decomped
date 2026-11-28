@@ -733,6 +733,9 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
                 if (Hero* caster = hero_of(missile.caster)) act_as(*caster);
                 merc_blow = casting_merc = missile.by_merc;
                 burst(missile, now_ms);
+            }, [&](int owner) -> d2d::rules::Rng* {                     // a monster shooter not among the foes: its own seed
+                const int index = monster_index(owner);
+                return index >= 0 ? &monsters[std::size_t(index)].seed : nullptr;
             });
             war_cry_reach(*game_data, *level, missiles, monsters, now_ms);   // a monster's nova on its allies (hit 18): the subtiles it just crossed
             merc_blow = casting_merc = false;

@@ -103,9 +103,12 @@ bool missile_fly(const Level& level, Missile& missile, Reach&& reach) {
 // A friendly one asks `hits_monster` (true: it struck one, spent), and
 // `flight_over` when its flight ends (FUN_00554ca0 gives 2: FUN_005adf10(0,
 // 1), its hit with no unit); a monster's hit spawn goes off there too.
-template <class Reach, class HitsMonster, class OwnerAlive, class FlightOver>
+// `owner_seed`: a monster owner's unit seed by its id when it isn't among the foes (nullptr none).
+struct NoOwnerSeed { d2d::rules::Rng* operator()(int /*owner*/) const { return nullptr; } };
+template <class Reach, class HitsMonster, class OwnerAlive, class FlightOver, class OwnerSeed = NoOwnerSeed>
 void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Foe> foes, d2d::rules::Rng& rng,
-                     std::uint32_t now_ms, Reach&& reach, HitsMonster&& hits_monster, OwnerAlive&& owner_alive, FlightOver&& flight_over) {
+                     std::uint32_t now_ms, Reach&& reach, HitsMonster&& hits_monster, OwnerAlive&& owner_alive, FlightOver&& flight_over,
+                     OwnerSeed&& owner_seed = {}) {
     std::vector<Missile> laid;
     const int frame = int(now_ms / 40);
     // FUN_005a8730, its unit filter: with an owner (EDI), only a unit hostile to it (FUN_00554200)
@@ -409,8 +412,10 @@ void missiles_update(const Level& level, std::vector<Missile>& ms_, std::span<Fo
             // Its to-hit on its owner's seed (FUN_0057d9b0, ECX the owner), its damage on its own, the block,
             // avoid and evade on the struck unit's.
             const auto owner_foe = std::ranges::find_if(foes, [&](const Foe& other) { return other.monster && other.monster->id == missile.owner; });
-            auto& owner_seed = owner_foe != foes.end() && owner_foe->seed ? *owner_foe->seed : rng;
-            const auto taken = d2d::rules::monster_blow(foe.fighter, foe.level, foe.motion(), missile.src, true, owner_seed, true, false, false, foe.seed,
+            // The owner is a foe only while the monsters are (Fight::world's gate); else its seed by its id.
+            d2d::rules::Rng* const owner_unit = owner_foe != foes.end() && owner_foe->seed ? owner_foe->seed : owner_seed(missile.owner);
+            auto& owner_rng = owner_unit ? *owner_unit : rng;
+            const auto taken = d2d::rules::monster_blow(foe.fighter, foe.level, foe.motion(), missile.src, true, owner_rng, true, false, false, foe.seed,
                                                         missile.seed ? &*missile.seed : nullptr);
             foe.take(taken, missile.owner);
             if (taken.hit && missile.owner >= 0) foe.shot_by.push_back(missile.owner);
