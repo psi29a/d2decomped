@@ -544,7 +544,7 @@ struct Fight {
     // The swing's animation: KK for kicks, S1 for Smite, else A1.
     [[nodiscard]] int swing_mode() const;
     [[nodiscard]] bool skill_in_use() const;     // the unit's mode holds a used skill (FUN_00620250 non-null): a swing or a cast
-    [[nodiscard]] bool hit_interrupts() const;   // a big hit may put the player in a get-hit now (FUN_005809d0: FUN_0057edd0 and FUN_0057eec0)
+    [[nodiscard]] bool hit_interrupts();   // a big hit may put the player in a get-hit now (FUN_005809d0: FUN_0057edd0 and FUN_0057eec0)
     // What the swing's skill adds to the blow.
     [[nodiscard]] d2d::rules::Swing swing();
     // A melee skill's hit at `lvl` with `env`'s calcs: swing()'s, and the merc's (Jab, Bash, Stun).

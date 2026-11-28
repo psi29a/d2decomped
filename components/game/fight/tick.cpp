@@ -842,14 +842,23 @@ auto Fight::skill_in_use() const -> bool {
         return attack_mode(actor->pmode) || actor->pmode == kModeA2 || actor->pmode == kModeSC || actor->pmode == kModeTH;
     }
 
-auto Fight::hit_interrupts() const -> bool {
+auto Fight::hit_interrupts() -> bool {
         if (uninterruptable()) return false;   // state 0x36 is FUN_0057eec0's first test (0x57eec7): a Leap, Leap Attack or Whirlwind under way refuses every new mode
         if (!skill_in_use()) return true;
         const auto* used = game_data->skills.get(actor->swing_skill);
         // The barrel kick (World::operate) swings KK with no skill id; game.exe starts it with the unit's skill 1, Kick (FUN_005868a0 -> FUN_00580a70), whose `interrupt` is blank.
         if (actor->pmode == kModeKK && actor->swing_skill == 0)
             if (const auto kick = game_data->skills.by_name.find("Kick"); kick != game_data->skills.by_name.end()) used = game_data->skills.get(kick->second);
-        return !used || used->interrupt;
+        if (!used) return true;
+        if (!used->interrupt) return false;
+        // Under the Concentration aura's state (0x2a, 0x57ef51) a rand(100) on the unit's seed (+0x20, 0x57ef72)
+        // under that state's stat 164 (skill_concentration: its Param5) holds the swing; else Concentrate's state
+        // (0xf, its swing's aurastate: self_state) does (0x57ef85). A monster is cut all the same (0x57ef94).
+        if (const auto hold = actor->psum[d2d::d2s::kSkillConcentration]; hold > 0 && std::int64_t(actor->seed(100)) < hold) return false;
+        return std::ranges::none_of(actor->self_states, [&](const SelfState& state) {
+            const auto* skill = game_data->skills.get(state.skill);
+            return skill && skill->aurastate == "concentrate";
+        });
     }
 
 // A swing or cast that a get-hit cut off: nothing of it goes on (its repeats, sequence and movement), as when it ends.
@@ -1068,7 +1077,7 @@ auto Fight::hurt_side(std::span<Foe> side, std::uint32_t now_ms) -> void {
         // A real get-hit refuses another (FUN_0057edd0: GH from GH); a knockback slide is drawn as GH but is game.exe's
         // mode 0x13, which allows it (0x57ee0b), and the get-hit then ends the slide. A swing or cast is cut only if its skill allows it (FUN_0057eec0).
         const bool get_hit_running = actor->pmode == kModeGH && !actor->knock;
-        if (!died && (big || (foe.hits > 0 && now_ms < actor->stunned)) && hit_interrupts() && actor->pmode != kModeBL && !get_hit_running && !knocked_now) {
+        if (!died && (big || (foe.hits > 0 && now_ms < actor->stunned)) && actor->pmode != kModeBL && !get_hit_running && !knocked_now && hit_interrupts()) {
             if (skill_in_use()) cancel_swing();   // the swing's queued strike is gone with its mode
             actor->knock.reset();
             set_pmode(kModeGH, now_ms);

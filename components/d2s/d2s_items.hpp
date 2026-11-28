@@ -266,6 +266,7 @@ enum StatId { kStr = 0, kEne = 1, kDex = 2, kVit = 3, kStatPts = 4, kSkillPts = 
               kItemPierce = 156, kItemMagicArrow = 157, kItemExplosiveArrow = 158,
               kThrowMinDamage = 159, kThrowMaxDamage = 160, kHandOfAthena = 161,   // skill_handofathena: Slow Missiles' % of a CanSlow missile's velocity
               kSkillStaminaPercent = 162, kPassiveStaminaPercent = 163,   // skill_staminapercent (a state's), skill_passive_staminapercent: op 1 onto maxstamina
+              kSkillConcentration = 164,            // skill_concentration (the Concentration aura's): % a swing isn't cut by a hit
               kSkillPierce = 166,
               kSkillArmorPercent = 171, kFade = 181, kArmorOverridePercent = 182,
               kChargedSkill = 204,                  // item_charged_skill: param skill << 6 | level, value charges << 8 | left
