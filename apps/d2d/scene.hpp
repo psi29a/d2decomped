@@ -178,6 +178,7 @@ struct Scene : GameData {
     // Char panel stat buttons (docs/research/re/char-panel.md): PANEL\level
     // (frame 1 pressed) on PANEL\levelsocket, the PANEL\skillpoints box.
     d2d::dc6::Sprite level_button, level_socket, points_box;
+    d2d::dc6::Sprite duro_icon;   // PANEL\DuroIcon: the worn items' durability alerts (0x7bef60, rules::durability_icons)
     // Skill tree (docs/research/re/skill-tree.md): SPELLS\skltree_<c>_back
     // (frames 0..3 the panel, 4t..4t+3 tab t on top) and <Cl>Skillicon.
     std::array<d2d::dc6::Sprite, 7> skill_tree_bg, skill_icons;   // by d2s class

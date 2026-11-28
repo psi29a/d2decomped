@@ -493,6 +493,38 @@ Text"), unless no player or a dead one (`FUN_00463df0`, mode 0x11) or
 `0x7a0620` is set (not traced); `FUN_004967f0` reads both values when the
 HUD loads at the game's start.
 
+**Durability alerts** (`FUN_00497fe0`, from `FUN_00456ee0` at 0x456f89
+while UI 1, 0xc and 0xe are shut, before the automap `FUN_0045ad60`).
+The body slots at `0x7223e8`, in order: 1 head, 3 torso, 8 belt, 9 feet,
+10 gloves, 4 right hand, 5 left hand (`FUN_0063bde0`: the item there).
+A slot is low when its item has durability (`FUN_00629930`: Items
+`+0x112` set, `+0x113` nodurability clear, a max, stat 0x98 under 1), is
+not stackable (`FUN_006289f0`, Items `+0x132`), has a max
+(`FUN_00625e00`) and stat 0x48 × 100 / max (imul, idiv) is 20 or under.
+With no slot low nothing draws. Otherwise each slot draws one icon
+(`FUN_00497cf0`; EAX state, ECX quiver, EDX shield, the slot on the
+stack): an empty hand nothing, any other empty slot state 0; an item
+without durability or stackable state 0, quiver and shield 0 (unasked);
+else quiver = its ItemTypes Quiver (`FUN_0062e740`, `+0xe`), shield = of
+type 0x33 (`FUN_00629bb0`; ItemTypes row 51 is `shld`), and state 2 at
+0 % or under, 1 at 20 % or under, 0 above (0 with max 0). The frame of
+`Panel\DuroIcon` (`0x6d9f88`, loaded into `0x7bef60` by `FUN_004967f0`;
+33 frames, 48 × 64) is state × 11 plus, by the jump table at `0x497dd4`:
+head 1, torso 4, belt 2, feet 3, gloves 0; right hand 10 with a quiver,
+else 7 with a shield, else 6; left hand 9, 5, 8 the same way. Quivers
+have no durability in 1.14d's tables, so 9 and 10 never draw: a quiver
+in the left hand shows frame 8. Drawn (`FUN_004f6480`, colour -1, mode 1)
+by the bottom-left at x = width − 0x3c (`0x71146c`), bottom 0x6e; with
+the automap up (UI 10, `FUN_004538d0`) at bottom 0x8c, or 0xb7 when
+`FUN_0047a560` finds a player hostile to us. Checked against game.exe by
+`tools/emu/durability_alerts.py` (22000 cases, seeds 1 and 7, all match).
+
+d2d: `rules::durability_slot` / `durability_icons`
+(durability_alert.hpp), built each frame in `ClientSession::draw` and
+drawn by `draw_durability_icons` (panels.cpp) before the automap. The
+hostile shift isn't ported: d2d keeps only the local player's relation
+flags toward others (netgame's 0x8c), not theirs toward us.
+
 **Stamina** (server). Regen `FUN_00580500` each frame (`FUN_00580810`
 event 3, after life `FUN_00580610` and mana `FUN_005806f0`): by mode
 (unit+0x10) 1 / 5 shift 8; 2 shift 9 but none below 256; 6 shift 9;

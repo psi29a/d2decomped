@@ -17,6 +17,7 @@
 #include <d2s_automap.hpp>
 #include <d2s_items.hpp>
 #include <drlg.hpp>
+#include <durability_alert.hpp>
 #include <font.hpp>
 #include <hud_glide.hpp>
 #include <hud_globe.hpp>
@@ -589,6 +590,14 @@ void draw_level_buttons(std::vector<std::uint8_t>& framebuffer, const Scene& sce
     };
     button(buttons.stats_x, 0xf92, buttons.stats_down && over_stats_button(buttons.stats_x, mouse_x, mouse_y));
     button(buttons.skills_x, 0xf93, buttons.skills_down && over_skills_button(buttons.skills_x, mouse_x, mouse_y));
+}
+
+// FUN_00497cf0: FUN_004f6480(cel, x, bottom, -1, 1, 0), in the act's palette.
+void draw_durability_icons(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const std::vector<d2d::rules::DurabilityIcon>& icons) {
+    const auto& pal = scene.act_pal.entries().empty() ? scene.pal : scene.act_pal;
+    for (const auto& icon : icons)
+        if (icon.frame >= 0 && icon.frame < int(scene.duro_icon.frames_per_direction()))
+            blit_at_anchor(framebuffer, scene.duro_icon.frame(0, std::uint32_t(icon.frame)), pal, icon.x, icon.bottom);
 }
 
 std::array<int, 4> grid_rect(const Scene& scene, const Scene::InvLayout& layout, const d2d::d2s::Item& item) {
