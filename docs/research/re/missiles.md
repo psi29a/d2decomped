@@ -46,7 +46,7 @@ its EDX, run after the path is set.
 - Flag 0x400 (FUN_0056ee90): range = (FUN_006417f0 distance << 16) /
   (velocity << 4), the frames to arrive.
 - Collision mask (path +0x50) = DAT_0073c724[CollideType]; the unit
-  filter DAT_0073c720[CollideType] (3: 0x184 and FUN_005a8850 →
+  filter DAT_0073c720[CollideType] (3: 0x184 and LAB_005a8850 →
   FUN_005a8730: targetable, not the last unit hit, hostile unless
   CollideFriend). In FUN_005a8730 (ESI the unit, EDI the owner, EBX the
   row): unit +0xc4 bits 2 and 3 set; row +0x188 with the unit in state

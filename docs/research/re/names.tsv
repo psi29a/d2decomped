@@ -1774,7 +1774,6 @@ address	name	evidence
 005a6b10	monster_mode_flag	EAX mode under 16, ECX monster: for a mode row (0x6e23d0, 12 bytes) with its third dword and not its second, the MonStats2 mode bit (+0x104). 4 callers, ported: FUN_005a7670, FUN_005a7c20, FUN_005a7e60 (unnamed-frontier.md)
 005a6b70	monster_step_spot	(From its calls:) a spot near the cast target (FUN_00553540, FUN_00648a00..b90, FUN_00650e30). Only caller FUN_005a6d50 (unnamed-frontier.md)
 005a7b30	monster_skill_reset	ESI monster: its skill node 0; unless EDI is 0 or 0xc, FUN_005541b0 then FUN_005a73e0(1). Callers FUN_005a7c20 and two more (unnamed-frontier.md)
-005a8850	missile_collide_player_monster	0x73c720 CollideType 3 / 8 callback: player or monster, then FUN_005a8730's flags, state, last-unit and side filter (missiles.md)
 005a8910	missile_stat_roll	two stat reads on the missile, 0 if either < 1, lower end + optional bonus-stat term + seed draw (missiles.md "The roll helper")
 005a8c70	missile_fill_damage_record	ECX game, EDX missile, stack unit and 0x70-byte record: per element class (FUN_0064b0c0) rolls the missile's stats into the record, physical scaled by stat 0x19 / 0x79 / 0x7a and doubled by 0x8d (missiles.md "The record fill")
 005a99e0	missile_ride_owner	EBX missile: with an owner (FUN_00552fd0) and a path, FUN_00650be0 moves its path to the owner's subtile and room (static path +0xc / +0x10 for types 2, 4, 5); missile do 20 and 30 (missiles.md)
