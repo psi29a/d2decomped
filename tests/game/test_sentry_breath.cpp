@@ -88,8 +88,16 @@ int main() try {
     assert(!actor->pets.empty());
     auto& trap = actor->pets.back();
     assert(trap.shot_skill == breath.id);                       // its Skill1's breath, not Fire Trauma's bombs (trap_shot)
-    std::puts("OK: a summoned Inferno Sentry breathes its Skill1");
-
+    fight.missiles.clear();
+    fight.trap_fire(trap, 0, now);
+    assert(trap.monster.breath >= 0);
+    const auto shots_left = trap.ctrl[1];
+    const std::uint32_t breath_end = trap.monster.breath_until;
+    for (std::uint32_t at = now + 40; at < breath_end; at += 40) {
+        world->tick({}, at, at - 40);
+        assert(trap.ctrl[1] == shots_left);                     // no shot spent mid-breath
+    }
+    std::puts("OK: no shot is spent while its breath runs");
     return 0;
 } catch (const std::exception& error) {
     std::printf("test_sentry_breath: %s\n", error.what());

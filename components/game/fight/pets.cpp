@@ -440,6 +440,9 @@ auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
                 }
             if (pet.until && now_ms >= pet.until) { monster.hit_points = 0; set_mode(*game_data, monster, "DT", now_ms); continue; }
             if (monster.mode == "KB") { if (d2d::game::knock_slide(monster, now_ms)) continue; set_mode(*game_data, monster, "GH", now_ms); }   // knocked back, then its get-hit
+            // An Inferno Sentry's breath holds its skill's mode (FUN_005cc240 / do 95), and a monster thinks only once
+            // its mode ends: no shot is spent before the breath is over.
+            if (monster.breath >= 0) continue;
             const auto& ai_name = game_data->monsters.types[std::size_t(monster.type)].ai_name;
             const bool traced = d2d::rules::traced_pet_ai(ai_name);
             if (pet.aura >= 0) pet_aura(pet, now_ms);
