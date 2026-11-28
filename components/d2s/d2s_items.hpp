@@ -247,6 +247,8 @@ enum StatId { kStr = 0, kEne = 1, kDex = 2, kVit = 3, kStatPts = 4, kSkillPts = 
               kFasterBlockRate = 102,
               kFasterCastRate = 105,
               kSingleSkill = 107,                   // item_singleskill: +n to one skill (param)
+              kBypassUndead = 103, kBypassDemons = 104, kBypassBeasts = 106,   // skill_bypass_*: the blow's record flags 0x100 / 0x200 / 0x400
+              kCurseResistance = 109,               // curse_resistance (Fade's): a curse's length less that %, none at 100
               kPoisonLengthReduction = 110,         // item_poisonlengthresist
               kNormalDamage = 111, kStupidity = 113,
               kIgnoreTargetDefense = 115,           // item_ignoretargetac
@@ -263,7 +265,10 @@ enum StatId { kStr = 0, kEne = 1, kDex = 2, kVit = 3, kStatPts = 4, kSkillPts = 
               kItemSlow = 150,                      // item_slow: a slow on the unit it strikes or that strikes it (aura event 19 / 27)
               kIndestructible = 152, kCannotBeFrozen = 153, kStaminaDrainPercent = 154,
               kItemPierce = 156, kItemMagicArrow = 157, kItemExplosiveArrow = 158,
-              kThrowMinDamage = 159, kThrowMaxDamage = 160, kSkillPierce = 166,
+              kThrowMinDamage = 159, kThrowMaxDamage = 160, kHandOfAthena = 161,   // skill_handofathena: Slow Missiles' % of a CanSlow missile's velocity
+              kSkillStaminaPercent = 162, kPassiveStaminaPercent = 163,   // skill_staminapercent (a state's), skill_passive_staminapercent: op 1 onto maxstamina
+              kSkillConcentration = 164,            // skill_concentration (the Concentration aura's): % a swing isn't cut by a hit
+              kSkillPierce = 166,
               kSkillArmorPercent = 171, kFade = 181, kArmorOverridePercent = 182,
               kChargedSkill = 204,                  // item_charged_skill: param skill << 6 | level, value charges << 8 | left
               kArmorPerLevel = 214, kMaxDamagePerLevel = 218, kMaxDamagePercentPerLevel = 219, kToHitPerLevel = 224,

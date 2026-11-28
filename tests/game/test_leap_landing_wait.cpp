@@ -61,6 +61,14 @@ int main(int argc, char** argv) try {
     assert(leap_hold(leaper, 0x21c, 40));
     leaper.leap_until = 1000 + 61 * 40;
     assert(!leap_hold(leaper, 0x21c, 40));
+    // Measured from the takeoff row, as the flight is: off on row 5, the landing event on row 11, 2 cells at 0.2 a
+    // frame (Run 16) is 1.2 cells flown, so it waits; counted from the mode's start (11 frames, 2.2) it would land.
+    leaper.leap_to_x = leaper.leap_from_x + 2.f;
+    leaper.leap_pace = leap_cells_per_frame(16);
+    leaper.leap_takeoff = 1000 + 5 * 40;
+    leaper.leap_until = 1000 + 11 * 40;
+    assert(leap_hold(leaper, 0x21c, 40));
+    leaper.leap_takeoff = 0; leaper.leap_to_x = 20.1f;
     // The real update path (monster_update): Korlic's Leap Attack (ancientbarb1's BaseId 0x21c, seq_ancientleap, made-up rows) in the
     // air at the landing event, row 11. On the old logic it snaps to the landing there and its mode ends on row 17; now it waits a
     // tick at a time (FUN_005da120) till the flight is done (80 frames at pace 0.125 cells), its row held, its mode's end moved on as far.
@@ -103,8 +111,11 @@ int main(int argc, char** argv) try {
     std::vector<Missile> missiles;
     const Monster fresh = korlic;                                                    // the setup, before it runs
     int landed = -1;
+    std::uint32_t until_flying = 0, until_landed = 0;
     for (std::uint32_t tick = 1; tick <= 120; ++tick) {
+        if (korlic.leaping) until_flying = korlic.mode_until;
         monster_update(data, level, korlic, foes, rng, start + tick * tick_ms, 0.04f, crowd, missiles);
+        if (landed < 0 && !korlic.leaping) until_landed = korlic.mode_until;
         if (tick == 11) {
             assert(korlic.leaping && korlic.unit.x < 20.f);                          // not snapped to the landing
             assert(korlic.leap_hold_row == 11 && korlic.seq_frame == 11);            // waiting, its row held
@@ -113,6 +124,8 @@ int main(int argc, char** argv) try {
         if (landed < 0 && !korlic.leaping) landed = int(tick);
     }
     assert(landed > 70 && landed < 90);                                              // down when the flight is: 80 frames
+    // On it, a BaseId other than sandleaper1's cuts a row off the length left (FUN_005da120: +0x48 less 0x100).
+    assert(until_landed == until_flying - tick_ms);
     assert(korlic.unit.x == korlic.leap_to_x);
     assert(korlic.leap_hold_row == -1);
     // Held at row 13 (it nears the landing, under 2 subtiles off), the row's event waits for the landing: it strikes once, a foe in reach, when the unit is down.

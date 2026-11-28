@@ -597,6 +597,22 @@ int main() try {
         world.fight.pending.clear();
         world.fight.boss_events({}, 9002 * kTickMs);
         assert(world.fight.pending.empty());
+
+        // A burner's flame (FUN_005adf10): its element first, min + rand(max - min) on the missile's own seed
+        // (FUN_005a8910), then its pSrvDmgFunc 3 soft hit's step of the same seed.
+        {
+            GameData::MissileInfo burner_row;
+            burner_row.dmg_func = 3; burner_row.dmg_par1 = 0x80;    // the soft hit always passes
+            Missile burner;
+            burner.info = &burner_row;
+            burner.seed = d2d::rules::Rng{ 99 };
+            d2d::rules::Rng replay{ 99 };
+            replay.next();                                          // the element's rand(max - min)
+            replay.next();                                          // the soft hit
+            world.fight.burn(world.fight.monsters.size() - 1, d2d::rules::MissileDamage{ .etype = 0, .elo = 256, .ehi = 512 }, 9100 * kTickMs, burner);
+            assert(burner.seed->low == replay.low && burner.seed->high == replay.high);
+            std::printf("OK: a burner's element on its own seed, then the soft hit's step\n");
+        }
         world.fight.monsters.pop_back();
         std::printf("OK: Lightning Enchanted's soft hit then GH lets off its bolts at once, once\n");
 

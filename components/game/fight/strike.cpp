@@ -135,7 +135,10 @@ auto Fight::player_fighter(d2d::rules::Fighter* kick ,
         const auto fighter_stats = [](d2d::rules::StatSum stats) {
             // FUN_0057b7d0 reads stat 101 before stat 59: Venom's override
             // is the duration of all poison on the player's melee record.
+            // Without it, stat 59 over poison_count (326: one a poison mod)
+            // when that's over 1 (0x57bb9b..: the length, averaged).
             if (stats[kPoisonOverrideLength] > 0) stats[kPoisonLength] = stats[kPoisonOverrideLength];
+            else if (stats[kPoisonCount] > 1) stats[kPoisonLength] /= stats[kPoisonCount];
             return stats;
         };
         const auto& resistances = actor->character.panel.res;                        // panel: fire, cold, lightning, poison
@@ -200,8 +203,12 @@ auto Fight::player_fighter(d2d::rules::Fighter* kick ,
 // FRW's diminishing (FUN_00623f50).
 // Venom's skill_poison_override_length (101) replaces poisonlength (59)
 // before make_fighter, as FUN_0057b7d0 reads it for a nonzero poison field.
-// ponytail: other_animrate (69, also written for attackrate by FUN_005c6cc0),
-// curse_resistance (109) and skill_staminapercent (162) are not consumed here.
+// Every aurastat and passivestat of the class skills is read (checked 2026-11-28 against Skills.txt and the
+// getters in game.exe) but lifedrainmaxdam (61: no reader in game.exe), bonearmormax (133: only the
+// client's FUN_004d8b90 / FUN_004d8e60, which stage the state's overlays 1..3 by bonearmor against its thirds,
+// stat 0x163) and the player's other_animrate.
+// ponytail: those overlay stages aren't drawn; the player's other_animrate (69, also written for
+// attackrate by FUN_005c6cc0) is not consumed here.
 auto Fight::update_fighters(std::uint32_t now_ms) -> void {
         using namespace d2d::d2s;
         std::erase_if(actor->self_states, [&](const SelfState& state) { return now_ms >= state.until; });
@@ -265,6 +272,20 @@ auto Fight::update_fighters(std::uint32_t now_ms) -> void {
                     current = std::min(current + std::max<std::int64_t>(orders - *bo_share[k], 0), maximum);
                     *bo_share[k] = orders;
                     want += item_share;
+                } else {
+                    // Max stamina's op 1 entries (FUN_00626200 case 1): skill_staminapercent (162: Battle Orders',
+                    // Vigor's, Werewolf's states) and skill_passive_staminapercent (163: Increased Stamina) each
+                    // add the no-op sum (own + the items' flat) x it / 100 (d2d_rules_mul_div), a non-item's.
+                    // The current stamina stays, under the new maximum.
+                    std::array<std::int64_t, 2> pct{ st_sum[kSkillStaminaPercent], st_sum[kPassiveStaminaPercent] };
+                    for (const auto& passive : passives)
+                        if (passive.itype.empty() && (passive.stat == kSkillStaminaPercent || passive.stat == kPassiveStaminaPercent))
+                            pct[passive.stat == kSkillStaminaPercent ? 0 : 1] += passive.value;
+                    const std::int64_t raw = maximum - actor->item_max[k] - actor->stamina_share + actor->character.panel.max_flat[k] * 256;
+                    std::int64_t share = 0;
+                    if (raw != 0) for (const std::int64_t each : pct) share += raw * each / 100;
+                    maximum += share - actor->stamina_share;
+                    actor->stamina_share = share;
                 }
                 maximum += want - actor->item_max[k];
                 current = std::min(current, maximum);
@@ -310,7 +331,7 @@ auto Fight::update_fighters(std::uint32_t now_ms) -> void {
         for (std::size_t k = 0; k < 4; ++k) panel.res[kPanelRes[k]] = std::max(actor->player_combat.res[k], -100);
         panel.defense = actor->player_combat.defense;
         for (const std::size_t attribute : { kStr, kEne, kDex, kVit }) panel.bonus[attribute] += st_sum[attribute];
-        panel.bonus[kMaxLife] += actor->bo_life >> 8; panel.bonus[kMaxMana] += actor->bo_mana >> 8;
+        panel.bonus[kMaxLife] += actor->bo_life >> 8; panel.bonus[kMaxMana] += actor->bo_mana >> 8; panel.bonus[kMaxStamina] += actor->stamina_share >> 8;
         std::vector<std::string_view> active;
         for (const auto& state : states) if (const auto* skill = game_data->skills.get(state.skill)) active.push_back(skill->aurastate);
         for (const auto& aura : friendly_auras(actor->player.x, actor->player.y)) active.push_back(aura.skill->aurastate);
@@ -471,7 +492,9 @@ auto Fight::auras_at(float x, float y, bool enemy, const Monster* taker) const -
         // higher stored level and only extending an equal one. So of two sources of one aura (the player's and the merc's
         // Holy Freeze) one's stats count, the higher level's; each caster's pulse still hits (aura_pulse).
         // At an equal level game.exe keeps the first list but each pulse rewrites its stats (FUN_00627150, 0x5cef1e); here the first
-        // listed (the player's). ponytail: that differs only for a caster-dependent value at one level (no Act 2 merc aura has one).
+        // listed (the player's). The two can differ only by a caster-dependent value at one level, and none of the Act 2
+        // mercs' auras (Hireling.txt: Prayer, Defiance, Blessed Aim, Thorns, Holy Freeze, Might) has one: their aurastats
+        // are ln34 / dm34 and Prayer's edns with no EDmgSymPerCalc, its level's alone.
         std::vector<AuraOn> one_each;
         const auto state = [](const AuraOn& aura) -> const std::string& { return !aura.skill->auratarget.empty() ? aura.skill->auratarget : aura.skill->aurastate; };
         for (auto& aura : out) {
@@ -556,17 +579,19 @@ auto Fight::start_swing(std::uint32_t now_ms, bool shown) -> bool {
 
 // An SQ skill plays its sequence (FUN_00663310: seqnum's frames for
 // the weapon class) at the attack's speed; with no frames for the
-// weapon it swings once.
-// ponytail: the sequence's rate taken as the class's A1 (animdata)
-// through attack_ticks, 30 points slower for a UseAttackRate skill
-// (rules::sequence_sias); seqinput isn't read.
+// weapon it swings once. Its AnimData record is mode 0x12's, whose COF
+// name takes the override table's "gh" (0x745900: modes 0x12 and 0x13,
+// FUN_0064f5b0; compcode.md): the class's GH record for the weapon
+// class, through attack_ticks, 30 points slower for a UseAttackRate
+// skill (rules::sequence_sias).
+// ponytail: seqinput isn't read.
 auto Fight::start_sequence(std::uint32_t now_ms) -> void {
         actor->seq = {};
         actor->seq_struck = 0;
         actor->seq_sounded = 0;
         actor->seq = skill_sequence();
         if (actor->seq.empty()) return;
-        const auto& attack_anim = player_anim(kModeA1);
+        const auto& attack_anim = player_anim(kModeGH);
         start_move(*game_data->skills.get(actor->swing_skill), now_ms);
         const auto* skill = game_data->skills.get(actor->swing_skill);   // skill_sequence() found it: a sequence skill's row
         const int sias = actor->player_combat.sias + chill_rate(now_ms) + d2d::rules::sequence_sias(skill->use_attack_rate, skill->seqtrans);
@@ -746,15 +771,16 @@ auto Fight::skill_swing(const d2d::rules::Skill& skill_row, int lvl, const d2d::
 // FUN_0057ac50 gives every unit the same one-poison-at-a-time state: the
 // stronger per-frame hpregen loss replaces the old value and its end time.
 // A monster may be the target of another monster's record too (Fight::world).
-static void apply_monster_poison(Monster& target, double rate, int poison_ticks, std::uint32_t now_ms) {
+static void apply_monster_poison(Monster& target, double rate, int poison_ticks, std::uint32_t now_ms, int owner) {
         if (rate > 0 && (now_ms >= target.poison_until || rate >= target.poison_rate)) {
             target.poison_rate = rate;
             target.poison_until = now_ms + std::uint32_t(poison_ticks) * 40;
+            target.poison_owner = owner;                   // the new list's owner
         }
     }
 
 void apply_monster_foe_poison(Monster& target, int poison, int poison_ticks, std::uint32_t now_ms) {
-        apply_monster_poison(target, poison / (256.0 * 40.0), poison_ticks, now_ms);
+        apply_monster_poison(target, poison / (256.0 * 40.0), poison_ticks, now_ms, -1);
     }
 
 // A hit on monster i (the player's or the merc's): blocked, it blocks; otherwise the damage, life/mana leech
@@ -797,13 +823,14 @@ auto Fight::land(std::size_t monster_index, const d2d::rules::Blow& blow, bool b
         // FUN_0057a980 refuses under state 0x5c (death_delay), which only a unit killed under 0x36 (uninterruptable) gets
         // (FUN_0057cee0's kill flag, FUN_005a6920 at 0): d2d's merc never has 0x36 (Monster::uninterruptable: a whirl,
         // a leap or a nest), so no merc is under 0x5c here.
-        // ponytail: its mana half (FUN_0057aa00: stat 8 up to the max mana, FUN_00625d60): d2d keeps no merc mana, and
-        // what reads a merc's stat 8 isn't traced.
+        // Its mana half (FUN_0057aa00: stat 8 up to the max mana, FUN_00625d60) d2d doesn't keep: nothing spends a
+        // merc's mana (a non-player's cast costs nothing, FUN_0056bfe0) and its level stats set no max mana
+        // (FUN_00572840 writes no stat 9), so only its gear's could hold any.
         if (striker == merc_foe_id() && blow.life > 0 && actor->merc && actor->merc->alive())
             actor->merc->set_life_fine(int(std::min<std::int64_t>(std::int64_t(merc_max_life()) << 8, std::int64_t(actor->merc->life_fine()) + blow.life)));
         // One poison at a time, the stronger wins (FUN_0057ac50); at 0 life
         // the monster dies to it, the kill the poisoner's (FUN_005a6920).
-        apply_monster_poison(target, double(blow.poison) / (std::max(blow.poison_ticks, 1) * 40.0), blow.poison_ticks, now_ms);
+        apply_monster_poison(target, double(blow.poison) / (std::max(blow.poison_ticks, 1) * 40.0), blow.poison_ticks, now_ms, actor->id);
         // Chilled (state 11, FUN_0057af80): not at coldeffect 0, the length
         // over MonsterColdDivisor when it's negative, at least a tick, only
         // ever lengthened. Then rand % 100 < 20 on the monster's seed puts state
@@ -818,14 +845,14 @@ auto Fight::land(std::size_t monster_index, const d2d::rules::Blow& blow, bool b
         // Stunned (state 21, FUN_0057aae0): it stands until the stun ends, a
         // new stun resetting the length. A special monster (champion, unique,
         // superunique: monster data +0x16 & 8, FUN_005a0180) shrugs it off
-        // 90 % of the time (the attacker's seed); MonStats boss (+0xc & 0x40,
+        // 90 % of the time (the attacker's seed: d2d_unit_stun's param_1, 0x57ab17); MonStats boss (+0xc & 0x40,
         // FUN_0063e9f0) or Velocity 0 (+0x32) can't be stunned; 250 frames at
         // most (the hirelings' 13, FUN_0063ee90, is for mercs struck). The
         // gear's stun length (stat 66) comes in the blow (rules::player_blow).
         if (const auto* stun_type = target.type >= 0 ? &game_data->monsters.types[std::size_t(target.type)] : nullptr;
             blow.stun_ticks > 0 && (!stun_type || (!stun_type->boss_column && stun_type->velocity != 0))) {
             const bool special = target.boss != d2d::rules::Boss::none && target.boss != d2d::rules::Boss::minion;
-            if (!special || rng(100) >= 90) target.stun_until = target.stunned_until = now_ms + std::uint32_t(std::min(blow.stun_ticks, 250)) * 40;
+            if (!special || striker_seed(striker).next() % 100 >= 90) target.stun_until = target.stunned_until = now_ms + std::uint32_t(std::min(blow.stun_ticks, 250)) * 40;
         }
         // Its striker's gear item_slow (ItemStatCost item_slow's events, func 19, FUN_005c0310; FUN_0057c6c0 raises
         // domeleedamage / domissiledamage on the striker as the hit lands, event 5 / 6): state 0x18 on the target,
@@ -840,6 +867,7 @@ auto Fight::land(std::size_t monster_index, const d2d::rules::Blow& blow, bool b
         if (blow.bleed) {
             target.bleed_rate = blow.bleed_fine / (256.0 * 40);                   // 256ths a frame, 40 ms a frame
             target.bleed_until = now_ms + std::uint32_t(d2d::rules::kOpenWoundsFrames) * 40;
+            target.bleed_owner = actor->id;
         }
         // Life Tap: whoever dealt the hit heals (rules::life_tap_life). FUN_005c61e0 takes any player or monster
         // striker that isn't dying (0x5c620a, FUN_005541b0), so the merc and the pets too.
@@ -852,7 +880,8 @@ auto Fight::land(std::size_t monster_index, const d2d::rules::Blow& blow, bool b
             else if (const auto pet = std::ranges::find_if(actor->pets, [&](const Pet& each) { return each.monster.id == striker; }); pet != actor->pets.end() && pet->monster.alive())
                 pet->monster.set_life_fine(int(d2d::rules::life_tap_life(pet->monster.life_fine(), pet->monster.max_life_fine(), damage_fine, pct)));
         }
-        if (blow_hurt(*game_data, target, blow, now_ms)) { killed(monster_index, now_ms); return true; }
+        if (blow.soft) { target.left_mode = "hit"; target.struck_event = target.struck_event || target.mode != "GH"; }   // event 4 tests mode 3 at the hit
+        if (blow_hurt(*game_data, target, blow, now_ms, !blow.no_get_hit)) { killed(monster_index, now_ms); return true; }
         // Knockback (result flag 8): a monster with GH and KB modes
         // (MonStats2, FUN_0046c140 bits 3 / 13; else it's a GH) goes into
         // KB (LAB_005a77d0): path type 8, 5 subtiles on from the attacker,
@@ -924,7 +953,18 @@ auto Fight::monster_dots(std::uint32_t now_ms, float elapsed) -> void {
             monster.dot_acc -= whole;
             if (whole < 0) heal(monster, -whole);
             else monster.hit_points -= whole;
-            if (!monster.alive()) { set_mode(*game_data, monster, "DT", now_ms); killed(i, now_ms); }
+            if (!monster.alive()) {
+                // The kill is its poison's owner's, else its bleeding's (FUN_0057e7b0 on the state list's owner): that
+                // player's experience and quest credit; a monster's poison, nobody's.
+                set_mode(*game_data, monster, "DT", now_ms);
+                const int owner = now_ms < monster.poison_until ? monster.poison_owner : now_ms < monster.bleed_until ? monster.bleed_owner : actor->id;
+                const auto found = std::ranges::find(heroes, owner, [](const Hero* hero) { return hero->id; });
+                if (owner < 0 || found == heroes.end()) { killed(i, now_ms, false); continue; }   // a monster's, or the player's gone
+                Hero& was = *actor;
+                act_as(**found);
+                killed(i, now_ms);
+                act_as(was);
+            }
         }
     }
 
@@ -1113,7 +1153,7 @@ auto Fight::hit(std::uint32_t now_ms, float reach ) -> void {
             && swaps_ai(*game_data, monsters[target])) {
             const int lvl = skill_level ? skill_level(skill->id) : 1;
             auto& turned = monsters[target];
-            if (int(rng(100)) < calc(*skill, skill->calc[0], lvl)
+            if (int(actor->seed(100)) < calc(*skill, skill->calc[0], lvl)          // FUN_005d02b0: on the caster's seed (0x5d0326)
                 && put_state(*game_data, turned, { skill->id, lvl, now_ms + std::uint32_t(std::max(calc(*skill, skill->auralen, lvl), 1)) * 40 }, now_ms))
                 turn_good(turned, int(actor->character.stats.get(d2d::d2s::kLevel)));
         }
@@ -1143,7 +1183,10 @@ auto Fight::build_blow(std::size_t monster_index) -> Hero::BuiltBlow {
             current_swing.ed_pct += calc(*skill, skill->calc[0], lvl);
             fighter.life_steal += calc(*skill, skill->calc[1], lvl); fighter.mana_steal += calc(*skill, skill->calc[2], lvl);
         }
-        return { d2d::rules::player_blow(fighter, target_of(monster_index), int(actor->character.stats.get(d2d::d2s::kLevel)), rng, current_swing), current_swing.freeze_len };
+        // Its rolls on the player's seed, the block on the monster's (combat.md "To-hit and block").
+        return { d2d::rules::player_blow(fighter, target_of(monster_index), int(actor->character.stats.get(d2d::d2s::kLevel)), actor->seed, current_swing, nullptr,
+                                         &monsters[monster_index].seed),
+                 current_swing.freeze_len };
     }
 
 // What Conversion (FUN_005d0350) and Mind Blast (FUN_005d7430) do once
@@ -1249,9 +1292,8 @@ auto Fight::corpse_blast(const d2d::rules::Skill& skill, int lvl, std::size_t co
 // caster: a clear line (0x200), out of town.
 // Its record's result flags are 0x4001 (0x5c97d2): no knockback (8) and no
 // get-hit (4); FUN_0057cee0's monster branch takes 0x4000 to event 4 alone.
-// ponytail: Static Field hits only monsters (0x8783's 0x1 takes an enemy
-// player, FUN_0056b3e0 type 0: no player strikes another in d2d), and land's
-// blow_hurt -> hurt (ai.cpp) still rolls a get-hit (rules::get_hit) on it.
+// Its walk's 0x1 would take an enemy player too (FUN_0056b3e0 type 0): no
+// player is another's enemy in d2d's games.
 auto Fight::spot_skill(const d2d::rules::Skill& skill) -> bool {
         return std::ranges::contains(std::array{ ServerDoFunction::kPsychicHammer, ServerDoFunction::kMindBlast, ServerDoFunction::kStaticField, ServerDoFunction::kCorpseExplosion,
             ServerDoFunction::kPoisonExplosion, ServerDoFunction::kTeleport, ServerDoFunction::kCurse, ServerDoFunction::kStateAroundCaster,
@@ -1264,8 +1306,28 @@ auto Fight::player_caster(int skill) const -> Caster {
         return { actor->player.x, actor->player.y, skill_level ? skill_level(skill) : 1, actor->attack_mon, actor->cast_x, actor->cast_y, false };
     }
 
+auto Fight::striker_seed(int striker) -> d2d::rules::Rng& {
+        if (striker == merc_foe_id() && actor->merc) return actor->merc->seed;
+        for (auto& pet : actor->pets)
+            if (pet.monster.id == striker) return pet.monster.seed;
+        if (const int found = monster_index(striker); found >= 0) return monsters[std::size_t(found)].seed;
+        return actor->seed;
+    }
+
+auto Fight::caster_seed(const Caster& caster) -> d2d::rules::Rng& {
+        if (caster.merc && actor->merc) return actor->merc->seed;
+        if (caster.pet)
+            for (auto& pet : actor->pets)
+                if (pet.monster.id == caster.unit_id) return pet.monster.seed;
+        return actor->seed;
+    }
+
+// A spot skill's own damage is its record (FUN_0057e240: FUN_0056e170's physical and
+// FUN_0056e0c0's element, each min + rand(max - min) on the caster's seed), as are its
+// other rolls here (a knockback, Mind Blast's conversion).
 auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Caster& caster) -> void {
         const int lvl = caster.level;
+        auto& seed = caster_seed(caster);
         const auto env = calc_env();
         const auto damage = d2d::rules::missile_damage(game_data->skills, skill, env, lvl);
         auto within = [&](float x, float y, int radius, auto&& each) {
@@ -1276,8 +1338,8 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
             case ServerDoFunction::kPsychicHammer:
                 if (caster.target >= 0 && monsters[std::size_t(caster.target)].alive()) {
                     const auto monster_index = std::size_t(caster.target);
-                    auto blow = d2d::rules::missile_blow(damage, target_of(monster_index), pierce(), rng);
-                    blow.knockback = int(rng(100)) < calc(skill, skill.calc[0], lvl);
+                    auto blow = d2d::rules::missile_blow(damage, target_of(monster_index), pierce(), seed);   // FUN_005d3140: the record, then
+                    blow.knockback = int(seed(100)) < calc(skill, skill.calc[0], lvl);                          // the knockback (0x5d327d)
                     land(monster_index, blow, true, now_ms, striker_of(caster));
                 }
                 break;
@@ -1285,7 +1347,7 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
                 // FUN_005d76e0 -> FUN_005d7680 on each unit of the walk: first
                 // FUN_005d7430's conversion. A monster no one owns, not a
                 // hireling, evil (FUN_006259b0) and one swaps_ai lets (FUN_0056e2f0
-                // EDX 0xb) turns when rand(100) on the caster's seed (the fight's rng here) is at most
+                // EDX 0xb) turns when rand(100) on the caster's seed (0x5d745a) is at most
                 // dm(Param5, Param6) (FUN_00645c10: 15..40; FUN_005d72b0's
                 // SETLE), for Param3 + rand(Param4) frames (150 + rand(100),
                 // 0x5d7457); a 0x35 already on it only takes the new end
@@ -1299,14 +1361,14 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
                     if (caster.pet && pet.monster.id == caster.unit_id) caster_level = pet.monster.stats.level;
                 within(caster.to_x, caster.to_y, calc(skill, skill.aurarange, lvl), [&](std::size_t monster_index) {
                     auto& struck = monsters[monster_index];
-                    if (conversion != game_data->skills.by_name.end() && struck.align == 0 && swaps_ai(*game_data, struck) && int(rng(100)) <= chance) {
-                        const auto until = now_ms + std::uint32_t(std::max(skill.par[2] + int(rng(std::uint32_t(std::max(skill.par[3], 1)))), 1)) * 40;
+                    if (conversion != game_data->skills.by_name.end() && struck.align == 0 && swaps_ai(*game_data, struck) && int(seed(100)) <= chance) {
+                        const auto until = now_ms + std::uint32_t(std::max(skill.par[2] + int(seed(std::max(skill.par[3], 1))), 1)) * 40;
                         if (auto held = std::ranges::find(struck.states, conversion->second, &Monster::SkillState::skill); held != struck.states.end()) held->until = until;
                         else struck.states.push_back({ conversion->second, lvl, until });
                         turn_good(struck, caster_level);
                         return;
                     }
-                    land(monster_index, d2d::rules::missile_blow(damage, target_of(monster_index), pierce(), rng), true, now_ms, striker_of(caster));
+                    land(monster_index, d2d::rules::missile_blow(damage, target_of(monster_index), pierce(), seed), true, now_ms, striker_of(caster));
                 });
                 break;
             }
@@ -1332,6 +1394,7 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
                     blow.damage = got >> 8;
                     blow.frac = got & 255;
                     blow.elemental = got > 0;
+                    blow.no_get_hit = true; blow.soft = true;                  // result flags 0x4001 (0x5c97d2)
                     land(monster_index, blow, true, now_ms, striker_of(caster));
                 }
                 break;
@@ -1378,7 +1441,8 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
                 const auto dragon_kick = [&] {
                     auto flight_swing = skill_swing(skill, lvl, env, true);
                     flight_swing.ar_pct += progressive_tohit();
-                    const auto kick = d2d::rules::player_blow(actor->pf_kick, target_of(std::size_t(tgt)), int(actor->character.stats.get(d2d::d2s::kLevel)), rng, flight_swing);
+                    const auto kick = d2d::rules::player_blow(actor->pf_kick, target_of(std::size_t(tgt)), int(actor->character.stats.get(d2d::d2s::kLevel)), actor->seed, flight_swing,
+                                                              nullptr, &monsters[std::size_t(tgt)].seed);
                     if (land(std::size_t(tgt), kick, true, now_ms, striker_of(caster))) player_thorns(std::size_t(tgt), kick);   // a melee blow like any kick
                     release(std::size_t(tgt), now_ms);
                 };
@@ -1427,10 +1491,13 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
                 if (skill.srvdofunc == ServerDoFunction::kDragonFlight && (flight_part & 2) && tgt >= 0) dragon_kick();   // with no sequence: both at once
                 break;
             }
-            case ServerDoFunction::kTelekinesis:                                         // Telekinesis (do 21): its damage and a knockback on the monster
+            // Telekinesis (do 21, FUN_005c98f0): the knockback first, seed % 100 < Param2 (FUN_004efc20),
+            // then the record, on the monster.
+            case ServerDoFunction::kTelekinesis:
                 if (actor->attack_mon >= 0 && monsters[std::size_t(actor->attack_mon)].alive()) {
-                    auto blow = d2d::rules::missile_blow(damage, target_of(std::size_t(actor->attack_mon)), pierce(), rng);
-                    blow.knockback = true;
+                    const bool knockback = int(seed(100)) < skill.par[1];
+                    auto blow = d2d::rules::missile_blow(damage, target_of(std::size_t(actor->attack_mon)), pierce(), seed);
+                    blow.knockback = knockback;
                     land(std::size_t(actor->attack_mon), blow, true, now_ms, striker_of(caster));
                 }
                 break;
@@ -1523,9 +1590,9 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
                 if (corpse_index < 0) break;
                 auto& corpse = monsters[std::size_t(corpse_index)];
                 corpse.corpse_used = true;
-                if (int(rng(100)) >= calc(skill, skill.calc[0], lvl)) break;
+                if (int(seed(100)) >= calc(skill, skill.calc[0], lvl)) break;           // the caster's seed (0x5d824b), as the potion's (0x5d813a)
                 if (skill.srvdofunc == ServerDoFunction::kFindItem) { const auto [players, nearby] = drop_counts(); loot.drop(corpse, spawning.game, now_ms, players, nearby); break; }
-                const std::string code = d2d::rules::find_potion(level ? level->id : 1, game_difficulty, int(rng(100)), skill.par[2], skill.par[3]);
+                const std::string code = d2d::rules::find_potion(level ? level->id : 1, game_difficulty, int(seed.next() % 100), skill.par[2], skill.par[3]);
                 loot.put({ code, 2, 0 }, corpse.unit.x, corpse.unit.y, corpse.stats.level, spawning.game, now_ms);
                 break;
             }

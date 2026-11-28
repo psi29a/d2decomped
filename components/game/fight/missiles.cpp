@@ -263,7 +263,7 @@ auto Fight::wear(std::size_t index, std::uint32_t now_ms) -> void {
         const bool armor = d2d::rules::type_is(tables, info->second.type, "armo"), weapon = d2d::rules::type_is(tables, info->second.type, "weap");
         if ((!armor && !weapon) || item.max_durability <= 0 || d2d::rules::indestructible(game_data->rules, item) || d2d::rules::broken(item)) return;
         const int chance = armor || throwable(*game_data, item.code) ? 10 : 4;
-        if (int(rng(100)) >= chance) return;
+        if (int(actor->seed(100)) >= chance) return;
         if (item.durability - 1 >= 1) {
             item.durability = std::min(item.durability - 1, d2d::rules::max_durability(item));
             d2d::rules::replenish_arm(tables, item, d2d::rules::kReplenishDurability);   // 0x559ef4
@@ -293,9 +293,8 @@ auto Fight::wear(std::size_t index, std::uint32_t now_ms) -> void {
 // weapon when the player hits, one worn armour when the player is hit —
 // picked by weight (0x732b90: head 3, torso 5, either arm 4, belt / feet
 // / gloves 2) among the slots holding armour.
-// The slot and weight draws (FUN_0045c3e0 twice) and FUN_00559e30's
-// % 100 step the unit's seed (+0x20) in game.exe, d2d's rng here:
-// deviations.md approximation 18.
+// The slot and weight draws (FUN_0045c3e0 twice, 0x57d48c / 0x57d497)
+// and FUN_00559e30's % 100 (0x559e98) step the player's seed (+0x20).
 auto Fight::wear_weapon(std::uint32_t now_ms) -> void {
         using namespace d2d::d2s;
         for (std::size_t i = 0; i < actor->character.items.size(); ++i)
@@ -316,8 +315,8 @@ auto Fight::wear_armor(std::uint32_t now_ms) -> void {
                     && d2d::rules::type_is(game_data->rules, game_data->rules.item_info.at(item.code).type, "armo")) { worn[slot_index] = int(i); total += kSlots[slot_index].second; }
         }
         if (total <= 0) return;
-        auto slot_index = std::size_t(rng(int(kSlots.size())));
-        int pick = rng(total);
+        auto slot_index = std::size_t(actor->seed(int(kSlots.size())));
+        int pick = actor->seed(total);
         for (;; slot_index = (slot_index + 1) % kSlots.size()) {
             if (worn[slot_index] < 0) continue;
             if (pick < kSlots[slot_index].second) { wear(std::size_t(worn[slot_index]), now_ms); return; }
@@ -327,25 +326,30 @@ auto Fight::wear_armor(std::uint32_t now_ms) -> void {
 
 // Impale's price (FUN_005daa40): calc2 % of the time the weapon loses
 // calc3 durability (stat 72); a throwing weapon (FUN_006289f0) one of
-// its quantity (stat 70, FUN_0056c3f0) instead.
+// its quantity (stat 70, FUN_0056c3f0) instead. The roll, `% 100` on the
+// player's own seed (ESI +0x20, 0x5daa70 / 0x5daabc), comes only for a
+// throwing weapon with some quantity or another with durability.
 
 // At 0 durability the weapon breaks (FUN_0055f850).
 auto Fight::impale_wear(const d2d::rules::Skill& skill, std::uint32_t now_ms) -> void {
         const int lvl = skill_level ? skill_level(skill.id) : 1;
         const auto env = calc_env();
-        if (int(rng(100)) >= d2d::rules::eval_calc(game_data->skills, skill.calc[1], env, skill.id, lvl)) return;
+        const int chance = d2d::rules::eval_calc(game_data->skills, skill.calc[1], env, skill.id, lvl);
         for (std::size_t i = 0; i < actor->character.items.size(); ++i)
             if (auto& item = actor->character.items[i]; item.location == d2d::d2s::item_location::kEquipped && (item.slot == d2d::d2s::body_location::kRightArm || item.slot == d2d::d2s::body_location::kLeftArm)
                 && game_data->rules.item_info.contains(item.code) && game_data->rules.item_info.at(item.code).kind == 2) {
                 const auto found = game_data->rules.item_base.find(item.code);
-                if (found != game_data->rules.item_base.end() && found->second.stackable) {
+                const bool thrown = found != game_data->rules.item_base.end() && found->second.stackable;
+                if (thrown ? item.quantity <= 0 : item.max_durability <= 0 || d2d::rules::indestructible(game_data->rules, item)) return;
+                if (int(actor->seed.next() % 100) >= chance) return;
+                if (thrown) {
                     const auto shot = d2d::rules::shot_spent(item.quantity, d2d::rules::max_durability(item));   // FUN_0056c310
                     item.quantity = shot.quantity;
                     d2d::rules::replenish_arm(game_data->rules, item, d2d::rules::kReplenishQuantity);   // FUN_0056c310 -> FUN_00558580
                     item.durability = shot.durability;                                                   // 0x56c39f
                     if (item.quantity <= 0) out_of_ammo(i);
                 }
-                else if (item.max_durability > 0 && !d2d::rules::indestructible(game_data->rules, item)) {
+                else {
                     item.durability -= d2d::rules::eval_calc(game_data->skills, skill.calc[2], env, skill.id, lvl);
                     if (item.durability <= 0) {
                         d2d::rules::wield_leaves(game_data->rules, actor->character.items, item);
@@ -502,18 +506,35 @@ auto Fight::launch(const GameData::MissileInfo& missile_info, const d2d::rules::
         missile.friendly = true; missile.caster = actor->id; missile.skill = skill.id; missile.level = lvl; missile.by_merc = casting_merc; missile.striker = casting_unit;
         missile.subtile_x = int(std::floor(x * 5)); missile.subtile_y = int(std::floor(y * 5));   // the subtile it starts in (the trail makers')
         seed_pierce(missile, casting_merc);
-        missile.seed = d2d::rules::Rng{ spawning.game.next() };   // its unit seed off the game seed as it's made
+        seed_made(missile);
         pending.push_back(std::move(missile));
         return pending.back();
     }
 
 auto Fight::seed_missiles(std::size_t from) -> void {
-        for (std::size_t k = from; k < missiles.size(); ++k)
-            if (!missiles[k].seed && !missiles[k].visual_only) missiles[k].seed = d2d::rules::Rng{ spawning.game.next() };
+        for (std::size_t k = from; k < missiles.size(); ++k) seed_made(missiles[k]);
+    }
+
+// The record FUN_0064b860 makes as the missile is (FUN_0064ac60 puts it on): a row taking the weapon's
+// damage (SrcDamage, +0x12d, over 0) rolls its crit on the caster's seed (0x64bad3) with the weapon's
+// mastery; the row's +0x12e owner branch (0x64bd15, no mastery) isn't d2d's.
+auto Fight::owner_seed(const Missile& missile) -> d2d::rules::Rng& {
+        if (missile.by_merc && actor->merc) return actor->merc->seed;
+        if (missile.striker >= 0)
+            for (auto& pet : actor->pets)
+                if (pet.monster.id == missile.striker) return pet.monster.seed;
+        return actor->seed;
     }
 
 auto Fight::seed_made(Missile& missile) -> void {
         if (!missile.seed && !missile.visual_only) missile.seed = d2d::rules::Rng{ spawning.game.next() };
+        if (missile.crit || !missile.friendly || missile.visual_only || !missile.info || missile.info->src_damage <= 0) return;
+        // A Shadow's carries the owner's gear (shadow_fighter), another summon's none of these stats: its draw still comes.
+        const bool summon = missile.striker >= 0 && !missile.by_merc;
+        const auto shadow = std::ranges::find_if(actor->pets, [&](const Pet& pet) { return summon && pet.monster.id == missile.striker; });
+        const bool mirror = shadow != actor->pets.end() && shadow->mirror;
+        const auto fighter = missile.by_merc ? merc_fighter() : !summon || mirror ? actor->player_combat : d2d::rules::Fighter{};
+        missile.crit = d2d::rules::missile_crit(owner_seed(missile), fighter.critical, fighter.deadly, fighter.mastery_crit);
     }
 
 auto Fight::strafe_reach(const d2d::rules::Skill& skill, int lvl) -> std::vector<int> {
@@ -682,28 +703,26 @@ auto Fight::fire(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
             if (target < 0) return;
             const auto& target_monster = monsters[std::size_t(target)];
             launch(missile_info, skill, lvl, target_monster.unit.x, target_monster.unit.y, 0, 0, range, now_ms).target = target;
-        } else if (skill.srvdofunc == ServerDoFunction::kFirestorm || skill.srvdofunc == ServerDoFunction::kWindMissile) {   // Firestorm (FUN_005c7160), Twister / Tornado (FUN_005c72f0)
-            for (int k = 0; k < std::max(calc1, 1); ++k) {
-                const float angle = k == 0 ? 0.f : (float(rng(41)) - 20) * 3.14159265f / 180;
-                send(dx * std::cos(angle) - dy * std::sin(angle), dx * std::sin(angle) + dy * std::cos(angle), range);
-            }
-        } else if (skill.srvdofunc == ServerDoFunction::kBladeSentinel) {                      // Blade Sentinel: out to the point and back, Param1 frames
-            // ponytail: do 44 (FUN_005d6020) summons a BladeCreeper monster (FUN_005d5e10) that the
-            // AI 0x5ea540 walks between the caster and the point, its line a record (FUN_0058ef40); here
-            // the missile row does, hitting as it passes (NextHit). Needs the pet's think dispatched
-            // (summons.cpp, pets.cpp), not this file alone.
-            auto& missile = send(dx, dy, std::max(range, skill.par[0]));
-            missile.origin_x = caster.x; missile.origin_y = caster.y;
-            const float distance = std::max(std::hypot(dx, dy), 0.01f), speed = cells_per_sec(10.f);   // bladecreeper's Velocity
-            missile.velocity_x = dx / distance * speed; missile.velocity_y = dy / distance * speed;
+        } else if (skill.srvdofunc == ServerDoFunction::kFirestorm || skill.srvdofunc == ServerDoFunction::kWindMissile) {
+            // Firestorm (FUN_005c7160): one straight at the point (FUN_0056ecb0), then calc1 - 1; Twister / Tornado
+            // (FUN_005c72f0 -> FUN_005c7040, param_7 0): calc1. Each of those wanders as Charged Bolt's (the create
+            // callback FUN_005c9290: path type 10 on {target x + its index, 666}), its index from 0.
+            const bool firestorm = skill.srvdofunc == ServerDoFunction::kFirestorm;
+            if (calc1 > 0 && firestorm) send(dx, dy, range);
+            for (int k = 0; k < calc1 - (firestorm ? 1 : 0); ++k) send(dx, dy, range).bolt = k;
+        } else if (skill.srvdofunc == ServerDoFunction::kBladeSentinel) {                      // Blade Sentinel (FUN_005d6020): its bladecreeper
+            blade_sentinel(skill, lvl, caster.x, caster.y, caster.to_x, caster.to_y, int(actor->character.stats.get(d2d::d2s::kLevel)), now_ms);
         } else if (skill.srvdofunc == ServerDoFunction::kGrimWard) {                      // Grim Ward: its start row at the point
             launch(missile_info, skill, lvl, caster.to_x, caster.to_y, 0, 0, missile_info.range, now_ms);
         } else if (skill.srvdofunc == ServerDoFunction::kVolcano) {                     // Volcano (FUN_005c8080): at the target point
-            launch(missile_info, skill, lvl, caster.to_x, caster.to_y, 0, 0, range, now_ms);
+            // rand(0x100) on the caster's seed (0x5c8100) as its data +0x28, the seed of its throws.
+            const auto throws = std::uint32_t(caster_seed(caster)(0x100));
+            launch(missile_info, skill, lvl, caster.to_x, caster.to_y, 0, 0, range, now_ms).data = throws;
         } else if (skill.srvdofunc == ServerDoFunction::kShockField) {                      // Shock Web (FUN_005d5d70 -> FUN_005d5bf0): scattered round the target
             const int count = std::max(calc(skill, skill.prgcalc[0], lvl), 1), radius = std::max(calc(skill, skill.aurarange, lvl), 1);
+            auto& seed = caster_seed(caster);                                             // FUN_005d5bf0: EDI the caster (0x5d5c86)
             for (int k = 0; k < count; ++k) {
-                const float target_x = caster.to_x + float(int(rng(2 * radius + 1)) - radius) / 5, target_y = caster.to_y + float(int(rng(2 * radius + 1)) - radius) / 5;
+                const float target_x = caster.to_x + float(int(seed(2 * radius + 1)) - radius) / 5, target_y = caster.to_y + float(int(seed(2 * radius + 1)) - radius) / 5;
                 send(target_x - caster.x, target_y - caster.y, land_range(missile_info, target_x - caster.x, target_y - caster.y));
             }
         } else {
@@ -884,6 +903,18 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
                 const int life = missile_info.srv_do == 6 ? sub->second.range + sub->second.lev_range * missile.level : sub->second.range;
                 launch(sub->second, *skill, missile.level, (float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0, 0, life, now_ms);
             }
+            // 2 (FUN_005ae400, Poison Javelin's): on a frame its path entered a new subtile (FUN_005a9720:
+            // FUN_006505c0), SubMissile1 standing there (create flags 5) at the missile's skill and level, for
+            // its Range + LevRange x level frames; when the row's SrvCalc1 (FUN_0064b7c0) is over 0 (create
+            // flag 8) and the sub has SubLoop, (SubStop - SubStart) x (level x 2 - 2) more (FUN_0059fa30: its
+            // [0xd], the calc at 0x5a9770, then level x 2 - 2 at 0x5a97fd). Then it strikes as do 1.
+            if (missile_info.srv_do == 2 && sub != game_data->missiles.end() && new_subtile) {
+                missile.subtile_x = at_x; missile.subtile_y = at_y;
+                const int over = missile_info.srv_calc.empty() ? 0 : calc(*skill, missile_info.srv_calc, missile.level);
+                const int loops = over > 0 && sub->second.sub_loop ? (sub->second.sub_stop - sub->second.sub_start) * (missile.level * 2 - 2) : 0;
+                launch(sub->second, *skill, missile.level, (float(at_x) + 0.5f) / 5, (float(at_y) + 0.5f) / 5, 0, 0,
+                       sub->second.range + sub->second.lev_range * missile.level + loops, now_ms);
+            }
             // 26 (FUN_005af980, the vines): every Param1 frames (at least 1) SubMissile1 at its subtile
             // (FUN_0056ede0), at its level; a sub row naming a Skill carries that skill (Plague Poppy's trail).
             if (missile_info.srv_do == 26 && sub != game_data->missiles.end() && age % std::max(missile_info.param1, 1) == 0) {
@@ -894,9 +925,11 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
             if ((missile_info.srv_do == 10 || missile_info.srv_do == 25) && sub != game_data->missiles.end()) {
                 const int every = std::max(calc(*skill, skill->calc[1], missile.level), 1), radius = std::max(calc(*skill, skill->calc[0], missile.level), 1);
                 if (age % every == 0) {
-                    // FUN_005a9820: rand(2r) - r with r = radius - 1 on each axis, x first: -r..r-1 subtiles.
+                    // FUN_005a9820: rand(2r) - r with r = radius - 1 on each axis, x first: -r..r-1 subtiles,
+                    // on the missile's seed set to {its subtile x + its age, 666} (FUN_0045adf0 + FUN_0064a3b0, 0x5a9877).
                     const int reach = radius - 1;
-                    const float offset_x = float(int(rng(2 * reach)) - reach) / 5, offset_y = float(int(rng(2 * reach)) - reach) / 5;
+                    auto& drop = missile.seed.emplace(std::uint32_t(level->world_x * 5 + int(std::floor(missile.x * 5)) + age));
+                    const float offset_x = float(int(drop(2 * reach)) - reach) / 5, offset_y = float(int(drop(2 * reach)) - reach) / 5;
                     launch(sub->second, *skill, missile.level, missile.x + offset_x, missile.y + offset_y, 0, 0, sub->second.range, now_ms);
                 }
             }
@@ -921,15 +954,18 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
                     for (const auto& monster : monsters)
                         units.push_back({ room_of(*level, monster.unit.x, monster.unit.y),
                                           monster.targetable() && (missile_info.collide_friend || !d2d::rules::friends(2, monster.align))
+                                              && !(missile_info.next_hit && now_ms <= monster.just_hit_until)
                                               && standing_struck(missile, monster.unit.x, monster.unit.y,
                                                                  game_data->monsters.types[std::size_t(monster.type)].size),
                                           monster.unit.room_stamp });
                 }
                 // LAB_005a8850 -> FUN_005a8730: CollideType 3/8 accepts a targetable player or monster
                 // hostile to the owner (or any side with CollideFriend). Every stock do-5 row has
-                // CollideFriend clear. The first accepted footprint in FUN_00641cb0's walk burns.
+                // CollideFriend clear; not one in state 0x56 when the row has NextHit (+0x188; no burner row
+                // does); no burner row is LastCollide, so no last unit is passed by. The first accepted footprint
+                // in FUN_00641cb0's walk burns.
                 if (const auto order = d2d::rules::room_order(units, rooms); !order.empty())
-                    burn(std::size_t(order.front()), damage, now_ms, soft_hit(missile, rng));
+                    burn(std::size_t(order.front()), damage, now_ms, missile);
             }
             // 13 (FUN_005aeda0, Bone Wall's maker): while it has pieces left and the first piece
             // (FUN_00552f60 on its id) stands, one at its own subtile on a frame it entered a new one
@@ -967,14 +1003,20 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
                 curse.srvdofunc = ServerDoFunction::kCurse;
                 spot(curse, now_ms, Caster{ .x = missile.x, .y = missile.y, .level = missile.level, .to_x = missile.x, .to_y = missile.y });
             }
-            // 20 (Blade Sentinel): back and forth between the caster's spot and
-            // where it was sent.
-            if (missile_info.srv_do == 20 && std::hypot(missile.target_x - missile.x, missile.target_y - missile.y) < 0.3f) {
-                std::swap(missile.target_x, missile.origin_x); std::swap(missile.target_y, missile.origin_y);
-                const float speed = std::hypot(missile.velocity_x, missile.velocity_y), dx = missile.target_x - missile.x, dy = missile.target_y - missile.y, distance = std::max(std::hypot(dx, dy), 0.01f);
-                missile.velocity_x = dx / distance * speed; missile.velocity_y = dy / distance * speed; missile.dir = missile_facing(missile.x, missile.y, dx, dy);
-                missile.retarget = std::pair{ missile.target_x, missile.target_y };
-                missile.last_hit = -1;
+            // 20 (FUN_005af540, Blade Sentinel's blade): on its rider's subtile (FUN_005a99e0) with 10 frames
+            // left (FUN_0064a330) while the rider stands (FUN_005541b0: alive, not in DT / DD); else it ends.
+            if (missile_info.srv_do == 20 && missile.rider >= 0) {
+                const auto rider = std::ranges::find(actor->pets, missile.rider, [](const Pet& pet) { return pet.monster.id; });
+                if (rider == actor->pets.end() || !rider->monster.alive() || rider->monster.mode == "DT" || rider->monster.mode == "DD") missile.dies = now_ms;
+                else {
+                    const int ride_x = int(std::floor(rider->monster.unit.x * 5)), ride_y = int(std::floor(rider->monster.unit.y * 5));
+                    missile.x = (float(ride_x) + 0.5f) / 5; missile.y = (float(ride_y) + 0.5f) / 5;
+                    if (missile.launched) {                               // FUN_00650910 moves its path there
+                        missile.flight.x = (std::uint32_t(level->world_x * 5 + ride_x) << 16) + 0x8000;
+                        missile.flight.y = (std::uint32_t(level->world_y * 5 + ride_y) << 16) + 0x8000;
+                    }
+                    missile.dies = now_ms + 10 * 40;
+                }
             }
             // 31 (Wake of Fire's maker): its fire where it goes.
             if (missile_info.srv_do == 31 && sub != game_data->missiles.end())
@@ -990,7 +1032,11 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
             if (missile_info.srv_do == 28 && sub != game_data->missiles.end() && age > missile_info.param3 && age < missile_info.param4
                 && age % std::max(missile_info.param1 > 0 ? missile_info.param1 : calc(*skill, skill->calc[3], missile.level), 1) == 0) {
                 const int radius = std::max(missile_info.param2 > 0 ? missile_info.param2 : calc(*skill, skill->aurarange, missile.level), 1);
-                const float offset_x = float(int(rng(2 * radius + 1)) - radius) / 5, offset_y = float(int(rng(2 * radius + 1)) - radius) / 5;
+                // Its seed set to {data +0x28, 666} (0x5afcb7), rand(2r + 1) - r on each axis, x first; the low word
+                // kept as the next throw's (FUN_0064a710).
+                auto& thrown = missile.seed.emplace();
+                const auto [throw_x, throw_y] = d2d::rules::volcano_throw(thrown, missile.data, radius);
+                const float offset_x = float(throw_x) / 5, offset_y = float(throw_y) / 5;
                 launch(sub->second, *skill, missile.level, missile.x, missile.y, offset_x, offset_y, land_range(sub->second, offset_x, offset_y), now_ms);
             }
         }
@@ -1003,14 +1049,29 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
 // it 0x4000 (FUN_0057cee0's monster branch: the last command 0x13,
 // FUN_005734c0, and the mods' event 4, FUN_005a43a0: Lightning
 // Enchanted's bolts); without it a burn sets off neither.
+// FUN_005adf10: the record first (0x5ae150, FUN_005a89a0 -> FUN_005a8910 on the missile, ESI), then
+// FUN_005adcd0 -> FUN_005ad730, whose damage function makes the soft hit (FUN_005ad220).
+auto Fight::burn(std::size_t monster_index, const d2d::rules::MissileDamage& damage, std::uint32_t now_ms, Missile& missile) -> void {
+        auto& own = missile.seed ? *missile.seed : rng;
+        const int low = std::min(damage.elo, damage.ehi), high = std::max(damage.elo, damage.ehi);
+        const int roll = low > 0 ? low + own(high - low) : 0;
+        const bool soft = soft_hit(missile, rng);
+        burn_roll(monster_index, damage.ehi > 0 ? damage.etype : -1, roll, now_ms, soft);
+    }
+
 auto Fight::burn(std::size_t monster_index, const d2d::rules::MissileDamage& damage, std::uint32_t now_ms, bool soft) -> void {
+        const int low = std::min(damage.elo, damage.ehi), high = std::max(damage.elo, damage.ehi);
+        burn_roll(monster_index, damage.ehi > 0 ? damage.etype : -1, low > 0 ? low + rng(high - low) : 0, now_ms, soft);
+    }
+
+auto Fight::burn_roll(std::size_t monster_index, int etype, int roll, std::uint32_t now_ms, bool soft) -> void {
         static constexpr int kRes[5] = { 2, 3, 4, 5, 1 };
-        if (damage.etype < 0 || damage.etype > 4 || damage.ehi <= 0) return;
+        if (etype < 0 || etype > 4) return;
         auto& monster = monsters[monster_index];
         const auto target = target_of(monster_index);
-        int res = target.res[std::size_t(kRes[damage.etype])];
-        if (damage.etype < 4 && res < 100) res = std::max(res - pierce()[std::size_t(damage.etype)], -100);
-        monster.dot_acc += double(d2d::rules::resisted(rng.range(damage.elo, damage.ehi), res)) / 256;
+        int res = target.res[std::size_t(kRes[etype])];
+        if (etype < 4 && res < 100) res = std::max(res - pierce()[std::size_t(etype)], -100);
+        monster.dot_acc += double(d2d::rules::resisted(roll, res)) / 256;
         if (soft) { monster.left_mode = "hit"; monster.struck_event = monster.struck_event || monster.mode != "GH"; }   // event 4 tests mode 3 at the hit
         const int whole = int(monster.dot_acc);
         if (whole <= 0) return;
@@ -1199,7 +1260,7 @@ auto Fight::skill_missile_hits(Missile& missile, std::size_t monster_index, std:
 
 // A missile's hit on a monster (FUN_0064b860's record, FUN_005a89a0's hit): its swing
 // (SrcDamage, Half2HSrc, the row's physical), the blow and what follows it.
-auto Fight::strike(const Missile& missile, std::size_t monster_index, std::uint32_t now_ms, int freeze, d2d::rules::MissileRoll* roll) -> void {
+auto Fight::strike(Missile& missile, std::size_t monster_index, std::uint32_t now_ms, int freeze, d2d::rules::MissileRoll* roll) -> void {
         const auto* skill = game_data->skills.get(missile.skill);
         if (!skill || !monsters[monster_index].alive()) return;
         const auto target = missile.by_merc ? merc_target(monster_index) : target_of(monster_index);
@@ -1218,6 +1279,11 @@ auto Fight::strike(const Missile& missile, std::size_t monster_index, std::uint3
             damage.undead_pct = missile.info->dmg_par1;
             damage.demon_pct = missile.info->dmg_par2;
         }
+        // The to-hit (FUN_005adf10 -> FUN_0057d9b0, ECX the owner) and the owner's events roll on the
+        // owner's seed, the physical and the elements on the missile's (FUN_005a89a0, ESI the missile),
+        // the block on the struck unit's (FUN_0057dd60).
+        auto& owner = owner_seed(missile);
+        auto& own_seed = missile.seed ? *missile.seed : rng;
         d2d::rules::Blow blow{ .hit = true };
         if (damage.srcdam > 0) {
             d2d::rules::Swing swing;
@@ -1226,15 +1292,24 @@ auto Fight::strike(const Missile& missile, std::size_t monster_index, std::uint3
             swing.ed_pct = missile.ed_pct;
             swing.ar_pct = missile.ar_pct;
             swing.missile = true;
-            // ponytail: a burst's one roll (`roll`) keeps the skill's physical apart, shared; the weapon's share rolls per unit.
-            if (!roll) d2d::rules::row_into_record(damage, swing);   // one roll with the weapon's (FUN_0064b860, 0x64bdf7)
-            blow = d2d::rules::player_blow(fighter, target, clvl, rng, swing);
+            swing.crit = missile.crit;
+            // One roll with the weapon's (FUN_0064b860, 0x64bdf7); a burst rolls that record once (FUN_005a8c70) and each
+            // unit it takes in gets a copy: its first unit's draw (roll->phys) for the rest.
+            d2d::rules::row_into_record(damage, swing);
+            if (roll && roll->phys < 0) {                            // drawn as the record is, before any unit's to-hit
+                const auto physical = d2d::rules::missile_physical(fighter, target, swing);
+                roll->phys = int(physical.high > physical.low ? physical.low + own_seed(int(physical.high - physical.low)) : physical.low);
+            }
+            if (roll) swing.rolled = roll->phys;
+            blow = d2d::rules::player_blow(fighter, target, clvl, owner, swing, &own_seed, &monsters[monster_index].seed);
         } else if (missile.info->to_hit) {
             const auto [attack_rating, defense] = d2d::rules::player_to_hit(fighter, target, 0);
-            blow.hit = int(rng(100)) < d2d::rules::hit_chance(attack_rating, defense, clvl, target.level);
+            blow.hit = int(owner(100)) < d2d::rules::hit_chance(attack_rating, defense, clvl, target.level);
             blow.prevent_heal = blow.hit && fighter.prevent_heal;
         }
-        if (blow.hit) blow = d2d::rules::missile_blow(damage, target, pierce(), rng, blow, roll);
+        // The record's bypass flags (FUN_0064b860 sets them on its SrcDamage path, 0x64bcbb..) take its every
+        // field in FUN_0057c1e0, the skill's elements as the weapon's.
+        if (blow.hit) blow = d2d::rules::missile_blow(damage, damage.srcdam > 0 ? d2d::rules::bypassed(target, fighter.bypass) : target, pierce(), own_seed, blow, roll);
         blow.hit_class = missile.info->hit_class | skill->hit_class;
         const auto frozen = freeze_on(monster_index, target, blow, freeze);
         land(monster_index, blow, true, now_ms, missile.striker >= 0 ? missile.striker : missile.by_merc ? merc_foe_id() : player_foe_id());
@@ -1267,7 +1342,7 @@ auto Fight::stand(std::size_t monster_index, const d2d::rules::Freeze& frozen, s
         if (frozen.freeze_ticks > 0) freeze(monsters[monster_index], now_ms + std::uint32_t(frozen.freeze_ticks) * 40);
     }
 
-auto Fight::area(const Missile& missile, float x, float y, int radius, std::uint32_t now_ms, int freeze, bool one_roll) -> void {
+auto Fight::area(Missile& missile, float x, float y, int radius, std::uint32_t now_ms, int freeze, bool one_roll) -> void {
         d2d::rules::MissileRoll roll;
         for (std::size_t j = 0; j < monsters.size(); ++j)
             if (monsters[j].targetable() && std::hypot(monsters[j].unit.x - x, monsters[j].unit.y - y) * 5 <= float(std::max(radius, 1))) strike(missile, j, now_ms, freeze, one_roll ? &roll : nullptr);
@@ -1529,7 +1604,7 @@ auto Fight::aura_pulse(std::uint32_t now_ms) -> void {
             const int radius = calc(*skill, skill->aurarange, lvl);
             for (auto& monster : monsters)
                 if (!monster.alive() && !monster.corpse_used && monster.mode == "DD" && std::hypot(monster.unit.x - actor->player.x, monster.unit.y - actor->player.y) * 5 <= float(radius)) {
-                    if (int(rng(100)) < calc(*skill, skill->calc[0], lvl)) {
+                    if (int(actor->seed(100)) < calc(*skill, skill->calc[0], lvl)) {   // FUN_005d0d70: the caster's seed
                         monster.corpse_used = true;
                         const std::int64_t life = std::int64_t(calc(*skill, skill->calc[1], lvl)) << 8, mana = std::int64_t(calc(*skill, skill->calc[2], lvl)) << 8;
                         actor->character.stats.values[kLife] = std::min(actor->character.stats.values[kMaxLife], actor->character.stats.values[kLife] + life);
@@ -1576,11 +1651,13 @@ auto Fight::enemy_pulse(const d2d::rules::Skill& skill, int lvl, const d2d::rule
         const auto origin_x = subtile(x), origin_y = subtile(y);
         // Holy Freeze's callback (FUN_005d07c0) then rolls shatter (state 107) itself on
         // each one's seed, rand % 100 < 20, deadCol or not (the chill's roll came first).
+        // Its element is FUN_0056e0c0's on the aura's owner's seed (FUN_005d0920: the caster's).
+        auto& seed = striker == merc_foe_id() && actor->merc ? actor->merc->seed : actor->seed;
         for (std::size_t i = 0; i < monsters.size(); ++i) {
             const auto& unit = monsters[i].unit;
             const auto offset_x = subtile(unit.x) - origin_x, offset_y = subtile(unit.y) - origin_y;
             if (offset_x * offset_x + offset_y * offset_y <= radius * radius && aura_takes(skill, monsters[i], x, y)) {
-                land(i, d2d::rules::missile_blow(damage, target_of(i), pierce, rng), true, now_ms, striker);
+                land(i, d2d::rules::missile_blow(damage, target_of(i), pierce, seed), true, now_ms, striker);
                 if (skill.srvdofunc == ServerDoFunction::kHolyFreeze) monsters[i].shatter = monsters[i].seed.next() % 100 < 20;
             }
         }

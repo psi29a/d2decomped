@@ -57,8 +57,14 @@ int main() try {
         corpse.hit_points = 0; corpse.mode = "DD";
         world.fight.add_monster(std::move(corpse));
     }
+    // Each corpse's roll (FUN_005d0d70) is on the caster's seed, one step each; the fight's rng is untouched.
+    auto expected = world.actor->seed;
+    for (int k = 0; k < 3; ++k) expected.next();
+    const auto fight_rng = world.fight.rng;
     world.fight.aura_pulse(1000);
     assert(std::ranges::all_of(world.fight.monsters, [](const Monster& monster) { return monster.corpse_used; }));
+    assert(world.actor->seed.low == expected.low && world.actor->seed.high == expected.high);
+    assert(world.fight.rng.low == fight_rng.low && world.fight.rng.high == fight_rng.high);
     return 0;
 } catch (const std::exception& error) {
     std::printf("test_redemption: %s\n", error.what());

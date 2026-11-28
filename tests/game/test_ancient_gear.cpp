@@ -44,7 +44,8 @@ int main() try {
     assert(d2d::rules::ancient_gear(data->rules, 0x21b, 0).empty());
     std::printf("OK: the ancients' gear by difficulty, no ring past Normal\n");
 
-    // Talic woken (his superunique row): eight game seed steps for his four items.
+    // Talic woken (his superunique row, no minions): one game seed step for his unit seed as he's made
+    // (FUN_00555230 -> FUN_00650e40), then eight for his four items.
     const auto talic = std::ranges::find(data->superuniques, 0x21c, &GameData::SuperUnique::type);
     const auto* arreat = data->level(d2d::rules::level_ids::kArreatSummit);
     if (talic == data->superuniques.end() || !arreat) { std::printf("SKIP: no Talic or Arreat Summit\n"); return D2D_TEST_SKIPPED; }
@@ -59,10 +60,10 @@ int main() try {
     World world(&*data, -1, -1);
     world.enter(character);
     auto expected = world.fight.spawning.game;
-    for (int step = 0; step < 8; ++step) expected.next();
+    for (int step = 0; step < 9; ++step) expected.next();
     world.seal_boss(*arreat, int(talic - data->superuniques.begin()), arreat->ds1.width() * 5 / 2, arreat->ds1.height() * 5 / 2);
     assert(world.fight.spawning.game.low == expected.low && world.fight.spawning.game.high == expected.high);
-    std::printf("OK: Talic's four items take eight game seed steps\n");
+    std::printf("OK: Talic's unit seed and four items take nine game seed steps\n");
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "test_ancient_gear: %s\n", error.what());

@@ -30,6 +30,7 @@
 #include <filesystem>
 #include <iterator>
 #include <span>
+#include <utility>
 #include <vector>
 
 using namespace d2d::game;
@@ -118,7 +119,7 @@ int main() try {
     World world(&data, -1, -1);
     auto& actor = *world.actor;
     actor.character.stats.values[d2d::d2s::kLife] = actor.character.stats.values[d2d::d2s::kMaxLife] = std::int64_t(100000) << 8;
-    Monster cursed = made;
+    Monster cursed = std::move(made);   // its last use
     cursed.stats.hit_points = cursed.hit_points = 400;
     cursed.max_life_frac = cursed.life_frac = 0;
     cursed.id = 0x7001;

@@ -815,6 +815,37 @@ std::vector<PassiveStat> passive_stats(const SkillTables& skill_tables, const Ca
     return out;
 }
 
+// FUN_005c4430 (Raise's do FUN_005c4b00 at 0x5c4c7a, after the level and
+// before the gear): by the pet's class FUN_005c4300 (a skeleton) or
+// FUN_005c43d0 (a mage). The row index is 1, or with the owner in state 0x61
+// (skel_mastery) that state list's stat 0x15f (FUN_00625d00); d2d_pet_variant
+// (FUN_005c4180) clamps it to 10 and copies the row of 0x741940 (nine bytes,
+// read from game.exe) into the pet's monster data +4..+8, +0xc, +0xd; a
+// skeleton's shield roll (above level 2: the owner's seed % 100 < Param1, the
+// skill row +0x148) copies one more byte to +0xb and a skeleton its last to
+// +9; a mage steps the owner's seed and puts `low & 3` at +0xf and +0x10.
+RaisedLook raised_look(std::array<std::uint8_t, 16> look, bool mage, int mastery, int skill_level, int par1, Rng& owner_seed) {
+    static constexpr std::array<std::array<std::uint8_t, 9>, 11> kLookRows{ {
+        { 0, 0, 0, 0, 0, 0, 0, 0, 0 }, { 0, 0, 0, 0, 0, 0, 0, 0, 0 }, { 0, 1, 0, 0, 0, 0, 0, 0, 1 }, { 0, 1, 0, 0, 0, 0, 0, 1, 1 },
+        { 1, 1, 0, 0, 0, 0, 1, 1, 2 }, { 1, 1, 0, 0, 0, 0, 1, 1, 2 }, { 1, 1, 1, 0, 0, 1, 1, 1, 3 }, { 2, 2, 1, 0, 0, 1, 1, 1, 3 },
+        { 2, 2, 1, 0, 0, 1, 1, 2, 4 }, { 2, 3, 1, 0, 0, 1, 2, 2, 4 }, { 2, 3, 1, 0, 0, 1, 2, 2, 4 } } };
+    const auto& row = kLookRows[std::size_t(std::clamp(mastery > 0 ? mastery : 1, 0, 10))];
+    bool shield = false;
+    if (!mage && skill_level > 2) shield = owner_seed.next() % 100 < std::uint32_t(std::max(par1, 0));
+    RaisedLook out{ look, 0 };
+    // data +4 is layer 0: HD, TR, LG, RA, LA, RH (+9), LH, SH (+0xb), S1 (+0xc), S2, S3, S4 (+0xf), S5.
+    out.look[0] = row[0]; out.look[1] = row[2]; out.look[8] = row[3]; out.look[9] = row[4];
+    out.look[2] = row[5]; out.look[3] = row[6]; out.look[4] = row[7];
+    if (shield) out.look[7] = row[1];
+    if (!mage) {
+        out.look[5] = row[8];
+        return out;
+    }
+    out.element = int(owner_seed.next() & 3);
+    out.look[11] = out.look[12] = std::uint8_t(out.element);
+    return out;
+}
+
 SummonStats summon_stats(const SkillTables& skill_tables, const Skill& skill, const CalcEnv& env, int lvl) {
     SummonStats out;
     for (std::size_t k = 0; k < 5; ++k)

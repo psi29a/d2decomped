@@ -2254,7 +2254,7 @@ repeat skill.
   (DAT_00741b0c, 15) the sign flips and the turn is drawn again.
   d2d: `Fight::prg` caps the range at 77 and aims the row's own velocity
   straight at the offset; 143's fly `rules::wobble_route` (`Missile::route`,
-  the fight's rng for the missile's seed: deviations.md approximation 18),
+  on the missile's own unit seed),
   checked by `tools/emu/wobble_route.py` (40 routes, test_release_ring).
   **41** (FUN_005d5080): prgcalc of them toward random points round the
   target. Its offsets are `seed % 0x28 - 0x14` on each axis, and a (0, 0)

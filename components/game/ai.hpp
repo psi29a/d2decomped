@@ -256,10 +256,12 @@ void cursed_hit(const GameData& game_data, Monster& monster, std::span<Foe> foes
 void andariel_missile(const GameData& game_data, const Monster& monster, const std::string& name, float dx, float dy, std::uint32_t now_ms,
                       std::vector<Missile>& missiles, int lvl, const d2d::rules::Skill* carried = nullptr);
 // A monster turned into MonStats row `type` in place.
-void morph_monster(const GameData& game_data, Monster& unit, int type, d2d::rules::Rng& rng, int players);
-// Baal's Vile Effigy: baalclone +- 12 subtiles (two draws of his seed) about (at_x, at_y), a third of his life,
+void morph_monster(const GameData& game_data, Monster& unit, int type, d2d::rules::Rng& rng, int players, d2d::rules::Region* region = nullptr);
+// Baal's Vile Effigy: baalclone +- 12 subtiles (two draws of his seed) about (at_x, at_y), its unit seed a step of
+// `rng` (the game seed), a third of his life,
 // no regen; none without the row.
-std::optional<Monster> vile_effigy(const GameData& game_data, const Level& level, Monster& baal, int at_x, int at_y, d2d::rules::Rng& rng, int players);
+std::optional<Monster> vile_effigy(const GameData& game_data, const Level& level, Monster& baal, int at_x, int at_y, d2d::rules::Rng& rng, int players,
+                                   d2d::rules::Region* region = nullptr);
 // A monster's missile made at its target, (dx, dy) cells away, heading a subtile on at (+1, +1).
 void missile_at_target(const GameData& game_data, const Monster& monster, const std::string& name, float dx, float dy, std::uint32_t now_ms,
                        std::vector<Missile>& missiles, int lvl, const d2d::rules::Skill* carried = nullptr);
@@ -282,11 +284,17 @@ void end_state(const GameData& game_data, Monster& monster, Monster::SkillState&
 // only runs longer, its velocity cut kept, its rates set anew (0x56ea87).
 void put_slow(const GameData& game_data, Monster& monster, int slow, std::uint32_t now_ms);
 
-// A plain monster of MonStats row `type` at (x, y) cells: its components and stats rolled (a boss's by make_boss
-// instead: `stats` false), for `players` in the game.
 [[nodiscard]] int area_monster_level(const GameData& game_data, int level_id, int difficulty);
 
-Monster make_monster(const GameData& game_data, int type, float x, float y, d2d::rules::Rng& rng, int difficulty, bool stats = true, int players = 1, int level_id = -1);
+// A plain monster of MonStats row `type` at (x, y) cells, for `players` in the game. Its unit seed is
+// `unit_seed`, else a step of `rng` (the game seed); its look (from `region`, its level's, which a row
+// may join: rules::region_sets), life and MonProp are drawn on it as game.exe makes a monster (a boss's
+// life by make_boss instead: `stats` false, then finish_unit_seed). `rng` also faces it and staggers its
+// first think.
+Monster make_monster(const GameData& game_data, int type, float x, float y, d2d::rules::Rng& rng, int difficulty, bool stats = true, int players = 1,
+                     int level_id = -1, std::optional<d2d::rules::Rng> unit_seed = std::nullopt, d2d::rules::Region* region = nullptr);
+// The stat init's draws after the life roll on Monster::seed: its MonProp row's, then its MonEquip walk.
+void finish_unit_seed(const GameData& game_data, Monster& monster);
 // A monster move's path to subtile (to_x, to_y) by its path type and Monster::path_steps, into Monster::steps
 // (ai.cpp).
 bool path_to(const Level& level, Monster& monster, int to_x, int to_y, bool at_foe, const Crowd& crowd);
@@ -340,7 +348,7 @@ bool monster_step(const Level& level, Monster& monster, float target_x, float ta
 // them within 16), walk up and attack (A1: the hit lands on AnimData's event frame, MonStats A1TH vs the foe's
 // defense, then block, damage reduction, resistances), wait aidel ticks between attacks; otherwise wander near
 // home (Levels.txt MonWndr): stand 2-5 s, walk to a random spot within 3 cells.
-void attack_starts(const GameData& game_data, Monster& monster, std::string_view mode, d2d::rules::Rng& rng);
+void attack_starts(const GameData& game_data, Monster& monster, std::string_view mode);
 
 // Returns true when the foe's thorns killed it.
 // The traced MonAI types think their own way instead: see
@@ -355,7 +363,7 @@ void attack_starts(const GameData& game_data, Monster& monster, std::string_view
 bool monster_update(const GameData& game_data, const Level& level, Monster& monster, std::span<Foe> foes, d2d::rules::Rng& rng,
                     std::uint32_t now_ms, float elapsed, const Crowd& crowd, std::vector<Missile>& missiles, std::span<Monster> pack = {},
                     std::vector<Monster>* born = nullptr, AreaSeen* seen = nullptr, const OpenDoor* open_door = nullptr,
-                    Spawning::LevelState* rooms_in_play = nullptr, int players_counted = 0, const Spawning* spawning = nullptr);
+                    Spawning::LevelState* rooms_in_play = nullptr, int players_counted = 0, Spawning* spawning = nullptr);
 
 // FUN_005b2f20 -> FUN_005b2a00 for a monster made in play: rings of 3
 // subtiles out to 3 x radius round (x, y) (radius -1: the spot alone), each

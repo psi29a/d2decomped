@@ -34,6 +34,7 @@ add_library(rules STATIC
     quests/cairn_effect.cpp
     quests/quest_music.cpp
     quests/quests.cpp
+    quests/quests_act3.cpp
     quests/quests_act4.cpp
     quests/quests_act5.cpp
     quests/stone_scroll.cpp

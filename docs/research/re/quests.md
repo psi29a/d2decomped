@@ -868,6 +868,42 @@ sends its own 0x5d to the one player (`FUN_005b81c0`: 0x5d, 0x10, the record's +
 a3q1's, a3q3's and a3q4's logs are their +0xe8's (`FUN_005b7d70`, `FUN_005b8cc0`, `FUN_005ba170`; a3q4's last
 case reads +0xb); a3q5's and a3q6's the usual `quest_log` on +0xb. In call-site order:
 
+**Khalim-part pickup (`FUN_005b8210`, 0x5b8210).** `FUN_005bda30` stores this
+handler in record 0x10's item-event slot `+0xb0`. Its EDX event has the game
+at `+0`, item at `+8`, and event player at `+0xc`. It gets that unit's player
+data with `FUN_006221a0`, selects the difficulty's quest-bit buffer through
+player data `+0x10` and game byte `+0x6d`, and returns unless word 0xf bit 0 is
+set and Khalim word 0x12 bit 0 is clear (`FUN_0065c310`). `FUN_00628590`
+supplies the event item's code. Five `FUN_00558110` calls, in flail, Will,
+eye, brain, heart order, test the event player's cursor and inventory; that
+helper applies the quest-item difficulty checks described under
+`World::carries`. Bits 5 and 7 are also read. There are no walks over other
+players and no game-global writes.
+
+For an eye, the sent state is 2 without the brain, else 3 without the flail,
+else 4 without the heart, else 7. For a heart it is 2 without the brain, then
+3 without the flail, 1 without the eye, else 7. For a brain it is 4 without
+the heart, then 3 without the flail, 1 without the eye, else 7. For a flail
+it is 1 without the eye, 2 without the brain, 4 without the heart, else 5
+when bit 5 is clear and 7 when it is set. A Will changes record byte `+0xb`
+to 7 when that byte was nonzero. It then repeats the word 0xf bit-0 test and,
+because the entry gate required that bit, returns at 0x5b8350: the apparent
+state-5 / state-6 sends below that branch are unreachable. Unknown item codes
+do nothing.
+
+The eye, heart, brain and flail state branches call `FUN_005b81c0` (0x5b81c0). That helper builds
+six stack bytes `{0x5d, 0x10, record[+0x14], state, 0, 0}`, resolves only the
+event player's client with `FUN_005531c0(event[+0xc])`, and passes that client
+and packet to `FUN_0053d710`; the latter copies the six bytes to the server's
+client queue through `FUN_0053b280`. The helper has no return value and no
+other data effect. `tools/emu/khalim_pickup_news.py` runs both functions over
+330 gate, bit and carried-part combinations and captures that final packet.
+d2d ports the branch matrix as `KhalimQuest::pickup_log_state` and raises
+`ev::QuestNews` only on the acting player's queue in `World::item_event`.
+The event type still carries only the quest word, not the stock packet's
+chosen state byte; the View supplies its computed state, so that remaining
+representation gap stays marked at `ClientSession::take_view`.
+
 | call site | record | log | flag | when | d2d |
 |---|---|---|---|---|---|
 | 0x5b76af | a3q1 | 1 | 1 | out of the docks at state 2, not done, log not 1 (`LAB_005b7620`) | `LamEsenQuest::enter` |

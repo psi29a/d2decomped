@@ -650,6 +650,14 @@ std::vector<PassiveStat> passive_stats(const SkillTables& skill_tables, const Ca
 // the owner's.
 inline int summon_level(int clvl, int forced, int bonus) { return forced > 0 ? forced : std::min(std::max(clvl * 3 / 4 + bonus, 1), clvl); }
 
+// A raised skeleton's (`mage` false, MonStats 0x16b) or skeletal mage's (0x16c) look after Raise's
+// FUN_005c4430, over the 16 picks its stat init rolled: `mastery` the owner's Skeleton Mastery level
+// (state skel_mastery's modifierlist_level), 0 without; `skill_level` Raise's level, `par1` its Param1.
+// The owner's seed steps for a skeleton's shield roll at level 3 and up and for a mage's element
+// (`element`, its missile's variant).
+struct RaisedLook { std::array<std::uint8_t, 16> look{}; int element = 0; };
+RaisedLook raised_look(std::array<std::uint8_t, 16> look, bool mage, int mastery, int skill_level, int par1, Rng& owner_seed);
+
 // Its passive stats (Skills +0x98, added to the pet's own: FUN_006272b0) and
 // aurastats (+0x54, on its state node: FUN_00627150), each at the skill's
 // level through the owner's calcs (Skeleton Mastery, Golem Mastery and the

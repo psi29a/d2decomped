@@ -39,8 +39,9 @@ int main() {
     int count = 0;
     for (int quest = 0; quest < 0x30; ++quest) count += quest_log_sent_by_event(quest) ? 1 : 0;
     assert(count == 26);
-    // Since 9817e18b, a2q2's pickup-only send is an event. a3q2 (its pickups send straight, FUN_005b81c0) and
-    // a4q1's 0x18 still read the View's change, as do the words with no shown slot.
+    // Since 9817e18b, a2q2's pickup-only send is an event. a3q2's own pickup is now a separate
+    // World::item_event too, but its talk-close log 1 (LAB_005b804b) still reads the View's change,
+    // so its generic log send stays with the View, as does a4q1's 0x18 and the words with no shown slot.
     for (const int quest : { 7, 8, 0xf, 0x10, KhalimQuest::kQuest }) assert(!quest_log_sent_by_event(quest));
     assert(!quest_log_sent_by_event(0) && !quest_log_sent_by_event(0x17) && !quest_log_sent_by_event(0x18));
     {   // The Forgotten Tower's flag-1 sites (FUN_00594960, FUN_00595010, Q05_TimerNotifyCompletion) raise news; its join doesn't.

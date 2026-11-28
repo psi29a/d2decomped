@@ -266,6 +266,41 @@ int main(int argc, char** argv) try {
     d2d::d2s::Stats stats;
     stats.values[d2d::d2s::kStr] = 20; stats.values[d2d::d2s::kDex] = 20; stats.values[d2d::d2s::kLevel] = 1;
     StatSum sum{}, wsum{};
+    {   // A monster's Corpse Explosion on a foe (FUN_005c4df0 -> FUN_005c4d10): its element is fire (MonStats::El type 0),
+        // so fire resistance takes it and lightning resistance doesn't (CodeRabbit on #815).
+        const MonStats blast = corpse_blast_record({}, 10 << 8, 20 << 8, true);
+        assert(blast.a1_min == 10 && blast.a1_max == 10 && blast.elements[0].type == 0 && blast.elements[0].min == 20);
+        assert(corpse_blast_record({}, 10 << 8, 20 << 8, false).a1_max == 0);
+        Fighter fire_proof; fire_proof.res = { 100, 0, 0, 0 };
+        Fighter shock_proof; shock_proof.res = { 0, 100, 0, 0 };
+        Rng blast_rng{ 5 };
+        assert(monster_blow(fire_proof, 1, Motion::standing, blast, false, blast_rng, false, true, true).element_dealt[0] == 0);
+        assert(monster_blow(shock_proof, 1, Motion::standing, blast, false, blast_rng, false, true, true).element_dealt[0] == 20);
+    }
+    {   // Sanctuary's skill_bypass_undead (103) and kin: the record's 0x100 / 0x200 / 0x400 (FUN_0057b7d0); on such a
+        // target each resistance counts only below 0 (FUN_0057c1e0 -> FUN_0057bf80).
+        StatSum sanctified{};
+        sanctified[d2d::d2s::kBypassUndead] = 1;
+        const auto paladin = make_fighter(tables, &hax, nullptr, sanctified, wsum, stats, {}, 0, {});
+        assert(paladin.bypass == 0x100);
+        Target skeleton; skeleton.undead = true; skeleton.res = { 30, 0, 50, -20, 100, 0 };
+        const auto hit = bypassed(skeleton, paladin.bypass);
+        assert(hit.res == (std::array<int, 6>{ 0, 0, 0, -20, 0, 0 }));
+        Target zombie_demon; zombie_demon.demon = true; zombie_demon.res = skeleton.res;
+        assert(bypassed(zombie_demon, 0x100).res == skeleton.res && bypassed(zombie_demon, 0x200).res == hit.res);
+        Target beast; beast.res = skeleton.res;
+        assert(bypassed(beast, 0x300).res == skeleton.res && bypassed(beast, 0x400).res == hit.res);
+        Target player; player.unit_type = 0; player.res = skeleton.res;
+        assert(bypassed(player, 0x100).res == skeleton.res && bypassed(player, 0x400).res == hit.res);
+        // Crushing Blow takes the raw damage resist (FUN_005bffc0, apart from the bypass): a skeleton resisting 100 %
+        // loses no life to it, though the bypass lets the hit's physical through (CodeRabbit on #815).
+        Fighter crusher = paladin;
+        crusher.crushing = 100; crusher.min = crusher.max = 1; crusher.attack_rating = 100000;
+        Target stone; stone.undead = true; stone.res = { 100, 0, 0, 0, 0, 0 }; stone.hit_points = 1000;
+        Rng crush_rng{ 3 };
+        const auto struck = player_blow(crusher, stone, 1, crush_rng);
+        assert(struck.hit && struck.crushing && struck.crush_fine == 0);
+    }
     auto fighter = make_fighter(tables, &hax, nullptr, sum, wsum, stats, { .to_hit = 15, .block = 25 }, 50, { 1, 2, 3, 4 });
     assert(fighter.min == 3 && fighter.max == 7 && fighter.attack_rating == 80 && fighter.block == 0 && fighter.wsm == -10 && fighter.defense == 50 && fighter.res[3] == 4);
     // A group's member (FUN_00482680): never one of its last `keep` plays.

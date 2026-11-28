@@ -79,8 +79,8 @@ int skill_class(const d2d::rules::Skill& skill) {
 // stop a falling rate (0x5a695c). A rate of 0 ends the event; life stays 0..max, and at 0 the pet dies. Under a point
 // of life the poison takes nothing in a town or out of a room (`town`: FUN_0061ab00, tools/emu/pet_poison_town.py).
 // ponytail: which runs first in a frame, a pet's hits or its event 3, isn't traced: here the hits (tick.cpp).
-// ponytail: preventheal and open wounds (state 0x34 by stat 117, 0x3e by stat 135) come only from a player's hits
-// (FUN_0057d810, FUN_005bfe60), and no player strikes a pet in d2d (no enemy players): the pet keeps neither.
+// Preventheal and open wounds (state 0x34 by stat 117, 0x3e by stat 135) come only from a player's hits
+// (FUN_0057d810, FUN_005bfe60), and a pet's foes in d2d's games are monsters (no hostile players): it keeps neither.
 void pet_regen(const GameData& game_data, Monster& monster, bool town, std::uint32_t now_ms) {
     if (monster.regen_from == 0 || now_ms < monster.regen_from || !monster.alive()) return;
     const bool poisoned = now_ms < monster.poison_until && monster.poison_rate > 0;
@@ -97,7 +97,7 @@ void pet_regen(const GameData& game_data, Monster& monster, bool town, std::uint
 // with it (FUN_005a2d10: FUN_0058f380 -> FUN_005a2cc0, then FUN_005a7e60 mode 0, no credit). The first piece's owner is
 // the Necromancer, not a monster, so it falls alone (FUN_0058f380 walks a monster owner's list only); so does a later
 // one whose first is gone (FUN_00552f60 finds no owner by its id).
-// ponytail: a piece that ends by its time (pets_turn) dies after this frame's check, so the rest fall a frame later.
+// A piece that ends by its time dies before the check (pets_turn), so the rest fall the same frame.
 void prison_falls(std::vector<Fight::Pet>& pets, const GameData& game_data, std::uint32_t now_ms) {
     for (auto& pet : pets) {
         if (pet.monster.alive() || pet.monster.party_owner < 0) continue;
@@ -142,7 +142,7 @@ auto Fight::clay_slows(const Pet& pet, const Foe& foe, std::uint32_t now_ms) -> 
             }
     }
 
-auto Fight::pet_foe(const Pet& pet) const -> Foe {
+auto Fight::pet_foe(Pet& pet) const -> Foe {
         const auto swung = pet.monster.classic_stats();                 // a revived one's swing in a classic game
         auto fighter = d2d::rules::simple_fighter(swung.a1_min, swung.a1_max, swung.to_hit,
                                                   pet.monster.stats.armor_class * (100 + pet_buff_stat(pet, d2d::d2s::kSkillArmorPercent)) / 100);   // Shout's
@@ -156,6 +156,7 @@ auto Fight::pet_foe(const Pet& pet) const -> Foe {
         Foe foe{ pet.monster.unit.x, pet.monster.unit.y, pet.monster.stats.level, pet.monster.alive() && pet.monster.mode != "DT" && pet.shot_skill < 0 && !still && pet.where == level,
                  pet.monster.unit.walking, fighter };
         foe.pet = true; foe.size = type_info.size; foe.threat = type_info.threat; foe.id = pet.monster.id; foe.listed = pet.listed; foe.room_stamp = pet.monster.unit.room_stamp;
+        foe.seed = &pet.monster.seed;
         monster_foe_props(*game_data, pet.monster, foe);
         foe.life_pct = int(std::int64_t(pet.monster.hit_points) * 100 / std::max(pet.monster.stats.hit_points, 1));
         const auto& own = type_info.diff[std::size_t(pet.monster.difficulty)].res;
@@ -215,7 +216,7 @@ auto Fight::pet_aura(Pet& pet, std::uint32_t now_ms) -> void {
                                                    .ehi = d2d::rules::elem_damage(game_data->skills, *skill, calc_env(), pet.aura_level, true) };
         for (std::size_t i = 0; i < monsters.size(); ++i)
             if (monsters[i].targetable() && std::hypot(monsters[i].unit.x - pet.monster.unit.x, monsters[i].unit.y - pet.monster.unit.y) * 5 <= float(radius))
-                land(i, d2d::rules::missile_blow(damage, target_of(i), {}, rng), false, now_ms, pet.monster.id);
+                land(i, d2d::rules::missile_blow(damage, target_of(i), {}, pet.monster.seed), false, now_ms, pet.monster.id);   // the aura's owner's seed
     }
 
 // The Fire Golem's death blast (MonUMod 31 goboom, FUN_005a2840) and a
@@ -408,11 +409,17 @@ auto Fight::pet_skill_damage(Pet& pet) -> void {
 // FUN_005e0400) only stand (pet.idle).
 auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -> void {
         for (auto& pet : actor->pets) (void)golem_blast(pet, now_ms);
+        // A pet whose time is up dies now (mode 0), so a Bone Prison piece's partydead takes the rest this frame.
+        for (auto& pet : actor->pets)
+            if (pet.until && now_ms >= pet.until && pet.monster.alive()) { pet.monster.hit_points = 0; set_mode(*game_data, pet.monster, "DT", now_ms); }
         prison_falls(actor->pets, *game_data, now_ms);
         std::erase_if(actor->pets, [&](const Pet& pet) { return !pet.monster.alive() && pet.monster.mode == "DT" && now_ms >= pet.monster.mode_until && !blast_due(pet.monster); });
         const auto save_class = std::size_t(std::max(actor->character.character_class, 0));
         for (const auto& made : std::exchange(actor->pet_summons, {}))            // a Shadow's traps and Blade Sentinel from last turn
-            if (const auto* skill = game_data->skills.get(made.skill)) summon(*skill, made.level, made.x, made.y, now_ms);
+            if (const auto* skill = game_data->skills.get(made.skill)) {
+                if (skill->srvdofunc == ServerDoFunction::kBladeSentinel) blade_sentinel(*skill, made.level, made.from_x, made.from_y, made.x, made.y, made.caster_level, now_ms);
+                else summon(*skill, made.level, made.x, made.y, now_ms);
+            }
         for (auto& pet : actor->pets)   // the pet's own room (FUN_00620bb0 on the unit, FUN_0061ab00): one left behind keeps its level's
             pet_regen(*game_data, pet.monster, !pet.where || d2d::rules::level_ids::is_town(pet.where->id), now_ms);
         for (auto& pet : actor->pets) {
@@ -424,14 +431,18 @@ auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
             if (!monster.alive() || pet.where != level) continue;
             unit.turns_on = true;                                        // a monster unit's turn, a step a frame (turn_frame)
             if (!unit.walking) turn_frame(unit);
+            pet_breath(pet, now_ms);
             pet_skill_damage(pet);                                          // its swings at the owner's level now
             for (const auto& buff : pet.buffs)                              // a Shadow's Blade Shield, as the player's
                 if (const auto* skill = game_data->skills.get(buff.skill); skill && skill->srvdofunc == ServerDoFunction::kBladeShield && now_ms >= pet.blade_next) {
                     pet.blade_next = now_ms + std::uint32_t(std::max(calc(*skill, skill->perdelay_calc, buff.level), 1)) * 40;
-                    blade_shield(*skill, buff.level, unit.x, unit.y, actor->player_combat, false, monster.id, now_ms);
+                    blade_shield(*skill, buff.level, unit.x, unit.y, actor->player_combat, false, monster.id, monster.seed, now_ms);
                 }
             if (pet.until && now_ms >= pet.until) { monster.hit_points = 0; set_mode(*game_data, monster, "DT", now_ms); continue; }
             if (monster.mode == "KB") { if (d2d::game::knock_slide(monster, now_ms)) continue; set_mode(*game_data, monster, "GH", now_ms); }   // knocked back, then its get-hit
+            // An Inferno Sentry's breath holds its skill's mode (FUN_005cc240 / do 95), and a monster thinks only once
+            // its mode ends: no shot is spent before the breath is over.
+            if (monster.breath >= 0) continue;
             const auto& ai_name = game_data->monsters.types[std::size_t(monster.type)].ai_name;
             const bool traced = d2d::rules::traced_pet_ai(ai_name);
             if (pet.aura >= 0) pet_aura(pet, now_ms);
@@ -467,11 +478,13 @@ auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
                         pending.push_back(std::move(x));
                     } else if (monsters[monster_index].targetable() && std::hypot(monsters[monster_index].unit.x - unit.x, monsters[monster_index].unit.y - unit.y) <= kMeleeReach + 0.3f) {
                         auto target = target_of(monster_index);
-                        // A Shadow swings the owner's blow (its copied gear); its skills are shadow_cast's. Its damage rolls on its own
-                        // unit seed too (FUN_0057b420 takes the swinging unit's seed, the pet's and a Shadow's alike).
-                        auto blow = pet.mirror ? d2d::rules::player_blow(shadow_fighter(pet, actor->player_combat), target, monster.stats.level, rng, {}, &monster.seed)
-                                               : d2d::rules::player_blow(pet_swing(pet), target, monster.stats.level, rng, {}, &monster.seed);
-                        if (blow.hit && pet.fire_hi > 0) blow.damage += d2d::rules::resisted(rng.range(pet.fire_lo, pet.fire_hi), target.res[2]);   // Fire Golem
+                        // A Shadow swings the owner's blow (its copied gear); its skills are shadow_cast's. Its rolls are on its own
+                        // unit seed (FUN_0057d9b0, FUN_0057b420 take the swinging unit's, the pet's and a Shadow's alike), the block
+                        // on the struck one's.
+                        auto& struck_seed = monsters[monster_index].seed;
+                        auto blow = pet.mirror ? d2d::rules::player_blow(shadow_fighter(pet, actor->player_combat), target, monster.stats.level, monster.seed, {}, nullptr, &struck_seed)
+                                               : d2d::rules::player_blow(pet_swing(pet), target, monster.stats.level, monster.seed, {}, nullptr, &struck_seed);
+                        if (blow.hit && pet.fire_hi > 0) blow.damage += d2d::rules::resisted(monster.seed.range(pet.fire_lo, pet.fire_hi), target.res[2]);   // Fire Golem
                         pet_strike(pet, monster_index, blow, now_ms);
                     }
                 }
@@ -554,6 +567,7 @@ auto Fight::pets_turn(std::uint32_t now_ms, float elapsed, const Crowd& crowd) -
                     foe.x = other.unit.x; foe.y = other.unit.y; foe.level = other.stats.level;
                     foe.alive = other.targetable() && other.mode != "DT";
                     foe.size = other_type.size; foe.threat = other_type.threat; foe.monster = &other; foe.id = other.id; foe.room_stamp = other.unit.room_stamp;
+                    foe.seed = &other.seed;
                 }
                 pet.target = search_foe(*game_data, *level, monster, foes, crowd);
             }
@@ -810,6 +824,21 @@ auto Fight::pet_second_foe(const Monster& searcher, int size, const Crowd& crowd
         return chosen >= 0 ? sight_index[std::size_t(chosen)] : -1;
     }
 
+// The Blade Sentinel's blade, made once by its think (FUN_005ea540, 0x5ea660): FUN_0056ede0 with EDX its
+// owner (the player: its damage and weapon are the player's, FUN_0064b860) at the pet's subtile, its
+// Skill1's srvmissilea (row +0x48) at its level, then FUN_00621ce0 records the pet as the unit it rides
+// (do 20). The pet takes the owner's attack rating (stat 0x13, FUN_00622560) and item_tohit_percent plus
+// the weapon's mastery (0x77, FUN_00645830): the blade's to-hit is the owner's, as d2d rolls it.
+auto Fight::pet_blade(Pet& pet, std::uint32_t now_ms) -> void {
+        const auto& type_info = game_data->monsters.types[std::size_t(pet.monster.type)];
+        const auto* skill1 = skill_named(type_info.skill[0]);
+        if (!skill1) return;
+        const auto row = game_data->missiles.find(skill1->srvmissilea);
+        if (row == game_data->missiles.end()) return;
+        const float x = (std::floor(pet.monster.unit.x * 5) + 0.5f) / 5, y = (std::floor(pet.monster.unit.y * 5) + 0.5f) / 5;
+        launch(row->second, *skill1, std::max(pet.level, 1), x, y, 0, 0, 10, now_ms).rider = pet.monster.id;
+    }
+
 // A traced pet's frame outside an attack (rules::traced_pet_ai): a walk
 // goes on, then at its think the AI's rules::*_think on a PetScene, its
 // follows and follow-or-fight tests by rules::PetFollow as NecroPet's. The
@@ -819,8 +848,8 @@ auto Fight::pet_second_foe(const Monster& searcher, int size, const Crowd& crowd
 // Vines' and the Sentries' `foe2` is FUN_005ddc30's (0x5ddc30), below.
 // The foe2 poisoned (state 2: its poison running), the pet under
 // Decrepify (0x3c), the owner's life / mana in 256ths.
-// Fenris's rage is pet_cast's (its buff, fenris_rage). Blade Sentinel isn't
-// summoned, so its think doesn't run.
+// Fenris's rage is pet_cast's (its buff, fenris_rage). Blade Sentinel's
+// bladecreeper walks its line (Pet::line) and carries its blade (pet_blade).
 // The Shadows: the Warrior's scene and the Master's think below.
 auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const Crowd& crowd) -> void {
         using d2d::rules::PetUnit;
@@ -936,6 +965,10 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
             return row && row->aurastate == "fenris_rage" && now_ms < buff.until;
         });
         scene.velocity = type_info.velocity; scene.run = type_info.run;
+        // Blade Sentinel's (FUN_005ea540): its line's two ends, and its last frame's span, its Skill1's
+        // calc4 (row +0x144) at its level in it (the cast's, FUN_005d5e10 gives it).
+        scene.ends = pet.lined; scene.end = pet.line;
+        if (type_info.ai_name == "BladeCreeper" && skill1) scene.skill_calc = calc(*skill1, skill1->calc[3], std::max(pet.level, 1));
         // How it follows: PetFollow on its PetView (as NecroPet's).
         d2d::rules::PetView view{ .x = pet_x, .y = pet_y, .size = size, .owner_x = sub(actor->player.x), .owner_y = sub(actor->player.y), .owner_mode = actor->owner_mode,
                                   .cur_x = sub(actor->target_x), .cur_y = sub(actor->target_y),
@@ -1188,6 +1221,11 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
         else if (ai_name == "Totem") d2d::rules::totem_think(brain);
         else if (ai_name == "Vines") d2d::rules::poison_creeper_think(brain);
         else if (ai_name == "CycleOfLife") d2d::rules::cycle_vine_think(brain);
+        else if (ai_name == "BladeCreeper") {
+            const bool unmade = pet.ctrl[2] == 0;
+            d2d::rules::blade_sentinel_think(brain);
+            if (unmade && pet.ctrl[2] != 0) pet_blade(pet, now_ms);         // its missile, once (+0x1c)
+        }
         else d2d::rules::druid_bear_think(brain);
         const auto& act = brain.act;
         monster.force_sight = act.unreachable;
@@ -1267,7 +1305,8 @@ auto Fight::pet_think_turn(Pet& pet, std::uint32_t now_ms, float elapsed, const 
 // within aurarange of (x, y), a hit at the skill's to-hit (FUN_006449f0),
 // its own damage (FUN_0056e170, MinDam..MaxDam by level) and the weapon's
 // at SrcDam (FUN_0057b7d0, 32 / 128).
-auto Fight::blade_shield(const d2d::rules::Skill& skill, int lvl, float x, float y, const d2d::rules::Fighter& fighter, bool by_player, int striker, std::uint32_t now_ms) -> void {
+auto Fight::blade_shield(const d2d::rules::Skill& skill, int lvl, float x, float y, const d2d::rules::Fighter& fighter, bool by_player, int striker, d2d::rules::Rng& seed,
+                         std::uint32_t now_ms) -> void {
         const auto env = calc_env();
         d2d::rules::Swing swing;
         swing.ar_pct = d2d::rules::skill_tohit(game_data->skills, skill, env, lvl);
@@ -1277,7 +1316,7 @@ auto Fight::blade_shield(const d2d::rules::Skill& skill, int lvl, float x, float
         const int radius = std::max(calc(skill, skill.aurarange, lvl), 1);
         for (std::size_t j = 0; j < monsters.size(); ++j)
             if (monsters[j].targetable() && std::hypot(monsters[j].unit.x - x, monsters[j].unit.y - y) * 5 <= float(radius))
-                land(j, d2d::rules::player_blow(fighter, target_of(j), int(actor->character.stats.get(d2d::d2s::kLevel)), rng, swing), by_player, now_ms, striker);
+                land(j, d2d::rules::player_blow(fighter, target_of(j), int(actor->character.stats.get(d2d::d2s::kLevel)), seed, swing, nullptr, &monsters[j].seed), by_player, now_ms, striker);
     }
 
 // What a Shadow's self states give it: their aurastats at their levels,
@@ -1344,7 +1383,7 @@ auto Fight::shadow_sequence(Pet& pet, std::uint32_t now_ms) -> void {
 // Dragon Flight plays its sequence (shadow_sequence): an event does the
 // flight (dragon_part 1) or the kick (2), as the player's.
 auto Fight::shadow_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd, int dragon_part) -> void {
-        const auto& monster = pet.monster;
+        auto& monster = pet.monster;
         const auto* skill = game_data->skills.get(pet.cast);
         if (!skill) return;
         const auto listed = std::ranges::find(pet.skill_list, skill->id, &d2d::rules::ShadowListed::id);
@@ -1371,7 +1410,7 @@ auto Fight::shadow_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd, int 
         // Its traps and Blade Sentinel (do 45 / 44): laid at its target (else
         // where it stands) once the pets have had their turns.
         if (skill->srvdofunc == ServerDoFunction::kTrap || skill->srvdofunc == ServerDoFunction::kBladeSentinel) {
-            actor->pet_summons.push_back({ skill->id, lvl, foe.x, foe.y });
+            actor->pet_summons.push_back({ skill->id, lvl, foe.x, foe.y, monster.unit.x, monster.unit.y, monster.stats.level });
             return;
         }
         // Attack with the owner's bow or crossbow shoots its missile (skill_missile: weapon_missile); fire spends no ammo.
@@ -1393,11 +1432,11 @@ auto Fight::shadow_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd, int 
             auto swing = skill_swing(*skill, lvl, calc_env(), false);
             add_charges(pet.charges, fighter, swing, false);
             const auto target_view = target_of(std::size_t(target));
-            auto blow = d2d::rules::player_blow(fighter, target_view, monster.stats.level, rng, swing);
+            auto blow = d2d::rules::player_blow(fighter, target_view, monster.stats.level, monster.seed, swing, nullptr, &monsters[std::size_t(target)].seed);
             const auto frozen = freeze_on(std::size_t(target), target_view, blow, swing.freeze_len);
             pet_strike(pet, std::size_t(target), blow, now_ms);
             stand(std::size_t(target), frozen, now_ms);
-            release(pet.charges, std::size_t(target), now_ms, false);
+            release(pet.charges, std::size_t(target), now_ms, false, pet.monster.seed);
             return;
         }
         if (target < 0 || (skill->id != 0 && skill_kind(*skill, missile_weapon(*game_data, gfx())) != 1)) return;
@@ -1414,12 +1453,12 @@ auto Fight::shadow_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd, int 
         const bool finishing = finisher(skill);
         if (finishing) add_charges(pet.charges, fighter, swing, false);
         const auto target_view = target_of(std::size_t(target));
-        auto blow = d2d::rules::player_blow(fighter, target_view, monster.stats.level, rng, swing);
+        auto blow = d2d::rules::player_blow(fighter, target_view, monster.stats.level, monster.seed, swing, nullptr, &monsters[std::size_t(target)].seed);
         const auto frozen = freeze_on(std::size_t(target), target_view, blow, swing.freeze_len);
         pet_strike(pet, std::size_t(target), blow, now_ms);
         stand(std::size_t(target), frozen, now_ms);
         if (blow.hit && skill->srvstfunc == ServerStartFunction::kChargeUp) charge(pet.charges, *skill, lvl, now_ms, unit_key(kSoundOnMonster, pet.monster.id), pet.monster.unit.x, pet.monster.unit.y);
-        if (blow.hit && finishing) release(pet.charges, std::size_t(target), now_ms, false);
+        if (blow.hit && finishing) release(pet.charges, std::size_t(target), now_ms, false, pet.monster.seed);
     }
 
 auto Fight::pet_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd) -> void {
@@ -1504,7 +1543,8 @@ auto Fight::pet_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd) -> void
         }
         if (!alive) { monsters[std::size_t(target)].corpse_used = true; return; }
         if (std::hypot(monsters[std::size_t(target)].unit.x - monster.unit.x, monsters[std::size_t(target)].unit.y - monster.unit.y) <= kMeleeReach + 0.3f)
-            pet_strike(pet, std::size_t(target), d2d::rules::player_blow(pet_swing(pet), target_of(std::size_t(target)), monster.stats.level, rng, {}, &monster.seed), now_ms);
+            pet_strike(pet, std::size_t(target), d2d::rules::player_blow(pet_swing(pet), target_of(std::size_t(target)), monster.stats.level, monster.seed, {}, nullptr,
+                                                                         &monsters[std::size_t(target)].seed), now_ms);
     }
 
 }  // namespace d2d::game

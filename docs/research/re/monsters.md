@@ -186,6 +186,23 @@ distinct Ids (bugs.md #13).
   with at least one choice (MonStats2 +0x15.., FUN_006647c0), a
   one-choice layer included. Checked in the emulator: 2000 seeds.
   FUN_00573cb0 then rolls the monster's life on the same seed.
+- **The stat init's draws, in order** (FUN_00573cb0 on the unit seed,
+  after FUN_00547bc0's join, whose new entry rolls its sets on that seed
+  first): the look; rows 0x137 / 0x138 (doomknight2, doomknight3) a
+  rand(4) written over the look's S3 byte (data +0xe), 0x138's S4 (+0xf)
+  too (0x573d68..0x573d9b), so their missile's element is the part they
+  wear; the life, `min + rand(max - min + 1)` (0x573f8f: a range of one
+  still steps); the MonProp row's chance and range draws (0x5741e0); the
+  MonEquip walk FUN_005d6b60, one pick a row (its items take game seed
+  steps, not this one). A monster's first think draws on what that left.
+  `tools/emu/unit_seed_init.py` runs FUN_00573cb0 with all of these for
+  real on every MonStats row x difficulty and random ones (3250 cases;
+  FUN_00536b20 / FUN_0063abd0 give the inventory the walk needs) and
+  `test_unit_seed_init` checks d2d's `make_monster` against its answers:
+  the seed left, the life and the look. d2d: every made monster takes its
+  seed off the game seed (`Spawning::game`) and its look off its level's
+  region (`rules::region_sets`), room spawns, a think's laid and summoned
+  monsters and the quests' alike.
 
 d2d: `Spawning` (components/game/gamedata/gamedata.hpp, `start_spawning`,
 `player_moved`), run by `Fight::rooms_up` every tick and on arrival. The

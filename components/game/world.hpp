@@ -816,11 +816,12 @@ struct World {
     // laid as the player comes in (FUN_005394a0): by the act town's start,
     // corpse_spot round it, the units there blocking (combat.md "Saving").
     void lay_save_corpse(const Character& entering);
+    void start_items();   // a fresh character's start items made in this game (FUN_00534f10)
 
     void new_game();
 
     // The character's merc (cc.header) next to the player, if alive.
-    void spawn_merc();
+    void spawn_merc(bool from_save = false);   // `from_save`: the save's, its unit seed made in the join's order
 
     // Back in camp after dying: at the town start with full life. Monsters
     // stay as they are.
