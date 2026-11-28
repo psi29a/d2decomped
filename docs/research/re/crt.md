@@ -183,3 +183,52 @@ routine, and its `__finally` (Locks).
 | `FUN_006a8b91` | `_wsopen_nolock` | the same as `FUN_0069b08a` with `CreateFileW`. Caller the wide `__sopen_helper` |
 | `FUN_006a943f` | the wide open helper's `__finally` | the same as `FUN_0069b937` |
 | `FUN_006aadfa` | `_setmode_nolock` | sets the handle's mode: 0x4000 text (bit 7, Unicode bits off), 0x8000 binary (bit 7 off), 0x10000 / 0x20000 UTF-16 (+0x24 = 2), 0x40000 UTF-8 (+0x24 = 1); returns the old mode, 0x4000, 0x8000 or 0x10000. Caller `__chsize_nolock` |
+
+## Math
+
+The game calls five math wrappers Ghidra didn't name (unnamed-frontier.md):
+`FUN_00687ac0` (`log`), `FUN_00687c10` (`pow`), `FUN_00687ea0` (`log10`),
+`FUN_00688590` (`sin`) and `FUN_006886c0` (`cos`). Each takes the SSE2 body
+when `DAT_00994c84` is set and the FPU and MXCSR mask all exceptions, else
+the x87 one. The x87 bodies are told apart by their instruction:
+`fldln2; fyl2x` is `log`, `fldlg2; fyl2x` `log10`, `fsin` and `fcos` the two
+others, `fyl2x` then `f2xm1` `pow`; the SSE2 body each one reaches is named
+after it. An x87 body ends through `__math_exit`, or, on an error, through
+`__startOneArgErrorHandling` with the error type in `EAX` (1 domain, 2 a
+pole, 7 a quiet NaN), unless `DAT_0096d6c4` is set.
+
+| Address | Name | What it does |
+|---|---|---|
+| `FUN_00683080` | `floor` | SSE2 when allowed, else `__floor_default`: under 1 in size, 0 or -1; under 2^52, the integer part, less 1 for a negative with a fraction; a NaN goes to `___libm_error_support` (0x3ed). Called from game code (game-calls.tsv) |
+| `FUN_006879dd` | `sqrt`'s x87 body | `fsqrt`; a negative argument (not -0) is a domain error. Caller `__CIsqrt` |
+| `FUN_00687b18` | `log`'s x87 body | `fldln2; fyl2x`; 0 is a pole error, a negative a domain error, a NaN `FUN_0069877c`. Caller `FUN_00687ac0` |
+| `FUN_00687c6d` | `pow`'s x87 body | x^y as 2^(y·log2 x) (`fyl2x`, `FUN_00698750`); a negative x needs an integer y (`FUN_00687e32`), the sign from its parity; infinite operands through `FUN_00699924`; the result checked by `FUN_00698839`; errors to `FUN_006986f0`. Caller `FUN_00687c10` |
+| `FUN_00687e32` | `pow`'s integer test | `CL` = 0 when `ST0` is not an integer, 1 an odd integer, 2 an even one (half of it, ×0.5 from `DAT_00749e50`, also an integer) |
+| `FUN_00687ef8` | `log10`'s x87 body | `fldlg2; fyl2x`, the same checks as `FUN_00687b18`. Caller `FUN_00687ea0` |
+| `FUN_006885df` | `sin`'s x87 entry from the SSE2 body | loads the stack argument (`__fload_withFB`) and runs on into `FUN_006885e8`. Caller `FUN_00699e4e` |
+| `FUN_006885e8` | `sin`'s x87 body | `fsin`; when the FPU reports the argument out of range (C2), reduces it by the constant at `DAT_006f333a` until it isn't and runs `fsin` again; Inf or NaN through `FUN_0069877c`. Caller `FUN_00688590` |
+| `FUN_0068870f` | `cos`'s x87 entry from the SSE2 body | the same into `FUN_00688718` (`fcos`, cited). Caller `FUN_0069a01e` |
+| `FUN_006986f0` | the two-argument error start | the error type and the stack arguments into its frame, then joins `__startOneArgErrorHandling`'s body. Callers `FUN_00687c6d`, `FUN_00698839` |
+| `FUN_00698750` | 2^x | `ST0` split by `frndint`, `f2xm1` of the fraction, `fscale` by the integer part. Caller `FUN_00687c6d` |
+| `FUN_00698765` | the control-word load | loads a control word of the argument's precision and rounding bits (0x300) with every exception masked (0x7f) |
+| `FUN_0069877c` | the NaN case | a quiet NaN (bit 19 of `EAX`) returns 7; else adds 1.0 (`DAT_006f3330`) to `ST0` and returns 1 |
+| `FUN_006987d8` | the exponent test | the double's high word when its exponent is all ones (Inf or NaN), else its exponent bits. Callers `__CIsqrt` and the wrappers but `pow` |
+| `FUN_006987ee` | the x87 exit | reloads the saved control word unless it is the default 0x27f, pops it and returns |
+| `FUN_00698839` | `pow`'s range check | a result with a zero exponent is scaled by 2^1536, an all-ones one by 2^-1536 (`fscale`), then error handling (error 0x1d through `FUN_006986f0`); else returns unless a precision exception is unmasked and raised |
+| `FUN_006988e0` | `log`'s SSE2 bridge | aligns the stack, `ST0` into `XMM0`, calls `FUN_006988fe` |
+| `FUN_006988fe` | `log`'s SSE2 body | table-driven (`0x006f3380`..`0x006f3870`); errors to `___libm_error_support` |
+| `FUN_00698d60` | `pow`'s SSE2 bridge | `ST1` and `ST0` onto the aligned stack, calls `FUN_00698d79` |
+| `FUN_00698d79` | `pow`'s SSE2 body | (2,872 bytes, not followed) errors to `___libm_error_support` |
+| `FUN_00699924` | `pow`'s infinite cases | for an infinite x or y, the result: 0, 1, +Inf (`DAT_0074af20`) or -0 (`DAT_0074af40`), an odd integer y (`__d_inttype`) keeping a negative x's sign; y = -Inf with \|x\| = 1 gives NaN (`DAT_0074af28`) and returns 1, else 0. Caller `FUN_00687c6d` |
+| `FUN_00699a70` | `log10`'s SSE2 bridge | as `FUN_006988e0`, calls `FUN_00699a8e` |
+| `FUN_00699a8e` | `log10`'s SSE2 body | errors to `___libm_error_support` |
+| `FUN_00699e30` | `sin`'s SSE2 bridge | as `FUN_006988e0`, calls `FUN_00699e4e` |
+| `FUN_00699e4e` | `sin`'s SSE2 body | its hard cases go to the x87 body through `FUN_006885df` |
+| `FUN_0069a000` | `cos`'s SSE2 bridge | as `FUN_006988e0`, calls `FUN_0069a01e` |
+| `FUN_0069a01e` | `cos`'s SSE2 body | its hard cases go to the x87 body through `FUN_0068870f` |
+| `FUN_0069a810` | the SSE2 probe | runs `movapd xmm0, xmm1` inside an SEH frame: 1, or 0 when it raises 0xC0000005 or 0xC000001D. Caller `__get_sse2_info` |
+| `FUN_0069c68c` | the default `_matherr` | returns 0. Referenced by `___libm_error_support`, called by `__umatherr` and `__87except` |
+| `FUN_0069cfd1` | `_decomp` | splits a double: the mantissa with its exponent set for [0.5, 1) (`__set_exp`), the exponent to `*out` (denormals normalised first; 0 gives 0, 0). Callers `__handle_exc`, `_ldexp`, `FUN_006aa6f2`, `FUN_006aa7d5` |
+| `FUN_0069d0be` | the exception raiser | for each flag bit of its argument, an x87 operation that raises it: 1 `fistp` of the long double at `0x0074af48`, 8 and 0x10 `fstp` of the ones at `0x0074af48` and `0x0074af54` to a double, 4 1/0, 0x20 `fldpi` stored to a double. Caller `__handle_exc` |
+| `FUN_006aa6f2` | `_logb` | Inf or NaN through `__sptype` / `__handle_qnan1`; 0 gives -Inf through `__except1` (operation 0x25); else `_decomp`'s exponent less 1. No caller |
+| `FUN_006aa7d5` | `_nextafter` | two doubles; Inf, NaN and the error case through `__handle_qnan2` / `__except2` (operation 0x26); the step through `_decomp` and `__set_exp`. No caller |
