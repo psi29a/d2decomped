@@ -9,9 +9,11 @@ TCP / Battle.net game uses.
 ## The server loop
 
 - **Game frames** (`FUN_0052fc20`): by `timeGetTime`, once
-  `DAT_00883d60` ms have passed. That is `1000 / fps`, set by
-  `FUN_0052df80` (reached through a pointer; the rate passed isn't
-  traced, 25 per the animation and sound timings). With `param_1` set it
+  `DAT_00883d60` ms have passed. That is signed `1000 / fps` (truncated
+  toward zero), set alongside `DAT_00731014 = fps` by `FUN_0052df80`
+  (stdcall, 1 stack arg; oracle `tools/emu/server_loop_helpers.py`; the
+  rate passed at runtime isn't traced, 25 per the animation and sound
+  timings). With `param_1` set it
   catches up at most one frame. Every live game slot (`DAT_00882d38`, 0x400
   of them, so up to 1024 games) is locked (`FUN_0052e860`), gets a speed
   factor (game +0x1dbc, 0x400 = 1.0, from the real time since its last
@@ -21,7 +23,11 @@ TCP / Battle.net game uses.
   `FUN_0052d440` (132 lines, the unit updates), `FUN_0053b000`,
   `FUN_0053a820`. Then every 20 frames the quests (`FUN_00543e10`), every
   12 `FUN_0052d240`, every 11 each act's `FUN_0061aa20`, and last
-  `FUN_0052d310`. The subsystems aren't traced one by one.
+  `FUN_0052d310` (EDI = game: when `game+0xa8 % 0x5dc == 0`, i.e. every
+  1,500 frames / 60 s at 25 fps, runs `FUN_00558b90` then `FUN_00542ac0`
+  for acts `0..4` with ECX = game, EDX = act; oracle
+  `tools/emu/server_loop_helpers.py`). The other subsystems aren't traced
+  one by one.
 - **Flush** (`FUN_0052fd90`): at most every 40 ms (0x28) unless forced.
   Each game is locked, and each client's queued outgoing packets are sent
   (`FUN_0052e320` → `FUN_0052b330`; three failures in a row drop the
@@ -112,7 +118,7 @@ Names: the community's (d2-clientless, D2MOO) — unverified labels
 | 54 | 1 | 0x54c990 ✓ | run off: a running player walks (update flag 2) |
 | 58 | 3 | 0x54c9c0 | quest completed |
 | 59 | 17 | 0x54ca10 | move unit |
-| 5d | 7 | 0x54c2a0 ✓ | party screen action ≤ 10 with a player id and a byte (`FUN_005a6000`; refused when `FUN_0053fd10` says so) |
+| 5d | 7 | 0x54c2a0 ✓ | party screen action ≤ 10 with a player id and a byte (`FUN_005a6000`; refused when `FUN_0053fd10` says so: bit 16 of `*(*(game+0x1d28)+8)`, fatal abort on null `game+0x1d28`, oracle `tools/emu/server_loop_helpers.py`) |
 | 5e | 6 | 0x54c300 ✓ | party screen action ≤ 10 with a player id (`FUN_005a6000`) |
 | 5f | 5 | 0x54cd50 | update player position |
 | 60 | 1 | 0x54ce70 | swap weapons |

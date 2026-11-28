@@ -5039,7 +5039,8 @@ Server side, `00542ac0`..`00542b3b`, **ECX** game, **EDX** act, plain `RET`. For
 walks the item chain (`node+8`, record `+0` next) and frees each record whose despawn word at `+4` is non-zero and
 **less than** the game frame `game+0xa8` (`CMP [EBX+0xa8], EAX; JLE` skips otherwise, `00542af9`), unlinking it from
 the chain first and freeing it with line `0x723`. A zero timer is skipped. Caller: `FUN_0052d310`
-(game-calls.tsv). d2d: no port. Not traced: the frame at which `FUN_0052d310` calls it (cadence).
+(game-calls.tsv), which runs it (after `FUN_00558b90`) for acts `0..4` whenever `game+0xa8 % 0x5dc == 0`
+(every 1,500 frames; `tools/emu/server_loop_helpers.py`). d2d: no port.
 
 Re-check: `python3 tools/ghidra/fn.py 00542ac0`; disassemble `00542af0`..`00542b25`.
 
