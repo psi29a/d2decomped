@@ -56,6 +56,7 @@ auto line_of(const std::string& text) -> std::string {
     return case_text + "|" + std::to_string(last) + " " + std::to_string(after) + " " + level_up;
 }
 
+// Checks gain_exp's live-stat writes and the 32-bit addition edge.
 void hand_checks() {
     // gain_exp keeps the experience at Experience.txt's row MaxLvl - 1.
     std::vector<std::int64_t> next(100, 0);
@@ -67,6 +68,7 @@ void hand_checks() {
     const d2d::rules::ClassGains gains{};
     assert(d2d::rules::gain_exp(stats, 5000, next, gains) == 0);
     assert(stats.values[d2d::d2s::kExp] == 3520485254);
+    assert(stats.values[d2d::d2s::kLastExperience] == 254);
     assert(d2d::rules::exp_after_award(0xffffffffu, 2, 0xffffffffu) == 1);   // the sum wraps first
 }
 
