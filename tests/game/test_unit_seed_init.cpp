@@ -99,6 +99,7 @@ int main(int argc, char** argv) try {
     };
     if (argc >= 3 && std::string_view(argv[1]) == "--unit-seed") {
         std::ifstream case_file(argv[2]);
+        if (!case_file) { std::fprintf(stderr, "test_unit_seed_init: can't open %s\n", argv[2]); return 1; }
         std::string line;
         while (std::getline(case_file, line)) {
             std::istringstream fields(line);
@@ -117,6 +118,7 @@ int main(int argc, char** argv) try {
             const auto out = made(*data, row, difficulty, std::uint32_t(seed));
             std::printf("%s | %u %u %d %s\n", id.c_str(), out.low, out.high, out.life_fine, out.look.c_str());
         }
+        if (case_file.bad()) { std::fprintf(stderr, "test_unit_seed_init: a read error in %s\n", argv[2]); return 1; }
         return 0;
     }
     int checked = 0, bad = 0, skipped = 0;
