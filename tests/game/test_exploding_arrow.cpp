@@ -132,7 +132,7 @@ int main(int argc, char** argv) try {
     assert(fight.pending[0].info->name == "explodingarrowexp2");
     assert(fight.pending[0].skill == rogue_missile->id && fight.pending[0].level == 7);
     if (argc == 2 && std::string_view(argv[1]) == "--oracle") {
-        std::printf("3 %d %d %d\n", fight.pending[0].info->id, fight.pending[0].skill, fight.pending[0].level);
+        std::printf("%d %d %d\n", fight.pending[0].info->id, fight.pending[0].skill, fight.pending[0].level);
         return 0;
     }
     std::puts("OK: a merc exploding arrow makes its RogueMissile blast (FUN_005b07a0)");

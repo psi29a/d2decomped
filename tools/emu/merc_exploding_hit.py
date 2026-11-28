@@ -7,7 +7,9 @@
 Generate d.txt with ``$D2_BUILD/tests/test_exploding_arrow --oracle``. The
 stock function runs on the loaded 1.14d tables; only the owner/skill/level
 accessors and final missile creator are hooked. The compared record is
-``return-value hit-sub-row skill level``.
+``hit-sub-row skill level``: FUN_005b07a0's own return value is an internal
+detail of the stock function, not something d2d's `plain_missile_hits` has
+an equivalent for, so it's not compared.
 """
 import argparse
 import hashlib
@@ -58,19 +60,19 @@ def stock_answer():
         return made
 
     machine.hook(0x59FA30, create, 0)
-    result = machine.call(0x5B07A0, target, ecx=game, edx=missile)
+    machine.call(0x5B07A0, target, ecx=game, edx=missile)
     require(creations == [(owner, missile, 656, ROGUE_MISSILE, 7)],
             f"unexpected FUN_005b07a0 creations: {creations}")
-    return result, creations[0][2], creations[0][3], creations[0][4]
+    return creations[0][2], creations[0][3], creations[0][4]
 
 
 def d2d_answer(path):
     """Read the single numeric answer emitted among the regression test's log."""
     rows = []
     for line in Path(path).read_text(encoding="utf-8").splitlines():
-        if re.fullmatch(r"-?\d+(?: +-?\d+){3}", line):
+        if re.fullmatch(r"-?\d+(?: +-?\d+){2}", line):
             rows.append(tuple(int(field) for field in line.split()))
-    require(len(rows) == 1, f"expected one four-integer d2d answer in {path}, got {len(rows)}")
+    require(len(rows) == 1, f"expected one three-integer d2d answer in {path}, got {len(rows)}")
     return rows[0]
 
 
@@ -81,7 +83,7 @@ def answers_match(expected, actual):
 
 def mutation_check(answer, actual):
     """Prove the comparison rejects each field being wrong."""
-    labels = ("return", "sub-missile", "skill", "level")
+    labels = ("sub-missile", "skill", "level")
     for index, label in enumerate(labels):
         mutant = list(answer)
         mutant[index] += 1
@@ -101,7 +103,7 @@ def main():
     print("ok: FUN_005b07a0 made the merc's explodingarrowexp2")
     if arguments.mutation_check:
         mutation_check(stock, actual)
-        print("mutation check ok (4 ways)")
+        print("mutation check ok (3 ways)")
 
 
 if __name__ == "__main__":
