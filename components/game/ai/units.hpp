@@ -275,6 +275,9 @@ struct Monster {
     // Damage over time (life a millisecond, until when) and a chill.
     double poison_rate = 0, bleed_rate = 0, dot_acc = 0;
     std::uint32_t poison_until = 0, bleed_until = 0, chill_until = 0;
+    // Its poison's and bleeding's owner (their state lists', FUN_0057ac50): the player whose hit put them
+    // (Hero::id; -1 a monster's), who a death to them credits (FUN_005a6920 -> FUN_0057e7b0).
+    int poison_owner = 0, bleed_owner = 0;
     bool shatter = false;                     // state 107 (FUN_0057af80's roll on a chill)
     std::uint32_t no_heal_until = 0;          // ms: state 0x34 (preventheal, FUN_0057d810)
     std::uint32_t stunned_until = 0;          // ms: a stun's end (state 21)

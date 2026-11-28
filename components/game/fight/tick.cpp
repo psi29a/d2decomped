@@ -544,8 +544,7 @@ auto Fight::world(bool in_moor, std::uint32_t now_ms, float elapsed, const Crowd
             // monster_blow uses that foe's block chance as it does a player's.
             // A monster has no mana (FUN_00573cb0 sets no stat 8), so a Mana Burn
             // on one takes nothing, as here.
-            // ponytail: a poison kill has no state owner, so its experience is
-            // still the first player's.
+            // A poison or bleeding kill is its state's owner's (Monster::poison_owner, monster_dots).
             const std::size_t allies = foes.size();
             // `for_missiles`: a monster's CollideFriend missile in flight (FUN_005a8730) strikes its owner's
             // friends, so the monsters are foes then too, aligned or not.

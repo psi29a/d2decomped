@@ -768,15 +768,16 @@ auto Fight::skill_swing(const d2d::rules::Skill& skill_row, int lvl, const d2d::
 // FUN_0057ac50 gives every unit the same one-poison-at-a-time state: the
 // stronger per-frame hpregen loss replaces the old value and its end time.
 // A monster may be the target of another monster's record too (Fight::world).
-static void apply_monster_poison(Monster& target, double rate, int poison_ticks, std::uint32_t now_ms) {
+static void apply_monster_poison(Monster& target, double rate, int poison_ticks, std::uint32_t now_ms, int owner) {
         if (rate > 0 && (now_ms >= target.poison_until || rate >= target.poison_rate)) {
             target.poison_rate = rate;
             target.poison_until = now_ms + std::uint32_t(poison_ticks) * 40;
+            target.poison_owner = owner;                   // the new list's owner
         }
     }
 
 void apply_monster_foe_poison(Monster& target, int poison, int poison_ticks, std::uint32_t now_ms) {
-        apply_monster_poison(target, poison / (256.0 * 40.0), poison_ticks, now_ms);
+        apply_monster_poison(target, poison / (256.0 * 40.0), poison_ticks, now_ms, -1);
     }
 
 // A hit on monster i (the player's or the merc's): blocked, it blocks; otherwise the damage, life/mana leech
@@ -826,7 +827,7 @@ auto Fight::land(std::size_t monster_index, const d2d::rules::Blow& blow, bool b
             actor->merc->set_life_fine(int(std::min<std::int64_t>(std::int64_t(merc_max_life()) << 8, std::int64_t(actor->merc->life_fine()) + blow.life)));
         // One poison at a time, the stronger wins (FUN_0057ac50); at 0 life
         // the monster dies to it, the kill the poisoner's (FUN_005a6920).
-        apply_monster_poison(target, double(blow.poison) / (std::max(blow.poison_ticks, 1) * 40.0), blow.poison_ticks, now_ms);
+        apply_monster_poison(target, double(blow.poison) / (std::max(blow.poison_ticks, 1) * 40.0), blow.poison_ticks, now_ms, actor->id);
         // Chilled (state 11, FUN_0057af80): not at coldeffect 0, the length
         // over MonsterColdDivisor when it's negative, at least a tick, only
         // ever lengthened. Then rand % 100 < 20 on the monster's seed puts state
@@ -863,6 +864,7 @@ auto Fight::land(std::size_t monster_index, const d2d::rules::Blow& blow, bool b
         if (blow.bleed) {
             target.bleed_rate = blow.bleed_fine / (256.0 * 40);                   // 256ths a frame, 40 ms a frame
             target.bleed_until = now_ms + std::uint32_t(d2d::rules::kOpenWoundsFrames) * 40;
+            target.bleed_owner = actor->id;
         }
         // Life Tap: whoever dealt the hit heals (rules::life_tap_life). FUN_005c61e0 takes any player or monster
         // striker that isn't dying (0x5c620a, FUN_005541b0), so the merc and the pets too.
@@ -948,7 +950,18 @@ auto Fight::monster_dots(std::uint32_t now_ms, float elapsed) -> void {
             monster.dot_acc -= whole;
             if (whole < 0) heal(monster, -whole);
             else monster.hit_points -= whole;
-            if (!monster.alive()) { set_mode(*game_data, monster, "DT", now_ms); killed(i, now_ms); }
+            if (!monster.alive()) {
+                // The kill is its poison's owner's, else its bleeding's (FUN_0057e7b0 on the state list's owner): that
+                // player's experience and quest credit; a monster's poison, nobody's.
+                set_mode(*game_data, monster, "DT", now_ms);
+                const int owner = now_ms < monster.poison_until ? monster.poison_owner : now_ms < monster.bleed_until ? monster.bleed_owner : actor->id;
+                const auto found = std::ranges::find(heroes, owner, [](const Hero* hero) { return hero->id; });
+                if (owner < 0 || found == heroes.end()) { killed(i, now_ms, false); continue; }   // a monster's, or the player's gone
+                Hero& was = *actor;
+                act_as(**found);
+                killed(i, now_ms);
+                act_as(was);
+            }
         }
     }
 
