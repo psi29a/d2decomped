@@ -201,6 +201,7 @@ address	name	evidence
 00424f30	sbig_mul_mod	dst, a, b, c (ret 0x10): dst = a * b % c via FUN_004245f0 (source-sbig-math.md)
 00424f90	sbig_square	dst, a (ret 8): dst = a * a via FUN_00424b00 (source-sbig-math.md)
 00425150	sbig_pow_mod	base^exp mod m with 2-bit windows: temporaries from the EAX pool (+0x140 its top), the base and its square and cube, then two squarings and a multiply-reduce (FUN_00424b00, FUN_00423dc0) per two exponent bits. Only ... (source-frontier.md)
+004255c0	sbig_pow_mod_forward	stdcall forwarder to the modular-exponentiation core FUN_00425350 (sbig_pow_mod): reads its single stack argument (a number pointer), adds 0x14, pushes it as the core's sole stack argument, and returns the core's EAX unchanged (PUSH EBP / MOV EBP,ESP / PUSH EBX / MOV EBX,[EBP+0x8] / LEA EAX,[EBX+0x14] / PUSH EAX / CALL 0x00425350 / POP EBX / POP EBP / RET 0x4, 21 bytes). No callers found in the image (XrefsTo: 0) (source-frontier.md)
 00425d90	sha1_init	Count 0, state 0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476, 0xc3d2e1f0 (SHA-1). Callers FUN_0041d300, d2d_warden_digest, FUN_0051dbf0 (source-frontier.md)
 00425dd0	sha1_update	Adds n × 8 to the 64-bit bit count, buffers to 64 bytes at +0x1c and runs the block function (FUN_00425850) per full block (source-frontier.md)
 00425f00	sha1_final	Pads (0x708890) to 56 mod 64, appends the count, writes the five state words big-endian (20 bytes) (source-frontier.md)
