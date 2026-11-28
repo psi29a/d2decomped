@@ -258,9 +258,17 @@ read (or any part shown), 4 / 5 / 6 the amulet / shaft / Cube shown,
   staff send nothing. The act test is `FUN_00544190`'s (the player's level's
   act against the record's); the `FUN_00599510` call at 0x599a96, under the
   record's act, has its result unused. These are record 9's only
-  `FUN_00544190` calls. d2d: `World::item_event` raises `ev::QuestNews{10}`
-  (not for a corpse's event: not traced), and the client reads no View change
-  for quest 10 (`ClientSession::take_view`); `tests/game/test_staff_pickup_news.cpp`.
+  `FUN_00544190` calls. d2d: `World::item_event` raises `ev::QuestNews{10}`,
+  and the client reads no View change for quest 10
+  (`ClientSession::take_view`). A corpse has its own newly clear
+  player data and quest bits, so these four items pass `FUN_00599510` even
+  when the owner is done. Both corpse makers attach the owner's client to it:
+  the death path `FUN_0057f700` calls `FUN_005531c0(owner)` at `0x57f7b5`
+  then `FUN_00553180(corpse, client)` at `0x57f7c7`; saved-corpse
+  `FUN_00533850` does the same at `0x5338ae..0x5338bc`. Thus
+  `FUN_00544190` resolves the corpse's player-data `+0x9c` and sends 0x5d
+  to its owner's client. d2d raises the same event on the acting owner;
+  `tools/emu/staff_corpse_news.py`, `tests/game/test_staff_pickup_news.cpp`.
 - **The chests** (objects.txt 355 / 356 / 354; InitFns 32 / 33 / 31 do
   nothing): OperateFns 40 `FUN_00599c10` (Sewers 3), 41 `FUN_00599cf0`
   (Maggot Lair 3), 39 `FUN_00599df0` (Halls of the Dead 3). Once

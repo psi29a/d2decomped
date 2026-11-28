@@ -3,8 +3,10 @@
 // a2q2's pickup (FUN_00599a30, record 9's event 4): Items.txt quest 10 binds tr1, vip, box, msf and hst to it.
 // The scroll with bit 3 unset, the amulet, the Cube or the shaft sends the log to the picker (FUN_00544190 at
 // 0x599acb, or FUN_00599570 for the shaft) when FUN_00599510 passes (rules::quest_log_goes_to): World::item_event
-// raises ev::QuestNews{10}. The staff, a read scroll, a done quest, a record FUN_00544410 closed and a corpse's
-// event send none. tools/emu/staff_pickup_news.py checks FUN_00599a30's side. Needs the game data.
+// raises ev::QuestNews{10}. A corpse uses fresh quest bits and FUN_0057f700 / FUN_00533850 attach its owner's
+// client, so its event sends there too (the rule over made-up corpse rows: test_staff_corpse_news.cpp).
+// The staff, a read scroll, a done quest and a record FUN_00544410 closed send none.
+// tools/emu/staff_pickup_news.py and staff_corpse_news.py check game.exe's side. Needs the game data.
 
 #include <character.hpp>
 #include <character_store.hpp>
@@ -68,18 +70,20 @@ int main() try {
         ++failures;
     };
 
+    world.quests() = {};
     expect("vip", news("vip"), 1);
     expect("box", news("box"), 1);
     expect("msf", news("msf"), 1);
     expect("tr1 unread", news("tr1"), 1);
     expect("hst", news("hst"), 0);
     expect("bks (another record's)", news("bks"), 0);
-    expect("vip on a corpse", news("vip", true), 0);
+    expect("vip on a corpse", news("vip", true), 1);
     quest::set(world.quests(), Staff::kQuest, 3);
     expect("tr1 read (bit 3)", news("tr1"), 0);
     expect("vip, bit 3", news("vip"), 1);
     quest::set(world.quests(), Staff::kQuest, 0);
     expect("vip, done (bit 0)", news("vip"), 0);
+    expect("vip on a corpse, owner done", news("vip", true), 1);
     quest::set(world.quests(), Staff::kQuest, 13);
     expect("vip, done here (bits 0, 13)", news("vip"), 1);
     quest::set(world.quests(), Staff::kQuest, 0, false);
