@@ -388,11 +388,11 @@ column list given); d2d reads the same files with its own loaders.
 | `FUN_00681d27` | `crt_exit` | The CRT's `doexit`: the atexit and terminator tables (`d2d_crt_decode_pointer`), then `ExitProcess`. Callers the exits `FUN_00681e09` and two more | no counterpart (the CRT) |
 | `FUN_00683006` | `crt_ftol` | The CRT's float-to-integer rounding helper. Callers `d2d_click_spot_click_spot` and one more | no counterpart (the CRT) |
 | `FUN_00684782` | `crt_fread` | `fread_s` with no buffer limit. 5 callers | no counterpart (the CRT) |
-| `FUN_00687ac0` | `crt_math_a` | A CRT math wrapper: the SSE2 path when the FPU and MXCSR masks allow, else the x87 one. Callers the sound mix `FUN_00516830` and two more | no counterpart (the CRT) |
-| `FUN_00687c10` | `crt_math_b` | As `crt_math_a` with two operands (`pow`-style). 5 callers, among them `FUN_00516830`, `d2d_palette_make_ramp` | no counterpart (the CRT) |
-| `FUN_00687ea0` | `crt_math_c` | As `crt_math_a`. Only caller `FUN_005165f0` | no counterpart (the CRT) |
-| `FUN_00688590` | `crt_math_d` | As `crt_math_a`. Only caller `d2d_light_act4_light` | no counterpart (the CRT) |
-| `FUN_006886c0` | `crt_math_e` | As `crt_math_a`. Only caller `d2d_light_act4_light` | no counterpart (the CRT) |
+| `FUN_00687ac0` | `crt_log` | `log` (crt.md "Math"): the SSE2 path when `DAT_00994c84` is set and the FPU and MXCSR masks allow, else the x87 one. Callers the sound mix `FUN_00516830` and two more | no counterpart (the CRT) |
+| `FUN_00687c10` | `crt_pow` | `pow`, as `crt_log` with two operands. 5 callers, among them `FUN_00516830`, `d2d_palette_make_ramp` | no counterpart (the CRT) |
+| `FUN_00687ea0` | `crt_log10` | `log10`, as `crt_log`. Only caller `FUN_005165f0` | no counterpart (the CRT) |
+| `FUN_00688590` | `crt_sin` | `sin`, as `crt_log`. Only caller `d2d_light_act4_light` | no counterpart (the CRT) |
+| `FUN_006886c0` | `crt_cos` | `cos`, as `crt_log`. Only caller `d2d_light_act4_light` | no counterpart (the CRT) |
 | `FUN_0068abac` | `crt_fputc` | The CRT's character output to a stream. 10 callers | no counterpart (the CRT) |
 | `FUN_0068b5a3` | `crt_output` | The CRT's formatted output engine (`printf` core, locale). 8 callers | no counterpart (the CRT) |
 | `FUN_006bcac0` | `slot_pool_reset` | Fastcall pool not locked (`+0x108`): next -1, counts 0, `+0x118` = 0x8000, each slot's first word 0. 5 callers, ported: `FUN_00472590`, `FUN_004726f0`, `FUN_00472c20` | not compared |
