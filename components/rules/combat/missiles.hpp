@@ -67,7 +67,8 @@ std::vector<FanShot> missile_fan(int from_x, int from_y, int to_x, int to_y, int
 
 // The path velocity FUN_0059fa30 gives every missile it makes:
 // ((Vel + VelLev x lvl / 8) << 8) x 75 / 100.
-int missile_velocity(int vel, int vel_lev, int level);
+// `slow_pct` >= 0: a CanSlow row off an owner under Slow Missiles (its stat 161), before the x 75 / 100.
+int missile_velocity(int vel, int vel_lev, int level, int slow_pct = -1);
 
 // Its life in frames, Range + LevRange x lvl.
 int missile_range(int range, int lev_range, int level);

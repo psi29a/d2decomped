@@ -686,6 +686,17 @@ bool move_frame(const Level& level, Monster& monster, const Foe* chased, bool sp
 // Skill (`carried`: the Summoner's Fire Ball, Glacial Spike, Frost Nova)
 // carries that skill's element at the level instead (FUN_0064b860), and its
 // physical in place of the row's (FUN_00647bc0 / FUN_00647d00: skill_phys).
+// A CanSlow row's owner under Slow Missiles (state 0x57, slowmissiles; FUN_0059fa30 0x59fb3f..0x59fb5d):
+// that state's stat 161 (skill_handofathena, its aurastat at its level), else -1.
+static int slow_missiles_pct(const GameData& game_data, const Monster& monster, const GameData::MissileInfo& info, std::uint32_t now_ms) {
+    if (!info.can_slow) return -1;
+    for (const auto& state : monster.curse_and_states())
+        if (const auto* skill = game_data.skills.get(state.skill); skill && now_ms < state.until && skill->auratarget == "slowmissiles")
+            for (std::size_t k = 0; k < skill->aurastat.size(); ++k)
+                if (skill->aurastat[k] == d2d::d2s::kHandOfAthena) return d2d::rules::eval_calc(game_data.skills, skill->aura_calc[k], {}, skill->id, state.level);
+    return -1;
+}
+
 void andariel_missile(const GameData& game_data, const Monster& monster, const std::string& name, float dx, float dy, std::uint32_t now_ms,
                       std::vector<Missile>& missiles, int lvl, const d2d::rules::Skill* carried) {
     const auto found = game_data.missiles.find(name);
@@ -704,7 +715,8 @@ void andariel_missile(const GameData& game_data, const Monster& monster, const s
         stats.unblockable = !(phys_lo > 0 && phys_hi > 0);              // the record carries the skill's physical (FUN_0064b860), not the row's: a Death Mauler's maul stays blockable
     }
     stats.to_hit = monster.stats.to_hit;                              // its stat 0x13, rolled when the row has ToHit
-    const float speed = missile_speed(missile_info, lvl), distance = std::max(std::hypot(dx, dy), 0.01f);
+    const float speed = missile_speed(d2d::rules::missile_velocity(missile_info.vel, missile_info.vel_lev, lvl, slow_missiles_pct(game_data, monster, missile_info, now_ms)));
+    const float distance = std::max(std::hypot(dx, dy), 0.01f);
     missiles.push_back({ &missile_info, monster.unit.x, monster.unit.y, dx / distance * speed, dy / distance * speed, missile_facing(monster.unit.x, monster.unit.y, dx, dy), now_ms,
                          now_ms + std::uint32_t(std::max(missile_info.range, 1)) * 40, stats });
     missiles.back().level = lvl; missiles.back().aim_at = { monster.unit.x + dx, monster.unit.y + dy }; missiles.back().owner = monster.id;
@@ -1861,7 +1873,7 @@ void countess_firewall(const GameData& game_data, const Monster& monster, std::u
     const auto& fire_info = fire->second;
     const float x = (float(monster.skill_x) + 0.5f) / 5, y = (float(monster.skill_y) + 0.5f) / 5;
     const float across_x = -(monster.unit.y - y), across_y = monster.unit.x - x, length = std::max(std::hypot(across_x, across_y), 0.01f);
-    const float speed = missile_speed(maker->second, lvl);
+    const float speed = missile_speed(d2d::rules::missile_velocity(maker->second.vel, maker->second.vel_lev, lvl, slow_missiles_pct(game_data, monster, maker->second, now_ms)));
     Missile burner{ &fire_info, x, y, 0, 0, 0, now_ms, now_ms + std::uint32_t(std::max(fire_info.range + fire_info.lev_range * lvl, 1)) * 40, monster.stats };
     burner.src.no_hit_roll = !fire_info.to_hit;
     burner.level = lvl;
@@ -2231,7 +2243,8 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                 const int lvl = d2d::rules::monster_skill_level(1, monster.difficulty);
                 // At its point instead when its mode was set there (the wisps' dance).
                 const float aim_x = monster.at_point ? (float(monster.skill_x) + 0.5f) / 5 - unit.x : dx, aim_y = monster.at_point ? (float(monster.skill_y) + 0.5f) / 5 - unit.y : dy;
-                const float speed = missile_speed(missile_info, lvl), distance = std::max(std::hypot(aim_x, aim_y), 0.01f);
+                const float speed = missile_speed(d2d::rules::missile_velocity(missile_info.vel, missile_info.vel_lev, lvl, slow_missiles_pct(game_data, monster, missile_info, now_ms)));
+                const float distance = std::max(std::hypot(aim_x, aim_y), 0.01f);
                 Missile x{ &missile_info, unit.x, unit.y, aim_x / distance * speed, aim_y / distance * speed, missile_facing(unit.x, unit.y, aim_x, aim_y), now_ms,
                            now_ms + std::uint32_t(missile_info.range) * 40, monster.stats };
                 x.level = lvl; x.aim_at = { unit.x + aim_x, unit.y + aim_y }; x.owner = monster.id; x.owner_align = monster.align;
@@ -2768,7 +2781,9 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                         andariel_missile(game_data, monster, cast->srvmissilea, float(off_x), float(off_y), now_ms, missiles, lvl, cast);
                         if (missiles.size() == had) return;
                         auto& ring_shot = missiles.back();
-                        const float speed = missile_speed((param << 6) * 75 / 100), length = std::hypot(float(off_x), float(off_y));   // FUN_0059fa30's x 75 / 100
+                        int velocity = param << 6;                     // FUN_0059fa30: its Slow Missiles % first, then x 75 / 100
+                        if (const int slow = ring != game_data.missiles.end() ? slow_missiles_pct(game_data, monster, ring->second, now_ms) : -1; slow >= 0) velocity = velocity * slow / 100;
+                        const float speed = missile_speed(velocity * 75 / 100), length = std::hypot(float(off_x), float(off_y));
                         ring_shot.velocity_x = float(off_x) / length * speed; ring_shot.velocity_y = float(off_y) / length * speed;
                     };
                     if (ring != game_data.missiles.end()) {

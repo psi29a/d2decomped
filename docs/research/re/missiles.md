@@ -19,8 +19,9 @@ its EDX, run after the path is set.
 - Row record (0x1a4 bytes): +0x96 Range, +0x98 LevRange (shorts), +0x9a
   Vel, +0x9b VelLev, +0x9c MaxVel (bytes), +0x9e Accel (short), +0x136
   Activate, +0x183 CollideType, +0x18a Size.
-- Velocity: ((Vel + VelLev × lvl / 8, C division) << 8), × stat-87 % with
-  that state (not built), then **× 75 / 100** for every missile (+0x7c).
+- Velocity: ((Vel + VelLev × lvl / 8, C division) << 8), × the owner's state 0x57
+  (Slow Missiles) stat 161 % when the row CanSlow (+4 bit 8; d2d:
+  `slow_missiles_pct`, `tests/game/test_slow_missiles.cpp`), then **× 75 / 100** for every missile (+0x7c).
   MaxVel << 8 (+0x84, **not** scaled) and Accel (+0x88) come after.
 - No target unit and target = start: target + (1, 1). Over 99 subtiles
   off on an axis: no missile.

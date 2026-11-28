@@ -427,6 +427,7 @@ struct GameData {
                          bool return_fire = false;   // ReturnFire (record flag bit 9, +5 & 2): Chilling Armor answers it (FUN_005cab40)
                          bool collide_friend = false;   // CollideFriend (+0x187): it strikes its owner's friends too (FUN_005a8730)
                          int src_miss_dmg = 0;          // SrcMissDmg (+0x12e): a SrcDamage-0 row's share of its parent missile's physical, of 128
+                         bool can_slow = false;         // CanSlow (+4 bit 8): its owner's Slow Missiles slows it (FUN_0059fa30)
                          bool client_col = false;       // ClientCol (+0x185): the client tests units along its path (FUN_004d30c0), so each one it meets goes off (FUN_004d2d70)
                          // Its own element (a row with no Skill: FUN_0064b100 / 0064b1d0 /
                          // 0064b2a0 by level): Skill::etype order, frze as cold.

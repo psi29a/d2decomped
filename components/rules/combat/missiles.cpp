@@ -20,8 +20,12 @@ namespace d2d::rules {
 
 // A frame moves it velocity / 4096 subtiles (FUN_006502d0: x 0x400 >> 6,
 // then x the unit vector >> 12).
-int missile_velocity(int vel, int vel_lev, int level) {
-    return ((vel + vel_lev * level / 8) << 8) * 75 / 100;
+// FUN_0059fa30: (Vel + VelLev x lvl / 8) << 8, x the owner's Slow Missiles % (0x59fb5d) when its state
+// 0x57 is on and the row CanSlow (+4 bit 8), then x 75 / 100.
+int missile_velocity(int vel, int vel_lev, int level, int slow_pct) {
+    int velocity = (vel + vel_lev * level / 8) << 8;
+    if (slow_pct >= 0) velocity = velocity * slow_pct / 100;
+    return velocity * 75 / 100;
 }
 
 // Its life in frames, Range + LevRange x lvl (FUN_0064a330 keeps it a short).
