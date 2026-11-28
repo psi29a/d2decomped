@@ -364,10 +364,21 @@ auto Fight::pet_swing(const Pet& pet) const -> d2d::rules::Fighter {
 // stat 25 (a curse on it: Weaken) in the same damage % sum before the roll,
 // as FUN_0057b420 reads the unit's stat 25 whole: the weapon's, floored at
 // -90 (0x57b5a8), and the kick's (FUN_00646280).
+// Venom on it (Skills 278: stats 57, 58, 101, pet_buffs): FUN_0057b7d0 rolls
+// the unit's whole stats 57 / 58 and, with that roll nonzero, takes a
+// positive stat 101 as the length before stat 59 (tools/emu/venom_length.py),
+// so the gear's poison runs over Venom's length too, as the player's does.
 auto Fight::shadow_fighter(const Pet& pet, d2d::rules::Fighter fighter) -> d2d::rules::Fighter {
         const int percent = pet_buff_stat(pet, d2d::d2s::kDamagePercent);
         fighter.phys_pct = std::max(fighter.phys_pct + percent, -90);
         fighter.kick_pct += percent;
+        if (const int length = pet_buff_stat(pet, d2d::d2s::kPoisonOverrideLength); length > 0) {
+            const auto total = [&](int rate) { return int(std::int64_t(rate) * length / 256 * (100 + fighter.poison_mastery) / 100); };
+            fighter.poison_rate.first += pet_buff_stat(pet, d2d::d2s::kPoisonMinDamage);
+            fighter.poison_rate.second += pet_buff_stat(pet, d2d::d2s::kPoisonMaxDamage);
+            fighter.elem[3] = { total(fighter.poison_rate.first), total(fighter.poison_rate.second) };
+            fighter.poison_len = length;
+        }
         return fighter;
     }
 
@@ -1445,11 +1456,6 @@ auto Fight::shadow_cast(Pet& pet, std::uint32_t now_ms, const Crowd& crowd, int 
         // takes the charges' bonus and releases them on a hit.
         auto swing = skill->id == 0 ? d2d::rules::Swing{} : skill_swing(*skill, lvl, calc_env(), false);
         auto fighter = shadow_fighter(pet, swing.kick ? actor->pf_kick : actor->player_combat);
-        if (const int length = pet_buff_stat(pet, d2d::d2s::kPoisonLength); length > 0) {   // Venom: its poison on the blow
-            auto& [low, high] = fighter.elem[3];
-            low += pet_buff_stat(pet, d2d::d2s::kPoisonMinDamage) * length / 256; high += pet_buff_stat(pet, d2d::d2s::kPoisonMaxDamage) * length / 256;
-            fighter.poison_len = std::max(fighter.poison_len, length);
-        }
         const bool finishing = finisher(skill);
         if (finishing) add_charges(pet.charges, fighter, swing, false);
         const auto target_view = target_of(std::size_t(target));

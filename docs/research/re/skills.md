@@ -948,6 +948,10 @@ changes both the poison damage and the duration of the player's melee hit.
 copy handed to `make_fighter`, while leaving the actual summed stats intact.
 `tools/emu/venom_length.py --mutation-check` checks the original branch and
 record write; `test_venom_state` checks the loaded Venom row through d2d.
+A Shadow's Venom (its `Pet::buffs`) goes through the same branch:
+`Fight::shadow_fighter` joins its stats 57 / 58 to the owner's copied gear
+poison and runs the whole over its stat 101 (`test_shadow_venom`), its kick
+included.
 
 Not traced here: the consumers of the implicit stat 69, Fade's stat 109
 (`curse_resistance`) and stat 162 (`skill_staminapercent`).
