@@ -874,7 +874,22 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             if (actor->store.npc >= 0 && !actor->store.gamble) stocks[{ level->id, actor->store.npc }] = actor->store;   // what the trade left in the vendor's stock
             return;
         }
-        if (actor->pmode >= 0 && !actor->ghost) return;   // busy (a ghost, dead, only walks: the tick lets nothing else through)
+        // Busy (a ghost, dead, only walks: the tick lets nothing else through), but for a sequence with a
+        // seqinput (FUN_0057edd0 -> FUN_0057ed90) from that frame on, when the client's FUN_00464600 sends
+        // a click (Fight::press_open, asked here: the commands that come mid-mode still say the button's
+        // held, tick.cpp): the new mode cuts it, a held breath's next cast aside.
+        if (actor->pmode >= 0 && !actor->ghost) {
+            if (!fight.sequence_open() || !fight.press_open(now_ms)) return;
+            const auto* again = std::get_if<cmd::UseSkill>(&command);
+            const auto* again_row = again ? game_data->skills.get(again->skill) : nullptr;
+            const bool breath = again_row && again_row->srvdofunc == ServerDoFunction::kBreath && actor->swing_skill == again->skill
+                             && actor->channel == again->skill && now_ms < actor->burning;
+            // A charged entry that's gone starts nothing (below), so it cuts nothing either: the sequence plays on.
+            if (again && again->item >= 0 && std::ranges::none_of(charged_skills(actor->character.items), [&](const ChargedSkill& had) {
+                    return had.item == again->item && had.skill == again->skill; }))
+                return;
+            if (!breath) fight.cut_sequence(now_ms);
+        }
         const bool in_moor = !in_town(level);
         auto walk_to = [&](float x, float y, bool fresh) {
             actor->target_x = x; actor->target_y = y;

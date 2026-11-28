@@ -366,6 +366,7 @@ struct Skill {
     std::string prg_overlay;               // prgoverlay (+0x10c): cltstfunc 15's overlay on its start with state inferno off (Arctic Blast)
     int prgdam = 0;
     std::string seqtrans;                  // +0x12: the mode a sequence counts as (SC: FUN_006216e0 times it as a cast)
+    int seqinput = 0;                      // +0x16: the sequence frame a new command may cut it from (0 none, 0xff never)
     int seqnum = 0;                        // +0x13: anim SQ's sequence (sequences.hpp)                        // +0x44: what a charge-up's charges add to the releasing hit
     std::array<ServerDoFunction, 3> prgfunc{};   // srvprgfunc1..3 (+0x30): srvdofunc slots run on release
     std::array<Calc, 3> prgcalc;           // prgcalc1..3 (+0x38..): by the charges held (FUN_005d3da0)

@@ -727,7 +727,10 @@ arguments), cited, not run. The functions are in the order they are met.
   when unit +4 is 5; 0x12 asks `FUN_0057ed90` (a skill record byte +0x16 non-zero, else
   `FUN_0057ed70`'s test); the other modes in the table read here allow. d2d's "a skill that comes mid-swing is
   dropped" (net.cpp, net-packets.md) is the 7 / 8 / 10 / 0xb arm. **agrees** as far as that arm
-  goes; the other arms are not ported.
+  goes. The 0x12 arm: a sequence whose skill has a seqinput takes a new mode, which the client
+  sends only from that frame on (`FUN_00464600` below, `rules::press_goes`,
+  `tools/emu/press_gate.py`, 7 056 cases equal, 2026-11-28): `Fight::sequence_open` /
+  `cut_sequence` in `World::apply` (`test_sequence_cut`). The other arms are not ported.
 - **`FUN_0057eec0(game, unit, mode, flag, skill)`: may the player act?** Two callers
   pass different arguments. It returns 0 for a unit in state 0x36 (`FUN_00639df0`), a null
   unit, and a unit whose current mode (+0x10) is 0 or 0x11 (LAB_0057eed6). Past those, a zero
@@ -3447,7 +3450,10 @@ is null.
   modes 1, 2, 3, 5, 6 and above 0x13 return 1; mode 0xd returns 0 for
   class 3, 0xe for class 6; modes 0xf and 0x10 return 0 for classes 4, 5
   and 6; mode 0x12 returns `FUN_004645b0(skill)`'s result. Callers:
-  `0x4629a0`, `0x462a20`, `0x462ba0`, `0x462c20`.
+  `0x4629a0`, `0x462a20`, `0x462ba0`, `0x462c20`: each drops the click (no
+  `FUN_004625b0`) on 0. Run for real: `tools/emu/press_gate.py` (every mode
+  0..0x15 x class x hand item x unit type, SQ's seqinput against frames);
+  d2d: `rules::press_goes`.
 - `FUN_00465420` (fastcall ECX x, EDX y, plain RET; the client room finder):
   returns null when both are 0. With `pPlayerUnit` non-null: takes the
   player's room (`0x620bb0`) and `FUN_00463740(room, x, y)`; a non-null result

@@ -644,6 +644,7 @@ auto Fight::set_pmode(int mode, std::uint32_t now_ms) -> void {
         actor->seq = {};                                           // a new mode's frames: start_sequence's, or a cast sequence's below
         if (mode != kModeSC && mode != kModeA1) actor->owed = {};   // a cast cut off before its action frame pays nothing
         actor->player.mode_ms = now_ms;
+        actor->seq_since = now_ms;
         actor->player.walking = false;
         actor->player.path.clear();
         const auto& anim = player_anim(mode);

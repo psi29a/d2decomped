@@ -644,7 +644,7 @@ void load_skills(GameData& game_data, const d2d::mpq::Stack& mpqs) {
             skill_row.aura_event[event] = text("auraevent" + std::to_string(event + 1));
             skill_row.aura_event_func[event] = number("auraeventfunc" + std::to_string(event + 1));
         }
-        skill_row.prgdam = number("prgdam"); skill_row.seqnum = number("seqnum"); skill_row.seqtrans = text("seqtrans");
+        skill_row.prgdam = number("prgdam"); skill_row.seqnum = number("seqnum"); skill_row.seqinput = number("seqinput"); skill_row.seqtrans = text("seqtrans");
         for (int i = 0; i < 3; ++i) {
             skill_row.prgfunc[std::size_t(i)] = d2d::rules::ServerDoFunction(number("srvprgfunc" + std::to_string(i + 1)));
             skill_row.prgcalc[std::size_t(i)] = calc("prgcalc" + std::to_string(i + 1));

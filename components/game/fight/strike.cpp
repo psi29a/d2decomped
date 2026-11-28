@@ -14,6 +14,7 @@
 #include "skill_text.hpp"
 #include "spawning.hpp"
 
+#include <click_spot.hpp>
 #include <combat.hpp>
 #include <d2s.hpp>
 #include <d2s_items.hpp>
@@ -594,7 +595,7 @@ auto Fight::start_swing(std::uint32_t now_ms, bool shown) -> bool {
 // FUN_0064f5b0; compcode.md): the class's GH record for the weapon
 // class, through attack_ticks, 30 points slower for a UseAttackRate
 // skill (rules::sequence_sias).
-// ponytail: seqinput isn't read.
+// Its seqinput is the frame a new command may cut it from (sequence_open, press_open).
 auto Fight::start_sequence(std::uint32_t now_ms) -> void {
         actor->seq = {};
         actor->seq_struck = 0;
@@ -674,6 +675,46 @@ auto Fight::seq_view(std::uint32_t now_ms) const -> std::pair<int, std::uint32_t
         const auto& frame = actor->seq[seq_at(now_ms)];
         const auto mpf = player_anim(frame.mode).ms_per_frame();
         return { frame.mode, now_ms - mpf * frame.frame - mpf / 2 };
+    }
+
+// FUN_0057edd0 lets a new mode start over SQ (0x12) when FUN_0057ed90
+// finds the current skill's seqinput (record +0x16) nonzero; the client
+// sends one only from that frame on (press_open). The new mode replaces the
+// sequence: nothing more of it plays, as a get-hit's cut (cancel_swing).
+// ponytail: the client's gate is asked on the host (World::apply); a joined
+// game's client sends mid-mode as d2d's always has.
+auto Fight::sequence_open() const -> bool {
+        const auto* skill = game_data->skills.get(actor->swing_skill);
+        return !actor->seq.empty() && actor->pmode >= 0 && skill && skill->anim == "SQ" && skill->seqinput != 0;
+    }
+
+auto Fight::cut_sequence(std::uint32_t now_ms) -> void {
+        cancel_swing();
+        actor->strafe_left = 0;
+        actor->pmode = -1; actor->player.mode_ms = now_ms;
+        actor->attack_mon = -1;
+    }
+
+// FUN_00464600 for the acting player (rules::press_goes) by its mode; a
+// sequence (d2d's mode with frames in Hero::seq) is SQ, its frame (unit
+// +0x38) in 256ths from the mode's start (Hero::seq_since: a
+// breath's do re-filed, FUN_00553c70, moves +0x44, not +0x38), round again
+// when it loops.
+// ponytail: whether a held breath's next cast, a new mode over SQ
+// (FUN_0057edd0), sets +0x38 back isn't traced: here its frame runs on.
+auto Fight::press_open(std::uint32_t now_ms) const -> bool {
+        const auto* skill = game_data->skills.get(actor->swing_skill);
+        // The item in hand isn't asked here: d2d's own drop takes that click (FUN_004629a0's 0 branch).
+        d2d::rules::PressIn press{ .mode = actor->pmode, .char_class = actor->character.character_class };
+        if (!actor->seq.empty() && actor->pmode >= 0) {
+            press.mode = 0x12;
+            press.sq_skill = skill && skill->anim == "SQ";
+            press.seqinput = skill ? skill->seqinput : 0;
+            const auto elapsed = std::uint64_t(now_ms - std::min(now_ms, actor->seq_since)) * 256 / std::max<std::uint32_t>(actor->seq_frame_ms, 1);
+            const auto span = std::uint64_t(actor->seq.size()) * 256;
+            press.frame = int(std::min<std::uint64_t>(actor->seq_loop ? elapsed % span : elapsed, 0x7fffffff));
+        }
+        return d2d::rules::press_goes(press);
     }
 
 // The swing's animation: KK for kicks, S1 for Smite, else A1. An SQ

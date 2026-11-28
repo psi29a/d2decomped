@@ -253,6 +253,7 @@ struct Fight {
         // already struck.
         std::span<const d2d::rules::SeqFrame> seq{};
         std::uint32_t seq_frame_ms = 40;
+        std::uint32_t seq_since = 0;           // the mode's start for its frame counter (+0x38), which a breath's re-filed do (FUN_00553c70: +0x44) doesn't move
         int seq_speed = 256;                   // the sequence's rate, 256ths of a row a frame (attack_speed: rules::seq_step_row)
         int seq_struck = 0;
         int seq_sounded = 0;                   // its event-3 frames already past (Jab's dosound a)
@@ -822,6 +823,11 @@ struct Fight {
     void player_shots(std::uint32_t now_ms);
     void breath_do(const d2d::rules::Skill& skill, std::uint32_t now_ms);   // one do of Inferno's channel (FUN_005c8ca0)
     bool breath_again(const d2d::rules::Skill& skill, float target_x, float target_y, std::uint32_t now_ms);   // a held re-cast while it burns
+    // A sequence a new command may cut (its skill has a seqinput: FUN_0057ed90), and the cut.
+    [[nodiscard]] bool sequence_open() const;
+    void cut_sequence(std::uint32_t now_ms);
+    // Whether the acting player's press or held frame sends its skill now (rules::press_goes).
+    [[nodiscard]] bool press_open(std::uint32_t now_ms) const;
     void inferno_client_start(const d2d::rules::Skill& skill, std::uint32_t now_ms);   // cltstfunc 15's list (LAB_004e3060)
     bool bolt_heals_ally(Missile& missile, std::uint32_t now_ms);   // Holy Bolt on another player it crossed this frame
     int missile_frame = -1;                // the frame missile_tick last ran

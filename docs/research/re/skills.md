@@ -3090,7 +3090,7 @@ No bug found in this batch; the oracles are the evidence (bugs.md unchanged).
    sequences play from the traced table (`sequences.hpp`), a hit on each
    event frame: Jab, Dragon Claw, Frenzy (its speed state), Double Swing,
    and the claws' charge-ups; not in them: the sequence's own rate (taken
-   as the class's A1 through attack_ticks), seqinput / seqtrans, a skill
+   as the class's A1 through attack_ticks), seqtrans, a skill
    refused for a weapon with no sequence (it swings once), attackrate
    taken as IAS. Fend (round the enemies in reach), Impale (its wear on
    the weapon) and Holy Shield (a right-click self cast: SC, mana, its
