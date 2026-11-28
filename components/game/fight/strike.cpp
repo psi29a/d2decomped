@@ -1340,7 +1340,7 @@ auto Fight::corpse_blast(const d2d::rules::Skill& skill, int lvl, std::size_t co
 // Static Field (20, FUN_005c9800 -> FUN_005c96a0: calc1 % of each monster's life within
 // aurarange of the caster, as lightning), Corpse Explosion (55,
 // FUN_005c4df0: corpse_blast), Poison Explosion (63,
-// FUN_005c5e60: srvmissilea's cloud on a corpse), Teleport (27,
+// FUN_005c5e60: srvmissilea's 8 clouds out from a corpse), Teleport (27,
 // FUN_005ca360: to the point, where it's open; not in town).
 
 // Static Field's walk takes its aurafilter (0x8783) from the
@@ -1460,8 +1460,10 @@ auto Fight::spot(const d2d::rules::Skill& skill, std::uint32_t now_ms, const Cas
                 auto& corpse = monsters[std::size_t(corpse_index)];
                 corpse.corpse_used = true;
                 if (skill.srvdofunc == ServerDoFunction::kPoisonExplosion) {
+                    // FUN_005c5e60: FUN_005a9370(corpse, srvmissilea, .., odd 0, even 2, life 0): the 8 even ways from
+                    // the corpse at srvmissilea's Param1 << 7 (tools/emu/poison_explosion.py).
                     if (const auto found = game_data->missiles.find(skill.srvmissilea); found != game_data->missiles.end())
-                        launch(found->second, skill, lvl, corpse.unit.x, corpse.unit.y, 0, 0, found->second.range, now_ms);
+                        ring(found->second, skill, lvl, corpse.unit.x, corpse.unit.y, 0, 2, found->second.range + found->second.lev_range * lvl, now_ms);
                     break;
                 }
                 corpse_blast(skill, lvl, std::size_t(corpse_index), int(actor->character.stats.get(d2d::d2s::kLevel)), pierce()[0], now_ms);
