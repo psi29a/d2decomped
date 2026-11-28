@@ -62,7 +62,7 @@ two objects become the cache node's `+0x104` and `+0x108` fields.
 old `DAT_008adbb4`, copies the name to `+0x00`, and replaces the global with
 the new node. Cache misses are therefore prepended, not appended.
 
-The three `FUN_00516e4x` calls are therefore file open/read/close plumbing.
+The three calls (`FUN_00516e46`, `FUN_00516f85`, `FUN_00516e84`) are therefore file open/read/close plumbing.
 There is no format id, argument list, localised-string lookup, or formatted
 text on this path: the 0 is the open wrapper's missing-file reporting flag,
 and the `0x114` is its raw read size. Direct runs of the stock helper return
