@@ -1705,8 +1705,10 @@ d2d::d2s::Item roll_item(const Tables& tables, const std::string& code, int ilvl
     // affix (a classic item: the sockets only).
     auto finish = [&] {
         if (!unit_seed || !base) return std::move(item);
-        // FUN_00556ca0: a record with no ethereal (+0x80 bit 2) tests that first and draws nothing.
-        if (!(record_flags & kNoEthereal) && !classic && (kind == 1 || kind == 2) && item.quality != 1 && item.quality != 5 && !base->quest && has_durability() && rng(100) < 5) {
+        // FUN_00556ca0: a record with no ethereal (+0x80 bit 2) tests that first and draws nothing; one with bit 4
+        // is ethereal whatever the rand(100) it still draws.
+        if (!(record_flags & kNoEthereal) && !classic && (kind == 1 || kind == 2) && item.quality != 1 && item.quality != 5 && !base->quest && has_durability()
+            && (rng(100) < 5 || (record_flags & kForceEthereal))) {
             item.ethereal = true;                          // FUN_0065e4d0
             if (kind == 1) item.defense = item.defense * 3 / 2;
             if (has_durability()) { item.max_durability = item.max_durability / 2 + 1; item.durability = max_durability(); }
@@ -2150,13 +2152,14 @@ bool imbuable(const Tables& tables, const d2d::d2s::Item& item, bool expansion) 
 
 // The imbued item (FUN_00579d60, kind 0 at Charsi): the same base made
 // anew, rare (+0x30 = 6), item level player_ilvl plus 4 when that is past
-// 5; ethereal stays so (flag 4 / 2) and a personalized name is kept. It is made as a drop is
-// (FUN_00558d90: FUN_00555230's two game seed steps, its unit seed and its own, then FUN_00557ab0).
+// 5; ethereal stays so (its record's +0x80: 4 for an ethereal item, else 2; FUN_00579d60 0x579ea9) and a
+// personalized name is kept. It is made as a drop is (FUN_00558d90: FUN_00555230's two game seed steps, its
+// unit seed and its own, then FUN_00557ab0), its ethereal stats with the flag.
 d2d::d2s::Item imbue_item(const Tables& tables, const d2d::d2s::Item& item, int clvl, Rng& game_seed) {
     const int ilvl = player_ilvl(clvl);
     Rng unit_seed{ game_seed.next() }, item_seed{ game_seed.next() };
-    auto made = generate_item(tables, item.code, ilvl > 5 ? ilvl + 4 : ilvl, 6, item_seed, &unit_seed);
-    made.ethereal = item.ethereal;
+    auto made = generate_item(tables, item.code, ilvl > 5 ? ilvl + 4 : ilvl, 6, item_seed, &unit_seed, nullptr, false, 0, 0, false,
+                              item.ethereal ? kForceEthereal : kNoEthereal);
     made.personalized = item.personalized;
     made.owner = item.owner;
     return made;

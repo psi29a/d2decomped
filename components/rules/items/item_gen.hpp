@@ -84,7 +84,8 @@ int books_row(const Tables& tables, const std::string& code, bool scroll);
 // remade, below), identified, with its defence and durability rolled. `classic`: a classic game's
 // (version 0) item, by the classic rules. `record_flags`: the create record's +0x80 bits it reads,
 // kNoEthereal and kNoSockets (a new character's start items have both).
-inline constexpr int kNoEthereal = 0x2, kNoSockets = 0x8;
+// kForceEthereal (bit 4): ethereal whatever the draw (the draw still spent), as an imbue of an ethereal item.
+inline constexpr int kNoEthereal = 0x2, kForceEthereal = 0x4, kNoSockets = 0x8;
 d2d::d2s::Item roll_item(const Tables& tables, const std::string& code, int ilvl, int quality, Rng& rng,
                          Rng* unit_seed = nullptr, std::vector<bool>* found_uniques = nullptr, bool bovine = false,
                          int difficulty = 0, int special_wanted = 0, bool classic = false, int record_flags = 0);
