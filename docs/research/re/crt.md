@@ -19,11 +19,25 @@ order.
 
 | Address | Name | What it does |
 |---|---|---|
+| `FUN_00682f3d` | the thread FP hook | a bare `ret`. The pointers at `0x006f2878` and `0x006f287c` hold it; `__endthreadex` calls through the second, and the thread start code at `0x006880f7` (no Ghidra function; it then calls `__callthreadstartex`) through the first, each when `__IsNonwritableInCurrentImage` allows |
 | `FUN_00688bbd` | `DecodePointer` wrapper (`_decode_pointer`) | takes the CRT's per-thread function table from TLS (`DAT_00749e94` / `DAT_00749e90`, entry +0x1fc), else `GetProcAddress(GetModuleHandleA("KERNEL32.DLL"), "DecodePointer")`; calls it on the argument, or returns the argument unchanged when there is none |
+| `FUN_00688c49` | the TLS index | returns `DAT_00749e90`. Caller `__callthreadstartex` |
+| `FUN_00688c81` | the FLS setter call | decodes the pointer `DAT_0096d9fc` (`FUN_00688bbd`) and calls it with its two arguments (`ret 8`). Caller `__callthreadstartex` |
 | `FUN_00688d96` | `_getptd_noexit` | saves `GetLastError`, reads the thread's data block from the TLS slot; on first use `__calloc_crt(1, 0x214)`, stores it, initialises it (`FUN_00688cd7`), sets +0 = `GetCurrentThreadId()` and +4 = -1; frees it and returns 0 if the store fails; restores the last error |
+| `FUN_006894f7` | `__initp_misc_invarg` | stores its argument in `DAT_0096de70`, the invalid-parameter handler. Caller `__init_pointers` |
+| `FUN_0068962c` | a forwarder | a frame pushed and popped, then a tail jump to `__invoke_watson`. No caller |
 | `FUN_00689635` | `_invalid_parameter` | decodes `DAT_0096de70` (the invalid-parameter handler) with `FUN_00688bbd`; non-null: `JMP EAX`, so the caller's five arguments reach the handler as they were pushed; null: `FUN_0069a28d(2)` then a tail jump to `__invoke_watson` (`FUN_00689501`), which raises 0xC000000D and terminates the process |
+| `FUN_00689669` | a forwarder | the same to `FUN_00689635`. No caller |
+| `FUN_00689672` | `_get_errno_from_oserr` | a Windows error to an `errno`: the 45 pairs at `0x0074a070`; else 19..36 → 13 (`EACCES`), 188..202 → 8 (`ENOEXEC`), the rest 22 (`EINVAL`) |
 | `FUN_006896ad` | `_errno` | `FUN_00688d96()`; null returns `0x0074a1d8` (the static fallback), else the block + 8 |
 | `FUN_006896c0` | `__doserrno` | the same with + 0xc and fallback `0x0074a1dc` |
+| `FUN_006896d3` | `_dosmaperr` | `_doserrno` = the Windows error, `errno` = `FUN_00689672` of it. Callers include `__fullpath`, `__beginthreadex` and the low-level I/O routines |
+| `FUN_006899bf` | an empty start-up hook | a bare `ret`. Caller `__init_pointers` |
+| `FUN_006899f2` | `_XcptFilter` | the thread's exception-action table (`FUN_00688d96()` +0x5c, `DAT_0074a28c` entries of 12 bytes): no entry or no action: 0; action 5: cleared, 1; action 1: -1; else the handler is called, with the exception pointers in +0x60 meanwhile: for signal 8 (`SIGFPE`) the FP entries are cleared and the floating-point code (+0x64) set from the exception (0x81..0x8a), else the entry is cleared first; -1. Caller `__callthreadstartex` |
+| `FUN_0068a05f` | a start-up pointer setter | stores its argument in `DAT_0096de8c`. Caller `__init_pointers` |
+| `FUN_0068a2c7` | the same | `DAT_0096de98` |
+| `FUN_0068a2d1` | the same | `DAT_0096de9c` |
+| `FUN_0068a3b0` | the same | `DAT_0096dea0` |
 | `FUN_0069a28d` | `_crt_debugger_hook` | 8 bytes: writes 0 to `DAT_00993b20`; the 2 pushed by `FUN_00689635` (`_CRT_DEBUGGER_INVALIDPARAMETER`) is not read |
 
 The CRT's argument checks use the first two together. `__get_winmajor`
@@ -292,3 +306,17 @@ Only the vtables reach these.
 | `FUN_006a4489` | `DName::operator+=(DName *)` | a null argument changes nothing; an empty name takes the argument; an argument whose status is neither 0 nor 2 adds that status; else a `pDNameNode` (from the undecorator's heap `0x0096e228`) appended to a clone of the node list; out of memory sets the status to 3. Caller `FUN_006a4688` |
 | `FUN_006a4688` | `DName::operator+(DName *) const` | a copy, then `FUN_006a4489`, or the argument when the copy is empty. No caller Ghidra lists |
 | `FUN_006a7ed2` | an `UnDecorator` type step | (866 bytes, not followed) builds `DName`s; callers `getArrayType`, `getPtrRefDataType`, `getPrimaryDataType` and itself |
+
+## Everything else
+
+| Address | Name | What it does |
+|---|---|---|
+| `FUN_00687454` | `srand` | `__getptd()` +0x14 = the seed: the field `_rand` (`0x00687461`) steps as seed × 0x343fd + 0x269ec3, returning bits 16..30. Called from game code (game-calls.tsv), so the game seeds the CRT's `rand` |
+| `FUN_0068c939` | `__VEC_memcpy`'s loop | copies size / 128 blocks of 128 bytes with `movdqa` (both pointers 16-byte aligned). Caller `__VEC_memcpy` |
+| `FUN_00690f58` | `CPtoLCID` | the code page in `EAX`: 932 → 0x411, 936 → 0x804, 949 → 0x412, 950 → 0x404, else 0. Caller `FUN_00691284` |
+| `FUN_00691284` | `_setmbcp_nolock` | the code page (`getSystemCP`); one of the 5 in the table at `0x0074a9d0` (0x30 bytes each) takes its lead-byte ranges from there; else, unless 65000, 65001 or not `IsValidCodePage`, `GetCPInfo`: a multibyte page marks its lead-byte ranges 4 and bytes 1..0xfe 8; the LCID from `FUN_00690f58`; then `setSBUpLow`. A page it can't use falls back to `setSBCS` when `DAT_0096dfc8` is set. Caller `__setmbcp` |
+| `FUN_006ac5fb` | `__multtenpow12` | multiplies a 12-byte float in place by 10^n: n's octal digits pick factors from the tables at `0x0074b2f8` (n above 0) and `0x0074b458` (below), 0x54 bytes a digit position, 12 bytes a factor; too large gives Inf, too small 0. No caller Ghidra lists |
+| `FUN_006ac904` | `__strgtold12_l` | (1,680 bytes, not followed) text to a 12-byte float, with `___mtold12`. Callers `__atoflt_l`, `__atoldbl_l` (both `FID_conflict:__atoflt_l` in Ghidra), `FUN_006acfc4` |
+| `FUN_006acfc4` | a text-to-long-double entry | `FUN_006ac904` with its three middle flags 0, then `__ld12told`. No caller |
+| `FUN_006ad08a` | `$I10_OUTPUT` | (2,240 bytes, not followed) a 10-byte float to decimal digits, with `_strcpy_s`. Caller `__fltout2` |
+| `FUN_006afa8d` | `__crtsetenv` | (from its calls) a `NAME=value` string into the CRT's environment (`findenv`, `copy_environ`, `__mbschr`, `__malloc_crt` / `__recalloc_crt`) and into Windows (`SetEnvironmentVariableA`). Caller `___wtomb_environ` |
