@@ -119,3 +119,33 @@ and `__isindst`; 7 `_tzset_nolock` and `__getcwd`; 8 exit (`__onexit`,
 | `FUN_0068fd4c` | the allocators' retry wait | `Sleep(n)`; returns n + 1000, or -1 when that passes `DAT_0096dfbc` (the longest wait). No caller Ghidra lists |
 | `FUN_0069004a` | `__sbh_find_block` | the small-block heap's region headers from `DAT_00993b34`, 0x14 bytes each, `DAT_00993b30` of them: returns the first whose +0xc base is within 0x100000 bytes below the argument, else 0. The loop is at `0x0069005c`; Ghidra makes a separate function of its tail. Callers `_realloc`, `_free`, `__msize` |
 | `FUN_0069006e` | `__sbh_find_block`'s loop tail | the end test of `FUN_0069004a`'s loop: back to `0x0069005c` while below the end, else 0 (its only caller is Ghidra's thunk of the same tail) |
+
+## Streams
+
+A stream is the CRT's 0x20-byte `FILE` (`_ptr` +0, `_cnt` +4, `_base` +8,
+`_flag` +0xc, `_file` +0x10, `_bufsiz` +0x18, `_tmpfname` +0x1c); one the
+CRT allocates is 0x38 bytes, a critical section at +0x20 after it. The
+"text mode" check several of them make reads the stream's handle block
+(`DAT_00993b60`, 0x40 bytes a handle, or `DAT_0074a510` for handles -1 and
+-2): byte +0x24 bits 0..6 (the Unicode modes) or bit 7 set on a stream
+without `_IOSTRG` (0x40) is `EINVAL` (0x16) and `_invalid_parameter`.
+
+| Address | Name | What it does |
+|---|---|---|
+| `FUN_00681f6a` | `_fclose_nolock` | null: `EINVAL`, -1; a stream in use (`_flag & 0x83`): `__flush`, `__freebuf`, `_close(_fileno)` (`FUN_0068a8e5`; below 0: -1), else frees `_tmpfname`; `_flag` = 0. Caller `_fclose` |
+| `FUN_00682058` | `fputc` | null stream: `EINVAL`, -1; `_lock_file`; the text-mode check; `--_cnt` below 0 flushes the character with `FUN_0068abac` (`_flsbuf`, unnamed-frontier.md's `crt_fputc`), else stores it at `_ptr++` and returns it as a byte; `_unlock_file`. Called from game code (game-calls.tsv) |
+| `FUN_00682526` | `_snprintf_c_l` (4 fixed arguments) | `__vsnprintf_c_l(arg 1, arg 2, arg 3, arg 4, &arg 5)`. No caller |
+| `FUN_006842ea` | `_fwrite_nolock` | size × count bytes (either 0: 0; null buffer or stream, or an overflow: `EINVAL`, 0): copies into the buffer while it has room; a whole number of buffers (`_bufsiz`, else 0x1000) straight to `_write` (`FUN_00692dd0`) after `__flush`; a byte at a time through `_flsbuf` otherwise; an error sets `_IOERR` (0x20) and returns the whole items written. Caller `_fwrite` |
+| `FUN_006844cb` | `_fread_nolock_s` | the reading twin of `FUN_006842ea` with a buffer size: from the buffer, then whole buffers with `_read` (`FUN_0069358d`), else `_filbuf` (`FUN_00692eac`); more than the buffer holds clears it (unless the size is -1), `errno` 0x22 (`ERANGE`) and `_invalid_parameter`; end of file sets `_IOEOF` (0x10). Caller `_fread_s` |
+| `FUN_0068479d` | `_ftell_nolock` | `_lseek(fh, 0, SEEK_CUR)` (`FUN_00693777`), less what is still buffered for reading or plus what is buffered for writing; in text mode (handle flag 0x80) each buffered `\n` counts twice, re-reading the end with `_lseek(SEEK_END)` when the buffer reached it. Callers `_ftell`, `__fseek_nolock` |
+| `FUN_00684bf4` | a `scanf`-family entry | `ESI` = arg 1, then `vscan_fn(0x006939ac, arg 2, arg 3, &arg 4)`. No caller |
+| `FUN_00684c94` | `fprintf` | null stream or format: `EINVAL`, -1; `_lock_file`, the text-mode check, `__stbuf`, `FUN_0068b5a3(stream, format, 0, &args)` (`_output_l`, unnamed-frontier.md's `crt_output`), `__ftbuf`, `_unlock_file`. Called from game code (game-calls.tsv) |
+| `FUN_0068548f` | `_vfprintf_helper` | the same as `FUN_00684c94` through a given output function: `fn(stream, format, locale, args)` |
+| `FUN_00685637` | `vfprintf` | `FUN_0068548f(FUN_0068b5a3, stream, format, 0, args)`. Called from game code (game-calls.tsv) |
+| `FUN_00688536` | `_get_printf_count_output` | 1 when `DAT_0096d6cc` equals the security cookie (`DAT_00749de0`) with bit 0 set, else 0: whether `%n` is allowed. Caller `FUN_0068b5a3` |
+| `FUN_0068aa0b` | `__iob_func` | returns `0x0074a290`, the 20 built-in streams |
+| `FUN_0068afac` | `_openfile` | skips spaces, then the mode: `r`, `w` (0x301), `a` (0x109), and the modifiers `+`, `b`, `t`, `c`, `n`, `S`, `R`, `T`, `D`, `N`, and `, ccs=UTF-8` / `UTF-16LE` / `UNICODE`; a repeat or unknown letter: `EINVAL`, 0; `__sopen_s(name, flags, share, 0x180)`; counts the stream in `DAT_0096dea4` and fills it (`_flag`, `_file`, the rest 0). Caller `__fsopen` |
+| `FUN_0068b24c` | `_getstream` | under lock 1: the first free slot of `__piob` (`DAT_00993c60`, `DAT_00994c80` of them), allocating a 0x38-byte stream and its section (spin count 4000) for an empty slot; the stream comes back locked; its `_flag` keeps only 0x8000, `_file` -1. Callers `__fsopen`, `__wfsopen` |
+| `FUN_00692eac` | `_filbuf` | refills the read buffer with `_read`: needs a stream open for reading (`_flag & 0x83`, not `_IOSTRG`, not only write); gets a buffer (`__getbuf`) when it has none; 0 bytes sets `_IOEOF`, -1 `_IOERR`; a 0x200-byte buffer of a stream the CRT buffered grows to 0x1000; returns the first byte. Callers `FUN_006844cb`, `FUN_00688271` |
+| `FUN_006a2f76` | `_ungetc_nolock` | the text-mode check; -1 or a stream not open for reading returns -1; steps `_ptr` back (onto a fresh buffer when there is none) and stores the byte, or on an `_IOSTRG` stream only checks it is the same; clears `_IOEOF`. No caller |
+| `FUN_006aaefc` | `_get_fmode` | null: `EINVAL`; else `*out = DAT_0096e268`, 0. Callers `FUN_0069b08a`, `FUN_006a8b91` |
