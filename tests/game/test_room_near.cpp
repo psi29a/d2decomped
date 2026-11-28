@@ -33,6 +33,7 @@ namespace {
 
 std::string hex(unsigned value) { char text[16]; std::snprintf(text, sizeof text, "%x", value); return text; }
 
+// Print the selected levels' room flags and sorted near lists in the oracle's text format.
 int dump_near(const fs::path& data_dir, const char* patch, std::uint32_t seed, const std::vector<int>& wanted, bool show_vis) {
     auto data = load_game_data(data_dir, patch ? fs::path(patch) : fs::path{}, seed);
     if (!data || !data->patched) { std::printf("SKIP: the oracle is 1.14d's: set D2_PATCH_INSTALLER\n"); return D2D_TEST_SKIPPED; }
@@ -52,13 +53,13 @@ int dump_near(const fs::path& data_dir, const char* patch, std::uint32_t seed, c
         }
         std::ranges::sort(rooms);
         std::printf("level %d rooms %zu\n", level_id, rooms.size());
-        for (const auto& [y, x, width, height, vis] : rooms) {
+        for (const auto& [y_pos, x_pos, width, height, vis] : rooms) {
             std::vector<std::tuple<int, int, int, int, int>> listed;
-            for (const auto& [other, index] : near_rooms(*data, *level, float(x) + 0.5f, float(y) + 0.5f))
+            for (const auto& [other, index] : near_rooms(*data, *level, float(x_pos) + 0.5f, float(y_pos) + 0.5f))
                 if (const auto rect = level_room(*other, std::size_t(index)))
                     listed.emplace_back(other->id, other->world_x + rect->x - level->world_x, other->world_y + rect->y - level->world_y, rect->width, rect->height);
             std::ranges::sort(listed);
-            std::string line = "room " + std::to_string(x) + "," + std::to_string(y) + " " + std::to_string(width) + "x" + std::to_string(height) + (show_vis ? " vis " + hex(vis) : std::string{}) + ":";
+            std::string line = "room " + std::to_string(x_pos) + "," + std::to_string(y_pos) + " " + std::to_string(width) + "x" + std::to_string(height) + (show_vis ? " vis " + hex(vis) : std::string{}) + ":";
             for (const auto& [other_id, other_x, other_y, other_w, other_h] : listed)
                 line += " " + std::to_string(other_id) + "@" + std::to_string(other_x) + "," + std::to_string(other_y) + "," + std::to_string(other_w) + "x" + std::to_string(other_h);
             std::printf("%s\n", line.c_str());
@@ -69,6 +70,7 @@ int dump_near(const fs::path& data_dir, const char* patch, std::uint32_t seed, c
 
 }  // namespace
 
+// Check the integrated camp flags and cross-level near-list behavior.
 int main(int argc, char** argv) try {
     const char* mpq_dir = std::getenv("D2_MPQ_DIR");
     const char* home = std::getenv("HOME");
@@ -83,6 +85,12 @@ int main(int argc, char** argv) try {
     auto data = load_game_data(data_dir, patch ? fs::path(patch) : fs::path{}, 0x1234);
     assert(data && data->town.id == 1);
     if (!data->patched) { std::printf("SKIP: these checks are 1.14d's (set D2_PATCH_INSTALLER)\n"); return D2D_TEST_SKIPPED; }
+    // FUN_00667ed0 -> FUN_00667970 keeps one room-flag word for every 8x8
+    // room of a preset level, including the Rogue Encampment.
+    std::size_t town_rooms = 0;
+    while (level_room(data->town, town_rooms)) ++town_rooms;
+    assert(data->town.room_flags.size() == town_rooms);
+    assert(std::ranges::all_of(data->town.room_flags, [](std::uint32_t flags) { return (flags & 0x10) != 0; }));
     const auto* moor = data->level(d2d::rules::level_ids::kBloodMoor);
     if (!moor || moor->nearby.empty()) { std::printf("SKIP: no Blood Moor linked to the camp\n"); return D2D_TEST_SKIPPED; }
 
@@ -114,7 +122,7 @@ int main(int argc, char** argv) try {
                 assert(other->id != gate->id);
         }
     }
-    std::printf("OK: a next-door level's close room is in the near list\n");
+    std::printf("OK: the camp has room flags and a next-door level's close room is in the near list\n");
     return 0;
 } catch (const std::exception& error) {
     std::fprintf(stderr, "%s\n", error.what());

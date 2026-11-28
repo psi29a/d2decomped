@@ -327,9 +327,6 @@ void sort_near(std::vector<NearRoom>& list) {
 // again (FUN_0066bda0). tools/emu/near_rooms.py (test_room_near --near).
 // The flags are every preset room's walk slots (walk_slot_flags), its walls'
 // slots, and a plain room's cell's contact slots (FUN_00675770).
-// ponytail: the camp keeps no room flags (no room list): a level with none
-// takes every close room of its next-door levels, and its warps by the warp
-// back's room; game.exe tests the camp's rooms' flags as any level's.
 std::vector<NearRoom> near_list(const GameData& game_data, const Level& level, int room) {
     const auto rects = room_rects(level);
     const auto& self = rects[std::size_t(room)];
@@ -337,7 +334,7 @@ std::vector<NearRoom> near_list(const GameData& game_data, const Level& level, i
     for (std::size_t i = rects.size(); i-- > 0;)
         if (close(self, rects[i])) list.push_back({ &level, int(i), rects[i] });
     sort_near(list);
-    const auto flagged = [](const Level& other) { return !other.rooms.empty() && other.room_flags.size() == other.rooms.size(); };
+    const auto flagged = [](const Level& other) { return other.room_flags.size() == room_count(other); };
     const auto flags = flagged(level) ? level.room_flags[std::size_t(room)] : 0;
     if (flagged(level) && level.id != 0x85)
         for (std::size_t slot = 0; slot < 8; ++slot) {
@@ -1719,7 +1716,14 @@ void lay_camp_picks(GameData& game_data, const d2d::drlg::OutdoorAssets& assets,
     for (const auto room : came_up) if (room < count && !taken[count - 1 - room]) { order.push_back(count - 1 - room); taken[count - 1 - room] = true; }
     if (!order.empty()) for (std::size_t i = 0; i < count; ++i) if (!taken[i]) order.push_back(i);
     std::vector<std::string> notes;
-    lay_tiles(town, town.preset_split, order, notes);
+    const auto built = lay_tiles(town, town.preset_split, order, notes);
+    // FUN_00667ed0 -> FUN_00667970: a preset level's split rooms retain the
+    // level's Vis/Warp table, its walk-across slots and the warp-wall slots
+    // found in each room; FUN_0066c220 reads both tables for the near list.
+    std::tie(town.vis, town.vis_warp) = d2d::drlg::level_vis(assets.levels, game_data.layouts.layout_of(town.id), town.id);
+    town.room_flags.assign(count, walk_slot_flags(assets, game_data, town.id));
+    for (const auto& room : built)
+        if (room.seed) town.room_flags[std::size_t(room.seed - town.preset_split.data())] |= room.vis;
     town.room_tiles.clear();
     town.drawn.clear();
     town.drawn_laid.clear();

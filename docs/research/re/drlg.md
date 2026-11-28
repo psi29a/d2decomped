@@ -610,6 +610,15 @@ a contact span's slot on the level's edge, 0x30000, the table values.
 Run on game.exe (`room_vis.py`, rooms as generated, before they come up):
 d2d's `Level::room_flags` agree on every room of levels 2, 3, 26, 27, 41,
 47 and 111 for map seeds 1-3.
+Preset towns take the same path: `FUN_00667ed0` splits a large DS1 into
+8-by-8 rooms, and each room receives the slot word `FUN_00667970` built for
+its cell.  The Rogue Encampment's Act 1 layout supplies walk slot 0, so the
+35 checked rooms have `+0x28 & 0xff0 == 0x10` in the townW1 and
+townE1 layouts.  `FUN_0066c220` also reads the level's Vis/Warp arrays to find
+the destination level and its reciprocal slot.  d2d keeps those arrays and
+the room words when `lay_camp_picks` reconstructs the split.  `camp_room_flags.py` compares the
+35 room words and recorded `FUN_0066c370` near lists for map seeds 1-3; its
+missing-table mutation is rejected.
 The near list (FUN_0066c370) walks every slot those flags hold, a walk
 across as a warp: FUN_0066c220 takes the slot's level's rooms holding a
 slot of theirs naming this level, and for a walk only those under 6 tiles
