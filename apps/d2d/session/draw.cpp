@@ -30,6 +30,7 @@
 #include <combat.hpp>
 #include <cues.hpp>
 #include <d2s_items.hpp>
+#include <durability_alert.hpp>
 #include <font.hpp>
 #include <hire.hpp>
 #include <hover_box.hpp>
@@ -365,6 +366,22 @@ auto ClientSession::draw_view(std::vector<std::uint8_t>& framebuffer, std::vecto
         int holy_shield = 0;
         if (const auto skill = scene->skills.by_name.find("Holy Shield"); skill != scene->skills.by_name.end() && std::ranges::contains(view.buffs, skill->second))
             holy_shield = d2d::game::skill_level(*scene, character, skill->second, {});
+        // The worn items' durability alerts (FUN_00497fe0): not with the
+        // inventory (UI 1), a store (0xc) or an NPC's item panel (0xe) up.
+        // ponytail: with the automap up, FUN_0047a560 (a player hostile to
+        // us) moves them 0x2b lower; d2d keeps only our own relation flags
+        // toward others (netgame's 0x8c), so `hostile` is always false.
+        std::vector<d2d::rules::DurabilityIcon> durability_icons;
+        if (!inv_open && store.npc < 0 && !use_item.open()) {
+            std::array<d2d::rules::DurabilitySlot, 7> slots{};
+            for (std::size_t index = 0; index < slots.size(); ++index) {
+                const auto worn = std::ranges::find_if(character.items, [&](const d2d::d2s::Item& item) {
+                    return item.location == d2d::d2s::item_location::kEquipped && item.slot == d2d::rules::kDurabilitySlots[index];
+                });
+                slots[index] = d2d::rules::durability_slot(scene->rules, worn != character.items.end() ? &*worn : nullptr);
+            }
+            durability_icons = d2d::rules::durability_icons(slots, int(kScreenWidth), automap.open, false);
+        }
         render_ingame(framebuffer, *scene, *view.level, ui_cls,
                       view.gfx,
                       character.name, character.hardcore,
@@ -378,7 +395,7 @@ auto ClientSession::draw_view(std::vector<std::uint8_t>& framebuffer, std::vecto
                       !(pmode == kModeDD && !view.corpses.empty()),    // dead, the corpse lies there instead
                       &player_look, alt_held || pad_show_items || touch_show_loot_labels() || function_held(keys::kShowItems),   // Alt, or a slot bound to Show Items
                       Hud{ view.poisoned, view.running, run_down, character.header.weapon_set != 0, coop_hud_hidden() || touch_compact,
-                          left_panel_open(), inv_open || tree_open, view.stamina_blue, view.stamina_shrine, std::move(belt_names), &character.header, frame_ms / 40, pad_bar, &hud_hovers, view.life_preview, view.mana_preview, life_text, mana_text, holy_shield, run_key_names, false, false, touch_compact, view.uninterruptable, &item_tip, panel_tohit_class, panel_behit_class }, wide, { hero_x - cam_x, hero_y - cam_y }, view.ghost, alert_clocks, object_flashes);
+                          left_panel_open(), inv_open || tree_open, view.stamina_blue, view.stamina_shrine, std::move(belt_names), &character.header, frame_ms / 40, pad_bar, &hud_hovers, view.life_preview, view.mana_preview, life_text, mana_text, holy_shield, run_key_names, false, false, touch_compact, view.uninterruptable, &item_tip, panel_tohit_class, panel_behit_class, &durability_icons }, wide, { hero_x - cam_x, hero_y - cam_y }, view.ghost, alert_clocks, object_flashes);
         for (const auto& body : view.bodies)                       // local co-op: a body being raised
             if (body.raisers > 0 || body.raised > 0) {
                 const float dx = body.x - cam_x, dy = body.y - cam_y;

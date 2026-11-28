@@ -11,6 +11,7 @@
 #include <d2s.hpp>
 #include <d2s_items.hpp>
 #include <dc6.hpp>
+#include <durability_alert.hpp>
 #include <item_text.hpp>
 #include <quests.hpp>
 #include <rules.hpp>
@@ -197,8 +198,12 @@ struct Hud { bool poisoned = false, running = false, run_down = false, weapon_se
              bool touch_inv_anchor = false, touch_store_right = false, touch_compact = false;     // touch: classic panel X (flags stay off)
              bool uninterruptable = false;               // View::uninterruptable: the player in state 0x36 (the grid's tint)
              KeptHover* item_tip = nullptr;              // set: the inventory's and storage's item hover text goes here, for the frame's late draw
-             int tohit_class = 0x13, behit_class = 0x13; };   // the char panel's hover monsters (0x711f90 / 0x711f94, FUN_00466de0)
+             int tohit_class = 0x13, behit_class = 0x13;
+             const std::vector<d2d::rules::DurabilityIcon>* durability_icons = nullptr; };   // this frame's durability alerts (draw_durability_icons)   // the char panel's hover monsters (0x711f90 / 0x711f94, FUN_00466de0)
 void draw_hud_hovers(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const std::vector<HudHover>& hovers);
+// The worn items' durability alerts (rules::durability_icons), each a
+// PANEL\DuroIcon frame by its bottom-left.
+void draw_durability_icons(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const std::vector<d2d::rules::DurabilityIcon>& icons);
 // The char panel's hover percentages under the mouse (FUN_004a7ae0: the chance to hit by attack line;
 // FUN_004a7180: to block and to be hit, on the defence), against the client's hover monsters (Hud).
 void draw_char_tooltips(std::vector<std::uint8_t>& framebuffer, const Scene& scene, const d2d::d2s::Stats& stats,

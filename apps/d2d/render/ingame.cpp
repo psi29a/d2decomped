@@ -416,6 +416,9 @@ void render_ingame(std::vector<std::uint8_t>& framebuffer,
             wearer_value->holy_shield = hud.holy_shield;
         }
         const d2d::rules::Wearer* hover_wearer = wearer_value ? &*wearer_value : nullptr;
+        // The durability alerts, under the automap and the panels (FUN_00456ee0
+        // calls FUN_00497fe0 at 0x456f89, before FUN_0045ad60).
+        if (hud.durability_icons) draw_durability_icons(framebuffer, scene, *hud.durability_icons);
         // The automap, under the border and every panel, and not at all with
         // both sides covered (FUN_00456ee0: FUN_0045ad60 first, while
         // FUN_0045ae90 isn't 3). Round the camera less the panel's quarter, which

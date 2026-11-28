@@ -296,6 +296,7 @@ void load_ui_sprites(Scene& scene, const d2d::mpq::Stack& mpqs) {
     sprite(R"(data\global\ui\PANEL\inv_ring_amulet.dc6)", scene.inv_ring_amulet);
     sprite(R"(data\global\ui\PANEL\level.dc6)", scene.level_button);
     sprite(R"(data\global\ui\PANEL\levelsocket.dc6)", scene.level_socket);
+    sprite(R"(data\global\ui\PANEL\DuroIcon.dc6)", scene.duro_icon);
     sprite(R"(data\global\ui\PANEL\skillpoints.dc6)", scene.points_box);
     sprite(R"(data\global\ui\PANEL\bank.dc6)", scene.stash_panel[0]);
     sprite(R"(data\global\ui\PANEL\TradeStash.dc6)", scene.stash_panel[1]);
