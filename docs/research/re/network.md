@@ -96,13 +96,13 @@ Names: the community's (d2-clientless, D2MOO) — unverified labels
 | 32, 33 | 17 | 0x54bac0, 0x54bb20 | buy / sell |
 | 34 | 5 | 0x54bba0 | Cain identifies |
 | 35 | 17 | 0x54bb60 ✓ | repair (`FUN_00578050`: flag 0x80000000 repairs all) |
-| 37 | 5 | 0x54bc30 | the remembered unidentified item through `FUN_00562590` (the gamble buy **(?)**) |
+| 37 | 5 | 0x54bc30 ✓ | identify remembered gamble item (`FUN_00552f60` item lookup, `player_data+0x6c == id`, `FUN_00578640`; verified `plrmsg_actions.py`) |
 | 36 | 9 | 0x54bbd0 | hire merc |
-| 38 | 13 | 0x54bca0 | NPC action (gamble, trade menu) |
+| 38 | 13 | 0x54bca0 ✓ | NPC action (quest/imbue/reward: `FUN_00548f80(1, npc, 0x32)`, then `FUN_00579d60`; verified `plrmsg_actions.py`) |
 | 3a | 3 | 0x54bd10 | add stat point |
 | 3b | 3 | 0x54bd90 ✓ | add skill point (a skill lookup, `FUN_006439b0`) |
 | 3c | 9 | 0x54be70 | select skill (let through when busy) |
-| 3d | 5 | 0x54bf10 | object action (`FUN_005845d0`) |
+| 3d | 5 | 0x54bf10 ✓ | object action (`FUN_00548f80(2, obj, 10)`, then `FUN_005845d0`; verified `plrmsg_actions.py`) |
 | 3f | 3 | 0x54c070 | character phrase |
 | 40 | 1 | 0x54c0c0 | update quests |
 | 41 | 1 | 0x54c0e0 | resurrect (only when dead) |
@@ -110,7 +110,7 @@ Names: the community's (d2-clientless, D2MOO) — unverified labels
 | 48 | 1 | 0x54c590 | busy state off |
 | 49 | 9 | 0x54c5d0 | waypoint |
 | 4b | 9 | 0x54c6d0 | request unit update |
-| 4c | 5 | 0x54c760 | transmute (cube) |
+| 4c | 5 | 0x54c760 ✓ | transmogrify reply (`FUN_00552f60` item lookup allowing `-1` cancel, then `FUN_0056c6a0`; verified `plrmsg_actions.py`) |
 | 4f | 7 | 0x54c7c0 | click button (trade, stash, ...) |
 | 50 | 9 | 0x54c800 | drop gold |
 | 51 | 9 | 0x54c870 | bind hotkey |
