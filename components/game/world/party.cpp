@@ -201,10 +201,9 @@ auto World::party_remove(Player& player) -> void {
     std::erase(found->members, player.id);
     buttons_toward(player);
     if (found->members.size() >= 2) return;
-    const auto rest = found->members;
+    const int last_id = found->members.empty() ? -1 : found->members.front();   // under two: one left at most
     parties.erase(found);
-    for (const int id : rest)
-        if (Player* last = player_by_id(id)) { last->party = -1; buttons_toward(*last); }
+    if (Player* last = last_id < 0 ? nullptr : player_by_id(last_id)) { last->party = -1; buttons_toward(*last); }
 }
 
 }  // namespace d2d::game
