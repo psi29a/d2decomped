@@ -1350,6 +1350,24 @@ auto Fight::stand(std::size_t monster_index, const d2d::rules::Freeze& frozen, s
         if (frozen.freeze_ticks > 0) freeze(monsters[monster_index], now_ms + std::uint32_t(frozen.freeze_ticks) * 40);
     }
 
+// FUN_005a9370: `sub` from the centre of the subtile at x, y every `even`'th of the 16 ways (at least 1) at its
+// Param1 << 7, then with `odd` every `odd`'th of ways 1..15 at its Param2 << 7 (flags 0x17: x 75 / 100), each
+// `frames` long.
+auto Fight::ring(const GameData::MissileInfo& sub, const d2d::rules::Skill& skill, int lvl, float x, float y, int odd, int even, int frames,
+                 std::uint32_t now_ms) -> void {
+        const auto centre = [](float cells) { return (std::floor(cells * 5) + 0.5f) / 5; };
+        const auto ways = [&](int first, int step, int velocity) {
+            for (int way = first; way < 16; way += step) {
+                const float dx = float(kRingWayX[std::size_t(way)]), dy = float(kRingWayY[std::size_t(way)]), span = std::hypot(dx, dy);
+                const float speed = missile_speed((velocity << 7) * 75 / 100);
+                auto& made = launch(sub, skill, lvl, centre(x), centre(y), dx, dy, frames, now_ms);
+                made.velocity_x = dx / span * speed; made.velocity_y = dy / span * speed;
+            }
+        };
+        ways(0, std::max(even, 1), sub.param1);
+        if (odd > 0) ways(1, odd, sub.param2);
+    }
+
 auto Fight::area(Missile& missile, float x, float y, int radius, std::uint32_t now_ms, int freeze, bool one_roll) -> void {
         d2d::rules::MissileRoll roll;
         for (std::size_t j = 0; j < monsters.size(); ++j)
@@ -1416,21 +1434,9 @@ auto Fight::burst(Missile& missile, std::uint32_t now_ms, int struck) -> void {
                 if (!sub) break;
                 const auto& ring_sub = hit_sub->second;
                 const bool on_unit = struck >= 0 && std::size_t(struck) < monsters.size();
-                const auto centre = [](float cells) { return (std::floor(cells * 5) + 0.5f) / 5; };
-                const float from_x = centre(on_unit ? monsters[std::size_t(struck)].unit.x : missile.x);
-                const float from_y = centre(on_unit ? monsters[std::size_t(struck)].unit.y : missile.y);
                 const int loops = missile_info.hit_par3 > 0 && ring_sub.sub_loop ? (ring_sub.sub_stop - ring_sub.sub_start) * missile_info.hit_par3 : 0;
-                const int frames = ring_sub.range + ring_sub.lev_range * missile.level + loops;
-                const auto ring = [&](int first, int step, int velocity) {
-                    for (int way = first; way < 16; way += step) {
-                        const float dx = float(kRingWayX[std::size_t(way)]), dy = float(kRingWayY[std::size_t(way)]), span = std::hypot(dx, dy);
-                        const float speed = missile_speed((velocity << 7) * 75 / 100);
-                        auto& made = sub_at(from_x, from_y, dx, dy, frames);
-                        made.velocity_x = dx / span * speed; made.velocity_y = dy / span * speed;
-                    }
-                };
-                ring(0, std::max(missile_info.hit_par2, 1), ring_sub.param1);
-                if (missile_info.hit_par1 > 0) ring(1, missile_info.hit_par1, ring_sub.param2);
+                ring(ring_sub, *skill, missile.level, on_unit ? monsters[std::size_t(struck)].unit.x : missile.x, on_unit ? monsters[std::size_t(struck)].unit.y : missile.y,
+                     missile_info.hit_par1, missile_info.hit_par2, ring_sub.range + ring_sub.lev_range * missile.level + loops, now_ms);
                 break;
             }
             case 9: {
