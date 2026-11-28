@@ -83,11 +83,23 @@ int main() try {
     std::printf("Poison Javelin: %zu clouds along its flight\n", seen);
     assert(seen >= 5);
     std::puts("OK: a cloud on each subtile the javelin enters, standing its 60 frames (FUN_005ae400)");
-    // One in the zombie's path: it's poisoned.
-    world.fight.monsters.front().unit.x = actor.player.x + 4; world.fight.monsters.front().unit.y = actor.player.y;
+    // The cloud alone: the first throw's missiles and the zombie's poison gone, the zombie far off while the javelin
+    // flies, then put on a cloud's subtile once the javelin is spent: the poison is the cloud's (CodeRabbit on #815).
+    auto& zombie = world.fight.monsters.front();
+    world.fight.missiles.clear();
+    zombie.poison_until = 0; zombie.poison_rate = 0;
+    zombie.unit.x = actor.player.x; zombie.unit.y = actor.player.y + 8;
     world.fight.fire(javelin, now, world.fight.player_caster(javelin.id));
+    const auto& javelin_row = data->missiles.at(javelin.srvmissile);
+    const auto flying = [&] { return std::ranges::any_of(world.fight.missiles, [&](const Missile& missile) { return missile.info == &javelin_row; })
+                                     || std::ranges::any_of(world.fight.pending, [&](const Missile& missile) { return missile.info == &javelin_row; }); };
+    for (int frame = 0; frame < 60 && (frame == 0 || flying()); ++frame) { now += 40; world.tick({}, now, now - 40); }
+    assert(!flying() && zombie.poison_until == 0);
+    const auto cloud = std::ranges::find(world.fight.missiles, &cloud_row, &Missile::info);
+    assert(cloud != world.fight.missiles.end());
+    zombie.unit.x = cloud->x; zombie.unit.y = cloud->y;
     bool poisoned = false;
-    for (int frame = 0; frame < 60 && !poisoned; ++frame) { now += 40; world.tick({}, now, now - 40); poisoned = now < world.fight.monsters.front().poison_until; }
+    for (int frame = 0; frame < 20 && !poisoned; ++frame) { now += 40; world.tick({}, now, now - 40); poisoned = now < zombie.poison_until; }
     assert(poisoned);
     std::puts("OK: a monster in its clouds is poisoned");
     return 0;
