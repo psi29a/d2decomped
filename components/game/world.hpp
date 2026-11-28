@@ -154,6 +154,7 @@ struct View {
     bool knocked = false;
     int fhr = 0;
     int walk_percent = 100;                // a walk's / run's % (World::walk_percent): its animation's rate
+    int stance_rate = 100;                 // a stand's (NU, TN) animation %: Hero::other_rate, 15..175 (FUN_00623f50)
     std::vector<d2d::rules::SeqFrame> seq;   // an SQ skill's frames while it plays
     std::uint32_t seq_frame_ms = 40;
     bool seq_loop = false;

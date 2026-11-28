@@ -136,7 +136,8 @@ rows as visual-only missiles on its corpse.
   the state's ordinary loops do not need that delay.
 - The player's own chill ("cold") and poison show as on a monster
   (View chilled / poisoned, `player_states`). The chill's −50 on
-  other_animrate (stat 69) isn't applied.
+  other_animrate (stat 69, FUN_0057af80) slows the player's stand
+  (`Hero::other_rate`, `test_stance_rate`).
 
 ## What a death keeps
 

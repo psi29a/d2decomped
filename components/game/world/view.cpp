@@ -74,6 +74,7 @@ auto World::view() const -> View {
         view.prate = actor->prate;
         view.pmode_until = actor->pmode_until; view.knocked = actor->knock.has_value(); view.fhr = actor->player_combat.fhr;
         view.walk_percent = walk_percent(*actor, now);
+        view.stance_rate = std::clamp(actor->other_rate, 15, 175);
         view.seq.assign(actor->seq.begin(), actor->seq.end()); view.seq_frame_ms = actor->seq_frame_ms; view.seq_loop = actor->seq_loop;
         view.gfx = fight.gfx();
         if (actor->merc && actor->merc_npc) {
