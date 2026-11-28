@@ -80,6 +80,7 @@ Region monster_region(const Monsters& monsters, const LevelMon& level_mon, int d
         if (const auto* type = type_at(row); type && type->spawnable) {
             region.types.emplace_back(row, type->rarity);
             region.total += type->rarity;
+            ++region.spawns;
         }
     }
     for (const auto& [row, rarity] : region.types) region.components.push_back(roll_components(monsters.types[std::size_t(row)].choices, seed));
@@ -133,12 +134,14 @@ std::vector<ObjectGroupPick> place_object_groups(const LevelMon& level_mon,
     return picks;
 }
 
-// A type by rarity from the region (FUN_005bde80) on `seed`.
+// A type by rarity from the region (FUN_005bde80) on `seed`, among its own `spawns` (+0x10); -1 with none.
 int pick_type(const Region& reg, Rng& seed) {
+    const std::size_t count = std::min(reg.spawns, reg.types.size());
+    if (count == 0) return -1;
     int pick = seed(reg.total) + 1;
     std::size_t index = 0;
-    for (; index < reg.types.size(); ++index) { pick -= reg.types[index].second; if (pick < 1) break; }
-    return reg.types[std::min(index, reg.types.size() - 1)].first;
+    for (; index < count; ++index) { pick -= reg.types[index].second; if (pick < 1) break; }
+    return reg.types[std::min(index, count - 1)].first;
 }
 
 int swing_max_damage(const MonStats& stats, std::string_view swing_mode) {

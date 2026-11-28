@@ -54,6 +54,9 @@ struct Region {
     std::vector<std::pair<int, int>> types;     // (MonStats row, rarity)
     std::vector<std::vector<Components>> components;   // per type
     int total = 0;                              // rarity sum
+    // The population's own types (the region's count +0x10): the first `spawns` of `types`. The rows
+    // region_sets joins after them count only in +0x12, so a pick (FUN_005bde80) never reaches them.
+    std::size_t spawns = 0;
 };
 Region monster_region(const Monsters& monsters, const LevelMon& level_mon, int difficulty, Rng& seed);
 // FUN_00547bc0: the sets a monster of row `type` takes its look from in its level's region. A row the

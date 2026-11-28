@@ -794,7 +794,7 @@ struct ObjectRooms {
             area = { room_area.left * 5, room_area.top * 5, (room_area.right - room_area.left) * 5, (room_area.bottom - room_area.top) * 5, room_area.id };
             for (int tries = (area.h / 3) * (area.w / 3); tries > 0; --tries) {
                 if (int(game.next() % 100000) > density) continue;
-                if (region.types.empty()) { area = {}; return; }
+                if (region.spawns == 0) { area = {}; return; }   // FUN_005bde80: the region's own count (+0x10)
                 const int type = pick(20);
                 bool boss = false;                                      // FUN_005be020: its 1 and 2 both a group
                 if (pop.uniques < pop.umin) boss = seed(100) < pop.rooms_done * 100 / pop.rooms_total;
@@ -1170,7 +1170,7 @@ struct ObjectRooms {
                 }
             }
             else if ((code == 0x02 || code == 0x03) && pop.difficulty > 0) {                             // FUN_005bde80 (1, 0): NM / hell's off the region
-                if (!region.types.empty()) monster(pick(0), unit.x, unit.y, 0, -1, code);
+                if (region.spawns != 0) monster(pick(0), unit.x, unit.y, 0, -1, code);
             }
             else if ((code == 0x02 || code == 0x03) && !level.mon.umon.empty())                         // normal's pick is a umon
                 monster(level.mon.umon[std::size_t(seed(int(level.mon.umon.size())))], unit.x, unit.y, 0, -1, code);
