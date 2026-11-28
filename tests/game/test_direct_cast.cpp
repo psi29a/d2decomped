@@ -4,7 +4,8 @@
 // Optional touch/controller intent versus the unchanged pointer command defaults.
 #include "skills/direct.hpp"
 
-#include <d2s.hpp>
+#include <ai/units.hpp>
+#include <d2s_items.hpp>
 #include <ds1.hpp>
 #include <fight.hpp>
 #include <gamedata.hpp>
@@ -21,7 +22,6 @@
 #include <cstdio>
 #include <exception>
 #include <limits>
-#include <variant>
 
 namespace {
 using namespace d2d::game;
