@@ -8,9 +8,11 @@ namespace d2d::rules {
 
 // FUN_0055b140: game.exe prepends a five-dword node after its state-7 and
 // list-disable gates. Those gates have no rules-side inputs; callers apply them.
+// Its +0xc, the party button's state, starts at 1 when the other is in a party
+// (FUN_00554630 of the other, 0x55b1bb), else 0.
 void PlayerRelations::add(int self, int other, bool other_in_party) {
     if (self == other || find(self, other)) return;
-    entries_.insert(entries_.begin(), PlayerRelation{ other, 0, 0, other_in_party });
+    entries_.insert(entries_.begin(), PlayerRelation{ other, 0, 0, other_in_party ? 1 : 0 });
 }
 
 // FUN_0055b1e0: unlink the first node with the other player's id.
@@ -44,6 +46,18 @@ auto PlayerRelations::hostile_stamp(int self, int other) const -> std::uint32_t 
 // World::Player::declare_hostile.
 void PlayerRelations::hostile_stamp(int self, int other, std::uint32_t stamp) {
     if (auto* relation = find(self, other)) relation->hostile_until = stamp;
+}
+
+// FUN_0055b3f0: the node's +0xc (a short), 1 for self, 0 without a node.
+auto PlayerRelations::party_state(int self, int other) const -> int {
+    if (self == other) return 1;
+    const auto* relation = find(self, other);
+    return relation ? relation->party_state : 0;
+}
+
+// FUN_0055b3a0: the node's +0xc; no node (or self): nothing.
+void PlayerRelations::party_state(int self, int other, int state) {
+    if (auto* relation = find(self, other)) relation->party_state = state;
 }
 
 // FUN_0055b110: the node keyed by the other player's id; none for self.

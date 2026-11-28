@@ -16,7 +16,7 @@ struct PlayerRelation {
     int player = -1;
     std::uint32_t flags = 0;
     std::uint32_t hostile_until = 0;
-    bool was_in_party = false;
+    int party_state = 0;   // node +0xc: the party button as `player` sees it (0 invite, 1 none, 2 accept, 4 asked)
 };
 
 // A player's one-way relations, keyed by the other player's unit id.
@@ -28,6 +28,10 @@ public:
     [[nodiscard]] std::uint32_t get(int self, int other, std::uint32_t mask) const;
     [[nodiscard]] std::uint32_t hostile_stamp(int self, int other) const;
     void hostile_stamp(int self, int other, std::uint32_t stamp);
+    // The party button's state toward `other` (FUN_0055b3f0: 1 for self, 0 without a node).
+    [[nodiscard]] int party_state(int self, int other) const;
+    // FUN_0055b3a0: a node's state; nothing without one.
+    void party_state(int self, int other, int state);
     // The nodes in list order (newest first, as FUN_0055b140 prepends).
     [[nodiscard]] const std::vector<PlayerRelation>& entries() const { return entries_; }
 
