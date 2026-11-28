@@ -16,6 +16,7 @@
 #include <gamedata_load.hpp>
 #include <level.hpp>
 #include <level_ids.hpp>
+#include <protocol.hpp>
 #include <rules.hpp>
 #include <skills.hpp>
 #include <world.hpp>
@@ -152,6 +153,26 @@ int main() try {
         }
         assert(last_flame == last + 5 * kTickMs && last > start + 20 * kTickMs);   // the list 6 frames past the last cast
         std::printf("held: %d casts paid, the channel over 6 frames after the last\n", recasts);
+    }
+    // Held through the World's command path (World::apply): the sequence's seqinput gate (Fight::press_open, FUN_00464600)
+    // reads the frame from the mode's start, which the re-filed do (FUN_00553c70: +0x44) doesn't move, so a held cast
+    // every tick renews the channel past 20 frames, each one paid.
+    {
+        Rig rig(*data);
+        const auto start = rig.now;
+        assert(rig.cast());
+        while (!rig.world->actor->pstruck) rig.step();
+        const auto* actor = rig.world->actor;
+        int renewed = 0;
+        for (int tick = 1; tick <= 40; ++tick) {
+            rig.step();
+            const auto mana_before = rig.mana();
+            rig.world->apply(cmd::UseSkill{ .skill = kInferno, .x = actor->player.x + 3, .y = actor->player.y, .left = true }, rig.now);
+            if (rig.mana() < mana_before) ++renewed;
+            assert(actor->pmode >= 0 && rig.now < actor->burning);
+        }
+        assert(renewed == 40 && rig.now > start + 20 * kTickMs);
+        std::printf("held through World::apply: %d casts renewed the channel\n", renewed);
     }
     // A held cast with too little mana is refused (the client's ask): no flame, no cost; the channel runs out.
     {

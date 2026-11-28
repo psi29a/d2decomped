@@ -607,7 +607,6 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
             }
             for (const auto& command : cmds) if (std::holds_alternative<cmd::Say>(command)) apply(command, now_ms);   // the dead chat too
             if (!fight.dead() || actor->ghost) {
-            const bool busy = actor->pmode >= 0 && !actor->ghost;
             for (const auto& command : cmds) {
                 if (std::holds_alternative<cmd::Resurrect>(command) || std::holds_alternative<cmd::Say>(command)) continue;
                 if (actor->ghost && !std::holds_alternative<cmd::Move>(command) && !std::holds_alternative<cmd::Run>(command)) continue;   // a ghost only walks
@@ -639,6 +638,8 @@ auto World::tick_level(std::span<const Order> orders, std::uint32_t now_ms, std:
                     actor->player_combat.bow = wielded && base != game_data->rules.item_base.end() && base->second.wclass == "bow";   // FUN_00623c60 1
                 }
             }
+            // Busy as the commands left it: one can cut a sequence (Fight::cut_sequence), then pick up or talk this tick.
+            const bool busy = actor->pmode >= 0 && !actor->ghost;
             // In reach as the server's interact has it (FUN_005b0f50): an
             // object by rules::object_reach (a player's size 2) with no wall
             // between (FUN_00622b50, 0x804), an NPC under 7 (unit_distance).
