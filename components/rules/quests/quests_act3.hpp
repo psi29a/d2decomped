@@ -9,6 +9,8 @@
 
 #include <algorithm>
 #include <array>
+#include <optional>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -579,6 +581,8 @@ struct KhalimQuest {
     }
     // The talk closed (LAB_005b8020): the told marks.
     void talk_closed(int npc) { if (npc == kCain) told_pending = false; }
+    // Returns an item event's direct 0x5d state byte, or none when it sends nothing.
+    [[nodiscard]] std::optional<int> pickup_log_state(QuestBits const& quest_bits, std::string_view code, const Parts& parts);
     // The lever pulled (FUN_005b8530): the stairs open.
     bool pull_lever() {
         if (stairs_open) return false;

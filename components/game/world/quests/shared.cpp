@@ -598,6 +598,7 @@ auto World::carries(std::string_view code) const -> bool {
         return (actor->held && counts(*actor->held, true)) || std::ranges::any_of(actor->character.items, [&](const auto& item) { return counts(item, false); });
     }
 
+// Dispatches an item-entered-inventory event to each bound quest record.
 auto World::item_event(std::string_view code, std::uint32_t now_ms, bool corpse) -> void {
         if (hosted_quests) return;
         d2d::rules::QuestBits corpse_bits{};                       // a corpse's records: new, clear
@@ -627,6 +628,11 @@ auto World::item_event(std::string_view code, std::uint32_t now_ms, bool corpse)
         const bool staff_part = (code == "tr1" && !d2d::rules::quest::bit(bits, Staff::kQuest, 3)) || code == "vip" || code == "box" || code == "msf";
         if (staff_part && !closed_at_join[std::size_t(Staff::kQuest)] && d2d::rules::quest_log_goes_to(bits, Staff::kQuest))
             actor->events.push_back(ev::QuestNews{ Staff::kQuest });
+        // Khalim's five parts (record 0x10's +0xb0, FUN_005b8210): its own
+        // branch matrix chooses the packet state. FUN_005b81c0 resolves only
+        // this event player's client, so the news belongs on the actor alone.
+        using Khalim = d2d::rules::KhalimQuest;
+        if (khalim.pickup_log_state(bits, code, khalim_parts())) actor->events.push_back(ev::QuestNews{ Khalim::kQuest });
     }
 
 // Event 5 (0x543db0 -> FUN_005439a0): an item the player dropped, to the records bound to it; only
