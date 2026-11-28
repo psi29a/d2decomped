@@ -108,16 +108,33 @@ every room returns null.
 `FUN_005ae520` (missile do 5, a standing burner) ends in `FUN_005ae1f0`, which
 calls `FUN_00641cb0` on the missile's room (`FUN_00620bb0`) with the callback
 from the table at 0x73c720 (indexed by the missile's row field at +0x10 times 8)
-and, on a unit, hands it to `FUN_005adf10`. So two struck monsters in different
-rooms are not compared by creation time: the first near-list room with one
-wins, and only then that room's newest.
+and, on a unit, hands it to `FUN_005adf10`. All nine `pSrvDoFunc` 5 rows have
+`CollideType` 3 except `moltenboulderfirepath`'s 8; both table entries are
+`LAB_005a8850`. It rejects a null context or row, a null unit, and any type but
+player (0) or monster (1), then calls `FUN_005a8730`. That common filter requires
+unit flags `0x4` and `0x8`, rejects state 0x56 when the row's `NextHit` is set,
+rejects the unit recorded by `FUN_0064a470` for a `LastCollide` row, and, with
+an owner, requires `FUN_00554200(owner, unit)` unless `CollideFriend` is set.
+The stock do-5 rows have `NextHit`, `LastCollide` and `CollideFriend` clear, so
+their material extra gate is hostility to the owner. The callback reads no
+global itself. `FUN_00639df0` bounds state 0x56 by data tables `+0xc4` and reads
+the unit's state bitmap; `FUN_0064a470` bounds the missile class by data tables
+`+0xb6c`, takes its row from `+0xb64`, and compares the row-enabled last-unit
+record at missile data `+0x18/+0x1c`; `FUN_00554200` resolves monster owners
+with `FUN_0058f0d0`, tests player relations with `FUN_0055b300`, and otherwise
+compares alignments through `FUN_00650d70`. `tools/emu/burner_filter.py` runs
+both callback bodies with those three query boundaries hooked and
+`--mutation-check` breaks each gate.
+
+Thus two accepted monsters in different rooms are not compared by creation
+time: the first near-list room with one wins, and only then that room's newest.
+An allied monster earlier in the walk is skipped before that choice.
 
 d2d: `Fight::missile_tick`'s do 5 builds the missile's `near_rooms` (this
 level), `Fight::restamp` keeps each room chain's newest-first order, and
-`rules::room_order` over the monsters `standing_struck` takes gives the unit.
-Not traced: the 0x73c720 callback's own accept/reject for a burner row (d2d
-takes every struck, targetable monster), and the step list `FUN_005ae1f0`
-walks (d2d tests the missile's own position).
+`rules::room_order` over the hostile, targetable monsters `standing_struck`
+takes gives the unit. Not traced: the step list `FUN_005ae1f0` walks (d2d tests
+the missile's own position).
 `tools/emu/burner_room_order.py` runs the stock function on synthetic
 multi-room cases against that selection model; `--mutation-check` shows it
 catches reversed rooms, oldest-first chains, a global-newest walk and

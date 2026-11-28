@@ -811,6 +811,8 @@ auto Fight::bolt_heals_ally(Missile& missile, std::uint32_t now_ms) -> bool {
         return false;
     }
 
+// FUN_005ae520 -> FUN_005ae1f0: update standing burners, including
+// LAB_005a8850 -> FUN_005a8730's unit and hostility filter.
 auto Fight::missile_tick(std::uint32_t now_ms) -> void {
         const int frame = int(now_ms / 40);
         if (frame == missile_frame) return;
@@ -918,12 +920,14 @@ auto Fight::missile_tick(std::uint32_t now_ms) -> void {
                     units.reserve(monsters.size());
                     for (const auto& monster : monsters)
                         units.push_back({ room_of(*level, monster.unit.x, monster.unit.y),
-                                          monster.targetable() && standing_struck(missile, monster.unit.x, monster.unit.y,
-                                                                                  game_data->monsters.types[std::size_t(monster.type)].size),
+                                          monster.targetable() && (missile_info.collide_friend || !d2d::rules::friends(2, monster.align))
+                                              && standing_struck(missile, monster.unit.x, monster.unit.y,
+                                                                 game_data->monsters.types[std::size_t(monster.type)].size),
                                           monster.unit.room_stamp });
                 }
-                // The first of the walk (eligible = footprint struck) is the one FUN_00641cb0 returns.
-                // ponytail: the 0x73c720 callback's accept/reject for a burner row is not traced; every struck monster is taken.
+                // LAB_005a8850 -> FUN_005a8730: CollideType 3/8 accepts a targetable player or monster
+                // hostile to the owner (or any side with CollideFriend). Every stock do-5 row has
+                // CollideFriend clear. The first accepted footprint in FUN_00641cb0's walk burns.
                 if (const auto order = d2d::rules::room_order(units, rooms); !order.empty())
                     burn(std::size_t(order.front()), damage, now_ms, soft_hit(missile, rng));
             }

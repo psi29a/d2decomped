@@ -20,6 +20,7 @@
 
 using namespace d2d::game;
 
+// Check LAB_005a8850 -> FUN_005a8730's hostility gate before FUN_00641cb0's room ordering.
 int main() try {
     d2d::test::TestData test;
     auto& fire_wall = test.skill(51, "Fire Wall");
@@ -46,18 +47,21 @@ int main() try {
     fight.skill_level = [](int) { return 1; };
     fight.skill_base = fight.skill_level;
     const auto centre = [](int subtile) { return (float(subtile) + 0.5f) / 5; };
-    const auto foe = [&](int id, int sub_x) {
+    const auto foe = [&](int id, int sub_x, int align = 0) {
         Monster monster;
         monster.type = 0;
         monster.id = id;
+        monster.align = align;
         monster.unit.x = centre(sub_x); monster.unit.y = centre(20);
         monster.hit_points = monster.stats.hit_points = 100000;
         return monster;
     };
-    // The flame stands in room 0 on subtile 39. The older monster is in room 0 (39), the newer one in
-    // room 1 (40): both inside the footprint. Room 0 comes first in the near list.
+    // The flame stands in room 0 on subtile 39. Its room's newest monster is a converted ally, which
+    // LAB_005a8850 -> FUN_005a8730 rejects; the older hostile monster in that room burns before the
+    // hostile one in room 1, even though the latter is newer. All three are inside the footprint.
     fight.monsters.push_back(foe(100, 39));
-    fight.monsters.push_back(foe(101, 40));
+    fight.monsters.push_back(foe(101, 39, 2));
+    fight.monsters.push_back(foe(102, 40));
     std::uint32_t now = 1000 * 40;
     Missile missile{ &flame, centre(39), centre(20), 0, 0, 0, now, now + 100 * 40, {} };
     missile.friendly = true; missile.caster = world.actor->id; missile.skill = 51; missile.level = 1;
@@ -66,7 +70,8 @@ int main() try {
     fight.missile_tick(now);
     assert(fight.monsters[0].hit_points < 100000);                // the first room's unit burns (FUN_00641cb0)
     assert(fight.monsters[1].hit_points == 100000);
-    std::printf("OK: a burner takes the first near room's unit, not the newest overall\n");
+    assert(fight.monsters[2].hit_points == 100000);
+    std::printf("OK: a burner skips an allied monster, then takes the first hostile in near-room order\n");
     return 0;
 } catch (const std::exception& error) {
     std::printf("FAIL: %s\n", error.what());
