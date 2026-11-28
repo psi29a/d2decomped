@@ -591,7 +591,7 @@ auto World::apply(const Command& command, std::uint32_t now_ms) -> void {
             return;
         }
         if (const auto* say = std::get_if<cmd::Say>(&command)) {   // typed chat: to everyone in the game
-            if (!say->text.empty()) announce({ ev::Message::chat, actor->character.name, say->text.substr(0, 255) });
+            if (!say->text.empty()) announce({ ev::Message::chat, actor->character.name, say->text.substr(0, 255), 0, actor->id });
             d2d::log::info("chat: {}: {}", actor->character.name, say->text);
             return;
         }

@@ -119,6 +119,25 @@ int main() try {
     assert(bob.relations.get(bob.id, dan.id, 0xffff) == 6 && dan.relations.get(dan.id, bob.id, 0xffff) == 0);
     click(bob, dan, 3, 0);
     assert(bob.relations.get(bob.id, dan.id, 0xffff) == 2);
+    // Chat (C->S 0x15's callback FUN_0054a470): Bob's "not heard" toward Dan keeps
+    // his lines from Dan; Cid's squelch of Amy keeps hers from Cid. One way each.
+    click(cid, amy, 3, 4);
+    const auto says = [&](World::Player& speaker) {
+        for (auto& player : world.players) player->events.clear();
+        world.act_as(speaker);
+        world.apply(cmd::Say{ "hi" }, 1000);
+        world.act_as(amy);
+        world.hand_out_announced();
+        std::string heard;
+        for (const auto& player : world.players)
+            for (const auto& event : player->events)
+                if (const auto* line = std::get_if<ev::Message>(&event); line && line->kind == ev::Message::chat) heard += player->character.name.substr(0, 1);
+        return heard;
+    };
+    assert(says(bob) == "ABC" && says(dan) == "ABCD");
+    assert(says(amy) == "ABD" && says(cid) == "ABCD");
+    click(cid, amy, 3, 0);
+    assert(says(amy) == "ABCD");
     // Loot: only a hardcore declarer (the client's +0xa bit 4); the other told (type 1 him, 2 her).
     click(bob, dan, 1, 1);
     assert(bob.relations.get(bob.id, dan.id, 1) == 0 && told(dan, {}));

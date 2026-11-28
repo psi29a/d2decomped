@@ -116,7 +116,8 @@ struct StoneOrder { std::array<int, 5> order{}; };
 // and news): typed chat, who joined or left, who was slain; or for one
 // player, a party line (S->C 0x5a event 7, FUN_005a5690): `sub` its type
 // (FUN_0049e8f0's table), `name` the player it names.
-struct Message { enum Kind : std::uint8_t { chat, joined, left, slain, party } kind = chat; std::string name, text; int sub = 0; };
+// speaker: a chat line's player id on the host (World::hand_out_announced), not on the wire.
+struct Message { enum Kind : std::uint8_t { chat, joined, left, slain, party } kind = chat; std::string name, text; int sub = 0, speaker = -1; };
 // A unique event (S->C 0x89 {event}, FUN_00545760 to every client): the
 // client's quest event table 0x7129d8 runs it; 3, the staff in the orifice
 // (FUN_0059dd80): its light show (0x46b100).

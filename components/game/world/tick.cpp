@@ -28,6 +28,7 @@
 #include <monster_ids.hpp>
 #include <monsters.hpp>
 #include <object_ids.hpp>
+#include <player_relations.hpp>
 #include <points.hpp>
 #include <quest_clock.hpp>
 #include <quests.hpp>
@@ -392,9 +393,23 @@ auto World::tick(std::span<const Order> orders, std::uint32_t now_ms, std::uint3
         hand_out_announced();                                // the joiners have them in their next View
     }
 
+// A player's chat line skips a listener who squelched them (the
+// listener's flag 4 toward the speaker) and one the speaker set "not
+// heard" (the speaker's flag 2 toward the listener): C->S 0x15's callback
+// FUN_0054a470 (FUN_0055b300 at 0x54a4bc and 0x54a4cb), before S->C 0x26.
+// ponytail: its FUN_0054a420 skip (either one interacting with a third
+// unit) isn't modelled.
 auto World::hand_out_announced() -> void {
         if (announced.empty()) return;
-        for (auto& player : players) for (const auto& message : announced) player->events.push_back(message);
+        for (auto& player : players)
+            for (const auto& message : announced) {
+                if (message.speaker >= 0 && message.speaker != player->id) {
+                    const Player* speaker = player_by_id(message.speaker);
+                    if (player->relations.get(player->id, message.speaker, d2d::rules::kRelationSquelched) != 0) continue;
+                    if (speaker && speaker->relations.get(message.speaker, player->id, d2d::rules::kRelationNotHeard) != 0) continue;
+                }
+                player->events.push_back(message);
+            }
         announced.clear();
     }
 
