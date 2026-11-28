@@ -472,7 +472,8 @@ void file_first_think(UnitState& state, std::uint32_t now_ms) {
 }
 
 void npc_patrol(const GameData& game_data, const Level& level, std::vector<UnitState>& npcs, std::array<int, 3> busy,
-                std::uint32_t now_ms, float /* elapsed: a call is a frame */, const Crowd& crowd, std::span<const UnitState* const> visitors, bool guard_aside) {
+                std::uint32_t now_ms, float /* elapsed: a call is a frame */, const Crowd& crowd, std::span<const UnitState* const> visitors, bool guard_aside,
+                std::span<const Monster> monsters) {
     constexpr std::uint32_t kFrameMs = 40;
     for (std::size_t i = 0; i < npcs.size() && i < level.npcs.size(); ++i) {
         const auto& npc = level.npcs[i];
@@ -515,11 +516,16 @@ void npc_patrol(const GameData& game_data, const Level& level, std::vector<UnitS
         }
         // The palace guard (JarJar): aside as record 0xb's data+0x40 is 2 (rules::ArcaneQuest::guard_state).
         // Flavie (Navi): her search's flag word as set (under 4; town-npcs.md "Flavie"), the visitor busy as its talking above.
-        // ponytail: no monster is passed (NPCs don't see the fight), so she never shoots.
+        // FUN_005e7e20 -> FUN_005ddc30: A1 when its hostile monster pick is under 25 unit-distance.
+        const bool navi_enemy = npc.town_ai == TownAi::navi && std::ranges::any_of(monsters, [&](const Monster& monster) {
+            return monster.align != 2 && monster.targetable()
+                && d2d::rules::unit_distance(subtile(monster.unit.x) - x, subtile(monster.unit.y) - y, npc.shape.size, monster.unit.shape.size) < 25;
+        });
+        // ponytail: this existence test does not rank FUN_005ddc30's primary / secondary picks, and the town-NPC path does not file Flavie's action-frame arrow.
         const auto act = npc.town_ai == TownAi::jarjar ? d2d::rules::jarjar_think(state.brain, x, y, int(now_ms / kFrameMs), guard_aside, guard_aside, visitor)
                        : npc.town_ai == TownAi::vendor ? d2d::rules::vendor_think(npc.seed)
                        : npc.town_ai == TownAi::navi   ? d2d::rules::navi_think(state.brain, npc.seed, listed, visitor, visitor.present && busy[0] >= 0,
-                                                                                visitor.present && visitor.distance < 4, false)
+                                                                                visitor.present && visitor.distance < 4, navi_enemy)
                                                        : d2d::rules::npc_think(state.brain, npc.seed, points, x, y, npc.hc_idx, npc.modes, 1, visitor, npc.town_ai == TownAi::towner);
         if (act.face >= 0) state.facing.aim(act.face);         // FUN_00648820 (FUN_006485f0's, with a range assert): a goal, turned a frame at a time
         state.greets = state.greets || act.greet;          // unit sound 0x12: the client's greeting (FUN_004e0590 kind 1)
@@ -537,7 +543,7 @@ void npc_patrol(const GameData& game_data, const Level& level, std::vector<UnitS
             state.mode_ms = now_ms;
             state.wait_until = now_ms + game_data.npc_timing(npc, state.mode).length_ms();
             break;
-        case d2d::rules::NpcAct::Kind::attack:                  // A1, no arrow: unreached while no monster is passed
+        case d2d::rules::NpcAct::Kind::attack:                  // A1; its action-frame arrow is not ported
             state.mode = "A1";
             state.mode_ms = now_ms;
             state.wait_until = now_ms + game_data.npc_timing(npc, state.mode).length_ms();
