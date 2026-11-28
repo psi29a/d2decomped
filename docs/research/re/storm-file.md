@@ -257,6 +257,24 @@ use (stubs.md).
 |---|---|
 | `FUN_0041e340` | (thiscall, edx, a0, a1, a2; `ret 0xc`): a thiscall forwarder to the compressed-sector unpacker core `FUN_0041e250`. Reorders the args before the call: this = a0, esi = edx, arg0 = original this, arg1 = a1 (the core pops those two, `RET 8`). The forwarder's third stack arg `a2` is not read, only popped. Propagates the core's return unchanged. 24 bytes. No in-image CALL (data ref in the SCOMP.CPP dispatch table at `0x6cfee0`); `FUN_0041e720` walks that table (`0x6cfec8`..`0x6cfee4`) |
 
+## SCOMP.CPP: the zlib compressor
+
+Compression type 2 is zlib (zlib.md). The compressor's only reference is the
+pointer `0x41e1f0` at `0x6cfeb8`, in the {mask, function} table at `0x6cfe9c`
+(masks 0x40, 0x80, 1, 2, 8). Its core runs zlib on a stream in its own stack
+frame, with a bump allocator over a 0x493e0-byte stack pool; the unpacker
+core `FUN_0041e250` does the same with `inflateInit_` / `inflate` /
+`inflateEnd` and a 0xb798-byte pool, both passing the version string
+`"1.1.3"` (`0x6cff00`), which zlib 1.2.8 accepts since it compares only the
+first character.
+
+| Function | What |
+|---|---|
+| `FUN_0041e080` | the pool's `zalloc` (ECX = pool {next, size, base}, EDX = items, stack size; `ret 4`): `items * size` rounded up to 4; when that is below what is left (`base + size - next`) returns `next` and advances it, else `FUN_00413020` (SMemAlloc, SCOMP.CPP line 0x4c4). Referenced only by the two cores (`0x41e177`, `0x41e2c4`) |
+| `0x41e0d0` | the pool's `zfree` (no Ghidra function; ECX = pool, EDX = pointer): a pointer inside the pool is left alone (the pool allocator only moves forward), any other goes to the Storm free `FUN_00412650` (line 0x4cc) |
+| `FUN_0041e100` | the compressor core (ECX = source, ESI = in/out output size, stack: output, source size, level; `ret 0xc`). `deflateInit_(&stream, level, "1.1.3", 0x38)`, then one `deflate(&stream, Z_FINISH)`, the stream being the 0x38-byte `z_stream` in its own stack frame, passed in ECX. Stream end: `*ESI = total_out` and returns `deflateEnd`'s result. Otherwise `deflateEnd` and returns the `deflate` result, with Z_OK (output full) turned into -5 (`Z_BUF_ERROR`). An init failure returns at once. Only caller `FUN_0041e1f0` |
+| `FUN_0041e1f0` | the type-2 table entry (ECX = output, EDX = in/out size, stack a0 source, a1 source size, a2 out, a3 mode; `ret 0x10`): level 9 for mode 1, 1 for mode 2, else -1 (zlib's default, 6); calls `FUN_0041e100`; on success writes the compressed size to `*EDX`. Writes 0 to `*a2` either way and returns the core's result |
+
 ## SCOMP.CPP: the word-copy forwarders
 
 Two byte-identical thiscall forwarders (30 bytes each) sit in the same
