@@ -132,10 +132,16 @@ auto Fight::player_fighter(d2d::rules::Fighter* kick ,
             for (const auto& item : weapon->socketed_items) add(weapon_sum, socket_props(*game_data, *weapon, item));
         }
         if (sum_out) *sum_out = sum;
+        const auto fighter_stats = [](d2d::rules::StatSum stats) {
+            // FUN_0057b7d0 reads stat 101 before stat 59: Venom's override
+            // is the duration of all poison on the player's melee record.
+            if (stats[kPoisonOverrideLength] > 0) stats[kPoisonLength] = stats[kPoisonOverrideLength];
+            return stats;
+        };
         const auto& resistances = actor->character.panel.res;                        // panel: fire, cold, lightning, poison
         const auto& gains = game_data->class_gains[std::size_t(std::max(actor->character.character_class, 0))];
         const std::array<int, 4> res{ int(resistances[0]), int(resistances[2]), int(resistances[1]), int(resistances[3]) };
-        auto fighter = d2d::rules::make_fighter(game_data->rules, weapon, shield, sum, weapon_sum, actor->character.stats, gains,
+        auto fighter = d2d::rules::make_fighter(game_data->rules, weapon, shield, fighter_stats(sum), weapon_sum, actor->character.stats, gains,
                                           int(actor->character.panel.defense), res, boots, throwing);
         {   // The swing starts by the weapon in hand: slot 4 else slot 5, a weapon, not broken and its requirements met (FUN_0063c9b0 -> FUN_0062a4e0,
             // the `weapon` chosen above), else nothing.
@@ -166,11 +172,11 @@ auto Fight::player_fighter(d2d::rules::Fighter* kick ,
                 for (const auto& socketed : item.socketed_items) add(other, socket_props(*game_data, item, socketed));
                 for (std::size_t i = 0; i < bare.size(); ++i) bare[i] -= other[i];
             }
-            *kick = d2d::rules::make_fighter(game_data->rules, nullptr, shield, bare, {}, actor->character.stats, gains,
+            *kick = d2d::rules::make_fighter(game_data->rules, nullptr, shield, fighter_stats(bare), {}, actor->character.stats, gains,
                                              int(actor->character.panel.defense), res, boots);
             // The panel's base (descatt 5): only the wielded weapon's stats off (FUN_00627910 in FUN_004e9040),
             // so the other hand's to-hit stays in it; the kick itself has both off.
-            fighter.ar_base_bare = d2d::rules::make_fighter(game_data->rules, nullptr, shield, weapon_off, {}, actor->character.stats, gains,
+            fighter.ar_base_bare = d2d::rules::make_fighter(game_data->rules, nullptr, shield, fighter_stats(weapon_off), {}, actor->character.stats, gains,
                                                             int(actor->character.panel.defense), res, boots).ar_base;
             kick->ar_base = fighter.ar_base; kick->ar_pct = fighter.ar_pct; kick->attack_rating = fighter.attack_rating;
             kick->kick_pct = fighter.kick_pct;
@@ -192,7 +198,10 @@ auto Fight::player_fighter(d2d::rules::Fighter* kick ,
 // applies to the panel defense. attackrate (68) is SIAS
 // (Fighter::sias, raw) and velocitypercent (67) is added after the
 // FRW's diminishing (FUN_00623f50).
-// ponytail: other stats make_fighter doesn't read do nothing.
+// Venom's skill_poison_override_length (101) replaces poisonlength (59)
+// before make_fighter, as FUN_0057b7d0 reads it for a nonzero poison field.
+// ponytail: other_animrate (69, also written for attackrate by FUN_005c6cc0),
+// curse_resistance (109) and skill_staminapercent (162) are not consumed here.
 auto Fight::update_fighters(std::uint32_t now_ms) -> void {
         using namespace d2d::d2s;
         std::erase_if(actor->self_states, [&](const SelfState& state) { return now_ms >= state.until; });

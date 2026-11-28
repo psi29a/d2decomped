@@ -2839,10 +2839,10 @@ bool monster_update(const GameData& game_data, const Level& level, Monster& mons
                         born->push_back(std::move(tentacle));
                     }
                 } else if (cast->srvdofunc == ServerDoFunction::kHydra) {
-                    // FUN_005ca910: three of its summon (hydra1) at the target, each gone Param1 frames on (AI control +0x14).
-                    // Each through FUN_0056d940 -> FUN_005b2f20 at radius -1 (flags 0x42): the
-                    // target's subtile alone (three draws of the room's seed), else none.
-                    // hydra1 is SizeX 0, so the heads share it.
+                    // FUN_005ca910: three heads, head k of its summon's row plus k (hydra1..3) a subtile apart round the
+                    // target (0x6e312c / 0x6e3120: rules::hydra), each through FUN_0056d940 at radius -1, then 4; none
+                    // when the target's room is a town's; each gone Param1 frames on (AI control +0x14).
+                    // ponytail: a monster's are three of hydra1 on the target, radius -1 alone (a player's: summons.cpp).
                     if (const auto summoned = game_data.monsters.by_id.find(cast->summon); born && summoned != game_data.monsters.by_id.end())
                         for (int head = 0; head < 3; ++head) {
                             int at_x = 0, at_y = 0;
