@@ -1019,7 +1019,8 @@ Blow player_blow(const Fighter& attacker, const Target& struck, int clvl, Rng& r
     if (fighter.crushing > 0 && rng(100) < fighter.crushing) {
         blow.crushing = true;
         crushing_fine = (target.life_fine >= 0 ? target.life_fine : target.hit_points * 256) / (target.crush_divisor * (swing.missile ? 2 : 1));
-        if (target.res[0] > 0) crushing_fine -= mul_div(crushing_fine, std::min(target.res[0], 100), 100);
+        // The unit's own damage resist: FUN_005bffc0 runs apart from FUN_0057c1e0, so no bypass (`struck`, not `target`).
+        if (struck.res[0] > 0) crushing_fine -= mul_div(crushing_fine, std::min(struck.res[0], 100), 100);
     }
     // The leech cuts the physical to the life the crush left: FUN_0057c6c0 reads stat 6 at 0x57c7f8, after the strike events.
     Target after_crush = target;
