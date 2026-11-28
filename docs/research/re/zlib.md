@@ -1,7 +1,8 @@
 # zlib 1.2.8 in game.exe 1.14d
 
 game.exe links zlib 1.2.8 statically, from `FUN_00427160` to `FUN_0042e120`
-(71 functions). Ghidra's signatures name none of it. The version is in the
+(`awk '$1 >= "00427160" && $1 <= "0042e120"' docs/research/re/game-functions.tsv | wc -l`
+counts them). Ghidra's signatures name none of it. The version is in the
 image: `" deflate 1.2.8 Copyright 1995-2013 Jean-loup Gailly and Mark Adler "`
 at `0x6d0238`, `"1.2.8"` at `0x6d3870` and
 `" inflate 1.2.8 Copyright 1995-2013 Mark Adler "` at `0x6d3878`. Nothing in
@@ -35,9 +36,10 @@ in address order.
 - **The compression levels.** `configuration_table` at `0x6d0280`, 10
   entries of 12 bytes (good, lazy, nice, chain as words, then the function),
   is zlib 1.2.8's table exactly: level 0 `deflate_stored`, 1-3
-  `deflate_fast`, 4-9 `deflate_slow`. `lm_init` reads the words and
-  `deflate` and `deflateParams` call through the pointers; those pointers are
-  the three functions' only references.
+  `deflate_fast`, 4-9 `deflate_slow`. `lm_init` reads the words,
+  `deflate` calls through the pointers, and `deflateParams` compares them
+  before calling `deflate`; those pointers are the three functions' only
+  references.
 - **The users.** Outside zlib, only `inflateInit_`, `inflate`, `inflateEnd`,
   `deflateInit_`, `deflate` and `deflateEnd` are called: by Storm's
   SCOMP.CPP compressor and unpacker (the cores `FUN_0041e100` and
